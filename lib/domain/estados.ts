@@ -5,11 +5,12 @@ import { EstadoPedido } from '@/types'
 // La función SQL 004_cambiar_estado_fn.sql espeja estas reglas — mantenerlas en sync.
 
 export const TRANSICIONES: Record<EstadoPedido, EstadoPedido[]> = {
-  pendiente:       ['comprado', 'cancelado'],
-  comprado:        ['llego_usa', 'cancelado'],
+  pendiente:       ['comprado',   'cancelado'],
+  comprado:        ['llego_usa',  'cancelado'],
   llego_usa:       ['bodega_colombia', 'cancelado'],
-  bodega_colombia: ['en_sede', 'cancelado'],
-  en_sede:         ['entregado', 'cancelado'],
+  bodega_colombia: ['avisado',    'cancelado'],
+  avisado:         ['en_sede',    'cancelado'],
+  en_sede:         ['entregado',  'cancelado'],
   entregado:       [],
   cancelado:       [],
 }

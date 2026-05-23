@@ -35,6 +35,7 @@ export type EstadoPedido =
   | 'comprado'
   | 'llego_usa'
   | 'bodega_colombia'
+  | 'avisado'
   | 'en_sede'
   | 'entregado'
   | 'cancelado'
@@ -171,6 +172,7 @@ export const ESTADO_LABELS: Record<EstadoPedido, string> = {
   comprado: 'Comprado',
   llego_usa: 'Llegó a USA',
   bodega_colombia: 'Bodega Colombia',
+  avisado: 'Avisado',
   en_sede: 'En sede',
   entregado: 'Entregado',
   cancelado: 'Cancelado',
@@ -181,6 +183,7 @@ export const ESTADO_COLORES: Record<EstadoPedido, string> = {
   comprado: 'bg-blue-100 text-blue-800',
   llego_usa: 'bg-purple-100 text-purple-800',
   bodega_colombia: 'bg-indigo-100 text-indigo-800',
+  avisado: 'bg-cyan-100 text-cyan-800',
   en_sede: 'bg-orange-100 text-orange-800',
   entregado: 'bg-green-100 text-green-800',
   cancelado: 'bg-gray-100 text-gray-600',
@@ -195,6 +198,7 @@ export const UMBRAL_ALERTA_DIAS_DOC: Partial<Record<EstadoPedido, number>> = {
   comprado: 7,
   llego_usa: 15,
   bodega_colombia: 5,
+  avisado: 3,
   en_sede: 2,
 }
 
