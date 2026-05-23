@@ -1,7 +1,8 @@
 'use client'
 
+import { useRef } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
-import { PedidoRow, PedidosResult } from '@/lib/queries/pedidos'
+import { PedidosResult } from '@/lib/queries/pedidos'
 import { PedidoCard } from './PedidoCard'
 import { EstadoPedido, ESTADO_LABELS } from '@/types'
 
@@ -33,6 +34,7 @@ export function PedidosList({ resultado, esAdmin }: PedidosListProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   const estadoActual = searchParams.get('estado') ?? ''
   const sedeActual   = searchParams.get('sede')   ?? ''
@@ -72,10 +74,15 @@ export function PedidosList({ resultado, esAdmin }: PedidosListProps) {
       {/* Filtros */}
       <div className="flex flex-wrap gap-3 items-center">
         <input
+          key={busqueda}
           type="search"
           placeholder="Buscar por número, cliente o teléfono..."
           defaultValue={busqueda}
-          onChange={(e) => setFiltro('q', e.target.value)}
+          onChange={(e) => {
+            const val = e.target.value
+            clearTimeout(debounceRef.current)
+            debounceRef.current = setTimeout(() => setFiltro('q', val), 400)
+          }}
           className="flex-1 min-w-48 max-w-sm rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
 

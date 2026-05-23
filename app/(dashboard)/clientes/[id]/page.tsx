@@ -38,7 +38,13 @@ export default async function ClienteDetallePage({
           ← Clientes
         </Link>
         <span className="text-gray-300">/</span>
-        <h1 className="text-lg font-bold text-gray-900">{cliente.nombre}</h1>
+        <h1 className="text-lg font-bold text-gray-900 flex-1">{cliente.nombre}</h1>
+        <Link
+          href={`/clientes/${id}/editar`}
+          className="px-4 py-2 text-sm font-medium border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 transition-colors"
+        >
+          Editar
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

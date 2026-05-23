@@ -1,5 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
 
+const PAGE_SIZE = 30
+
+export type ClientesResult = {
+  clientes: ClienteRow[]
+  total: number
+  pagina: number
+  totalPaginas: number
+}
+
 export type ClienteRow = {
   id: string
   nombre: string
@@ -32,45 +41,54 @@ export type ClienteDetalle = {
   }>
 }
 
-export async function getClientes(busqueda?: string): Promise<ClienteRow[]> {
+export async function getClientes(params?: {
+  busqueda?: string
+  pagina?: number
+}): Promise<ClientesResult> {
   const supabase = await createClient()
+  const pagina = Math.max(1, params?.pagina ?? 1)
+  const desde  = (pagina - 1) * PAGE_SIZE
+  const hasta  = desde + PAGE_SIZE - 1
 
   let query = supabase
     .from('clientes')
     .select(`
-      id,
-      nombre,
-      telefono_normalizado,
-      cedula,
-      email,
-      notas,
-      creado_en,
+      id, nombre, telefono_normalizado, cedula, email, notas, creado_en,
       pedidos (fecha_creacion)
-    `)
+    `, { count: 'exact' })
     .order('nombre', { ascending: true })
+    .range(desde, hasta)
 
-  if (busqueda) {
-    query = query.or(`nombre.ilike.%${busqueda}%,telefono_normalizado.ilike.%${busqueda}%`)
+  if (params?.busqueda) {
+    query = query.or(
+      `nombre.ilike.%${params.busqueda}%,telefono_normalizado.ilike.%${params.busqueda}%`
+    )
   }
 
-  const { data, error } = await query
+  const { data, error, count } = await query
   if (error) throw new Error(`Error cargando clientes: ${error.message}`)
 
-  return (data ?? []).map((c: any) => ({
-    id: c.id,
-    nombre: c.nombre,
-    telefono_normalizado: c.telefono_normalizado,
-    cedula: c.cedula,
-    email: c.email,
-    notas: c.notas,
-    creado_en: c.creado_en,
-    total_pedidos: c.pedidos?.length ?? 0,
-    ultimo_pedido: c.pedidos?.length
-      ? c.pedidos.sort((a: any, b: any) =>
-          b.fecha_creacion.localeCompare(a.fecha_creacion)
-        )[0].fecha_creacion
-      : null,
-  }))
+  const total = count ?? 0
+  return {
+    clientes: (data ?? []).map((c: any) => ({
+      id:                   c.id,
+      nombre:               c.nombre,
+      telefono_normalizado: c.telefono_normalizado,
+      cedula:               c.cedula,
+      email:                c.email,
+      notas:                c.notas,
+      creado_en:            c.creado_en,
+      total_pedidos:        c.pedidos?.length ?? 0,
+      ultimo_pedido:        c.pedidos?.length
+        ? c.pedidos.sort((a: any, b: any) =>
+            b.fecha_creacion.localeCompare(a.fecha_creacion)
+          )[0].fecha_creacion
+        : null,
+    })),
+    total,
+    pagina,
+    totalPaginas: Math.max(1, Math.ceil(total / PAGE_SIZE)),
+  }
 }
 
 export async function getClienteDetalle(id: string): Promise<ClienteDetalle | null> {
