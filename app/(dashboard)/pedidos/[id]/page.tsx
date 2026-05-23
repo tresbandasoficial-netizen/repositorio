@@ -35,7 +35,13 @@ export default async function PedidoDetallePage({
         <span className="font-mono font-bold text-gray-900 text-lg">{pedido.numero_orden}</span>
         <EstadoBadge estado={pedido.estado} enAlerta={pedido.en_alerta} />
 
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex gap-2 flex-wrap justify-end">
+          <Link
+            href={`/pedidos/${id}/editar`}
+            className="text-sm bg-white border border-gray-300 hover:bg-gray-50 px-3 py-1.5 rounded-lg font-medium text-gray-700 transition-colors"
+          >
+            Editar
+          </Link>
           <Link
             href={`/pedidos/${id}/estado`}
             className="text-sm bg-white border border-gray-300 hover:bg-gray-50 px-3 py-1.5 rounded-lg font-medium text-gray-700 transition-colors"
@@ -47,6 +53,13 @@ export default async function PedidoDetallePage({
             className="text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-medium transition-colors"
           >
             + Registrar pago
+          </Link>
+          <Link
+            href={`/pedidos/${id}/imprimir`}
+            target="_blank"
+            className="text-sm bg-white border border-gray-300 hover:bg-gray-50 px-3 py-1.5 rounded-lg font-medium text-gray-500 transition-colors"
+          >
+            Imprimir
           </Link>
         </div>
       </div>

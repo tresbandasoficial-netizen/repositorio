@@ -231,3 +231,49 @@ export async function registrarPagoAction(
 
   redirect(`/pedidos/${pedidoId}`)
 }
+
+// ─── Editar pedido ────────────────────────────────────────────────────────────
+// Solo campos operacionales (notas, entrega). Los items y el total son inmutables.
+
+export type EditarPedidoResult =
+  | { ok: true }
+  | { ok: false; error: string }
+
+export async function editarPedidoAction(
+  pedidoId: string,
+  data: {
+    notas: string
+    tipo_entrega: 'sede' | 'domicilio'
+    direccion_entrega: string
+  }
+): Promise<EditarPedidoResult> {
+  const sesion = await getSesion()
+  const supabase = await createClient()
+
+  const { data: pedidoCheck } = await supabase
+    .from('vista_pedidos_asesor')
+    .select('sede_id, estado')
+    .eq('id', pedidoId)
+    .single()
+
+  if (!pedidoCheck) return { ok: false, error: 'Pedido no encontrado' }
+  if (!puedeAccederSede(sesion, pedidoCheck.sede_id)) return { ok: false, error: 'Sin acceso a este pedido' }
+  if (pedidoCheck.estado === 'cancelado') return { ok: false, error: 'No se puede editar un pedido cancelado' }
+
+  if (data.tipo_entrega === 'domicilio' && !data.direccion_entrega.trim()) {
+    return { ok: false, error: 'La dirección de entrega es obligatoria para domicilio' }
+  }
+
+  const { error: updateError } = await supabase
+    .from('pedidos')
+    .update({
+      notas:             data.notas.trim() || null,
+      tipo_entrega:      data.tipo_entrega,
+      direccion_entrega: data.tipo_entrega === 'domicilio' ? data.direccion_entrega.trim() : null,
+    })
+    .eq('id', pedidoId)
+
+  if (updateError) return { ok: false, error: updateError.message }
+
+  redirect(`/pedidos/${pedidoId}`)
+}
