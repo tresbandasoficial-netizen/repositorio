@@ -65,6 +65,16 @@ export function PedidosList({ resultado, esAdmin }: PedidosListProps) {
     router.push(`${pathname}?${params.toString()}`)
   }
 
+  function buildExportUrl() {
+    const params = new URLSearchParams()
+    if (busqueda)     params.set('q', busqueda)
+    if (estadoActual) params.set('estado', estadoActual)
+    if (sedeActual)   params.set('sede', sedeActual)
+    if (soloAlertas)  params.set('alerta', '1')
+    const qs = params.toString()
+    return `/api/export/pedidos${qs ? `?${qs}` : ''}`
+  }
+
   const { pedidos, total, pagina, totalPaginas } = resultado
   const desde = (pagina - 1) * 25 + 1
   const hasta  = Math.min(pagina * 25, total)
@@ -122,6 +132,14 @@ export function PedidosList({ resultado, esAdmin }: PedidosListProps) {
         <span className="text-sm text-gray-400 ml-auto">
           {total === 0 ? 'Sin resultados' : `${desde}–${hasta} de ${total}`}
         </span>
+
+        <a
+          href={buildExportUrl()}
+          download
+          className="text-sm font-medium px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 transition-colors whitespace-nowrap"
+        >
+          ↓ CSV
+        </a>
       </div>
 
       {/* Lista */}

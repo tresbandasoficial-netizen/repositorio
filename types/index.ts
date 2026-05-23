@@ -169,6 +169,14 @@ export type MetricasAsesor = {
   ticket_promedio: number
 }
 
+export type MetricasSede = {
+  sede_codigo: string
+  sede_nombre: string
+  pedidos_activos: number
+  pedidos_en_alerta: number
+  ventas_mes: number
+}
+
 export const ESTADO_LABELS: Record<EstadoPedido, string> = {
   pendiente: 'Pendiente',
   comprado: 'Comprado',

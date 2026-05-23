@@ -61,7 +61,7 @@ export async function getClientes(params?: {
 
   if (params?.busqueda) {
     query = query.or(
-      `nombre.ilike.%${params.busqueda}%,telefono_normalizado.ilike.%${params.busqueda}%`
+      `nombre.ilike.%${params.busqueda}%,telefono_normalizado.ilike.%${params.busqueda}%,cedula.ilike.%${params.busqueda}%`
     )
   }
 

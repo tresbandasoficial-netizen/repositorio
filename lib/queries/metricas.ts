@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { MetricasAdmin, MetricasAsesor } from '@/types'
+import { MetricasAdmin, MetricasAsesor, MetricasSede } from '@/types'
 
 function hace(dias: number): string {
   const d = new Date()
@@ -111,4 +111,44 @@ export async function getMetricasAsesor(asesorId: string): Promise<MetricasAseso
     ventas_mes:        ventasMes,
     ticket_promedio:   countMes > 0 ? Math.round(ventasMes / countMes) : 0,
   }
+}
+
+export async function getMetricasPorSede(): Promise<MetricasSede[]> {
+  const supabase = await createClient()
+
+  const [activos, mensuales] = await Promise.all([
+    supabase
+      .from('vista_pedidos_asesor')
+      .select('sede_codigo, sede_nombre, en_alerta')
+      .not('estado', 'in', '("entregado","cancelado")'),
+    supabase
+      .from('vista_pedidos_asesor')
+      .select('sede_codigo, total')
+      .gte('fecha_creacion', hace(30))
+      .neq('estado', 'cancelado'),
+  ])
+
+  const SEDES = ['TR', 'CR', 'SR']
+  const nombreBySede: Record<string, string> = {}
+  const activosBySede: Record<string, { count: number; alertas: number }> = {}
+  const ventasBySede: Record<string, number> = {}
+
+  for (const r of (activos.data ?? []) as Array<{ sede_codigo: string; sede_nombre: string; en_alerta: boolean }>) {
+    nombreBySede[r.sede_codigo] = r.sede_nombre
+    if (!activosBySede[r.sede_codigo]) activosBySede[r.sede_codigo] = { count: 0, alertas: 0 }
+    activosBySede[r.sede_codigo].count++
+    if (r.en_alerta) activosBySede[r.sede_codigo].alertas++
+  }
+
+  for (const r of (mensuales.data ?? []) as Array<{ sede_codigo: string; total: number }>) {
+    ventasBySede[r.sede_codigo] = (ventasBySede[r.sede_codigo] ?? 0) + r.total
+  }
+
+  return SEDES.map((codigo) => ({
+    sede_codigo:       codigo,
+    sede_nombre:       nombreBySede[codigo] ?? codigo,
+    pedidos_activos:   activosBySede[codigo]?.count ?? 0,
+    pedidos_en_alerta: activosBySede[codigo]?.alertas ?? 0,
+    ventas_mes:        ventasBySede[codigo] ?? 0,
+  }))
 }
