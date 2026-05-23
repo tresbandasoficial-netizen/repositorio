@@ -1,0 +1,68 @@
+'use client'
+
+import Link from 'next/link'
+import { usePathname, useRouter } from 'next/navigation'
+import { cn } from '@/lib/utils/cn'
+import { createClient } from '@/lib/supabase/client'
+import { Usuario } from '@/types'
+
+interface SidebarProps {
+  usuario: Pick<Usuario, 'nombre' | 'rol'>
+}
+
+const navItems = [
+  { href: '/pedidos', label: 'Pedidos', rol: ['asesor', 'admin'] },
+  { href: '/clientes', label: 'Clientes', rol: ['asesor', 'admin'] },
+]
+
+export function Sidebar({ usuario }: SidebarProps) {
+  const pathname = usePathname()
+  const router = useRouter()
+
+  async function handleLogout() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/login')
+    router.refresh()
+  }
+
+  const items = navItems.filter((item) => item.rol.includes(usuario.rol))
+
+  return (
+    <aside className="w-56 shrink-0 flex flex-col bg-gray-900 min-h-screen">
+      <div className="px-4 py-5 border-b border-gray-700">
+        <span className="text-white font-bold text-base">TR Original</span>
+      </div>
+
+      <nav className="flex-1 px-3 py-4 space-y-1">
+        {items.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={cn(
+              'flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+              pathname.startsWith(item.href)
+                ? 'bg-gray-700 text-white'
+                : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+            )}
+          >
+            {item.label}
+          </Link>
+        ))}
+      </nav>
+
+      <div className="px-3 py-4 border-t border-gray-700 space-y-2">
+        <div className="px-3">
+          <p className="text-xs text-gray-400 truncate">{usuario.nombre}</p>
+          <p className="text-xs text-gray-500 capitalize">{usuario.rol}</p>
+        </div>
+        <button
+          onClick={handleLogout}
+          className="w-full text-left px-3 py-2 rounded-lg text-sm text-gray-400 hover:bg-gray-800 hover:text-white transition-colors"
+        >
+          Cerrar sesión
+        </button>
+      </div>
+    </aside>
+  )
+}
