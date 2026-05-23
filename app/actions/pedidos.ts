@@ -6,7 +6,7 @@ import { parsearPedido } from '@/lib/parser'
 import { normalizarTelefono } from '@/lib/utils/phone'
 import { getSiguienteNumeroOrden } from '@/lib/queries/pedidos'
 import { puedeTransicionar } from '@/lib/domain/estados'
-import { EstadoPedido } from '@/types'
+import { EstadoPedido, MetodoPago } from '@/types'
 
 export type CrearPedidoResult =
   | { ok: true; pedidoId: string }
@@ -183,6 +183,51 @@ export async function cambiarEstadoAction(
     p_pedido_id:   pedidoId,
     p_nuevo_estado: nuevoEstado,
     p_usuario_id:  usuario.id,
+  })
+
+  if (error) return { ok: false, error: error.message }
+
+  redirect(`/pedidos/${pedidoId}`)
+}
+
+// ─── Registrar pago ───────────────────────────────────────────────────────────
+
+export type RegistrarPagoResult =
+  | { ok: true }
+  | { ok: false; error: string }
+
+export async function registrarPagoAction(
+  pedidoId: string,
+  data: { monto: number; metodo: MetodoPago; fecha: string; notas: string }
+): Promise<RegistrarPagoResult> {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'No autenticado' }
+
+  // Obtener estado y saldo actual del pedido
+  const { data: pedido } = await supabase
+    .from('vista_pedidos_asesor')
+    .select('estado, total, total_pagado')
+    .eq('id', pedidoId)
+    .single()
+
+  if (!pedido) return { ok: false, error: 'Pedido no encontrado' }
+  if (pedido.estado === 'cancelado') return { ok: false, error: 'No se pueden registrar pagos en pedidos cancelados' }
+
+  const saldo = pedido.total - pedido.total_pagado
+  if (data.monto <= 0) return { ok: false, error: 'El monto debe ser mayor a cero' }
+  if (data.monto > saldo) {
+    return { ok: false, error: `El monto supera el saldo pendiente (${saldo.toLocaleString('es-CO')} COP)` }
+  }
+
+  const { error } = await supabase.from('pagos').insert({
+    pedido_id: pedidoId,
+    monto:     data.monto,
+    metodo:    data.metodo,
+    fecha:     data.fecha,
+    notas:     data.notas || null,
+    asesor_id: user.id,
   })
 
   if (error) return { ok: false, error: error.message }
