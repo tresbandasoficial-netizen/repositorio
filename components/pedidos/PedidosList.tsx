@@ -7,13 +7,14 @@ import { EstadoPedido, ESTADO_LABELS } from '@/types'
 
 const ESTADOS: Array<{ value: EstadoPedido | ''; label: string }> = [
   { value: '', label: 'Todos los estados' },
-  { value: 'pendiente', label: ESTADO_LABELS.pendiente },
-  { value: 'comprado', label: ESTADO_LABELS.comprado },
-  { value: 'llego_usa', label: ESTADO_LABELS.llego_usa },
-  { value: 'bodega_colombia', label: ESTADO_LABELS.bodega_colombia },
-  { value: 'en_sede', label: ESTADO_LABELS.en_sede },
-  { value: 'entregado', label: ESTADO_LABELS.entregado },
-  { value: 'cancelado', label: ESTADO_LABELS.cancelado },
+  { value: 'pendiente',        label: ESTADO_LABELS.pendiente },
+  { value: 'comprado',         label: ESTADO_LABELS.comprado },
+  { value: 'llego_usa',        label: ESTADO_LABELS.llego_usa },
+  { value: 'bodega_colombia',  label: ESTADO_LABELS.bodega_colombia },
+  { value: 'avisado',          label: ESTADO_LABELS.avisado },
+  { value: 'en_sede',          label: ESTADO_LABELS.en_sede },
+  { value: 'entregado',        label: ESTADO_LABELS.entregado },
+  { value: 'cancelado',        label: ESTADO_LABELS.cancelado },
 ]
 
 const SEDES = [
@@ -33,9 +34,10 @@ export function PedidosList({ pedidos, esAdmin }: PedidosListProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
-  const estadoActual = searchParams.get('estado') ?? ''
-  const sedeActual = searchParams.get('sede') ?? ''
-  const busqueda = searchParams.get('q') ?? ''
+  const estadoActual  = searchParams.get('estado') ?? ''
+  const sedeActual    = searchParams.get('sede')   ?? ''
+  const busqueda      = searchParams.get('q')      ?? ''
+  const soloAlertas   = searchParams.get('alerta') === '1'
 
   function setFiltro(key: string, value: string) {
     const params = new URLSearchParams(searchParams.toString())
@@ -44,7 +46,15 @@ export function PedidosList({ pedidos, esAdmin }: PedidosListProps) {
     router.push(`${pathname}?${params.toString()}`)
   }
 
+  function toggleAlertas() {
+    const params = new URLSearchParams(searchParams.toString())
+    if (soloAlertas) params.delete('alerta')
+    else params.set('alerta', '1')
+    router.push(`${pathname}?${params.toString()}`)
+  }
+
   const pedidosFiltrados = pedidos.filter((p) => {
+    if (soloAlertas && !p.en_alerta) return false
     if (!busqueda) return true
     const q = busqueda.toLowerCase()
     return (
@@ -55,7 +65,7 @@ export function PedidosList({ pedidos, esAdmin }: PedidosListProps) {
   })
 
   // en_alerta viene de SQL — no hay lógica de umbrales aquí
-  const totalEnAlerta = pedidosFiltrados.filter((p) => p.en_alerta).length
+  const totalEnAlerta = pedidos.filter((p) => p.en_alerta).length
 
   return (
     <div className="space-y-4">
@@ -92,9 +102,16 @@ export function PedidosList({ pedidos, esAdmin }: PedidosListProps) {
         )}
 
         {totalEnAlerta > 0 && (
-          <span className="text-sm text-red-600 font-medium">
+          <button
+            onClick={toggleAlertas}
+            className={`text-sm font-medium px-3 py-1.5 rounded-lg border transition-colors ${
+              soloAlertas
+                ? 'bg-red-600 border-red-600 text-white'
+                : 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'
+            }`}
+          >
             ⚠ {totalEnAlerta} en alerta
-          </span>
+          </button>
         )}
 
         <span className="text-sm text-gray-400 ml-auto">
