@@ -172,8 +172,11 @@ export const ESTADO_COLORES: Record<EstadoPedido, string> = {
   cancelado: 'bg-gray-100 text-gray-600',
 }
 
-// Días máximos por estado antes de generar alerta
-export const UMBRAL_ALERTA_DIAS: Partial<Record<EstadoPedido, number>> = {
+// REFERENCIA DOCUMENTAL — los umbrales reales que generan alertas
+// están definidos en supabase/migrations/002_alertas_view.sql
+// (vista_pedidos_asesor, columna en_alerta).
+// NO usar estas constantes para calcular alertas en el frontend.
+export const UMBRAL_ALERTA_DIAS_DOC: Partial<Record<EstadoPedido, number>> = {
   pendiente: 3,
   comprado: 7,
   llego_usa: 15,
@@ -181,4 +184,5 @@ export const UMBRAL_ALERTA_DIAS: Partial<Record<EstadoPedido, number>> = {
   en_sede: 2,
 }
 
-export const DIAS_ZOMBIE = 30
+// REFERENCIA DOCUMENTAL — el umbral real de zombie está en la misma migración.
+export const DIAS_ZOMBIE_DOC = 30
