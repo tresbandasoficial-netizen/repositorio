@@ -1,7 +1,9 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { getMetricasAdmin, getMetricasAsesor, getMetricasPorSede } from '@/lib/queries/metricas'
+import { getMetricasAdmin, getMetricasAsesor, getMetricasPorSede, getUltimosPedidosAsesor } from '@/lib/queries/metricas'
+import { EstadoBadge } from '@/components/pedidos/EstadoBadge'
+import { EstadoPedido } from '@/types'
 import { formatCOP } from '@/lib/utils/format'
 import { Card, CardContent } from '@/components/ui/Card'
 
@@ -175,7 +177,10 @@ export default async function DashboardPage() {
   }
 
   // Vista asesor
-  const m = await getMetricasAsesor(usuario.id)
+  const [m, ultimosPedidos] = await Promise.all([
+    getMetricasAsesor(usuario.id),
+    getUltimosPedidosAsesor(usuario.id),
+  ])
 
   return (
     <div className="p-6">
@@ -203,6 +208,25 @@ export default async function DashboardPage() {
         <KpiCard label="Ventas del mes"     valor={formatCOP(m.ventas_mes)} />
         <KpiCard label="Ticket promedio"    valor={formatCOP(m.ticket_promedio)} />
       </div>
+
+      {ultimosPedidos.length > 0 && (
+        <section className="mb-6">
+          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Pedidos activos</h2>
+          <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-50">
+            {ultimosPedidos.map((p) => (
+              <Link
+                key={p.id}
+                href={`/pedidos/${p.id}`}
+                className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors"
+              >
+                <span className="font-mono text-sm font-medium text-gray-900 w-20 shrink-0">{p.numero_orden}</span>
+                <span className="flex-1 text-sm text-gray-600 truncate">{p.cliente_nombre}</span>
+                <EstadoBadge estado={p.estado as EstadoPedido} enAlerta={p.en_alerta} />
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="flex gap-3">
         <Link

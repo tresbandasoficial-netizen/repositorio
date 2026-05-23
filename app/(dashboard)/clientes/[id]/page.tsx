@@ -5,7 +5,7 @@ import { getClienteDetalle } from '@/lib/queries/clientes'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { EstadoBadge } from '@/components/pedidos/EstadoBadge'
 import { formatCOP, formatFecha } from '@/lib/utils/format'
-import { formatearTelefono } from '@/lib/utils/phone'
+import { formatearTelefono, whatsappUrl } from '@/lib/utils/phone'
 import { EstadoPedido } from '@/types'
 
 export default async function ClienteDetallePage({
@@ -133,7 +133,17 @@ export default async function ClienteDetallePage({
               </div>
               <div>
                 <p className="text-xs text-gray-500">Teléfono</p>
-                <p className="font-medium text-gray-900">{formatearTelefono(cliente.telefono_normalizado)}</p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <p className="font-medium text-gray-900">{formatearTelefono(cliente.telefono_normalizado)}</p>
+                  <a
+                    href={whatsappUrl(cliente.telefono_normalizado)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 hover:bg-green-200 transition-colors font-medium"
+                  >
+                    WhatsApp
+                  </a>
+                </div>
               </div>
               {cliente.cedula && (
                 <div>

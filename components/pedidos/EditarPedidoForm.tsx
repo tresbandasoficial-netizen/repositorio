@@ -8,12 +8,14 @@ interface Props {
   notas: string | null
   tipoEntrega: 'sede' | 'domicilio'
   direccionEntrega: string | null
+  numeroGuia: string | null
 }
 
-export function EditarPedidoForm({ pedidoId, notas, tipoEntrega, direccionEntrega }: Props) {
+export function EditarPedidoForm({ pedidoId, notas, tipoEntrega, direccionEntrega, numeroGuia }: Props) {
   const [tipo, setTipo]           = useState<'sede' | 'domicilio'>(tipoEntrega)
   const [direccion, setDireccion] = useState(direccionEntrega ?? '')
   const [notasVal, setNotasVal]   = useState(notas ?? '')
+  const [guia, setGuia]           = useState(numeroGuia ?? '')
   const [error, setError]         = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
@@ -25,6 +27,7 @@ export function EditarPedidoForm({ pedidoId, notas, tipoEntrega, direccionEntreg
         notas:             notasVal,
         tipo_entrega:      tipo,
         direccion_entrega: direccion,
+        numero_guia:       guia,
       })
       if (!result.ok) setError(result.error)
     })
@@ -69,6 +72,20 @@ export function EditarPedidoForm({ pedidoId, notas, tipoEntrega, direccionEntreg
           />
         </div>
       )}
+
+      {/* Número de guía */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+          Número de guía <span className="text-gray-400 font-normal">(opcional)</span>
+        </label>
+        <input
+          type="text"
+          value={guia}
+          onChange={(e) => setGuia(e.target.value)}
+          className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="USPS, FedEx, DHL, Servientrega…"
+        />
+      </div>
 
       {/* Notas */}
       <div>

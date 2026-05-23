@@ -4,9 +4,10 @@ import { getPedidoDetalle } from '@/lib/queries/pedidos'
 import { EstadoBadge } from '@/components/pedidos/EstadoBadge'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { formatCOP, formatFecha, formatFechaHora } from '@/lib/utils/format'
-import { formatearTelefono } from '@/lib/utils/phone'
+import { formatearTelefono, whatsappUrl } from '@/lib/utils/phone'
 import { ESTADO_LABELS } from '@/types'
 import { getSesion, puedeAccederSede } from '@/lib/auth/acceso'
+import { CopiarResumen } from '@/components/pedidos/CopiarResumen'
 
 export default async function PedidoDetallePage({
   params,
@@ -193,15 +194,28 @@ export default async function PedidoDetallePage({
             <CardHeader>
               <h2 className="text-sm font-semibold text-gray-900">Cliente</h2>
             </CardHeader>
-            <CardContent>
-              <p className="font-medium text-gray-900">{pedido.cliente_nombre}</p>
-              <p className="text-sm text-gray-500 mt-1">{formatearTelefono(pedido.cliente_telefono)}</p>
-              <Link
-                href={`/clientes/${pedido.cliente_id}`}
-                className="text-xs text-blue-600 hover:underline mt-2 block"
-              >
-                Ver historial del cliente →
-              </Link>
+            <CardContent className="space-y-3">
+              <div>
+                <p className="font-medium text-gray-900">{pedido.cliente_nombre}</p>
+                <p className="text-sm text-gray-500 mt-0.5">{formatearTelefono(pedido.cliente_telefono)}</p>
+              </div>
+              <div className="flex gap-2">
+                <a
+                  href={whatsappUrl(pedido.cliente_telefono)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 text-center text-xs px-3 py-2 rounded-lg border border-green-200 bg-green-50 hover:bg-green-100 text-green-700 font-medium transition-colors"
+                >
+                  WhatsApp
+                </a>
+                <Link
+                  href={`/clientes/${pedido.cliente_id}`}
+                  className="flex-1 text-center text-xs px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-600 transition-colors"
+                >
+                  Ver cliente
+                </Link>
+              </div>
+              <CopiarResumen pedido={pedido} />
             </CardContent>
           </Card>
 
@@ -227,6 +241,12 @@ export default async function PedidoDetallePage({
                 <div>
                   <span className="text-gray-500 block">Dirección</span>
                   <span className="text-gray-700 text-xs">{pedido.direccion_entrega}</span>
+                </div>
+              )}
+              {pedido.numero_guia && (
+                <div>
+                  <span className="text-gray-500 block">Guía de envío</span>
+                  <span className="font-mono text-xs text-gray-800 break-all">{pedido.numero_guia}</span>
                 </div>
               )}
               <div className="flex justify-between">

@@ -245,6 +245,7 @@ export async function editarPedidoAction(
     notas: string
     tipo_entrega: 'sede' | 'domicilio'
     direccion_entrega: string
+    numero_guia: string
   }
 ): Promise<EditarPedidoResult> {
   const sesion = await getSesion()
@@ -270,6 +271,7 @@ export async function editarPedidoAction(
       notas:             data.notas.trim() || null,
       tipo_entrega:      data.tipo_entrega,
       direccion_entrega: data.tipo_entrega === 'domicilio' ? data.direccion_entrega.trim() : null,
+      numero_guia:       data.numero_guia.trim() || null,
     })
     .eq('id', pedidoId)
 

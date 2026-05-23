@@ -30,3 +30,8 @@ export function formatearTelefono(normalizado: string): string {
   if (m) return `+57 ${m[1]} ${m[2]} ${m[3]}`
   return normalizado
 }
+
+export function whatsappUrl(normalizado: string): string {
+  // +57XXXXXXXXXX → https://wa.me/57XXXXXXXXXX
+  return `https://wa.me/${normalizado.replace('+', '')}`
+}

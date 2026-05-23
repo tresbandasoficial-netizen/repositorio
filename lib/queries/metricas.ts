@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { MetricasAdmin, MetricasAsesor, MetricasSede } from '@/types'
+import type { PedidoRow } from '@/lib/queries/pedidos'
 
 function hace(dias: number): string {
   const d = new Date()
@@ -151,4 +152,16 @@ export async function getMetricasPorSede(): Promise<MetricasSede[]> {
     pedidos_en_alerta: activosBySede[codigo]?.alertas ?? 0,
     ventas_mes:        ventasBySede[codigo] ?? 0,
   }))
+}
+
+export async function getUltimosPedidosAsesor(asesorId: string): Promise<PedidoRow[]> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('vista_pedidos_asesor')
+    .select('*')
+    .eq('asesor_id', asesorId)
+    .not('estado', 'in', '("entregado","cancelado")')
+    .order('fecha_actualizacion', { ascending: false })
+    .limit(6)
+  return (data ?? []) as PedidoRow[]
 }
