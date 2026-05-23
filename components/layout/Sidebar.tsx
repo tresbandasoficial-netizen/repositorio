@@ -9,6 +9,7 @@ import { CampanaNotificaciones } from './CampanaNotificaciones'
 
 interface SidebarProps {
   usuario: Pick<Usuario, 'id' | 'nombre' | 'rol'>
+  onClose?: () => void
 }
 
 const navItems = [
@@ -18,7 +19,7 @@ const navItems = [
   { href: '/usuarios',  label: 'Usuarios',  rol: ['admin'] },
 ]
 
-export function Sidebar({ usuario }: SidebarProps) {
+export function Sidebar({ usuario, onClose }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
 
@@ -42,6 +43,7 @@ export function Sidebar({ usuario }: SidebarProps) {
           <Link
             key={item.href}
             href={item.href}
+            onClick={onClose}
             className={cn(
               'flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors',
               pathname.startsWith(item.href)

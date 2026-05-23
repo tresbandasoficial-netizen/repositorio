@@ -9,6 +9,8 @@ interface SearchParams {
   estado?: string
   sede?: string
   q?: string
+  alerta?: string
+  pagina?: string
 }
 
 export default async function PedidosPage({
@@ -31,9 +33,12 @@ export default async function PedidosPage({
   const esAdmin = usuario.rol === 'admin'
   const params = await searchParams
 
-  const pedidos = await getPedidos({
-    estado: params.estado as EstadoPedido | undefined,
-    sede: params.sede,
+  const resultado = await getPedidos({
+    estado:    params.estado as EstadoPedido | undefined,
+    q:         params.q,
+    alerta:    params.alerta === '1',
+    pagina:    params.pagina ? parseInt(params.pagina) : 1,
+    sede:      params.sede,
     // Asesores solo ven pedidos de su sede asignada
     ...(!esAdmin && usuario.sedes ? { sede: (usuario.sedes as any).codigo } : {}),
   })
@@ -53,7 +58,7 @@ export default async function PedidosPage({
         </Link>
       </div>
 
-      <PedidosList pedidos={pedidos} esAdmin={esAdmin} />
+      <PedidosList resultado={resultado} esAdmin={esAdmin} />
     </div>
   )
 }

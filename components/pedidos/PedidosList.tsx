@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
-import { PedidoRow } from '@/lib/queries/pedidos'
+import { PedidoRow, PedidosResult } from '@/lib/queries/pedidos'
 import { PedidoCard } from './PedidoCard'
 import { EstadoPedido, ESTADO_LABELS } from '@/types'
 
@@ -25,24 +25,26 @@ const SEDES = [
 ]
 
 interface PedidosListProps {
-  pedidos: PedidoRow[]
+  resultado: PedidosResult
   esAdmin: boolean
 }
 
-export function PedidosList({ pedidos, esAdmin }: PedidosListProps) {
+export function PedidosList({ resultado, esAdmin }: PedidosListProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
-  const estadoActual  = searchParams.get('estado') ?? ''
-  const sedeActual    = searchParams.get('sede')   ?? ''
-  const busqueda      = searchParams.get('q')      ?? ''
-  const soloAlertas   = searchParams.get('alerta') === '1'
+  const estadoActual = searchParams.get('estado') ?? ''
+  const sedeActual   = searchParams.get('sede')   ?? ''
+  const busqueda     = searchParams.get('q')      ?? ''
+  const soloAlertas  = searchParams.get('alerta') === '1'
 
   function setFiltro(key: string, value: string) {
     const params = new URLSearchParams(searchParams.toString())
     if (value) params.set(key, value)
     else params.delete(key)
+    // Resetear paginación al cambiar filtros
+    params.delete('pagina')
     router.push(`${pathname}?${params.toString()}`)
   }
 
@@ -50,22 +52,20 @@ export function PedidosList({ pedidos, esAdmin }: PedidosListProps) {
     const params = new URLSearchParams(searchParams.toString())
     if (soloAlertas) params.delete('alerta')
     else params.set('alerta', '1')
+    params.delete('pagina')
     router.push(`${pathname}?${params.toString()}`)
   }
 
-  const pedidosFiltrados = pedidos.filter((p) => {
-    if (soloAlertas && !p.en_alerta) return false
-    if (!busqueda) return true
-    const q = busqueda.toLowerCase()
-    return (
-      p.numero_orden.toLowerCase().includes(q) ||
-      p.cliente_nombre.toLowerCase().includes(q) ||
-      p.cliente_telefono.includes(q)
-    )
-  })
+  function irAPagina(p: number) {
+    const params = new URLSearchParams(searchParams.toString())
+    if (p === 1) params.delete('pagina')
+    else params.set('pagina', p.toString())
+    router.push(`${pathname}?${params.toString()}`)
+  }
 
-  // en_alerta viene de SQL — no hay lógica de umbrales aquí
-  const totalEnAlerta = pedidos.filter((p) => p.en_alerta).length
+  const { pedidos, total, pagina, totalPaginas } = resultado
+  const desde = (pagina - 1) * 25 + 1
+  const hasta  = Math.min(pagina * 25, total)
 
   return (
     <div className="space-y-4">
@@ -101,29 +101,25 @@ export function PedidosList({ pedidos, esAdmin }: PedidosListProps) {
           </select>
         )}
 
-        {totalEnAlerta > 0 && (
-          <button
-            onClick={toggleAlertas}
-            className={`text-sm font-medium px-3 py-1.5 rounded-lg border transition-colors ${
-              soloAlertas
-                ? 'bg-red-600 border-red-600 text-white'
-                : 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'
-            }`}
-          >
-            ⚠ {totalEnAlerta} en alerta
-          </button>
-        )}
+        <button
+          onClick={toggleAlertas}
+          className={`text-sm font-medium px-3 py-2 rounded-lg border transition-colors ${
+            soloAlertas
+              ? 'bg-red-600 border-red-600 text-white'
+              : 'bg-white border-gray-300 text-gray-600 hover:border-red-300 hover:text-red-600'
+          }`}
+        >
+          ⚠ Alertas
+        </button>
 
         <span className="text-sm text-gray-400 ml-auto">
-          {pedidosFiltrados.length} pedido{pedidosFiltrados.length !== 1 ? 's' : ''}
+          {total === 0 ? 'Sin resultados' : `${desde}–${hasta} de ${total}`}
         </span>
       </div>
 
       {/* Lista */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm divide-y divide-gray-100">
-        <div
-          className="px-6 py-3 bg-gray-50 rounded-t-xl flex gap-4 text-xs font-medium text-gray-500 uppercase tracking-wide"
-        >
+        <div className="px-6 py-3 bg-gray-50 rounded-t-xl flex gap-4 text-xs font-medium text-gray-500 uppercase tracking-wide">
           <span className="w-24">Orden</span>
           <span className="flex-1">Cliente</span>
           <span className="w-40">Estado</span>
@@ -133,18 +129,41 @@ export function PedidosList({ pedidos, esAdmin }: PedidosListProps) {
           <span className="w-4" />
         </div>
 
-        {pedidosFiltrados.length === 0 ? (
+        {pedidos.length === 0 ? (
           <div className="px-6 py-12 text-center text-gray-400 text-sm">
             No hay pedidos con estos filtros.
           </div>
         ) : (
           <div className="divide-y divide-gray-100">
-            {pedidosFiltrados.map((pedido) => (
+            {pedidos.map((pedido) => (
               <PedidoCard key={pedido.id} pedido={pedido} esAdmin={esAdmin} />
             ))}
           </div>
         )}
       </div>
+
+      {/* Paginación */}
+      {totalPaginas > 1 && (
+        <div className="flex items-center justify-between pt-2">
+          <button
+            onClick={() => irAPagina(pagina - 1)}
+            disabled={pagina === 1}
+            className="px-4 py-2 text-sm font-medium border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            ← Anterior
+          </button>
+          <span className="text-sm text-gray-500">
+            Página {pagina} de {totalPaginas}
+          </span>
+          <button
+            onClick={() => irAPagina(pagina + 1)}
+            disabled={pagina >= totalPaginas}
+            className="px-4 py-2 text-sm font-medium border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Siguiente →
+          </button>
+        </div>
+      )}
     </div>
   )
 }

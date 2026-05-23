@@ -52,26 +52,56 @@ export type PedidoDetalle = PedidoRow & {
   }>
 }
 
+const PAGE_SIZE = 25
+
+export type PedidosResult = {
+  pedidos: PedidoRow[]
+  total: number
+  pagina: number
+  totalPaginas: number
+}
+
 export async function getPedidos(filtros?: {
   estado?: EstadoPedido
   sede?: string
   asesor_id?: string
-}): Promise<PedidoRow[]> {
+  q?: string
+  alerta?: boolean
+  pagina?: number
+}): Promise<PedidosResult> {
   const supabase = await createClient()
+  const pagina = Math.max(1, filtros?.pagina ?? 1)
+  const desde = (pagina - 1) * PAGE_SIZE
+  const hasta = desde + PAGE_SIZE - 1
 
   let query = supabase
     .from('vista_pedidos_asesor')
-    .select('*')
+    .select('*', { count: 'exact' })
     .order('fecha_creacion', { ascending: false })
+    .range(desde, hasta)
 
-  if (filtros?.estado) query = query.eq('estado', filtros.estado)
-  if (filtros?.sede) query = query.eq('sede_codigo', filtros.sede)
+  if (filtros?.estado)    query = query.eq('estado', filtros.estado)
+  if (filtros?.sede)      query = query.eq('sede_codigo', filtros.sede)
   if (filtros?.asesor_id) query = query.eq('asesor_id', filtros.asesor_id)
+  if (filtros?.alerta)    query = query.eq('en_alerta', true)
+  if (filtros?.q) {
+    const q = filtros.q.trim()
+    query = query.or(
+      `numero_orden.ilike.%${q}%,cliente_nombre.ilike.%${q}%,cliente_telefono.ilike.%${q}%`
+    )
+  }
 
-  const { data, error } = await query
+  const { data, error, count } = await query
 
   if (error) throw new Error(`Error cargando pedidos: ${error.message}`)
-  return (data ?? []) as PedidoRow[]
+
+  const total = count ?? 0
+  return {
+    pedidos:      (data ?? []) as PedidoRow[],
+    total,
+    pagina,
+    totalPaginas: Math.max(1, Math.ceil(total / PAGE_SIZE)),
+  }
 }
 
 export async function getPedidoDetalle(id: string): Promise<PedidoDetalle | null> {

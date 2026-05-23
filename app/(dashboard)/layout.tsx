@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { Sidebar } from '@/components/layout/Sidebar'
+import { DashboardShell } from '@/components/layout/DashboardShell'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -17,11 +17,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (!usuario) redirect('/login')
 
   return (
-    <div className="flex min-h-screen">
-      <Sidebar usuario={usuario} />
-      <main className="flex-1 overflow-auto">
-        {children}
-      </main>
-    </div>
+    <DashboardShell usuario={usuario}>
+      {children}
+    </DashboardShell>
   )
 }
