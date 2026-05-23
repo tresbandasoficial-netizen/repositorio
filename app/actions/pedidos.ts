@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/server'
 import { parsearPedido } from '@/lib/parser'
 import { normalizarTelefono } from '@/lib/utils/phone'
 import { getSiguienteNumeroOrden } from '@/lib/queries/pedidos'
+import { puedeTransicionar } from '@/lib/domain/estados'
+import { EstadoPedido } from '@/types'
 
 export type CrearPedidoResult =
   | { ok: true; pedidoId: string }
@@ -137,6 +139,53 @@ export async function crearPedidoAction(
     }
     return { ok: false, error: `Error creando pedido: ${errPedido.message}` }
   }
+
+  redirect(`/pedidos/${pedidoId}`)
+}
+
+// ─── Cambiar estado ───────────────────────────────────────────────────────────
+
+export type CambiarEstadoResult =
+  | { ok: true }
+  | { ok: false; error: string }
+
+export async function cambiarEstadoAction(
+  pedidoId: string,
+  estadoActual: EstadoPedido,
+  nuevoEstado: EstadoPedido
+): Promise<CambiarEstadoResult> {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'No autenticado' }
+
+  const { data: usuario } = await supabase
+    .from('usuarios')
+    .select('id, rol')
+    .eq('id', user.id)
+    .single()
+
+  if (!usuario) return { ok: false, error: 'Usuario no encontrado' }
+
+  const rol = usuario.rol as 'asesor' | 'admin'
+
+  // Validar en capa de aplicación antes de llamar al DB
+  if (!puedeTransicionar(estadoActual, nuevoEstado, rol)) {
+    return {
+      ok: false,
+      error: rol === 'asesor' && nuevoEstado === 'cancelado'
+        ? 'Solo el administrador puede cancelar pedidos.'
+        : `Transición inválida: ${estadoActual} → ${nuevoEstado}`,
+    }
+  }
+
+  const { error } = await supabase.rpc('cambiar_estado_pedido', {
+    p_pedido_id:   pedidoId,
+    p_nuevo_estado: nuevoEstado,
+    p_usuario_id:  usuario.id,
+  })
+
+  if (error) return { ok: false, error: error.message }
 
   redirect(`/pedidos/${pedidoId}`)
 }
