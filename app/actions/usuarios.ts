@@ -34,9 +34,13 @@ export async function invitarUsuarioAction(data: {
   const { supabase, adminClient } = await verificarAdmin()
 
   // Crear usuario en Supabase Auth y enviar email de invitación
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
   const { data: authUser, error: authError } = await adminClient.auth.admin.inviteUserByEmail(
     data.email,
-    { data: { nombre: data.nombre } }
+    {
+      data: { nombre: data.nombre },
+      redirectTo: `${siteUrl}/auth/callback?type=invite`,
+    }
   )
 
   if (authError) {
