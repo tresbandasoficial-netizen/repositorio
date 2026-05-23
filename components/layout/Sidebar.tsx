@@ -59,10 +59,10 @@ export function Sidebar({ usuario, onClose }: SidebarProps) {
 
       <div className="px-3 py-4 border-t border-gray-700 space-y-2">
         <div className="px-3 flex items-center justify-between">
-          <div className="min-w-0">
-            <p className="text-xs text-gray-400 truncate">{usuario.nombre}</p>
+          <Link href="/perfil" onClick={onClose} className="min-w-0 group">
+            <p className="text-xs text-gray-400 truncate group-hover:text-white transition-colors">{usuario.nombre}</p>
             <p className="text-xs text-gray-500 capitalize">{usuario.rol}</p>
-          </div>
+          </Link>
           <CampanaNotificaciones usuarioId={usuario.id} />
         </div>
         <button

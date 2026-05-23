@@ -34,10 +34,12 @@ export async function GET(request: NextRequest) {
   if (!usuario) return new Response('No autorizado', { status: 401 })
 
   const url = request.nextUrl
-  const q       = url.searchParams.get('q')      || undefined
-  const estado  = url.searchParams.get('estado') || undefined
-  const sede    = url.searchParams.get('sede')   || undefined
-  const alerta  = url.searchParams.get('alerta') === '1'
+  const q          = url.searchParams.get('q')      || undefined
+  const estado     = url.searchParams.get('estado') || undefined
+  const sede       = url.searchParams.get('sede')   || undefined
+  const alerta     = url.searchParams.get('alerta') === '1'
+  const fechaDesde = url.searchParams.get('desde')  || undefined
+  const fechaHasta = url.searchParams.get('hasta')  || undefined
 
   let query = supabase
     .from('vista_pedidos_asesor')
@@ -48,6 +50,8 @@ export async function GET(request: NextRequest) {
   if (estado)           query = query.eq('estado', estado)
   if (usuario.rol === 'admin' && sede) query = query.eq('sede_codigo', sede)
   if (alerta)           query = query.eq('en_alerta', true)
+  if (fechaDesde)       query = query.gte('fecha_creacion', `${fechaDesde}T00:00:00`)
+  if (fechaHasta)       query = query.lte('fecha_creacion', `${fechaHasta}T23:59:59`)
   if (q) {
     query = query.or(
       `numero_orden.ilike.%${q}%,cliente_nombre.ilike.%${q}%,cliente_telefono.ilike.%${q}%`

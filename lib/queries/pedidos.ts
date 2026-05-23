@@ -69,6 +69,8 @@ export async function getPedidos(filtros?: {
   q?: string
   alerta?: boolean
   pagina?: number
+  fecha_desde?: string
+  fecha_hasta?: string
 }): Promise<PedidosResult> {
   const supabase = await createClient()
   const pagina = Math.max(1, filtros?.pagina ?? 1)
@@ -81,10 +83,12 @@ export async function getPedidos(filtros?: {
     .order('fecha_creacion', { ascending: false })
     .range(desde, hasta)
 
-  if (filtros?.estado)    query = query.eq('estado', filtros.estado)
-  if (filtros?.sede)      query = query.eq('sede_codigo', filtros.sede)
-  if (filtros?.asesor_id) query = query.eq('asesor_id', filtros.asesor_id)
-  if (filtros?.alerta)    query = query.eq('en_alerta', true)
+  if (filtros?.estado)      query = query.eq('estado', filtros.estado)
+  if (filtros?.sede)        query = query.eq('sede_codigo', filtros.sede)
+  if (filtros?.asesor_id)   query = query.eq('asesor_id', filtros.asesor_id)
+  if (filtros?.alerta)      query = query.eq('en_alerta', true)
+  if (filtros?.fecha_desde) query = query.gte('fecha_creacion', `${filtros.fecha_desde}T00:00:00`)
+  if (filtros?.fecha_hasta) query = query.lte('fecha_creacion', `${filtros.fecha_hasta}T23:59:59`)
   if (filtros?.q) {
     const q = filtros.q.trim()
     query = query.or(

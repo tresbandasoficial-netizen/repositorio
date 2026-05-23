@@ -36,10 +36,12 @@ export function PedidosList({ resultado, esAdmin }: PedidosListProps) {
   const searchParams = useSearchParams()
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
-  const estadoActual = searchParams.get('estado') ?? ''
-  const sedeActual   = searchParams.get('sede')   ?? ''
-  const busqueda     = searchParams.get('q')      ?? ''
-  const soloAlertas  = searchParams.get('alerta') === '1'
+  const estadoActual  = searchParams.get('estado') ?? ''
+  const sedeActual    = searchParams.get('sede')   ?? ''
+  const busqueda      = searchParams.get('q')      ?? ''
+  const soloAlertas   = searchParams.get('alerta') === '1'
+  const fechaDesde    = searchParams.get('desde')  ?? ''
+  const fechaHasta    = searchParams.get('hasta')  ?? ''
 
   function setFiltro(key: string, value: string) {
     const params = new URLSearchParams(searchParams.toString())
@@ -67,10 +69,12 @@ export function PedidosList({ resultado, esAdmin }: PedidosListProps) {
 
   function buildExportUrl() {
     const params = new URLSearchParams()
-    if (busqueda)     params.set('q', busqueda)
+    if (busqueda)    params.set('q', busqueda)
     if (estadoActual) params.set('estado', estadoActual)
-    if (sedeActual)   params.set('sede', sedeActual)
-    if (soloAlertas)  params.set('alerta', '1')
+    if (sedeActual)  params.set('sede', sedeActual)
+    if (soloAlertas) params.set('alerta', '1')
+    if (fechaDesde)  params.set('desde', fechaDesde)
+    if (fechaHasta)  params.set('hasta', fechaHasta)
     const qs = params.toString()
     return `/api/export/pedidos${qs ? `?${qs}` : ''}`
   }
@@ -128,6 +132,38 @@ export function PedidosList({ resultado, esAdmin }: PedidosListProps) {
         >
           ⚠ Alertas
         </button>
+
+        <input
+          key={fechaDesde}
+          type="date"
+          defaultValue={fechaDesde}
+          onChange={(e) => setFiltro('desde', e.target.value)}
+          title="Desde"
+          className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-700"
+        />
+        <input
+          key={fechaHasta + '-h'}
+          type="date"
+          defaultValue={fechaHasta}
+          onChange={(e) => setFiltro('hasta', e.target.value)}
+          title="Hasta"
+          className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-700"
+        />
+
+        {(fechaDesde || fechaHasta) && (
+          <button
+            onClick={() => {
+              const params = new URLSearchParams(searchParams.toString())
+              params.delete('desde')
+              params.delete('hasta')
+              params.delete('pagina')
+              router.push(`${pathname}?${params.toString()}`)
+            }}
+            className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 rounded"
+          >
+            ✕ fechas
+          </button>
+        )}
 
         <span className="text-sm text-gray-400 ml-auto">
           {total === 0 ? 'Sin resultados' : `${desde}–${hasta} de ${total}`}

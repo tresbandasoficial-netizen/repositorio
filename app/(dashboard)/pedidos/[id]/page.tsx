@@ -138,13 +138,23 @@ export default async function PedidoDetallePage({
                         <td className="px-4 py-3 text-gray-600 capitalize">{pago.metodo}</td>
                         <td className="px-4 py-3 text-gray-500 text-xs">{pago.asesor_nombre}</td>
                         <td className="px-6 py-3 text-right font-medium text-gray-900">{formatCOP(pago.monto)}</td>
+                        <td className="px-3 py-3 text-right">
+                          <Link
+                            href={`/pedidos/${id}/pago/${pago.id}/recibo`}
+                            target="_blank"
+                            className="text-xs text-gray-400 hover:text-gray-600"
+                            title="Imprimir recibo"
+                          >
+                            🖨
+                          </Link>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
                     <tr className="border-t border-gray-200 bg-gray-50">
-                      <td colSpan={3} className="px-6 py-3 text-sm font-semibold text-gray-700 text-right">Total pagado</td>
-                      <td className="px-6 py-3 text-right font-bold text-green-700">{formatCOP(pedido.total_pagado)}</td>
+                      <td colSpan={4} className="px-6 py-3 text-sm font-semibold text-gray-700 text-right">Total pagado</td>
+                      <td className="px-3 py-3 text-right font-bold text-green-700">{formatCOP(pedido.total_pagado)}</td>
                     </tr>
                   </tfoot>
                 </table>

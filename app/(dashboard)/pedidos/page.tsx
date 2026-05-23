@@ -11,6 +11,8 @@ interface SearchParams {
   q?: string
   alerta?: string
   pagina?: string
+  desde?: string
+  hasta?: string
 }
 
 export default async function PedidosPage({
@@ -34,11 +36,13 @@ export default async function PedidosPage({
   const params = await searchParams
 
   const resultado = await getPedidos({
-    estado:    params.estado as EstadoPedido | undefined,
-    q:         params.q,
-    alerta:    params.alerta === '1',
-    pagina:    params.pagina ? parseInt(params.pagina) : 1,
-    sede:      params.sede,
+    estado:       params.estado as EstadoPedido | undefined,
+    q:            params.q,
+    alerta:       params.alerta === '1',
+    pagina:       params.pagina ? parseInt(params.pagina) : 1,
+    sede:         params.sede,
+    fecha_desde:  params.desde,
+    fecha_hasta:  params.hasta,
     // Asesores solo ven pedidos de su sede asignada
     ...(!esAdmin && usuario.sedes ? { sede: (usuario.sedes as any).codigo } : {}),
   })
