@@ -92,6 +92,20 @@ export type Alerta = {
   pedido?: Pick<Pedido, 'numero_orden' | 'estado' | 'sede_id'>
 }
 
+export type TipoAlerta = 'tiempo_excedido' | 'zombie'
+
+export type Notificacion = {
+  id: string
+  usuario_id: string
+  alerta_id: string
+  leida: boolean
+  email_enviado: boolean
+  creada_en: string
+  alerta?: Pick<Alerta, 'tipo'> & {
+    pedido?: Pick<Pedido, 'id' | 'numero_orden' | 'estado'>
+  }
+}
+
 export type HistorialCambio = {
   id: string
   tabla: string

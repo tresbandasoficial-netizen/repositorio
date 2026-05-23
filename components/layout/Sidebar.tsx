@@ -5,9 +5,10 @@ import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils/cn'
 import { createClient } from '@/lib/supabase/client'
 import { Usuario } from '@/types'
+import { CampanaNotificaciones } from './CampanaNotificaciones'
 
 interface SidebarProps {
-  usuario: Pick<Usuario, 'nombre' | 'rol'>
+  usuario: Pick<Usuario, 'id' | 'nombre' | 'rol'>
 }
 
 const navItems = [
@@ -52,9 +53,12 @@ export function Sidebar({ usuario }: SidebarProps) {
       </nav>
 
       <div className="px-3 py-4 border-t border-gray-700 space-y-2">
-        <div className="px-3">
-          <p className="text-xs text-gray-400 truncate">{usuario.nombre}</p>
-          <p className="text-xs text-gray-500 capitalize">{usuario.rol}</p>
+        <div className="px-3 flex items-center justify-between">
+          <div className="min-w-0">
+            <p className="text-xs text-gray-400 truncate">{usuario.nombre}</p>
+            <p className="text-xs text-gray-500 capitalize">{usuario.rol}</p>
+          </div>
+          <CampanaNotificaciones usuarioId={usuario.id} />
         </div>
         <button
           onClick={handleLogout}
