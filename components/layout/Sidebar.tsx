@@ -16,6 +16,7 @@ const navItems = [
   { href: '/dashboard', label: 'Dashboard', rol: ['asesor', 'admin'] },
   { href: '/pedidos',   label: 'Pedidos',   rol: ['asesor', 'admin'] },
   { href: '/clientes',  label: 'Clientes',  rol: ['asesor', 'admin'] },
+  { href: '/cartera',   label: 'Cartera',   rol: ['admin'] },
   { href: '/usuarios',  label: 'Usuarios',  rol: ['admin'] },
 ]
 

@@ -158,6 +158,8 @@ export type MetricasAdmin = {
   pedidos_zombie: number
   ticket_promedio: number
   abonos_mes: number
+  cartera_clientes: number
+  cartera_saldo: number
 }
 
 export type MetricasAsesor = {

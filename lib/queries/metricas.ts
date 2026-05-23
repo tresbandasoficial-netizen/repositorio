@@ -22,6 +22,7 @@ export async function getMetricasAdmin(): Promise<MetricasAdmin> {
     pedidosMes,
     alertas,
     pagosMes,
+    cartera,
   ] = await Promise.all([
     supabase
       .from('pedidos')
@@ -42,6 +43,9 @@ export async function getMetricasAdmin(): Promise<MetricasAdmin> {
       .from('pagos')
       .select('monto')
       .gte('fecha', hace(30).slice(0, 10)),
+    supabase
+      .from('vista_cartera_clientes')
+      .select('saldo'),
   ])
 
   const sumarTotal = (rows: Array<{ total: number }> | null) =>
@@ -60,6 +64,10 @@ export async function getMetricasAdmin(): Promise<MetricasAdmin> {
   const pedidosEnAlerta = allAlerts.filter((r) => r.en_alerta).length
   const pedidosZombie   = allAlerts.filter((r) => r.es_zombie).length
 
+  const carteraRows = (cartera.data ?? []) as Array<{ saldo: number }>
+  const carteraSaldo   = carteraRows.reduce((s, r) => s + (r.saldo ?? 0), 0)
+  const carteraClientes = carteraRows.length
+
   return {
     pedidos_hoy:      pedidosHoy.count  ?? 0,
     pedidos_semana:   pedidosSemana.count ?? 0,
@@ -71,6 +79,8 @@ export async function getMetricasAdmin(): Promise<MetricasAdmin> {
     pedidos_zombie:   pedidosZombie,
     ticket_promedio:  ticketPromedio,
     abonos_mes:       abonosMes,
+    cartera_clientes: carteraClientes,
+    cartera_saldo:    carteraSaldo,
   }
 }
 

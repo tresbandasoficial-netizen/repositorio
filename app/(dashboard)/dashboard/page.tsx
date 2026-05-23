@@ -82,11 +82,17 @@ export default async function DashboardPage() {
           </div>
         </section>
 
-        {/* Pagos */}
+        {/* Pagos y cartera */}
         <section className="mb-6">
-          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Pagos</h2>
+          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Pagos y cartera</h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <KpiCard label="Abonos del mes" valor={formatCOP(m.abonos_mes)} />
+            <KpiCard
+              label="Cartera total"
+              valor={formatCOP(m.cartera_saldo)}
+              sub={`${m.cartera_clientes} clientes con saldo`}
+              alerta={m.cartera_saldo > 0}
+            />
             <KpiCard
               label="En alerta"
               valor={m.pedidos_en_alerta}
@@ -121,6 +127,12 @@ export default async function DashboardPage() {
               className="px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-lg"
             >
               Ver clientes
+            </Link>
+            <Link
+              href="/cartera"
+              className="px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-lg"
+            >
+              Ver cartera
             </Link>
           </div>
         </section>
