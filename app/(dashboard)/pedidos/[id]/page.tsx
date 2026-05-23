@@ -1,35 +1,27 @@
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
 import { getPedidoDetalle } from '@/lib/queries/pedidos'
 import { EstadoBadge } from '@/components/pedidos/EstadoBadge'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { formatCOP, formatFecha, formatFechaHora } from '@/lib/utils/format'
 import { formatearTelefono } from '@/lib/utils/phone'
 import { ESTADO_LABELS } from '@/types'
+import { getSesion, puedeAccederSede } from '@/lib/auth/acceso'
 
 export default async function PedidoDetallePage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const { data: usuario } = await supabase
-    .from('usuarios')
-    .select('nombre, rol')
-    .eq('id', user.id)
-    .single()
-
-  if (!usuario) redirect('/login')
+  const sesion = await getSesion()
 
   const { id } = await params
   const pedido = await getPedidoDetalle(id)
   if (!pedido) notFound()
 
-  const esAdmin = usuario.rol === 'admin'
+  if (!puedeAccederSede(sesion, pedido.sede_id)) notFound()
+
+  const esAdmin = sesion.rol === 'admin'
   const saldo = pedido.total - pedido.total_pagado
 
   return (

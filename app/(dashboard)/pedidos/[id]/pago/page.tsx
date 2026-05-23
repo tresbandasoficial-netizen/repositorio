@@ -3,29 +3,26 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { RegistrarPagoForm } from '@/components/pedidos/RegistrarPagoForm'
+import { getSesion, puedeAccederSede } from '@/lib/auth/acceso'
 
 export default async function RegistrarPagoPage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
+  const sesion = await getSesion()
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
   const { id } = await params
 
   const { data: pedido } = await supabase
     .from('vista_pedidos_asesor')
-    .select('id, numero_orden, estado, total, total_pagado')
+    .select('id, numero_orden, estado, total, total_pagado, sede_id')
     .eq('id', id)
     .single()
 
   if (!pedido) notFound()
-
-  if (pedido.estado === 'cancelado') {
-    redirect(`/pedidos/${id}`)
-  }
+  if (!puedeAccederSede(sesion, pedido.sede_id)) notFound()
+  if (pedido.estado === 'cancelado') redirect(`/pedidos/${id}`)
 
   return (
     <div className="p-6 max-w-xl mx-auto">

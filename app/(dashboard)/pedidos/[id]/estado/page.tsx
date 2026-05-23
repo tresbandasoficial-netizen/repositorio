@@ -1,33 +1,28 @@
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { CambiarEstadoForm } from '@/components/pedidos/CambiarEstadoForm'
 import { EstadoPedido } from '@/types'
+import { getSesion, puedeAccederSede } from '@/lib/auth/acceso'
 
 export default async function CambiarEstadoPage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
+  const sesion = await getSesion()
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const [{ data: usuario }, { id }] = await Promise.all([
-    supabase.from('usuarios').select('rol').eq('id', user.id).single(),
-    params,
-  ])
-
-  if (!usuario) redirect('/login')
+  const { id } = await params
 
   const { data: pedido } = await supabase
-    .from('pedidos')
-    .select('id, numero_orden, estado')
+    .from('vista_pedidos_asesor')
+    .select('id, numero_orden, estado, sede_id')
     .eq('id', id)
     .single()
 
   if (!pedido) notFound()
+  if (!puedeAccederSede(sesion, pedido.sede_id)) notFound()
 
   return (
     <div className="p-6 max-w-xl mx-auto">
@@ -47,7 +42,7 @@ export default async function CambiarEstadoPage({
           <CambiarEstadoForm
             pedidoId={pedido.id}
             estadoActual={pedido.estado as EstadoPedido}
-            rol={usuario.rol as 'asesor' | 'admin'}
+            rol={sesion.rol}
           />
         </CardContent>
       </Card>

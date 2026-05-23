@@ -7,6 +7,7 @@ import { normalizarTelefono } from '@/lib/utils/phone'
 import { getSiguienteNumeroOrden } from '@/lib/queries/pedidos'
 import { puedeTransicionar } from '@/lib/domain/estados'
 import { EstadoPedido, MetodoPago } from '@/types'
+import { getSesion, puedeAccederSede } from '@/lib/auth/acceso'
 
 export type CrearPedidoResult =
   | { ok: true; pedidoId: string }
@@ -154,35 +155,33 @@ export async function cambiarEstadoAction(
   estadoActual: EstadoPedido,
   nuevoEstado: EstadoPedido
 ): Promise<CambiarEstadoResult> {
+  const sesion = await getSesion()
   const supabase = await createClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { ok: false, error: 'No autenticado' }
-
-  const { data: usuario } = await supabase
-    .from('usuarios')
-    .select('id, rol')
-    .eq('id', user.id)
+  // Verificar que el pedido pertenece a la sede del usuario
+  const { data: pedido } = await supabase
+    .from('vista_pedidos_asesor')
+    .select('sede_id')
+    .eq('id', pedidoId)
     .single()
 
-  if (!usuario) return { ok: false, error: 'Usuario no encontrado' }
+  if (!pedido || !puedeAccederSede(sesion, pedido.sede_id)) {
+    return { ok: false, error: 'Sin acceso a este pedido' }
+  }
 
-  const rol = usuario.rol as 'asesor' | 'admin'
-
-  // Validar en capa de aplicación antes de llamar al DB
-  if (!puedeTransicionar(estadoActual, nuevoEstado, rol)) {
+  if (!puedeTransicionar(estadoActual, nuevoEstado, sesion.rol)) {
     return {
       ok: false,
-      error: rol === 'asesor' && nuevoEstado === 'cancelado'
+      error: sesion.rol === 'asesor' && nuevoEstado === 'cancelado'
         ? 'Solo el administrador puede cancelar pedidos.'
         : `Transición inválida: ${estadoActual} → ${nuevoEstado}`,
     }
   }
 
   const { error } = await supabase.rpc('cambiar_estado_pedido', {
-    p_pedido_id:   pedidoId,
+    p_pedido_id:    pedidoId,
     p_nuevo_estado: nuevoEstado,
-    p_usuario_id:  usuario.id,
+    p_usuario_id:   sesion.id,
   })
 
   if (error) return { ok: false, error: error.message }
@@ -200,19 +199,17 @@ export async function registrarPagoAction(
   pedidoId: string,
   data: { monto: number; metodo: MetodoPago; fecha: string; notas: string }
 ): Promise<RegistrarPagoResult> {
+  const sesion = await getSesion()
   const supabase = await createClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { ok: false, error: 'No autenticado' }
-
-  // Obtener estado y saldo actual del pedido
   const { data: pedido } = await supabase
     .from('vista_pedidos_asesor')
-    .select('estado, total, total_pagado')
+    .select('estado, total, total_pagado, sede_id')
     .eq('id', pedidoId)
     .single()
 
   if (!pedido) return { ok: false, error: 'Pedido no encontrado' }
+  if (!puedeAccederSede(sesion, pedido.sede_id)) return { ok: false, error: 'Sin acceso a este pedido' }
   if (pedido.estado === 'cancelado') return { ok: false, error: 'No se pueden registrar pagos en pedidos cancelados' }
 
   const saldo = pedido.total - pedido.total_pagado
@@ -227,7 +224,7 @@ export async function registrarPagoAction(
     metodo:    data.metodo,
     fecha:     data.fecha,
     notas:     data.notas || null,
-    asesor_id: user.id,
+    asesor_id: sesion.id,
   })
 
   if (error) return { ok: false, error: error.message }

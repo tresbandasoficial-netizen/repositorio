@@ -67,8 +67,24 @@ export async function invitarUsuarioAction(data: {
 
 // ─── Activar / desactivar usuario ────────────────────────────────────────────
 
-export async function toggleActivoAction(usuarioId: string, activo: boolean) {
+export async function toggleActivoAction(
+  usuarioId: string,
+  activo: boolean
+): Promise<{ ok: false; error: string } | void> {
   const { supabase } = await verificarAdmin()
+
+  // No permitir desactivar otra cuenta de admin
+  if (!activo) {
+    const { data: objetivo } = await supabase
+      .from('usuarios')
+      .select('rol')
+      .eq('id', usuarioId)
+      .single()
+
+    if (objetivo?.rol === 'admin') {
+      return { ok: false, error: 'No se puede desactivar una cuenta de administrador.' }
+    }
+  }
 
   await supabase
     .from('usuarios')
