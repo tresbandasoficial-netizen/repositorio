@@ -200,6 +200,36 @@ export const ESTADO_COLORES: Record<EstadoPedido, string> = {
   cancelado: 'bg-gray-100 text-gray-600',
 }
 
+export type Compra = {
+  id: string
+  tipo: 'usa' | 'colombia'
+  proveedor: string
+  fecha: string
+  total_usd: number | null
+  trm: number | null
+  total_cop: number
+  notas: string | null
+  creado_por: string
+  creado_en: string
+  items?: CompraItem[]
+}
+
+export type CompraItem = {
+  id: string
+  compra_id: string
+  descripcion: string
+  marca: string | null
+  talla: string | null
+  cantidad: number
+  costo_unitario_cop: number
+  destino: 'pedido' | 'contoda' | 'sin_asignar'
+  pedido_id: string | null
+  transferido_contoda: boolean
+  transferido_en: string | null
+  creado_en: string
+  pedido?: Pick<Pedido, 'numero_orden'>
+}
+
 // REFERENCIA DOCUMENTAL — los umbrales reales que generan alertas
 // están definidos en supabase/migrations/002_alertas_view.sql
 // (vista_pedidos_asesor, columna en_alerta).
