@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-// Token de un solo uso — cambia esto si el endpoint queda expuesto accidentalmente.
 const SETUP_TOKEN = 'TRsetup-7x4Pm9Kq2w'
+const TARGET_EMAIL = 'tresbandasoficial@gmail.com'
+const TARGET_PASSWORD = 'TR@dmin2026!'
 
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get('token')
@@ -11,34 +12,44 @@ export async function GET(request: NextRequest) {
   }
 
   const admin = createAdminClient()
+  const log: string[] = []
 
-  // ── 1. Verificar si el usuario ya existe en Auth ──────────────────────────
-  const { data: { users }, error: listError } = await admin.auth.admin.listUsers()
+  // ── 1. Buscar usuario en Auth ─────────────────────────────────────────────
+  const { data: listData, error: listError } = await admin.auth.admin.listUsers()
   if (listError) {
-    return NextResponse.json({ error: listError.message }, { status: 500 })
+    return NextResponse.json({ step: 'list_users', error: listError.message }, { status: 500 })
   }
 
-  const TARGET_EMAIL = 'tresbandasoficial@gmail.com'
+  const existing = listData.users.find(u => u.email === TARGET_EMAIL)
   let userId: string
-  const existing = users.find(u => u.email === TARGET_EMAIL)
 
   if (existing) {
     userId = existing.id
-    // Resetear contraseña por si el usuario ya existía con otra
-    await admin.auth.admin.updateUserById(userId, { password: 'TR@dmin2026!' })
-  } else {
-    const { data, error } = await admin.auth.admin.createUser({
-      email: TARGET_EMAIL,
-      password: 'TR@dmin2026!',
+    log.push(`usuario_encontrado: ${userId}`)
+
+    // Resetear contraseña Y confirmar email
+    const { error: updateError } = await admin.auth.admin.updateUserById(userId, {
+      password: TARGET_PASSWORD,
       email_confirm: true,
     })
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    if (updateError) {
+      return NextResponse.json({ step: 'update_password', error: updateError.message }, { status: 500 })
     }
-    userId = data.user.id
+    log.push('contraseña_reseteada: ok')
+  } else {
+    const { data: created, error: createError } = await admin.auth.admin.createUser({
+      email: TARGET_EMAIL,
+      password: TARGET_PASSWORD,
+      email_confirm: true,
+    })
+    if (createError) {
+      return NextResponse.json({ step: 'create_user', error: createError.message }, { status: 500 })
+    }
+    userId = created.user.id
+    log.push(`usuario_creado: ${userId}`)
   }
 
-  // ── 2. Verificar si ya tiene fila en usuarios ─────────────────────────────
+  // ── 2. Insertar fila en tabla usuarios si no existe ───────────────────────
   const { data: row } = await admin
     .from('usuarios')
     .select('id, rol')
@@ -46,31 +57,26 @@ export async function GET(request: NextRequest) {
     .maybeSingle()
 
   if (row) {
-    return NextResponse.json({
-      status: 'already_exists',
-      email: TARGET_EMAIL,
-      rol: row.rol,
+    log.push(`tabla_usuarios: ya_existe (rol=${row.rol})`)
+  } else {
+    const { error: insertError } = await admin.from('usuarios').insert({
+      id:      userId,
+      email:   TARGET_EMAIL,
+      nombre:  'Administrador',
+      rol:     'admin',
+      sede_id: null,
+      activo:  true,
     })
-  }
-
-  // ── 3. Insertar en tabla usuarios ─────────────────────────────────────────
-  const { error: insertError } = await admin.from('usuarios').insert({
-    id:      userId,
-    email:   TARGET_EMAIL,
-    nombre:  'Administrador',
-    rol:     'admin',
-    sede_id: null,
-    activo:  true,
-  })
-
-  if (insertError) {
-    return NextResponse.json({ error: insertError.message }, { status: 500 })
+    if (insertError) {
+      return NextResponse.json({ step: 'insert_usuarios', error: insertError.message }, { status: 500 })
+    }
+    log.push('tabla_usuarios: insertado (rol=admin)')
   }
 
   return NextResponse.json({
-    status: 'created',
+    ok: true,
     email: TARGET_EMAIL,
-    password: 'TR@dmin2026!',
-    rol: 'admin',
+    password: TARGET_PASSWORD,
+    log,
   })
 }
