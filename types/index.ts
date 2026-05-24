@@ -123,6 +123,7 @@ export type HistorialCambio = {
 export type ParsedPedido = {
   formato_version: string
   sede: 'TR' | 'CR' | 'SR'
+  numero_orden_sugerido?: string   // extraído del formato libre (ej. TR5946)
   asesor: string
   cliente_nombre: string
   cliente_doc: string | null
