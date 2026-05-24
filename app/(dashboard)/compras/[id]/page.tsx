@@ -46,7 +46,7 @@ export default async function CompraDetallePage({
 
   if (!data) notFound()
 
-  const compra = data as CompraConItems
+  const compra = data as unknown as CompraConItems
 
   const itemsSinAsignar = compra.compra_items.filter((i) => i.destino === 'sin_asignar')
   const itemsAsignados = compra.compra_items.filter((i) => i.destino !== 'sin_asignar')
