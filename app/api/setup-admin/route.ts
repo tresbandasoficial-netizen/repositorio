@@ -24,6 +24,8 @@ export async function GET(request: NextRequest) {
 
   if (existing) {
     userId = existing.id
+    // Resetear contraseña por si el usuario ya existía con otra
+    await admin.auth.admin.updateUserById(userId, { password: 'TR@dmin2026!' })
   } else {
     const { data, error } = await admin.auth.admin.createUser({
       email: TARGET_EMAIL,
