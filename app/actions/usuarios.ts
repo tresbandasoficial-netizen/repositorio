@@ -22,7 +22,7 @@ async function verificarAdmin() {
 // ─── Invitar nuevo usuario ────────────────────────────────────────────────────
 
 export type InvitarUsuarioResult =
-  | { ok: true }
+  | { ok: true; passwordTemporal?: string }
   | { ok: false; error: string }
 
 export async function invitarUsuarioAction(data: {
@@ -33,7 +33,7 @@ export async function invitarUsuarioAction(data: {
 }): Promise<InvitarUsuarioResult> {
   const { supabase, adminClient } = await verificarAdmin()
 
-  // Crear usuario en Supabase Auth y enviar email de invitación
+  // Intentar primero con invitación por email (si Supabase tiene SMTP)
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
   const { data: authUser, error: authError } = await adminClient.auth.admin.inviteUserByEmail(
     data.email,
@@ -43,26 +43,46 @@ export async function invitarUsuarioAction(data: {
     }
   )
 
+  let userId: string
+  let passwordTemporal: string | undefined
+
   if (authError) {
     if (authError.message.includes('already been registered')) {
       return { ok: false, error: 'Este email ya está registrado.' }
     }
-    return { ok: false, error: authError.message }
+
+    // Si falla el email (SMTP no configurado), crear usuario con contraseña temporal
+    const temp = `TR${Math.random().toString(36).slice(2, 8).toUpperCase()}2026!`
+    const { data: created, error: createError } = await adminClient.auth.admin.createUser({
+      email: data.email,
+      password: temp,
+      email_confirm: true,
+    })
+
+    if (createError) return { ok: false, error: createError.message }
+    userId = created.user.id
+    passwordTemporal = temp
+  } else {
+    userId = authUser.user.id
   }
 
-  // Insertar en tabla usuarios con rol y sede
   const { error: insertError } = await adminClient.from('usuarios').insert({
-    id:       authUser.user.id,
-    email:    data.email,
-    nombre:   data.nombre,
-    rol:      data.rol,
-    sede_id:  data.sede_id || null,
-    activo:   true,
+    id:      userId,
+    email:   data.email,
+    nombre:  data.nombre,
+    rol:     data.rol,
+    sede_id: data.sede_id || null,
+    activo:  true,
   })
 
   if (insertError) {
-    await adminClient.auth.admin.deleteUser(authUser.user.id)
+    await adminClient.auth.admin.deleteUser(userId)
     return { ok: false, error: `Error registrando usuario: ${insertError.message}` }
+  }
+
+  // Si se creó con contraseña temporal, devolver para mostrarla al admin
+  if (passwordTemporal) {
+    return { ok: true, passwordTemporal }
   }
 
   redirect('/usuarios')
