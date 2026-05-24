@@ -31,7 +31,6 @@ export async function invitarUsuarioAction(data: {
   rol: 'asesor' | 'admin'
   sede_id: string | null
 }): Promise<InvitarUsuarioResult> {
-  try {
   const { supabase, adminClient } = await verificarAdmin()
 
   // Intentar primero con invitación por email (si Supabase tiene SMTP)
@@ -87,12 +86,6 @@ export async function invitarUsuarioAction(data: {
   }
 
   redirect('/usuarios')
-  } catch (e: unknown) {
-    // redirect() lanza internamente — dejarlo pasar
-    const msg = (e as { message?: string })?.message ?? ''
-    if (msg === 'NEXT_REDIRECT') throw e
-    return { ok: false, error: `Error inesperado: ${msg}` }
-  }
 }
 
 // ─── Activar / desactivar usuario ────────────────────────────────────────────
