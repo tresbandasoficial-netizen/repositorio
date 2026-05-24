@@ -51,7 +51,7 @@ export async function invitarUsuarioAction(data: {
   }
 
   // Insertar en tabla usuarios con rol y sede
-  const { error: insertError } = await supabase.from('usuarios').insert({
+  const { error: insertError } = await adminClient.from('usuarios').insert({
     id:       authUser.user.id,
     email:    data.email,
     nombre:   data.nombre,
@@ -61,7 +61,6 @@ export async function invitarUsuarioAction(data: {
   })
 
   if (insertError) {
-    // Intentar limpiar el usuario de auth si falló la inserción
     await adminClient.auth.admin.deleteUser(authUser.user.id)
     return { ok: false, error: `Error registrando usuario: ${insertError.message}` }
   }
@@ -75,7 +74,7 @@ export async function toggleActivoAction(
   usuarioId: string,
   activo: boolean
 ): Promise<{ ok: false; error: string } | void> {
-  const { supabase } = await verificarAdmin()
+  const { supabase, adminClient } = await verificarAdmin()
 
   // No permitir desactivar otra cuenta de admin
   if (!activo) {
@@ -90,7 +89,7 @@ export async function toggleActivoAction(
     }
   }
 
-  await supabase
+  await adminClient
     .from('usuarios')
     .update({ activo })
     .eq('id', usuarioId)
