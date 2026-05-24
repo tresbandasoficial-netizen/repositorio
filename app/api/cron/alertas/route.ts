@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { resend, EMAIL_FROM } from '@/lib/email/resend'
+import { getResend, EMAIL_FROM } from '@/lib/email/resend'
 import { alertaEmailHtml, alertaEmailSubject } from '@/lib/email/template'
 
 // Protegido con CRON_SECRET para que solo el cron de Vercel (o el admin) pueda llamarlo.
@@ -31,6 +31,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ procesadas: 0 })
   }
 
+  const resend = getResend()
+
+  if (!resend) {
+    console.warn('[cron/alertas] RESEND_API_KEY no configurado — alertas creadas en DB, emails omitidos')
+    return NextResponse.json({ procesadas: nuevas.length, emails_enviados: 0, emails_omitidos: nuevas.length })
+  }
+
   // Enviar emails — en paralelo, con manejo individual de errores
   const resultados = await Promise.allSettled(
     nuevas.map(async (n: {
@@ -52,7 +59,6 @@ export async function GET(req: NextRequest) {
           alertaTipo:    n.alerta_tipo as 'tiempo_excedido' | 'zombie',
         }),
       })
-      // Marcar email enviado
       await supabase
         .from('notificaciones')
         .update({ email_enviado: true })
