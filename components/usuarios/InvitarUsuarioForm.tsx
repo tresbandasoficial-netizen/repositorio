@@ -13,7 +13,8 @@ export function InvitarUsuarioForm({ sedes }: Props) {
   const [email, setEmail]   = useState('')
   const [rol, setRol]       = useState<'asesor' | 'admin'>('asesor')
   const [sedeId, setSedeId] = useState('')
-  const [error, setError]   = useState<string | null>(null)
+  const [error, setError]             = useState<string | null>(null)
+  const [passwordTemporal, setPasswordTemporal] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
   function handleSubmit(e: React.FormEvent) {
@@ -32,7 +33,11 @@ export function InvitarUsuarioForm({ sedes }: Props) {
         rol,
         sede_id: sedeId || null,
       })
-      if (!result.ok) setError(result.error)
+      if (!result.ok) {
+        setError(result.error)
+      } else if (result.passwordTemporal) {
+        setPasswordTemporal(result.passwordTemporal)
+      }
     })
   }
 
@@ -109,6 +114,15 @@ export function InvitarUsuarioForm({ sedes }: Props) {
 
       {error && (
         <p className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-3">{error}</p>
+      )}
+
+      {passwordTemporal && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3 text-sm text-yellow-800 space-y-1">
+          <p className="font-semibold">Usuario creado. Comparte estas credenciales con el asesor:</p>
+          <p>Email: <span className="font-mono font-bold">{email}</span></p>
+          <p>Contraseña temporal: <span className="font-mono font-bold">{passwordTemporal}</span></p>
+          <p className="text-xs text-yellow-600 mt-1">El asesor debe cambiar la contraseña al ingresar.</p>
+        </div>
       )}
 
       <div className="pt-1">

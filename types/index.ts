@@ -123,6 +123,7 @@ export type HistorialCambio = {
 export type ParsedPedido = {
   formato_version: string
   sede: 'TR' | 'CR' | 'SR'
+  numero_orden_sugerido?: string   // extraído del formato libre (ej. TR5946)
   asesor: string
   cliente_nombre: string
   cliente_doc: string | null
@@ -197,6 +198,36 @@ export const ESTADO_COLORES: Record<EstadoPedido, string> = {
   en_sede: 'bg-orange-100 text-orange-800',
   entregado: 'bg-green-100 text-green-800',
   cancelado: 'bg-gray-100 text-gray-600',
+}
+
+export type Compra = {
+  id: string
+  tipo: 'usa' | 'colombia'
+  proveedor: string
+  fecha: string
+  total_usd: number | null
+  trm: number | null
+  total_cop: number
+  notas: string | null
+  creado_por: string
+  creado_en: string
+  items?: CompraItem[]
+}
+
+export type CompraItem = {
+  id: string
+  compra_id: string
+  descripcion: string
+  marca: string | null
+  talla: string | null
+  cantidad: number
+  costo_unitario_cop: number
+  destino: 'pedido' | 'contoda' | 'sin_asignar'
+  pedido_id: string | null
+  transferido_contoda: boolean
+  transferido_en: string | null
+  creado_en: string
+  pedido?: Pick<Pedido, 'numero_orden'>
 }
 
 // REFERENCIA DOCUMENTAL — los umbrales reales que generan alertas
