@@ -329,10 +329,24 @@ function parsearLibre(texto: string): ParseResult {
   let descripcion: string
 
   if (esLink) {
-    // Con link: requiere "Nombre" para el mensaje al cliente
-    const nombreProducto = findRaw(lines, 'Nombre del producto', 'Nombre producto', 'Nombre prenda')
+    // Con link: buscar nombre primero con etiqueta, luego línea sin etiqueta
+    let nombreProducto = findRaw(lines, 'Nombre del producto', 'Nombre producto', 'Nombre prenda')
+
+    if (!nombreProducto) {
+      // La última línea corta sin ":" suele ser el asesor — excluirla
+      const ultimaCorta = [...lines].reverse().find((l) => !l.includes(':') && l.length <= 30)
+      // Cualquier línea sin ":", sin ser URL, sin ser número de pedido, sin ser la del asesor
+      nombreProducto = lines.find((l) =>
+        !l.includes(':') &&
+        !/^https?:\/\//i.test(l) &&
+        !/^(TR|CR|SR)\d+/i.test(l) &&
+        l !== ultimaCorta &&
+        l.length > 3
+      ) ?? null
+    }
+
     if (!nombreProducto)
-      return { ok: false, error: 'Cuando pasas un link debes agregar el nombre del producto. Ej:\nNombre del producto: Tenis Nike Vomero Plus' }
+      return { ok: false, error: 'Agrega el nombre del producto en una línea aparte. Ej:\ntenis nike air max' }
     marca = marcaDesdeUrl(articuloRaw!)
     descripcion = nombreProducto
   } else {
