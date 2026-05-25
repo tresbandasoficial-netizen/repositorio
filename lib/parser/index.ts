@@ -255,8 +255,14 @@ function parsearLibre(texto: string): ParseResult {
   const telefonoRaw = findRaw(lines, 'Celular', 'Teléfono', 'Telefono', 'Tel', 'Cel')
   if (!telefonoRaw) faltantes.push('Celular')
 
-  const articuloRaw = findRaw(lines, 'Artículo', 'Articulo', 'Código de producto', 'Codigo de producto', 'Código', 'Codigo', 'Producto', 'Prenda', 'Ref', 'Referencia', 'Link', 'URL')
-  if (!articuloRaw) faltantes.push('Artículo / Link')
+  // Buscar artículo: campo etiquetado primero, luego cualquier línea que sea un link
+  let articuloRaw = findRaw(lines, 'Artículo', 'Articulo', 'Código de producto', 'Codigo de producto', 'Código', 'Codigo', 'Producto', 'Prenda', 'Ref', 'Referencia', 'Link', 'URL')
+  if (!articuloRaw) {
+    // Si hay un link sin etiqueta en cualquier línea, usarlo
+    const lineaLink = lines.find((l) => /^https?:\/\//i.test(l))
+    if (lineaLink) articuloRaw = lineaLink
+  }
+  if (!articuloRaw) faltantes.push('Artículo (o pega el link del producto)')
 
   const tallaRaw = findRaw(lines, 'Talla')
   if (!tallaRaw) faltantes.push('Talla')
