@@ -273,12 +273,12 @@ function parsearLibre(texto: string): ParseResult {
   const abonoRaw = findRaw(lines, 'Abono', 'Anticipo', 'Adelanto', 'Cuota inicial', 'Separado')
 
   let asesorRaw = findRaw(lines, 'Asesor', 'Vendedor', 'Agente', 'Atendido por')
-  // Si no hay campo etiquetado, buscar última línea corta sin ":" como asesor (ej. "JF")
+  // Si no hay campo etiquetado, buscar última línea corta sin ":" (ej. "JF", "luisa")
   if (!asesorRaw) {
     const ultimaLinea = [...lines].reverse().find((l) => !l.includes(':') && l.length <= 30 && l.length >= 1)
     if (ultimaLinea) asesorRaw = ultimaLinea
   }
-  if (!asesorRaw) faltantes.push('Asesor')
+  // Asesor es opcional — si no viene, se toma del usuario logueado en la acción
 
   if (faltantes.length > 0)
     return { ok: false, error: `Faltan los siguientes campos obligatorios: ${faltantes.join(', ')}.` }
@@ -361,7 +361,7 @@ function parsearLibre(texto: string): ParseResult {
       formato_version: '1',
       sede,
       numero_orden_sugerido: numeroOrden,
-      asesor: asesorRaw!,
+      asesor: asesorRaw ?? undefined,
       cliente_nombre: clienteNombre!,
       cliente_doc: clienteDoc,
       cliente_telefono: telefono,

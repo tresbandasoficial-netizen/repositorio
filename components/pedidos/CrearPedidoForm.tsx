@@ -11,11 +11,12 @@ import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 
 interface CrearPedidoFormProps {
   numeroSugerido: string
+  asesorNombre: string
 }
 
 type Paso = 'pegar' | 'preview' | 'error_parser'
 
-export function CrearPedidoForm({ numeroSugerido }: CrearPedidoFormProps) {
+export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFormProps) {
   const [paso, setPaso] = useState<Paso>('pegar')
   const [texto, setTexto] = useState('')
   const [parsedData, setParsedData] = useState<ParsedPedido | null>(null)
@@ -166,7 +167,7 @@ export function CrearPedidoForm({ numeroSugerido }: CrearPedidoFormProps) {
                   {parsedData.direccion && (
                     <p className="text-gray-500 text-xs">{parsedData.direccion}</p>
                   )}
-                  <p className="text-gray-400 text-xs mt-1">Asesor: {parsedData.asesor} · Sede: {parsedData.sede}</p>
+                  <p className="text-gray-400 text-xs mt-1">Asesor: {asesorNombre} · Sede: {parsedData.sede}</p>
                 </div>
               </div>
 

@@ -30,7 +30,7 @@ export default async function NuevoPedidoPage() {
         <h1 className="text-lg font-bold text-gray-900">Nuevo pedido</h1>
       </div>
 
-      <CrearPedidoForm numeroSugerido={numeroSugerido} />
+      <CrearPedidoForm numeroSugerido={numeroSugerido} asesorNombre={(usuario as any).nombre ?? ''} />
     </div>
   )
 }
