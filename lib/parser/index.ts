@@ -233,6 +233,19 @@ function findRaw(lines: string[], ...claves: string[]): string | null {
   return null
 }
 
+// Igual que findRaw pero devuelve TODOS los valores que coincidan (para campos repetidos)
+function collectAll(lines: string[], ...claves: string[]): string[] {
+  const results: string[] = []
+  for (const line of lines) {
+    for (const clave of claves) {
+      const regex = new RegExp(`^${clave}\\s*:(.+)`, 'i')
+      const m = line.match(regex)
+      if (m) { results.push(m[1].trim()); break }
+    }
+  }
+  return results
+}
+
 function parsearLibre(texto: string): ParseResult {
   const lines = texto.split('\n').map((l) => l.trim()).filter(Boolean)
   const faltantes: string[] = []
@@ -255,22 +268,27 @@ function parsearLibre(texto: string): ParseResult {
   const telefonoRaw = findRaw(lines, 'Celular', 'Teléfono', 'Telefono', 'Tel', 'Cel')
   if (!telefonoRaw) faltantes.push('Celular')
 
-  // Buscar artículo: campo etiquetado primero, luego cualquier línea que sea un link
-  let articuloRaw = findRaw(lines, 'Artículo', 'Articulo', 'Código de producto', 'Codigo de producto', 'Código', 'Codigo', 'Producto', 'Prenda', 'Ref', 'Referencia', 'Link', 'URL')
-  if (!articuloRaw) {
-    // Si hay un link sin etiqueta en cualquier línea, usarlo
-    const lineaLink = lines.find((l) => /^https?:\/\//i.test(l))
-    if (lineaLink) articuloRaw = lineaLink
+  // Recoger TODOS los artículos (etiquetados o links sueltos)
+  const articuloKeys = ['Artículo', 'Articulo', 'Código de producto', 'Codigo de producto', 'Código', 'Codigo', 'Producto', 'Prenda', 'Ref', 'Referencia', 'Link', 'URL']
+  const todosArticulos: string[] = []
+  for (const line of lines) {
+    let matched = false
+    for (const clave of articuloKeys) {
+      const m = line.match(new RegExp(`^${clave}\\s*:(.+)`, 'i'))
+      if (m) { todosArticulos.push(m[1].trim()); matched = true; break }
+    }
+    if (!matched && /^https?:\/\//i.test(line)) todosArticulos.push(line.trim())
   }
-  if (!articuloRaw) faltantes.push('Artículo (o pega el link del producto)')
+  if (todosArticulos.length === 0) faltantes.push('Artículo (o pega el link del producto)')
 
-  const tallaRaw = findRaw(lines, 'Talla')
-  if (!tallaRaw) faltantes.push('Talla')
+  const todasTallas  = collectAll(lines, 'Talla')
+  if (todasTallas.length === 0) faltantes.push('Talla')
 
-  const precioRaw = findRaw(lines, 'Precio', 'Valor', 'Costo')
-  if (!precioRaw) faltantes.push('Precio')
+  const todosPrecios = collectAll(lines, 'Precio', 'Valor', 'Costo')
+  if (todosPrecios.length === 0) faltantes.push('Precio')
 
-  const abonoRaw = findRaw(lines, 'Abono', 'Anticipo', 'Adelanto', 'Cuota inicial', 'Separado')
+  const todosAbonos  = collectAll(lines, 'Abono', 'Anticipo', 'Adelanto', 'Cuota inicial', 'Separado')
+  const abonoRaw = todosAbonos[0] ?? null
 
   let asesorRaw = findRaw(lines, 'Asesor', 'Vendedor', 'Agente', 'Atendido por')
   // Si no hay campo etiquetado, buscar última línea corta sin ":" (ej. "JF", "luisa")
@@ -287,14 +305,19 @@ function parsearLibre(texto: string): ParseResult {
   const telefono = normalizarTelefono(telefonoRaw!)
   if (!telefono) return { ok: false, error: `El celular "${telefonoRaw}" no es un número colombiano válido.` }
 
-  // ── Validar precio ────────────────────────────────────────────────────────
-  // Solo acepta puntos como separador de miles (ej: 350.000 o 1.050.000)
-  const total = parseInt(precioRaw!.replace(/\./g, '').replace(/[^\d]/g, ''), 10)
-  if (isNaN(total) || total <= 0)
-    return { ok: false, error: `El precio "${precioRaw}" no es válido. Escríbelo con puntos: ej. 350.000 o 1.050.000` }
+  // ── Precios individuales y total ─────────────────────────────────────────
+  const preciosNum = todosPrecios.map(p => parseInt(p.replace(/\./g, '').replace(/[^\d]/g, ''), 10))
+  if (preciosNum.some(p => isNaN(p) || p <= 0))
+    return { ok: false, error: `Un precio no es válido. Escríbelo con puntos: ej. 350.000 o 1.050.000` }
+  const totalExplicitoRaw = findRaw(lines, 'Total', 'Precio total', 'Valor total')
+  const total = totalExplicitoRaw
+    ? parseInt(totalExplicitoRaw.replace(/\./g, '').replace(/[^\d]/g, ''), 10)
+    : preciosNum.reduce((a, b) => a + b, 0)
 
-  // ── Abono (opcional — si no viene o es 0, el pedido queda sin abono) ──────
-  const { monto: abono, metodo: metodoDesdeAbono } = parseMontoMetodo(abonoRaw ?? '0')
+  // ── Abono (suma de todos los abonos) ─────────────────────────────────────
+  const abonosParsed = todosAbonos.map(a => parseMontoMetodo(a))
+  const abono = abonosParsed.reduce((s, p) => s + p.monto, 0)
+  const metodoDesdeAbono = abonosParsed.find(p => p.monto > 0)?.metodo ?? 'efectivo'
   if (abono > total) return { ok: false, error: `El abono (${abono.toLocaleString('es-CO')}) no puede superar el precio (${total.toLocaleString('es-CO')}).` }
 
   // Método de pago: campo explícito tiene prioridad sobre el detectado del abono
@@ -323,37 +346,40 @@ function parsearLibre(texto: string): ParseResult {
 
   const notas = findRaw(lines, 'Notas', 'Observaciones', 'Nota')
 
-  // ── Producto ──────────────────────────────────────────────────────────────
-  const esLink = /^https?:\/\//i.test(articuloRaw!)
-  let marca: string
-  let descripcion: string
+  // ── Productos (uno o varios) ──────────────────────────────────────────────
+  const todosNombres = collectAll(lines, 'Nombre del producto', 'Nombre producto', 'Nombre prenda')
+  const ultimaCorta  = [...lines].reverse().find((l) => !l.includes(':') && l.length <= 30)
 
-  if (esLink) {
-    // Con link: buscar nombre primero con etiqueta, luego línea sin etiqueta
-    let nombreProducto = findRaw(lines, 'Nombre del producto', 'Nombre producto', 'Nombre prenda')
+  const productos: ParsedPedido['productos'] = todosArticulos.map((art, i) => {
+    const precio  = preciosNum[i] ?? preciosNum[preciosNum.length - 1]
+    const talla   = todasTallas[i] ?? todasTallas[0] ?? null
+    const esLink  = /^https?:\/\//i.test(art)
 
-    if (!nombreProducto) {
-      // La última línea corta sin ":" suele ser el asesor — excluirla
-      const ultimaCorta = [...lines].reverse().find((l) => !l.includes(':') && l.length <= 30)
-      // Cualquier línea sin ":", sin ser URL, sin ser número de pedido, sin ser la del asesor
-      nombreProducto = lines.find((l) =>
-        !l.includes(':') &&
-        !/^https?:\/\//i.test(l) &&
-        !/^(TR|CR|SR)\d+/i.test(l) &&
-        l !== ultimaCorta &&
-        l.length > 3
-      ) ?? null
+    let marca: string
+    let descripcion: string
+
+    if (esLink) {
+      marca = marcaDesdeUrl(art)
+      let nombre = todosNombres[i] ?? todosNombres[0] ?? null
+      // Si no hay etiqueta, buscar línea sin ":" que no sea número, URL ni asesor
+      if (!nombre) {
+        nombre = lines.find((l) =>
+          !l.includes(':') &&
+          !/^https?:\/\//i.test(l) &&
+          !/^(TR|CR|SR)\d+/i.test(l) &&
+          l !== ultimaCorta &&
+          l.length > 3
+        ) ?? descDesdeUrl(art)
+      }
+      descripcion = nombre
+    } else {
+      const partes = art.split(/\s+/)
+      marca = partes[0]
+      descripcion = partes.slice(1).join(' ') || art
     }
 
-    if (!nombreProducto)
-      return { ok: false, error: 'Agrega el nombre del producto en una línea aparte. Ej:\ntenis nike air max' }
-    marca = marcaDesdeUrl(articuloRaw!)
-    descripcion = nombreProducto
-  } else {
-    const partes = articuloRaw!.split(/\s+/)
-    marca = partes[0]
-    descripcion = partes.slice(1).join(' ') || articuloRaw!
-  }
+    return { marca, descripcion, talla, cantidad: 1, precio_venta: precio }
+  })
 
   return {
     ok: true,
@@ -365,7 +391,7 @@ function parsearLibre(texto: string): ParseResult {
       cliente_nombre: clienteNombre!,
       cliente_doc: clienteDoc,
       cliente_telefono: telefono,
-      productos: [{ marca, descripcion, talla: tallaRaw!, cantidad: 1, precio_venta: total }],
+      productos,
       total,
       abono,
       metodo_pago_abono: metodoPago,
