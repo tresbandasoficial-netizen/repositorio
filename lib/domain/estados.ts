@@ -1,30 +1,29 @@
 import { EstadoPedido } from '@/types'
 
-// Fuente de verdad para transiciones de estado.
-// Para añadir/quitar una transición: editar AQUÍ únicamente.
-// La función SQL 004_cambiar_estado_fn.sql espeja estas reglas — mantenerlas en sync.
+const TODOS: EstadoPedido[] = [
+  'pendiente', 'comprado', 'llego_usa', 'bodega_colombia',
+  'avisado', 'en_sede', 'entregado', 'cancelado',
+]
 
+// Cualquier estado no-terminal puede pasar a cualquier otro estado.
 export const TRANSICIONES: Record<EstadoPedido, EstadoPedido[]> = {
-  pendiente:       ['comprado',   'cancelado'],
-  comprado:        ['llego_usa',  'cancelado'],
-  llego_usa:       ['bodega_colombia', 'cancelado'],
-  bodega_colombia: ['avisado',    'cancelado'],
-  avisado:         ['en_sede',    'cancelado'],
-  en_sede:         ['entregado',  'cancelado'],
+  pendiente:       TODOS.filter(e => e !== 'pendiente'),
+  comprado:        TODOS.filter(e => e !== 'comprado'),
+  llego_usa:       TODOS.filter(e => e !== 'llego_usa'),
+  bodega_colombia: TODOS.filter(e => e !== 'bodega_colombia'),
+  avisado:         TODOS.filter(e => e !== 'avisado'),
+  en_sede:         TODOS.filter(e => e !== 'en_sede'),
   entregado:       [],
   cancelado:       [],
 }
 
-// Estados que solo el admin puede asignar
-export const SOLO_ADMIN: EstadoPedido[] = ['cancelado']
+export const SOLO_ADMIN: EstadoPedido[] = []
 
 export function transicionesDisponibles(
   estadoActual: EstadoPedido,
   rol: 'asesor' | 'admin'
 ): EstadoPedido[] {
-  const posibles = TRANSICIONES[estadoActual] ?? []
-  if (rol === 'admin') return posibles
-  return posibles.filter((e) => !SOLO_ADMIN.includes(e))
+  return TRANSICIONES[estadoActual] ?? []
 }
 
 export function puedeTransicionar(

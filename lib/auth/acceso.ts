@@ -24,9 +24,7 @@ export async function getSesion(): Promise<SesionUsuario> {
   return { id: user.id, rol: usuario.rol as 'asesor' | 'admin', sede_id: usuario.sede_id }
 }
 
-// Devuelve true si el usuario puede operar sobre un pedido de la sede dada.
-// Admin: acceso total. Asesor: solo su propia sede.
+// Todos los usuarios autenticados pueden acceder a pedidos de cualquier sede.
 export function puedeAccederSede(sesion: SesionUsuario, sedePedido: string): boolean {
-  if (sesion.rol === 'admin') return true
-  return sesion.sede_id === sedePedido
+  return true
 }
