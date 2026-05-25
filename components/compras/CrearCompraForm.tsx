@@ -14,6 +14,7 @@ type ItemForm = {
   marca: string
   talla: string
   cantidad: string
+  precio_usd?: number | null   // precio original de la factura, para calcular COP
   costo_unitario_cop: string
   destino: 'pedido' | 'contoda' | 'sin_asignar'
 }
@@ -24,6 +25,7 @@ function facturaToItems(items: FacturaExtraida['items']): ItemForm[] {
     marca: i.marca,
     talla: i.talla,
     cantidad: String(i.cantidad),
+    precio_usd: i.precio_usd ?? null,
     costo_unitario_cop: '',
     destino: 'sin_asignar',
   }))
@@ -55,10 +57,21 @@ export function CrearCompraForm() {
 
   const totalCopNum = parseInt(totalCopPagado.replace(/\D/g, ''), 10) || 0
 
+  // Cuando la TRM cambia, auto-rellenar costo COP de items que tienen precio_usd
+  function aplicarTrmAItems(trm: number) {
+    setItems((prev) =>
+      prev.map((item) =>
+        item.precio_usd
+          ? { ...item, costo_unitario_cop: String(Math.round(item.precio_usd * trm)) }
+          : item
+      )
+    )
+  }
+
   function agregarItem() {
     setItems((prev) => [
       ...prev,
-      { descripcion: '', marca: '', talla: '', cantidad: '1', costo_unitario_cop: '', destino: 'sin_asignar' },
+      { descripcion: '', marca: '', talla: '', cantidad: '1', precio_usd: null, costo_unitario_cop: '', destino: 'sin_asignar' },
     ])
   }
 
@@ -293,7 +306,13 @@ export function CrearCompraForm() {
                   type="text"
                   inputMode="numeric"
                   value={totalCopPagado}
-                  onChange={(e) => setTotalCopPagado(e.target.value.replace(/\D/g, ''))}
+                  onChange={(e) => {
+                    const cop = e.target.value.replace(/\D/g, '')
+                    setTotalCopPagado(cop)
+                    const usd = parseFloat(totalUsd)
+                    const copNum = parseInt(cop, 10)
+                    if (usd > 0 && copNum > 0) aplicarTrmAItems(Math.round(copNum / usd))
+                  }}
                   placeholder="0"
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
