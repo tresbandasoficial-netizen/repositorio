@@ -111,30 +111,36 @@ export type AsignarItemResult =
 export async function asignarItemAction(
   itemId: string,
   destino: 'pedido' | 'contoda' | 'sin_asignar',
-  pedidoNumeroOrden?: string
+  pedidoRef?: string
 ): Promise<AsignarItemResult> {
   const { adminClient } = await verificarAdmin()
 
   let pedidoId: string | null = null
+  let pedidoItemIndice: number | null = null
 
   if (destino === 'pedido') {
-    if (!pedidoNumeroOrden?.trim()) {
+    if (!pedidoRef?.trim()) {
       return { ok: false, error: 'Debes indicar el número de orden del pedido' }
     }
+
+    // Parsear "TR1025-1" → numeroOrden="TR1025", indice=1
+    const ref = pedidoRef.trim().toUpperCase()
+    const match = ref.match(/^(.+)-(\d+)$/)
+    const numeroOrden = match ? match[1] : ref
+    pedidoItemIndice = match ? parseInt(match[2], 10) : null
 
     const { data: pedido } = await adminClient
       .from('pedidos')
       .select('id, estado')
-      .eq('numero_orden', pedidoNumeroOrden.trim().toUpperCase())
+      .eq('numero_orden', numeroOrden)
       .single()
 
     if (!pedido) {
-      return { ok: false, error: `Pedido "${pedidoNumeroOrden}" no encontrado` }
+      return { ok: false, error: `Pedido "${numeroOrden}" no encontrado` }
     }
 
     pedidoId = pedido.id
 
-    // Cambiar a "comprado" si está en "pendiente"
     if (pedido.estado === 'pendiente') {
       await adminClient
         .from('pedidos')
@@ -143,21 +149,15 @@ export async function asignarItemAction(
     }
   }
 
-  const updateData: {
-    destino: string
-    pedido_id: string | null
-    transferido_contoda: boolean
-    transferido_en: string | null
-  } = {
-    destino,
-    pedido_id: pedidoId,
-    transferido_contoda: destino === 'contoda',
-    transferido_en: destino === 'contoda' ? new Date().toISOString() : null,
-  }
-
   const { error } = await adminClient
     .from('compra_items')
-    .update(updateData)
+    .update({
+      destino,
+      pedido_id: pedidoId,
+      pedido_item_indice: pedidoItemIndice,
+      transferido_contoda: destino === 'contoda',
+      transferido_en: destino === 'contoda' ? new Date().toISOString() : null,
+    })
     .eq('id', itemId)
 
   if (error) return { ok: false, error: error.message }

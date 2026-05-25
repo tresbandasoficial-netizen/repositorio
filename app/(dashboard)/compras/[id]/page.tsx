@@ -38,7 +38,7 @@ export default async function CompraDetallePage({
       id, tipo, proveedor, fecha, total_usd, trm, total_cop, notas, creado_por, creado_en,
       compra_items (
         id, compra_id, descripcion, marca, talla, cantidad, costo_unitario_cop,
-        destino, pedido_id, transferido_contoda, transferido_en, creado_en,
+        destino, pedido_id, pedido_item_indice, transferido_contoda, transferido_en, creado_en,
         pedido:pedidos (numero_orden)
       )
     `)
@@ -154,6 +154,7 @@ export default async function CompraDetallePage({
                       itemId={item.id}
                       destino={item.destino}
                       pedidoNumeroOrden={item.pedido?.numero_orden ?? null}
+                      pedidoItemIndice={(item as any).pedido_item_indice ?? null}
                     />
                   </td>
                 </tr>

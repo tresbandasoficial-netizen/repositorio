@@ -66,9 +66,12 @@ export function AsignarItemForm({ itemId, destinoActual, pedidoActual, onDone }:
             type="text"
             value={numeroPedido}
             onChange={(e) => setNumeroPedido(e.target.value.toUpperCase())}
-            placeholder="TR5946"
+            placeholder="TR1025 o TR1025-1"
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+          <p className="text-xs text-gray-400 mt-1">
+            Si el pedido tiene varios artículos usa TR1025-1, TR1025-2, etc.
+          </p>
         </div>
       )}
 

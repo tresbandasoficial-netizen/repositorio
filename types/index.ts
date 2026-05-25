@@ -224,6 +224,7 @@ export type CompraItem = {
   costo_unitario_cop: number
   destino: 'pedido' | 'contoda' | 'sin_asignar'
   pedido_id: string | null
+  pedido_item_indice: number | null
   transferido_contoda: boolean
   transferido_en: string | null
   creado_en: string

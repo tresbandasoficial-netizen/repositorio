@@ -11,6 +11,7 @@ interface ItemAsignacionProps {
   itemId: string
   destino: Destino
   pedidoNumeroOrden: string | null
+  pedidoItemIndice: number | null
 }
 
 const DESTINO_LABELS: Record<Destino, string> = {
@@ -25,9 +26,14 @@ const DESTINO_COLORES: Record<Destino, string> = {
   contoda: 'bg-purple-100 text-purple-800',
 }
 
-export function ItemAsignacion({ itemId, destino, pedidoNumeroOrden }: ItemAsignacionProps) {
+export function ItemAsignacion({ itemId, destino, pedidoNumeroOrden, pedidoItemIndice }: ItemAsignacionProps) {
   const [abierto, setAbierto] = useState(false)
   const router = useRouter()
+
+  // Reconstruir referencia completa: "TR1025-1" o "TR1025"
+  const refCompleta = pedidoNumeroOrden
+    ? pedidoItemIndice ? `${pedidoNumeroOrden}-${pedidoItemIndice}` : pedidoNumeroOrden
+    : null
 
   function handleDone() {
     setAbierto(false)
@@ -40,7 +46,7 @@ export function ItemAsignacion({ itemId, destino, pedidoNumeroOrden }: ItemAsign
         <AsignarItemForm
           itemId={itemId}
           destinoActual={destino}
-          pedidoActual={pedidoNumeroOrden}
+          pedidoActual={refCompleta}
           onDone={handleDone}
         />
       </div>
@@ -52,8 +58,8 @@ export function ItemAsignacion({ itemId, destino, pedidoNumeroOrden }: ItemAsign
       <Badge className={DESTINO_COLORES[destino]}>
         {DESTINO_LABELS[destino]}
       </Badge>
-      {destino === 'pedido' && pedidoNumeroOrden && (
-        <span className="text-xs font-mono text-gray-600">{pedidoNumeroOrden}</span>
+      {destino === 'pedido' && refCompleta && (
+        <span className="text-xs font-mono text-gray-600">{refCompleta}</span>
       )}
       <button
         type="button"
