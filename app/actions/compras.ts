@@ -104,7 +104,7 @@ export async function asignarItemAction(
 
     const { data: pedido } = await adminClient
       .from('pedidos')
-      .select('id')
+      .select('id, estado')
       .eq('numero_orden', pedidoNumeroOrden.trim().toUpperCase())
       .single()
 
@@ -113,6 +113,14 @@ export async function asignarItemAction(
     }
 
     pedidoId = pedido.id
+
+    // Cambiar a "comprado" si está en "pendiente"
+    if (pedido.estado === 'pendiente') {
+      await adminClient
+        .from('pedidos')
+        .update({ estado: 'comprado', fecha_actualizacion: new Date().toISOString() })
+        .eq('id', pedido.id)
+    }
   }
 
   const updateData: {
