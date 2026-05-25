@@ -185,12 +185,9 @@ const MARCA_POR_DOMINIO: Record<string, string> = {
 function marcaDesdeUrl(url: string): string {
   try {
     const host = new URL(url).hostname.replace('www.', '')
-    if (MARCA_POR_DOMINIO[host]) return MARCA_POR_DOMINIO[host]
-    // Capitalizar el dominio base como fallback
-    const base = host.split('.')[0]
-    return base.charAt(0).toUpperCase() + base.slice(1)
+    return MARCA_POR_DOMINIO[host] ?? ''
   } catch {
-    return 'Sin marca'
+    return ''
   }
 }
 
@@ -212,8 +209,8 @@ function descDesdeUrl(url: string): string {
 }
 
 function parseMontoMetodo(texto: string): { monto: number; metodo: MetodoPago } {
-  const numStr = texto.match(/[\d.,]+/)?.[0] ?? '0'
-  const monto = parseInt(numStr.replace(/\./g, '').replace(/,/g, ''), 10) || 0
+  const numStr = texto.match(/[\d.,´']+/)?.[0] ?? '0'
+  const monto = parseInt(numStr.replace(/[.,´']/g, ''), 10) || 0
 
   const lower = texto.toLowerCase()
   let metodo: MetodoPago = 'efectivo'
@@ -258,8 +255,8 @@ function parsearLibre(texto: string): ParseResult {
   const telefonoRaw = findRaw(lines, 'Celular', 'Teléfono', 'Telefono', 'Tel', 'Cel')
   if (!telefonoRaw) faltantes.push('Celular')
 
-  const articuloRaw = findRaw(lines, 'Artículo', 'Articulo', 'Código de producto', 'Codigo de producto', 'Código', 'Codigo', 'Producto', 'Ref', 'Referencia', 'Link', 'URL')
-  if (!articuloRaw) faltantes.push('Artículo / Código de producto')
+  const articuloRaw = findRaw(lines, 'Artículo', 'Articulo', 'Código de producto', 'Codigo de producto', 'Código', 'Codigo', 'Producto', 'Prenda', 'Ref', 'Referencia', 'Link', 'URL')
+  if (!articuloRaw) faltantes.push('Artículo / Link')
 
   const tallaRaw = findRaw(lines, 'Talla')
   if (!tallaRaw) faltantes.push('Talla')
@@ -268,9 +265,13 @@ function parsearLibre(texto: string): ParseResult {
   if (!precioRaw) faltantes.push('Precio')
 
   const abonoRaw = findRaw(lines, 'Abono', 'Anticipo', 'Adelanto', 'Cuota inicial', 'Separado')
-  if (!abonoRaw) faltantes.push('Abono')
 
-  const asesorRaw = findRaw(lines, 'Asesor', 'Vendedor', 'Agente', 'Atendido por')
+  let asesorRaw = findRaw(lines, 'Asesor', 'Vendedor', 'Agente', 'Atendido por')
+  // Si no hay campo etiquetado, buscar última línea corta sin ":" como asesor (ej. "JF")
+  if (!asesorRaw) {
+    const ultimaLinea = [...lines].reverse().find((l) => !l.includes(':') && l.length <= 30 && l.length >= 1)
+    if (ultimaLinea) asesorRaw = ultimaLinea
+  }
   if (!asesorRaw) faltantes.push('Asesor')
 
   if (faltantes.length > 0)
@@ -281,11 +282,13 @@ function parsearLibre(texto: string): ParseResult {
   if (!telefono) return { ok: false, error: `El celular "${telefonoRaw}" no es un número colombiano válido.` }
 
   // ── Validar precio ────────────────────────────────────────────────────────
-  const total = parseInt(precioRaw!.replace(/\./g, '').replace(/,/g, '').replace(/[^\d]/g, ''), 10)
-  if (isNaN(total) || total <= 0) return { ok: false, error: `El precio "${precioRaw}" no es válido.` }
+  // Solo acepta puntos como separador de miles (ej: 350.000 o 1.050.000)
+  const total = parseInt(precioRaw!.replace(/\./g, '').replace(/[^\d]/g, ''), 10)
+  if (isNaN(total) || total <= 0)
+    return { ok: false, error: `El precio "${precioRaw}" no es válido. Escríbelo con puntos: ej. 350.000 o 1.050.000` }
 
-  // ── Abono ─────────────────────────────────────────────────────────────────
-  const { monto: abono, metodo: metodoDesdeAbono } = parseMontoMetodo(abonoRaw!)
+  // ── Abono (opcional — si no viene o es 0, el pedido queda sin abono) ──────
+  const { monto: abono, metodo: metodoDesdeAbono } = parseMontoMetodo(abonoRaw ?? '0')
   if (abono > total) return { ok: false, error: `El abono (${abono.toLocaleString('es-CO')}) no puede superar el precio (${total.toLocaleString('es-CO')}).` }
 
   // Método de pago: campo explícito tiene prioridad sobre el detectado del abono
