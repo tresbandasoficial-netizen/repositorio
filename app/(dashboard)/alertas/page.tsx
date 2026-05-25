@@ -25,8 +25,8 @@ function getMotivoAlerta(p: {
   const umbrales: Partial<Record<EstadoPedido, number>> = {
     pendiente:       2,
     comprado:        8,
-    llego_usa:       15,
-    bodega_colombia: 5,
+    llego_usa:       6,
+    bodega_colombia: 1,
     avisado:         3,
     en_sede:         2,
   }
@@ -119,7 +119,7 @@ export default async function AlertasPage() {
         <p>· Pendiente: más de 2 días sin cambio</p>
         <p>· Comprado: más de 8 días sin cambio</p>
         <p>· Cualquier pedido: más de 15 días sin llegar a bodega Colombia</p>
-        <p>· Llegó a USA: más de 15 días · Bodega Colombia: más de 5 días · Avisado: más de 3 días · En sede: más de 2 días</p>
+        <p>· Llegó a USA: más de 6 días · Bodega Colombia: más de 1 día · Avisado: más de 3 días · En sede: más de 2 días</p>
       </div>
     </div>
   )
