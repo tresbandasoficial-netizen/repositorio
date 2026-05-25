@@ -57,14 +57,21 @@ export function CrearCompraForm() {
 
   const totalCopNum = parseInt(totalCopPagado.replace(/\D/g, ''), 10) || 0
 
-  // Cuando la TRM cambia, auto-rellenar costo COP de items que tienen precio_usd
+  // Cuando la TRM cambia, auto-rellenar costo COP = (precio + tax + shipping proporcional) × TRM
   function aplicarTrmAItems(trm: number) {
+    if (!factura) return
+    const multiples = factura.items.length > 1
+    const shipping = factura.shipping_usd ?? 0
+    const subtotal = factura.items.reduce((s, i) => s + i.precio_usd * i.cantidad, 0)
+
     setItems((prev) =>
-      prev.map((item) =>
-        item.precio_usd
-          ? { ...item, costo_unitario_cop: String(Math.round(item.precio_usd * trm)) }
-          : item
-      )
+      prev.map((item) => {
+        if (!item.precio_usd) return item
+        const precioConTax = multiples ? item.precio_usd * 1.07 : item.precio_usd
+        const shippingProp = subtotal > 0 ? shipping * (item.precio_usd / subtotal) : 0
+        const costoTotal = Math.round((precioConTax + shippingProp) * trm)
+        return { ...item, costo_unitario_cop: String(costoTotal) }
+      })
     )
   }
 

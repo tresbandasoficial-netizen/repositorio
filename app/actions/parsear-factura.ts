@@ -16,6 +16,7 @@ export type FacturaExtraida = {
   proveedor: string
   fecha: string       // YYYY-MM-DD
   total_usd: number
+  shipping_usd: number  // 0 si no hay envío
   items: FacturaItemExtraido[]
 }
 
@@ -30,6 +31,7 @@ Analiza esta factura y devuelve ÚNICAMENTE un objeto JSON con esta estructura e
   "proveedor": "nombre del proveedor/tienda",
   "fecha": "YYYY-MM-DD",
   "total_usd": 123.45,
+  "shipping_usd": 12.00,
   "items": [
     {
       "descripcion": "descripción del producto",
@@ -44,7 +46,9 @@ Analiza esta factura y devuelve ÚNICAMENTE un objeto JSON con esta estructura e
 Reglas:
 - Extrae CADA artículo por separado aunque sean del mismo producto con distintas tallas
 - Si no encuentras la marca por separado, intenta inferirla del nombre del producto
-- total_usd debe ser el total de la factura en USD
+- precio_usd de cada item es el precio ANTES de tax y shipping
+- shipping_usd es el costo de envío/shipping/freight total (0 si no aparece)
+- total_usd es el total final de la factura incluyendo todo
 - Si los precios están en otra moneda, déjalos como aparecen
 - Devuelve SOLO el JSON, sin texto adicional`
 
