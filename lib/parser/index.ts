@@ -285,8 +285,20 @@ function parsearLibre(texto: string): ParseResult {
   if (isNaN(total) || total <= 0) return { ok: false, error: `El precio "${precioRaw}" no es válido.` }
 
   // ── Abono ─────────────────────────────────────────────────────────────────
-  const { monto: abono, metodo: metodoPago } = parseMontoMetodo(abonoRaw!)
+  const { monto: abono, metodo: metodoDesdeAbono } = parseMontoMetodo(abonoRaw!)
   if (abono > total) return { ok: false, error: `El abono (${abono.toLocaleString('es-CO')}) no puede superar el precio (${total.toLocaleString('es-CO')}).` }
+
+  // Método de pago: campo explícito tiene prioridad sobre el detectado del abono
+  const metodoCampo = findRaw(lines, 'Método de pago', 'Metodo de pago', 'Método pago', 'Metodo pago', 'Pago')
+  let metodoPago: MetodoPago = metodoDesdeAbono
+  if (metodoCampo) {
+    const lower = metodoCampo.toLowerCase()
+    if (/bancolombia|nequi|daviplata|transferencia|pse|consignacion|consignación/.test(lower))
+      metodoPago = 'transferencia'
+    else if (/datafono|datáfono|tarjeta/.test(lower)) metodoPago = 'datafono'
+    else if (/efectivo|cash/.test(lower)) metodoPago = 'efectivo'
+    else metodoPago = 'otro'
+  }
 
   // ── Opcionales ────────────────────────────────────────────────────────────
   const cedulaRaw = findRaw(lines, 'Cédula', 'Cedula', 'CC', 'Documento', 'Doc')
