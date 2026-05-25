@@ -63,6 +63,13 @@ export default async function PedidoDetallePage({
           >
             Imprimir
           </Link>
+          <Link
+            href={`/pedidos/${id}/etiqueta`}
+            target="_blank"
+            className="text-sm bg-white border border-gray-300 hover:bg-gray-50 px-3 py-1.5 rounded-lg font-medium text-gray-500 transition-colors"
+          >
+            Etiqueta
+          </Link>
           {esAdmin && <EliminarPedidoButton pedidoId={id} />}
         </div>
       </div>
