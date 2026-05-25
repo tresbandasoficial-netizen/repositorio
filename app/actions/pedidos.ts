@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { parsearPedido } from '@/lib/parser'
 import { normalizarTelefono } from '@/lib/utils/phone'
 import { getSiguienteNumeroOrden } from '@/lib/queries/pedidos'
@@ -278,4 +279,35 @@ export async function editarPedidoAction(
   if (updateError) return { ok: false, error: updateError.message }
 
   redirect(`/pedidos/${pedidoId}`)
+}
+
+// ─── Eliminar pedido ──────────────────────────────────────────────────────────
+
+export type EliminarPedidoResult =
+  | { ok: true }
+  | { ok: false; error: string }
+
+export async function eliminarPedidoAction(pedidoId: string): Promise<EliminarPedidoResult> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: usuario } = await supabase
+    .from('usuarios')
+    .select('rol')
+    .eq('id', user.id)
+    .single()
+
+  if (usuario?.rol !== 'admin') return { ok: false, error: 'Solo los administradores pueden eliminar pedidos' }
+
+  const adminClient = createAdminClient()
+
+  const { error } = await adminClient
+    .from('pedidos')
+    .delete()
+    .eq('id', pedidoId)
+
+  if (error) return { ok: false, error: error.message }
+
+  redirect('/pedidos')
 }

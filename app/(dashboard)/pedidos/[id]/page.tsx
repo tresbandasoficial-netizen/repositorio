@@ -8,6 +8,7 @@ import { formatearTelefono, whatsappUrl } from '@/lib/utils/phone'
 import { ESTADO_LABELS } from '@/types'
 import { getSesion, puedeAccederSede } from '@/lib/auth/acceso'
 import { CopiarResumen } from '@/components/pedidos/CopiarResumen'
+import { EliminarPedidoButton } from '@/components/pedidos/EliminarPedidoButton'
 
 export default async function PedidoDetallePage({
   params,
@@ -62,6 +63,7 @@ export default async function PedidoDetallePage({
           >
             Imprimir
           </Link>
+          {esAdmin && <EliminarPedidoButton pedidoId={id} />}
         </div>
       </div>
 
