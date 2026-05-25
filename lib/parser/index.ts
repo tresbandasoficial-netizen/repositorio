@@ -324,11 +324,17 @@ function parsearLibre(texto: string): ParseResult {
   const notas = findRaw(lines, 'Notas', 'Observaciones', 'Nota')
 
   // ── Producto ──────────────────────────────────────────────────────────────
+  const esLink = /^https?:\/\//i.test(articuloRaw!)
   let marca: string
   let descripcion: string
-  if (articuloRaw!.startsWith('http')) {
+
+  if (esLink) {
+    // Con link: requiere "Nombre" para el mensaje al cliente
+    const nombreProducto = findRaw(lines, 'Nombre del producto', 'Nombre producto', 'Nombre prenda')
+    if (!nombreProducto)
+      return { ok: false, error: 'Cuando pasas un link debes agregar el nombre del producto. Ej:\nNombre del producto: Tenis Nike Vomero Plus' }
     marca = marcaDesdeUrl(articuloRaw!)
-    descripcion = descDesdeUrl(articuloRaw!)
+    descripcion = nombreProducto
   } else {
     const partes = articuloRaw!.split(/\s+/)
     marca = partes[0]

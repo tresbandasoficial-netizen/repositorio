@@ -93,7 +93,7 @@ export function CrearPedidoForm({ numeroSugerido }: CrearPedidoFormProps) {
                 if (paso === 'error_parser') setPaso('pegar')
               }}
               rows={14}
-              placeholder={`Numero de pedido: TR5946\nNombre: Juan Pérez\nCelular: 3001234567\nArtículo/Link: https://... ó Nike Air Max 95\nTalla: 40\nPrecio: 350.000\nAbono: 100.000\nMétodo de pago: Bancolombia\nAsesor: nombre del asesor\n\n— Opcionales —\nCédula: 12345678\nDirección: Cra 10 # 20-30\nBarrio: El Prado\nCiudad: Bucaramanga`}
+              placeholder={`Numero de pedido: TR5946\nNombre: Juan Pérez\nCelular: 3001234567\nPrenda: https://www.nike.com/... ó Nike Air Max 95 negro\nNombre del producto: Tenis Nike Air Max 95  ← solo si pasas link\nTalla: 40\nPrecio: 350.000\nAbono: 100.000\nMétodo de pago: Bancolombia\nAsesor: nombre del asesor\n\n— Opcionales —\nCédula: 12345678\nDirección: Cra 10 # 20-30\nBarrio: El Prado\nCiudad: Bucaramanga`}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
             />
 
