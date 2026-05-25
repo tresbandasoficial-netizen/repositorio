@@ -38,6 +38,7 @@ export function CrearCompraForm() {
   // Campos de la factura
   const [tipo, setTipo] = useState<'usa' | 'colombia'>('usa')
   const [proveedor, setProveedor] = useState('')
+  const [numeroFactura, setNumeroFactura] = useState('')
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10))
   const [totalUsd, setTotalUsd] = useState('')
   const [totalCopPagado, setTotalCopPagado] = useState('')
@@ -112,6 +113,7 @@ export function CrearCompraForm() {
         setFactura(data)
         setProveedor(data.proveedor)
         setFecha(data.fecha)
+        setNumeroFactura(data.numero_factura ?? '')
         setTotalUsd(String(data.total_usd))
         setItems(facturaToItems(data.items))
         setTipo('usa')
@@ -151,6 +153,7 @@ export function CrearCompraForm() {
       tipo,
       proveedor: proveedor.trim(),
       fecha,
+      numero_factura: numeroFactura.trim(),
       total_usd: tipo === 'usa' ? parseFloat(totalUsd) : null,
       trm: tipo === 'usa' ? (trmCalculada ?? null) : null,
       total_cop: totalCopNum,
@@ -269,8 +272,8 @@ export function CrearCompraForm() {
             </div>
           </div>
 
-          {/* Proveedor + Fecha */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* Proveedor + Número de factura + Fecha */}
+          <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Proveedor</label>
               <input
@@ -278,6 +281,16 @@ export function CrearCompraForm() {
                 value={proveedor}
                 onChange={(e) => setProveedor(e.target.value)}
                 placeholder="Nombre del proveedor"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">N° Factura</label>
+              <input
+                type="text"
+                value={numeroFactura}
+                onChange={(e) => setNumeroFactura(e.target.value)}
+                placeholder="INV-12345"
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>

@@ -72,6 +72,9 @@ export default async function ComprasPage() {
                   </td>
                   <td className="px-4 py-4">
                     <p className="font-medium text-gray-900">{c.proveedor}</p>
+                    {(c as any).numero_factura && (
+                      <p className="text-xs text-gray-400 font-mono mt-0.5">#{(c as any).numero_factura}</p>
+                    )}
                     {c.notas && (
                       <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{c.notas}</p>
                     )}

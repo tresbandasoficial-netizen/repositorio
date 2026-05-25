@@ -32,6 +32,7 @@ export type CrearCompraInput = {
   tipo: 'usa' | 'colombia'
   proveedor: string
   fecha: string
+  numero_factura: string
   total_usd: number | null
   trm: number | null
   total_cop: number
@@ -46,12 +47,31 @@ export type CrearCompraResult =
 export async function crearCompraAction(data: CrearCompraInput): Promise<CrearCompraResult> {
   const { userId, adminClient } = await verificarAdmin()
 
+  const numeroFactura = data.numero_factura.trim() || null
+
+  // Verificar duplicado por número de factura
+  if (numeroFactura) {
+    const { data: existente } = await adminClient
+      .from('compras')
+      .select('id, proveedor, fecha')
+      .eq('numero_factura', numeroFactura)
+      .maybeSingle()
+
+    if (existente) {
+      return {
+        ok: false,
+        error: `La factura "${numeroFactura}" ya fue registrada (${existente.proveedor} — ${existente.fecha})`,
+      }
+    }
+  }
+
   const { data: compra, error: errCompra } = await adminClient
     .from('compras')
     .insert({
       tipo: data.tipo,
       proveedor: data.proveedor.trim(),
       fecha: data.fecha,
+      numero_factura: numeroFactura,
       total_usd: data.total_usd,
       trm: data.trm,
       total_cop: data.total_cop,
@@ -143,4 +163,21 @@ export async function asignarItemAction(
   if (error) return { ok: false, error: error.message }
 
   return { ok: true }
+}
+
+export type EliminarCompraResult =
+  | { ok: true }
+  | { ok: false; error: string }
+
+export async function eliminarCompraAction(compraId: string): Promise<EliminarCompraResult> {
+  const { adminClient } = await verificarAdmin()
+
+  const { error } = await adminClient
+    .from('compras')
+    .delete()
+    .eq('id', compraId)
+
+  if (error) return { ok: false, error: error.message }
+
+  redirect('/compras')
 }

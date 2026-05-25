@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { formatCOP } from '@/lib/utils/format'
 import { ItemAsignacion } from '@/components/compras/ItemAsignacion'
+import { EliminarCompraButton } from '@/components/compras/EliminarCompraButton'
 import { Compra, CompraItem } from '@/types'
 
 type CompraConItems = Compra & {
@@ -53,15 +54,23 @@ export default async function CompraDetallePage({
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
-      <div className="flex items-center gap-3 mb-6">
-        <Link href="/compras" className="text-gray-400 hover:text-gray-600 text-sm">
-          ← Compras
-        </Link>
-        <span className="text-gray-300">/</span>
-        <span className="font-semibold text-gray-900">{compra.proveedor}</span>
-        <Badge className={compra.tipo === 'usa' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}>
-          {compra.tipo === 'usa' ? 'USA' : 'Colombia'}
-        </Badge>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <Link href="/compras" className="text-gray-400 hover:text-gray-600 text-sm">
+            ← Compras
+          </Link>
+          <span className="text-gray-300">/</span>
+          <span className="font-semibold text-gray-900">{compra.proveedor}</span>
+          {(compra as any).numero_factura && (
+            <span className="text-xs text-gray-500 font-mono bg-gray-100 px-2 py-0.5 rounded">
+              #{(compra as any).numero_factura}
+            </span>
+          )}
+          <Badge className={compra.tipo === 'usa' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}>
+            {compra.tipo === 'usa' ? 'USA' : 'Colombia'}
+          </Badge>
+        </div>
+        <EliminarCompraButton compraId={compra.id} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
