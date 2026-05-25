@@ -66,6 +66,38 @@ export async function invitarUsuarioAction(data: {
   return { ok: true, passwordTemporal }
 }
 
+// ─── Eliminar usuario ────────────────────────────────────────────────────────
+
+export type EliminarUsuarioResult =
+  | { ok: true }
+  | { ok: false; error: string }
+
+export async function eliminarUsuarioAction(usuarioId: string): Promise<EliminarUsuarioResult> {
+  const { supabase, adminClient } = await verificarAdmin()
+
+  // No permitir eliminar admins ni la propia cuenta
+  const { data: { user } } = await supabase.auth.getUser()
+  if (usuarioId === user!.id) {
+    return { ok: false, error: 'No puedes eliminar tu propia cuenta.' }
+  }
+
+  const { data: objetivo } = await supabase
+    .from('usuarios')
+    .select('rol')
+    .eq('id', usuarioId)
+    .single()
+
+  if (objetivo?.rol === 'admin') {
+    return { ok: false, error: 'No se puede eliminar una cuenta de administrador.' }
+  }
+
+  // Eliminar de auth (la fila en usuarios se elimina en cascada)
+  const { error } = await adminClient.auth.admin.deleteUser(usuarioId)
+  if (error) return { ok: false, error: error.message }
+
+  redirect('/usuarios')
+}
+
 // ─── Activar / desactivar usuario ────────────────────────────────────────────
 
 export async function toggleActivoAction(

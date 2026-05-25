@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { InvitarUsuarioForm } from '@/components/usuarios/InvitarUsuarioForm'
 import { ToggleActivoButton } from '@/components/usuarios/ToggleActivoButton'
+import { EliminarUsuarioButton } from '@/components/usuarios/EliminarUsuarioButton'
 import { formatFecha } from '@/lib/utils/format'
 
 export default async function UsuariosPage() {
@@ -83,11 +84,16 @@ export default async function UsuariosPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <ToggleActivoButton
-                      usuarioId={u.id}
-                      activo={u.activo}
-                      esMismoUsuario={u.id === user.id}
-                    />
+                    <div className="flex items-center justify-end gap-1">
+                      <ToggleActivoButton
+                        usuarioId={u.id}
+                        activo={u.activo}
+                        esMismoUsuario={u.id === user.id}
+                      />
+                      {u.id !== user.id && u.rol !== 'admin' && (
+                        <EliminarUsuarioButton usuarioId={u.id} />
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
