@@ -1,6 +1,6 @@
 'use server'
 
-import Anthropic from '@anthropic-ai/sdk'
+import OpenAI from 'openai'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 
@@ -23,47 +23,7 @@ export type ParsearFacturaResult =
   | { ok: true; data: FacturaExtraida }
   | { ok: false; error: string }
 
-export async function parsearFacturaAction(
-  base64: string,
-  mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf'
-): Promise<ParsearFacturaResult> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const { data: usuario } = await supabase
-    .from('usuarios')
-    .select('rol')
-    .eq('id', user.id)
-    .single()
-  if (usuario?.rol !== 'admin') redirect('/dashboard')
-
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) return { ok: false, error: 'ANTHROPIC_API_KEY no configurada' }
-
-  const client = new Anthropic({ apiKey })
-
-  const source =
-    mediaType === 'application/pdf'
-      ? ({ type: 'base64', media_type: 'application/pdf', data: base64 } as const)
-      : ({ type: 'base64', media_type: mediaType, data: base64 } as const)
-
-  let text: string
-  try {
-    const msg = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 2048,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: mediaType === 'application/pdf' ? 'document' : 'image',
-              source,
-            } as any,
-            {
-              type: 'text',
-              text: `Eres un extractor de facturas de compras de ropa y calzado.
+const PROMPT = `Eres un extractor de facturas de compras de ropa y calzado.
 Analiza esta factura y devuelve ÚNICAMENTE un objeto JSON con esta estructura exacta (sin markdown, sin explicación):
 
 {
@@ -84,19 +44,76 @@ Analiza esta factura y devuelve ÚNICAMENTE un objeto JSON con esta estructura e
 Reglas:
 - Extrae CADA artículo por separado aunque sean del mismo producto con distintas tallas
 - Si no encuentras la marca por separado, intenta inferirla del nombre del producto
-- Si la fecha no está clara, usa la fecha de hoy: ${new Date().toISOString().slice(0, 10)}
 - total_usd debe ser el total de la factura en USD
-- Si los precios están en otra moneda, conviértelos a USD como aparecen (no calcules nada)
-- Devuelve SOLO el JSON, sin texto adicional`,
-            },
-          ],
-        },
-      ],
-    })
+- Si los precios están en otra moneda, déjalos como aparecen
+- Devuelve SOLO el JSON, sin texto adicional`
 
-    text = msg.content[0].type === 'text' ? msg.content[0].text : ''
+export async function parsearFacturaAction(
+  base64: string,
+  mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf'
+): Promise<ParsearFacturaResult> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: usuario } = await supabase
+    .from('usuarios')
+    .select('rol')
+    .eq('id', user.id)
+    .single()
+  if (usuario?.rol !== 'admin') redirect('/dashboard')
+
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) return { ok: false, error: 'OPENAI_API_KEY no configurada' }
+
+  const client = new OpenAI({ apiKey })
+
+  let text: string
+  try {
+    if (mediaType === 'application/pdf') {
+      // Para PDFs usamos el endpoint de files + responses
+      const blob = Buffer.from(base64, 'base64')
+      const file = new File([blob], 'factura.pdf', { type: 'application/pdf' })
+
+      const uploaded = await client.files.create({ file, purpose: 'user_data' })
+
+      const response = await client.responses.create({
+        model: 'gpt-4o',
+        input: [
+          {
+            role: 'user',
+            content: [
+              { type: 'input_file', file_id: uploaded.id },
+              { type: 'input_text', text: PROMPT },
+            ],
+          },
+        ],
+      })
+
+      text = response.output_text ?? ''
+      await client.files.delete(uploaded.id).catch(() => {})
+    } else {
+      // Para imágenes usamos vision directamente
+      const response = await client.chat.completions.create({
+        model: 'gpt-4o',
+        max_tokens: 2048,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'image_url',
+                image_url: { url: `data:${mediaType};base64,${base64}` },
+              },
+              { type: 'text', text: PROMPT },
+            ],
+          },
+        ],
+      })
+      text = response.choices[0]?.message?.content ?? ''
+    }
   } catch (e: any) {
-    return { ok: false, error: `Error llamando a Claude: ${e.message}` }
+    return { ok: false, error: `Error llamando a OpenAI: ${e.message}` }
   }
 
   try {
