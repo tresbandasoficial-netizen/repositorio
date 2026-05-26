@@ -226,26 +226,33 @@ function parsearPreciosExpresion(raw: string): { individuales: number[], total: 
   return { individuales, total }
 }
 
+function detectarMetodo(texto: string): MetodoPago {
+  const n = texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+  if (/bancolombia|nequi|daviplata|transferencia|pse|consignacion/.test(n)) return 'transferencia'
+  if (/datafono|tarjeta/.test(n)) return 'datafono'
+  if (/efectivo|cash/.test(n)) return 'efectivo'
+  return 'otro'
+}
+
 function parseMontoMetodo(texto: string): { monto: number; metodo: MetodoPago } {
   const numStr = texto.match(/[\d.,´']+/)?.[0] ?? '0'
   const monto = parseInt(numStr.replace(/[.,´']/g, ''), 10) || 0
+  return { monto, metodo: detectarMetodo(texto) }
+}
 
-  const lower = texto.toLowerCase()
-  let metodo: MetodoPago = 'efectivo'
-  if (/bancolombia|nequi|daviplata|transferencia|pse|consignacion|consignación/.test(lower))
-    metodo = 'transferencia'
-  else if (/datafono|datáfono|tarjeta/.test(lower)) metodo = 'datafono'
-  else if (/efectivo|cash/.test(lower)) metodo = 'efectivo'
-
-  return { monto, metodo }
+// Normaliza una cadena: quita tildes/diacríticos, pasa a minúsculas, colapsa espacios
+function nc(s: string): string {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
 }
 
 function findRaw(lines: string[], ...claves: string[]): string | null {
+  const norm = claves.map(nc)
   for (const line of lines) {
-    for (const clave of claves) {
-      const regex = new RegExp(`^${clave}\\s*:(.+)`, 'i')
-      const m = line.match(regex)
-      if (m) return m[1].trim()
+    const ci = line.indexOf(':')
+    if (ci === -1) continue
+    if (norm.includes(nc(line.slice(0, ci)))) {
+      const val = line.slice(ci + 1).trim()
+      return val || null
     }
   }
   return null
@@ -253,12 +260,14 @@ function findRaw(lines: string[], ...claves: string[]): string | null {
 
 // Igual que findRaw pero devuelve TODOS los valores que coincidan (para campos repetidos)
 function collectAll(lines: string[], ...claves: string[]): string[] {
+  const norm = claves.map(nc)
   const results: string[] = []
   for (const line of lines) {
-    for (const clave of claves) {
-      const regex = new RegExp(`^${clave}\\s*:(.+)`, 'i')
-      const m = line.match(regex)
-      if (m) { results.push(m[1].trim()); break }
+    const ci = line.indexOf(':')
+    if (ci === -1) continue
+    if (norm.includes(nc(line.slice(0, ci)))) {
+      const val = line.slice(ci + 1).trim()
+      if (val) results.push(val)
     }
   }
   return results
@@ -269,7 +278,7 @@ function parsearLibre(texto: string): ParseResult {
   const faltantes: string[] = []
 
   // ── Número de pedido (obligatorio — define la sede) ───────────────────────
-  const numeroCampo = findRaw(lines, 'Número de pedido', 'Numero de pedido', 'Número de Pedido', 'Numero de Pedido', 'N° Pedido', 'No de Pedido', 'No\\. Pedido', 'Pedido', 'Orden')
+  const numeroCampo = findRaw(lines, 'Número de pedido', 'N° Pedido', 'No de Pedido', 'No. Pedido', 'Pedido', 'Orden')
   const ordenSuelto = lines.find(l => /^(TR|CR|SR)\d+$/i.test(l))
   const numeroPedido = numeroCampo ?? ordenSuelto ?? null
   if (!numeroPedido) return { ok: false, error: 'Falta el número de pedido (ej. TR5946). Debe empezar con TR, CR o SR.' }
@@ -284,17 +293,18 @@ function parsearLibre(texto: string): ParseResult {
   const clienteNombre = findRaw(lines, 'Nombre', 'Cliente', 'Nombre del cliente')
   if (!clienteNombre) faltantes.push('Nombre')
 
-  const telefonoRaw = findRaw(lines, 'Celular', 'Teléfono', 'Telefono', 'Tel', 'Cel')
+  const telefonoRaw = findRaw(lines, 'Celular', 'Teléfono', 'Tel', 'Cel')
   if (!telefonoRaw) faltantes.push('Celular')
 
   // Recoger TODOS los artículos (etiquetados o links sueltos)
-  const articuloKeys = ['Artículo/Link', 'Articulo/Link', 'Artículo', 'Articulo', 'Código de producto', 'Codigo de producto', 'Código', 'Codigo', 'Producto', 'Prenda', 'Ref', 'Referencia', 'Link', 'URL']
+  const articuloKeysNorm = ['articulo/link', 'articulo', 'codigo de producto', 'codigo', 'producto', 'prenda', 'ref', 'referencia', 'link', 'url']
   const todosArticulos: string[] = []
   for (const line of lines) {
+    const ci = line.indexOf(':')
     let matched = false
-    for (const clave of articuloKeys) {
-      const m = line.match(new RegExp(`^${clave}\\s*:(.+)`, 'i'))
-      if (m) { todosArticulos.push(m[1].trim()); matched = true; break }
+    if (ci !== -1 && articuloKeysNorm.includes(nc(line.slice(0, ci)))) {
+      const val = line.slice(ci + 1).trim()
+      if (val) { todosArticulos.push(val); matched = true }
     }
     if (!matched && /^https?:\/\//i.test(line)) todosArticulos.push(line.trim())
   }
@@ -347,22 +357,14 @@ function parsearLibre(texto: string): ParseResult {
   if (abono > total) return { ok: false, error: `El abono (${abono.toLocaleString('es-CO')}) no puede superar el precio (${total.toLocaleString('es-CO')}).` }
 
   // Método de pago: campo explícito tiene prioridad sobre el detectado del abono
-  const metodoCampo = findRaw(lines, 'Método de pago', 'Metodo de pago', 'Método pago', 'Metodo pago', 'Pago')
-  let metodoPago: MetodoPago = metodoDesdeAbono
-  if (metodoCampo) {
-    const lower = metodoCampo.toLowerCase()
-    if (/bancolombia|nequi|daviplata|transferencia|pse|consignacion|consignación/.test(lower))
-      metodoPago = 'transferencia'
-    else if (/datafono|datáfono|tarjeta/.test(lower)) metodoPago = 'datafono'
-    else if (/efectivo|cash/.test(lower)) metodoPago = 'efectivo'
-    else metodoPago = 'otro'
-  }
+  const metodoCampo = findRaw(lines, 'Método de pago', 'Metodo pago', 'Pago')
+  const metodoPago: MetodoPago = metodoCampo ? detectarMetodo(metodoCampo) : metodoDesdeAbono
 
   // ── Opcionales ────────────────────────────────────────────────────────────
-  const cedulaRaw = findRaw(lines, 'Cédula', 'Cedula', 'CC', 'Documento', 'Doc')
+  const cedulaRaw = findRaw(lines, 'Cédula', 'CC', 'Documento', 'Doc')
   const clienteDoc = cedulaRaw ? `CC ${cedulaRaw.replace(/^CC\s*/i, '').trim()}` : null
 
-  const direccionRaw = findRaw(lines, 'Dirección', 'Direccion', 'Dirección de entrega', 'Dir')
+  const direccionRaw = findRaw(lines, 'Dirección', 'Dirección de entrega', 'Dir')
   const barrioRaw = findRaw(lines, 'Barrio')
   const ciudadRaw = findRaw(lines, 'Ciudad')
   const tipoEntrega: 'domicilio' | 'sede' = direccionRaw ? 'domicilio' : 'sede'
