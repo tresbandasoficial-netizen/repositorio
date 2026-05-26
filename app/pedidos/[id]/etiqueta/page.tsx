@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { getPedidoDetalle } from '@/lib/queries/pedidos'
 import { formatCOP } from '@/lib/utils/format'
 import { getSesion, puedeAccederSede } from '@/lib/auth/acceso'
+import { PrintButton } from '@/components/pedidos/PrintButton'
 
 export default async function EtiquetaPedidoPage({
   params,
@@ -20,12 +21,7 @@ export default async function EtiquetaPedidoPage({
   return (
     <>
       <div className="no-print fixed top-4 right-4 z-10 flex gap-2">
-        <button
-          onClick={() => window.print()}
-          className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors"
-        >
-          Imprimir etiqueta
-        </button>
+        <PrintButton />
         <a
           href={`/pedidos/${id}`}
           className="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"

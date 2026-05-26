@@ -4,6 +4,7 @@ import { formatCOP, formatFecha } from '@/lib/utils/format'
 import { formatearTelefono } from '@/lib/utils/phone'
 import { ESTADO_LABELS } from '@/types'
 import { getSesion, puedeAccederSede } from '@/lib/auth/acceso'
+import { PrintButton } from '@/components/pedidos/PrintButton'
 
 export default async function ImprimirPedidoPage({
   params,
@@ -23,12 +24,7 @@ export default async function ImprimirPedidoPage({
     <>
       {/* Botón imprimir — se oculta al imprimir */}
       <div className="no-print fixed top-4 right-4 z-10 flex gap-2">
-        <button
-          onClick={() => window.print()}
-          className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors"
-        >
-          Imprimir
-        </button>
+        <PrintButton />
         <a
           href={`/pedidos/${id}`}
           className="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
