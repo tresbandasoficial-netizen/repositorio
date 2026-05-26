@@ -154,6 +154,65 @@ export async function getMetricasPorSede(): Promise<MetricasSede[]> {
   }))
 }
 
+export type MetricasAsesorRow = {
+  asesor_id: string
+  asesor_nombre: string
+  pedidos_mes: number
+  ventas_mes: number
+  ticket_promedio: number
+  pedidos_activos: number
+}
+
+export async function getMetricasPorAsesor(): Promise<MetricasAsesorRow[]> {
+  const supabase = await createClient()
+
+  const [activos, mensuales] = await Promise.all([
+    supabase
+      .from('vista_pedidos_asesor')
+      .select('asesor_id, asesor_nombre')
+      .not('estado', 'in', '("entregado","cancelado")'),
+    supabase
+      .from('vista_pedidos_asesor')
+      .select('asesor_id, asesor_nombre, total')
+      .gte('fecha_creacion', hace(30))
+      .neq('estado', 'cancelado'),
+  ])
+
+  const nombreById: Record<string, string> = {}
+  const activosByAsesor: Record<string, number> = {}
+  const ventasByAsesor: Record<string, number> = {}
+  const countByAsesor: Record<string, number> = {}
+
+  for (const r of (activos.data ?? []) as Array<{ asesor_id: string; asesor_nombre: string }>) {
+    nombreById[r.asesor_id] = r.asesor_nombre
+    activosByAsesor[r.asesor_id] = (activosByAsesor[r.asesor_id] ?? 0) + 1
+  }
+
+  for (const r of (mensuales.data ?? []) as Array<{ asesor_id: string; asesor_nombre: string; total: number }>) {
+    nombreById[r.asesor_id] = r.asesor_nombre
+    ventasByAsesor[r.asesor_id] = (ventasByAsesor[r.asesor_id] ?? 0) + r.total
+    countByAsesor[r.asesor_id] = (countByAsesor[r.asesor_id] ?? 0) + 1
+  }
+
+  const ids = [...new Set([...Object.keys(activosByAsesor), ...Object.keys(ventasByAsesor)])]
+
+  return ids
+    .map((id) => {
+      const ventas = ventasByAsesor[id] ?? 0
+      const count  = countByAsesor[id] ?? 0
+      return {
+        asesor_id:       id,
+        asesor_nombre:   nombreById[id] ?? id,
+        pedidos_mes:     count,
+        ventas_mes:      ventas,
+        ticket_promedio: count > 0 ? Math.round(ventas / count) : 0,
+        pedidos_activos: activosByAsesor[id] ?? 0,
+      }
+    })
+    .sort((a, b) => b.ventas_mes - a.ventas_mes)
+}
+
+
 export async function getUltimosPedidosAsesor(asesorId: string): Promise<PedidoRow[]> {
   const supabase = await createClient()
   const { data } = await supabase
