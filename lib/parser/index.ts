@@ -208,6 +208,24 @@ function descDesdeUrl(url: string): string {
   }
 }
 
+// Parsear expresiones de precio como "$354.000 + $310.000 = $664.000"
+function parsearPreciosExpresion(raw: string): { individuales: number[], total: number | null } {
+  const sinDolar = raw.replace(/\$/g, '')
+  const partes   = sinDolar.split('=')
+  const sumaStr  = partes[0]
+  const totalStr = partes.length > 1 ? partes[partes.length - 1] : null
+
+  const individuales = sumaStr.split('+').map(p =>
+    parseInt(p.replace(/\./g, '').replace(/[^\d]/g, ''), 10)
+  ).filter(n => !isNaN(n) && n > 0)
+
+  const total = totalStr
+    ? parseInt(totalStr.replace(/\./g, '').replace(/[^\d]/g, ''), 10) || null
+    : null
+
+  return { individuales, total }
+}
+
 function parseMontoMetodo(texto: string): { monto: number; metodo: MetodoPago } {
   const numStr = texto.match(/[\d.,´']+/)?.[0] ?? '0'
   const monto = parseInt(numStr.replace(/[.,´']/g, ''), 10) || 0
@@ -269,7 +287,7 @@ function parsearLibre(texto: string): ParseResult {
   if (!telefonoRaw) faltantes.push('Celular')
 
   // Recoger TODOS los artículos (etiquetados o links sueltos)
-  const articuloKeys = ['Artículo', 'Articulo', 'Código de producto', 'Codigo de producto', 'Código', 'Codigo', 'Producto', 'Prenda', 'Ref', 'Referencia', 'Link', 'URL']
+  const articuloKeys = ['Artículo/Link', 'Articulo/Link', 'Artículo', 'Articulo', 'Código de producto', 'Codigo de producto', 'Código', 'Codigo', 'Producto', 'Prenda', 'Ref', 'Referencia', 'Link', 'URL']
   const todosArticulos: string[] = []
   for (const line of lines) {
     let matched = false
@@ -281,7 +299,8 @@ function parsearLibre(texto: string): ParseResult {
   }
   if (todosArticulos.length === 0) faltantes.push('Artículo (o pega el link del producto)')
 
-  const todasTallas  = collectAll(lines, 'Talla')
+  const todasTallasRaw = collectAll(lines, 'Talla')
+  const todasTallas = todasTallasRaw.flatMap(t => t.split(/\s*\/\s*/).map(s => s.trim()).filter(Boolean))
   if (todasTallas.length === 0) faltantes.push('Talla')
 
   const todosPrecios = collectAll(lines, 'Precio', 'Valor', 'Costo')
@@ -306,13 +325,19 @@ function parsearLibre(texto: string): ParseResult {
   if (!telefono) return { ok: false, error: `El celular "${telefonoRaw}" no es un número colombiano válido.` }
 
   // ── Precios individuales y total ─────────────────────────────────────────
-  const preciosNum = todosPrecios.map(p => parseInt(p.replace(/\./g, '').replace(/[^\d]/g, ''), 10))
+  let preciosNum: number[] = []
+  let totalExplicitoDePrecios: number | null = null
+  for (const precioRaw of todosPrecios) {
+    const { individuales, total: t } = parsearPreciosExpresion(precioRaw)
+    preciosNum.push(...individuales)
+    if (!totalExplicitoDePrecios && t) totalExplicitoDePrecios = t
+  }
   if (preciosNum.some(p => isNaN(p) || p <= 0))
     return { ok: false, error: `Un precio no es válido. Escríbelo con puntos: ej. 350.000 o 1.050.000` }
   const totalExplicitoRaw = findRaw(lines, 'Total', 'Precio total', 'Valor total')
   const total = totalExplicitoRaw
     ? parseInt(totalExplicitoRaw.replace(/\./g, '').replace(/[^\d]/g, ''), 10)
-    : preciosNum.reduce((a, b) => a + b, 0)
+    : (totalExplicitoDePrecios ?? preciosNum.reduce((a, b) => a + b, 0))
 
   // ── Abono (suma de todos los abonos) ─────────────────────────────────────
   const abonosParsed = todosAbonos.map(a => parseMontoMetodo(a))
