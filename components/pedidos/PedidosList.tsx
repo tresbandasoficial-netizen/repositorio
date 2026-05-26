@@ -86,106 +86,110 @@ export function PedidosList({ resultado, esAdmin }: PedidosListProps) {
   return (
     <div className="space-y-4">
       {/* Filtros */}
-      <div className="flex flex-wrap gap-3 items-center">
-        <input
-          key={busqueda}
-          type="search"
-          placeholder="Buscar por número, cliente o teléfono..."
-          defaultValue={busqueda}
-          onChange={(e) => {
-            const val = e.target.value
-            clearTimeout(debounceRef.current)
-            debounceRef.current = setTimeout(() => setFiltro('q', val), 400)
-          }}
-          className="flex-1 min-w-48 max-w-sm rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-
-        <select
-          value={estadoActual}
-          onChange={(e) => setFiltro('estado', e.target.value)}
-          className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-        >
-          {ESTADOS.map((e) => (
-            <option key={e.value} value={e.value}>{e.label}</option>
-          ))}
-        </select>
-
-        {esAdmin && (
-          <select
-            value={sedeActual}
-            onChange={(e) => setFiltro('sede', e.target.value)}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+      <div className="space-y-2">
+        {/* Fila 1: búsqueda + alertas + csv */}
+        <div className="flex gap-2 items-center">
+          <input
+            key={busqueda}
+            type="search"
+            placeholder="Buscar por número, cliente o teléfono..."
+            defaultValue={busqueda}
+            onChange={(e) => {
+              const val = e.target.value
+              clearTimeout(debounceRef.current)
+              debounceRef.current = setTimeout(() => setFiltro('q', val), 400)
+            }}
+            className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            onClick={toggleAlertas}
+            className={`shrink-0 text-sm font-medium px-3 py-2 rounded-lg border transition-colors ${
+              soloAlertas
+                ? 'bg-red-600 border-red-600 text-white'
+                : 'bg-white border-gray-300 text-gray-600 hover:border-red-300 hover:text-red-600'
+            }`}
           >
-            {SEDES.map((s) => (
-              <option key={s.value} value={s.value}>{s.label}</option>
+            ⚠
+          </button>
+          <a
+            href={buildExportUrl()}
+            download
+            className="shrink-0 text-sm font-medium px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            ↓
+          </a>
+        </div>
+
+        {/* Fila 2: filtros + fechas */}
+        <div className="flex flex-wrap gap-2 items-center">
+          <select
+            value={estadoActual}
+            onChange={(e) => setFiltro('estado', e.target.value)}
+            className="flex-1 min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+          >
+            {ESTADOS.map((e) => (
+              <option key={e.value} value={e.value}>{e.label}</option>
             ))}
           </select>
-        )}
 
-        <button
-          onClick={toggleAlertas}
-          className={`text-sm font-medium px-3 py-2 rounded-lg border transition-colors ${
-            soloAlertas
-              ? 'bg-red-600 border-red-600 text-white'
-              : 'bg-white border-gray-300 text-gray-600 hover:border-red-300 hover:text-red-600'
-          }`}
-        >
-          ⚠ Alertas
-        </button>
+          {esAdmin && (
+            <select
+              value={sedeActual}
+              onChange={(e) => setFiltro('sede', e.target.value)}
+              className="flex-1 min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            >
+              {SEDES.map((s) => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
+          )}
 
-        <input
-          key={fechaDesde}
-          type="date"
-          defaultValue={fechaDesde}
-          onChange={(e) => setFiltro('desde', e.target.value)}
-          title="Desde"
-          className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-700"
-        />
-        <input
-          key={fechaHasta + '-h'}
-          type="date"
-          defaultValue={fechaHasta}
-          onChange={(e) => setFiltro('hasta', e.target.value)}
-          title="Hasta"
-          className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-700"
-        />
+          <input
+            key={fechaDesde}
+            type="date"
+            defaultValue={fechaDesde}
+            onChange={(e) => setFiltro('desde', e.target.value)}
+            title="Desde"
+            className="flex-1 min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-700"
+          />
+          <input
+            key={fechaHasta + '-h'}
+            type="date"
+            defaultValue={fechaHasta}
+            onChange={(e) => setFiltro('hasta', e.target.value)}
+            title="Hasta"
+            className="flex-1 min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-700"
+          />
 
-        {(fechaDesde || fechaHasta) && (
-          <button
-            onClick={() => {
-              const params = new URLSearchParams(searchParams.toString())
-              params.delete('desde')
-              params.delete('hasta')
-              params.delete('pagina')
-              router.push(`${pathname}?${params.toString()}`)
-            }}
-            className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 rounded"
-          >
-            ✕ fechas
-          </button>
-        )}
+          {(fechaDesde || fechaHasta) && (
+            <button
+              onClick={() => {
+                const params = new URLSearchParams(searchParams.toString())
+                params.delete('desde')
+                params.delete('hasta')
+                params.delete('pagina')
+                router.push(`${pathname}?${params.toString()}`)
+              }}
+              className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 rounded"
+            >
+              ✕
+            </button>
+          )}
 
-        <span className="text-sm text-gray-400 ml-auto">
-          {total === 0 ? 'Sin resultados' : `${desde}–${hasta} de ${total}`}
-        </span>
-
-        <a
-          href={buildExportUrl()}
-          download
-          className="text-sm font-medium px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 transition-colors whitespace-nowrap"
-        >
-          ↓ CSV
-        </a>
+          <span className="text-sm text-gray-400 ml-auto whitespace-nowrap">
+            {total === 0 ? 'Sin resultados' : `${desde}–${hasta} de ${total}`}
+          </span>
+        </div>
       </div>
 
       {/* Lista */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm divide-y divide-gray-100">
-        <div className="px-6 py-3 bg-gray-50 rounded-t-xl flex gap-4 text-xs font-medium text-gray-500 uppercase tracking-wide">
+        <div className="hidden md:flex px-6 py-3 bg-gray-50 rounded-t-xl gap-4 text-xs font-medium text-gray-500 uppercase tracking-wide">
           <span className="w-24">Orden</span>
           <span className="flex-1">Cliente</span>
           <span className="w-40">Estado</span>
           <span className="w-32 text-right">Valor</span>
-          {esAdmin && <span className="w-32 text-right hidden md:block">Asesor</span>}
+          {esAdmin && <span className="w-32 text-right">Asesor</span>}
           <span className="w-24 text-right hidden lg:block">Fecha</span>
           <span className="w-4" />
         </div>

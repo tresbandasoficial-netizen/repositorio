@@ -70,7 +70,28 @@ export default async function AlertasPage() {
         </div>
       ) : (
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
+          {/* Móvil */}
+          <div className="md:hidden divide-y divide-gray-100">
+            {ordenados.map((p) => {
+              const motivo = getMotivoAlerta(p)
+              return (
+                <Link key={p.id} href={`/pedidos/${p.id}`} className="block px-4 py-3 hover:bg-red-50/30 transition-colors">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-sm text-gray-900">{p.numero_orden}</span>
+                      <EstadoBadge estado={p.estado as EstadoPedido} enAlerta={true} />
+                    </div>
+                    <span className="text-xs text-blue-600 font-medium shrink-0">Ver →</span>
+                  </div>
+                  <p className="text-sm text-gray-700">{p.cliente_nombre}</p>
+                  <p className="text-xs text-red-600 font-medium mt-0.5">{motivo}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{p.asesor_nombre}</p>
+                </Link>
+              )
+            })}
+          </div>
+          {/* Desktop */}
+          <table className="hidden md:table w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
                 <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase">Pedido</th>
@@ -84,7 +105,6 @@ export default async function AlertasPage() {
             <tbody className="divide-y divide-gray-50">
               {ordenados.map((p) => {
                 const motivo = getMotivoAlerta(p)
-                const dias   = Math.max(diasDesde(p.fecha_actualizacion), diasDesde(p.fecha_creacion))
                 return (
                   <tr key={p.id} className="hover:bg-red-50/30 transition-colors">
                     <td className="px-5 py-3">
@@ -99,10 +119,7 @@ export default async function AlertasPage() {
                     </td>
                     <td className="px-4 py-3 text-gray-400 text-xs">{p.asesor_nombre}</td>
                     <td className="px-4 py-3 text-right">
-                      <Link
-                        href={`/pedidos/${p.id}`}
-                        className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                      >
+                      <Link href={`/pedidos/${p.id}`} className="text-xs text-blue-600 hover:text-blue-800 font-medium">
                         Ver →
                       </Link>
                     </td>

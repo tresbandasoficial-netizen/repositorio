@@ -27,48 +27,49 @@ export default async function PedidoDetallePage({
   const saldo = pedido.total - pedido.total_pagado
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-4 md:p-6 max-w-4xl mx-auto">
       {/* Cabecera */}
-      <div className="flex items-center gap-3 mb-6">
-        <Link href="/pedidos" className="text-gray-400 hover:text-gray-600 text-sm">
-          ← Pedidos
-        </Link>
-        <span className="text-gray-300">/</span>
-        <span className="font-mono font-bold text-gray-900 text-lg">{pedido.numero_orden}</span>
-        <EstadoBadge estado={pedido.estado} enAlerta={pedido.en_alerta} />
-
-        <div className="ml-auto flex gap-2 flex-wrap justify-end">
-          <Link
-            href={`/pedidos/${id}/editar`}
-            className="text-sm bg-white border border-gray-300 hover:bg-gray-50 px-3 py-1.5 rounded-lg font-medium text-gray-700 transition-colors"
-          >
-            Editar
+      <div className="mb-4 md:mb-6 space-y-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <Link href="/pedidos" className="text-gray-400 hover:text-gray-600 text-sm">
+            ← Pedidos
           </Link>
-          <Link
-            href={`/pedidos/${id}/estado`}
-            className="text-sm bg-white border border-gray-300 hover:bg-gray-50 px-3 py-1.5 rounded-lg font-medium text-gray-700 transition-colors"
-          >
-            Cambiar estado
-          </Link>
+          <span className="text-gray-300">/</span>
+          <span className="font-mono font-bold text-gray-900 text-lg">{pedido.numero_orden}</span>
+          <EstadoBadge estado={pedido.estado} enAlerta={pedido.en_alerta} />
+        </div>
+        <div className="flex gap-2 flex-wrap">
           <Link
             href={`/pedidos/${id}/pago`}
-            className="text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-medium transition-colors"
+            className="text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg font-medium transition-colors"
           >
             + Registrar pago
           </Link>
           <Link
-            href={`/pedidos/${id}/imprimir`}
-            target="_blank"
-            className="text-sm bg-white border border-gray-300 hover:bg-gray-50 px-3 py-1.5 rounded-lg font-medium text-gray-500 transition-colors"
+            href={`/pedidos/${id}/estado`}
+            className="text-sm bg-white border border-gray-300 hover:bg-gray-50 px-3 py-2 rounded-lg font-medium text-gray-700 transition-colors"
           >
-            Imprimir
+            Cambiar estado
+          </Link>
+          <Link
+            href={`/pedidos/${id}/editar`}
+            className="text-sm bg-white border border-gray-300 hover:bg-gray-50 px-3 py-2 rounded-lg font-medium text-gray-700 transition-colors"
+          >
+            Editar
           </Link>
           <Link
             href={`/pedidos/${id}/etiqueta`}
             target="_blank"
-            className="text-sm bg-white border border-gray-300 hover:bg-gray-50 px-3 py-1.5 rounded-lg font-medium text-gray-500 transition-colors"
+            className="text-sm bg-white border border-gray-300 hover:bg-gray-50 px-3 py-2 rounded-lg font-medium text-gray-500 transition-colors"
           >
             Etiqueta
+          </Link>
+          <Link
+            href={`/pedidos/${id}/imprimir`}
+            target="_blank"
+            className="hidden sm:inline-flex text-sm bg-white border border-gray-300 hover:bg-gray-50 px-3 py-2 rounded-lg font-medium text-gray-500 transition-colors"
+          >
+            Imprimir
           </Link>
           {esAdmin && <EliminarPedidoButton pedidoId={id} />}
         </div>
@@ -83,7 +84,28 @@ export default async function PedidoDetallePage({
               <h2 className="text-sm font-semibold text-gray-900">Productos</h2>
             </CardHeader>
             <CardContent className="p-0">
-              <table className="w-full text-sm">
+              {/* Móvil */}
+              <div className="md:hidden divide-y divide-gray-50">
+                {pedido.items.map((item) => (
+                  <div key={item.id} className="px-4 py-3 flex justify-between items-start gap-3">
+                    <div className="min-w-0">
+                      <span className="font-medium text-gray-900">{item.marca}</span>
+                      <span className="text-gray-500 ml-1 text-sm">{item.descripcion}</span>
+                      <div className="text-xs text-gray-400 mt-0.5">
+                        {item.talla && <span>Talla {item.talla} · </span>}
+                        <span>×{item.cantidad}</span>
+                      </div>
+                    </div>
+                    <span className="font-medium text-gray-900 shrink-0">{formatCOP(item.precio_venta)}</span>
+                  </div>
+                ))}
+                <div className="px-4 py-3 flex justify-between bg-gray-50">
+                  <span className="font-semibold text-gray-700 text-sm">Total</span>
+                  <span className="font-bold text-gray-900">{formatCOP(pedido.total)}</span>
+                </div>
+              </div>
+              {/* Desktop */}
+              <table className="hidden md:table w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100">
                     <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">Marca / Producto</th>
@@ -101,9 +123,7 @@ export default async function PedidoDetallePage({
                       </td>
                       <td className="px-4 py-3 text-center text-gray-600">{item.talla ?? '—'}</td>
                       <td className="px-4 py-3 text-center text-gray-600">{item.cantidad}</td>
-                      <td className="px-6 py-3 text-right font-medium text-gray-900">
-                        {formatCOP(item.precio_venta)}
-                      </td>
+                      <td className="px-6 py-3 text-right font-medium text-gray-900">{formatCOP(item.precio_venta)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -129,44 +149,61 @@ export default async function PedidoDetallePage({
             </CardHeader>
             <CardContent className="p-0">
               {pedido.pagos.length === 0 ? (
-                <p className="px-6 py-4 text-sm text-gray-400">Sin pagos registrados.</p>
+                <p className="px-4 py-4 text-sm text-gray-400">Sin pagos registrados.</p>
               ) : (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-100">
-                      <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">Fecha</th>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Método</th>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Registrado por</th>
-                      <th className="text-right px-6 py-3 text-xs font-medium text-gray-500 uppercase">Monto</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
+                <>
+                  {/* Móvil */}
+                  <div className="md:hidden divide-y divide-gray-50">
                     {pedido.pagos.map((pago) => (
-                      <tr key={pago.id}>
-                        <td className="px-6 py-3 text-gray-600">{formatFecha(pago.fecha)}</td>
-                        <td className="px-4 py-3 text-gray-600 capitalize">{pago.metodo}</td>
-                        <td className="px-4 py-3 text-gray-500 text-xs">{pago.asesor_nombre}</td>
-                        <td className="px-6 py-3 text-right font-medium text-gray-900">{formatCOP(pago.monto)}</td>
-                        <td className="px-3 py-3 text-right">
-                          <Link
-                            href={`/pedidos/${id}/pago/${pago.id}/recibo`}
-                            target="_blank"
-                            className="text-xs text-gray-400 hover:text-gray-600"
-                            title="Imprimir recibo"
-                          >
-                            🖨
+                      <div key={pago.id} className="px-4 py-3 flex justify-between items-start gap-3">
+                        <div>
+                          <p className="text-sm font-medium text-gray-900 capitalize">{pago.metodo}</p>
+                          <p className="text-xs text-gray-400">{formatFecha(pago.fecha)} · {pago.asesor_nombre}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="font-medium text-gray-900">{formatCOP(pago.monto)}</p>
+                          <Link href={`/pedidos/${id}/pago/${pago.id}/recibo`} target="_blank" className="text-xs text-gray-400">
+                            recibo
                           </Link>
-                        </td>
-                      </tr>
+                        </div>
+                      </div>
                     ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t border-gray-200 bg-gray-50">
-                      <td colSpan={4} className="px-6 py-3 text-sm font-semibold text-gray-700 text-right">Total pagado</td>
-                      <td className="px-3 py-3 text-right font-bold text-green-700">{formatCOP(pedido.total_pagado)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
+                    <div className="px-4 py-3 flex justify-between bg-gray-50">
+                      <span className="font-semibold text-gray-700 text-sm">Total pagado</span>
+                      <span className="font-bold text-green-700">{formatCOP(pedido.total_pagado)}</span>
+                    </div>
+                  </div>
+                  {/* Desktop */}
+                  <table className="hidden md:table w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-100">
+                        <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Método</th>
+                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Registrado por</th>
+                        <th className="text-right px-6 py-3 text-xs font-medium text-gray-500 uppercase">Monto</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {pedido.pagos.map((pago) => (
+                        <tr key={pago.id}>
+                          <td className="px-6 py-3 text-gray-600">{formatFecha(pago.fecha)}</td>
+                          <td className="px-4 py-3 text-gray-600 capitalize">{pago.metodo}</td>
+                          <td className="px-4 py-3 text-gray-500 text-xs">{pago.asesor_nombre}</td>
+                          <td className="px-6 py-3 text-right font-medium text-gray-900">{formatCOP(pago.monto)}</td>
+                          <td className="px-3 py-3 text-right">
+                            <Link href={`/pedidos/${id}/pago/${pago.id}/recibo`} target="_blank" className="text-xs text-gray-400 hover:text-gray-600" title="Imprimir recibo">🖨</Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t border-gray-200 bg-gray-50">
+                        <td colSpan={4} className="px-6 py-3 text-sm font-semibold text-gray-700 text-right">Total pagado</td>
+                        <td className="px-3 py-3 text-right font-bold text-green-700">{formatCOP(pedido.total_pagado)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </>
               )}
             </CardContent>
           </Card>
