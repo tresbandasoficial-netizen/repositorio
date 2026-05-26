@@ -16,7 +16,7 @@ export default async function EditarPedidoPage({
 
   const { data: pedido } = await supabase
     .from('vista_pedidos_asesor')
-    .select('id, numero_orden, estado, notas, tipo_entrega, direccion_entrega, numero_guia, sede_id')
+    .select('id, numero_orden, estado, notas, tipo_entrega, direccion_entrega, numero_guia, sede_id, sede_codigo')
     .eq('id', id)
     .single()
 
@@ -46,6 +46,8 @@ export default async function EditarPedidoPage({
         <CardContent>
           <EditarPedidoForm
             pedidoId={pedido.id}
+            numeroOrden={pedido.numero_orden}
+            sedeCodigo={(pedido as any).sede_codigo ?? ''}
             notas={pedido.notas}
             tipoEntrega={pedido.tipo_entrega as 'sede' | 'domicilio'}
             direccionEntrega={pedido.direccion_entrega}

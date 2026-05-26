@@ -5,17 +5,20 @@ import { editarPedidoAction } from '@/app/actions/pedidos'
 
 interface Props {
   pedidoId: string
+  numeroOrden: string
+  sedeCodigo: string
   notas: string | null
   tipoEntrega: 'sede' | 'domicilio'
   direccionEntrega: string | null
   numeroGuia: string | null
 }
 
-export function EditarPedidoForm({ pedidoId, notas, tipoEntrega, direccionEntrega, numeroGuia }: Props) {
-  const [tipo, setTipo]           = useState<'sede' | 'domicilio'>(tipoEntrega)
-  const [direccion, setDireccion] = useState(direccionEntrega ?? '')
-  const [notasVal, setNotasVal]   = useState(notas ?? '')
-  const [guia, setGuia]           = useState(numeroGuia ?? '')
+export function EditarPedidoForm({ pedidoId, numeroOrden, sedeCodigo, notas, tipoEntrega, direccionEntrega, numeroGuia }: Props) {
+  const [numero, setNumero]        = useState(numeroOrden)
+  const [tipo, setTipo]            = useState<'sede' | 'domicilio'>(tipoEntrega)
+  const [direccion, setDireccion]  = useState(direccionEntrega ?? '')
+  const [notasVal, setNotasVal]    = useState(notas ?? '')
+  const [guia, setGuia]            = useState(numeroGuia ?? '')
   const [error, setError]         = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
@@ -24,6 +27,7 @@ export function EditarPedidoForm({ pedidoId, notas, tipoEntrega, direccionEntreg
     setError(null)
     startTransition(async () => {
       const result = await editarPedidoAction(pedidoId, {
+        numero_orden:      numero,
         notas:             notasVal,
         tipo_entrega:      tipo,
         direccion_entrega: direccion,
@@ -35,6 +39,19 @@ export function EditarPedidoForm({ pedidoId, notas, tipoEntrega, direccionEntreg
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
+      {/* Número de pedido */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">Número de pedido</label>
+        <input
+          type="text"
+          value={numero}
+          onChange={(e) => setNumero(e.target.value.toUpperCase())}
+          className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder={`${sedeCodigo}1025`}
+        />
+        <p className="text-xs text-gray-400 mt-1">Debe empezar con {sedeCodigo}</p>
+      </div>
+
       {/* Tipo de entrega */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1.5">Tipo de entrega</label>

@@ -243,6 +243,7 @@ export type EditarPedidoResult =
 export async function editarPedidoAction(
   pedidoId: string,
   data: {
+    numero_orden: string
     notas: string
     tipo_entrega: 'sede' | 'domicilio'
     direccion_entrega: string
@@ -254,13 +255,20 @@ export async function editarPedidoAction(
 
   const { data: pedidoCheck } = await supabase
     .from('vista_pedidos_asesor')
-    .select('sede_id, estado')
+    .select('sede_id, estado, sede_codigo')
     .eq('id', pedidoId)
     .single()
 
   if (!pedidoCheck) return { ok: false, error: 'Pedido no encontrado' }
   if (!puedeAccederSede(sesion, pedidoCheck.sede_id)) return { ok: false, error: 'Sin acceso a este pedido' }
   if (pedidoCheck.estado === 'cancelado') return { ok: false, error: 'No se puede editar un pedido cancelado' }
+
+  const nuevoNumero = data.numero_orden.trim().toUpperCase()
+  if (!nuevoNumero) return { ok: false, error: 'El número de pedido es obligatorio' }
+  const sedeCodigo = (pedidoCheck as any).sede_codigo as string
+  if (!nuevoNumero.startsWith(sedeCodigo)) {
+    return { ok: false, error: `El número debe empezar con ${sedeCodigo}` }
+  }
 
   if (data.tipo_entrega === 'domicilio' && !data.direccion_entrega.trim()) {
     return { ok: false, error: 'La dirección de entrega es obligatoria para domicilio' }
@@ -269,6 +277,7 @@ export async function editarPedidoAction(
   const { error: updateError } = await supabase
     .from('pedidos')
     .update({
+      numero_orden:      nuevoNumero,
       notas:             data.notas.trim() || null,
       tipo_entrega:      data.tipo_entrega,
       direccion_entrega: data.tipo_entrega === 'domicilio' ? data.direccion_entrega.trim() : null,
@@ -276,7 +285,10 @@ export async function editarPedidoAction(
     })
     .eq('id', pedidoId)
 
-  if (updateError) return { ok: false, error: updateError.message }
+  if (updateError) {
+    if (updateError.code === '23505') return { ok: false, error: `El número "${nuevoNumero}" ya está en uso.` }
+    return { ok: false, error: updateError.message }
+  }
 
   redirect(`/pedidos/${pedidoId}`)
 }
