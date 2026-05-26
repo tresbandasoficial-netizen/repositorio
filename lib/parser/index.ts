@@ -269,8 +269,9 @@ function parsearLibre(texto: string): ParseResult {
   const faltantes: string[] = []
 
   // ── Número de pedido (obligatorio — define la sede) ───────────────────────
-  const numeroCampo = findRaw(lines, 'Numero de Pedido', 'N° Pedido', 'No de Pedido', 'No\\. Pedido', 'Pedido', 'Orden')
-  const numeroPedido = numeroCampo ?? (lines[0]?.match(/^(TR|CR|SR)\d+$/i)?.[0] ?? null)
+  const numeroCampo = findRaw(lines, 'Número de pedido', 'Numero de pedido', 'Número de Pedido', 'Numero de Pedido', 'N° Pedido', 'No de Pedido', 'No\\. Pedido', 'Pedido', 'Orden')
+  const ordenSuelto = lines.find(l => /^(TR|CR|SR)\d+$/i.test(l))
+  const numeroPedido = numeroCampo ?? ordenSuelto ?? null
   if (!numeroPedido) return { ok: false, error: 'Falta el número de pedido (ej. TR5946). Debe empezar con TR, CR o SR.' }
   const numeroOrden = numeroPedido.trim().toUpperCase()
 
@@ -372,8 +373,19 @@ function parsearLibre(texto: string): ParseResult {
   const notas = findRaw(lines, 'Notas', 'Observaciones', 'Nota')
 
   // ── Productos (uno o varios) ──────────────────────────────────────────────
-  const todosNombres = collectAll(lines, 'Nombre del producto', 'Nombre producto', 'Nombre prenda')
-  const ultimaCorta  = [...lines].reverse().find((l) => !l.includes(':') && l.length <= 30)
+  const todosNombresEtiquetados = collectAll(lines, 'Nombre del producto', 'Nombre producto', 'Nombre prenda')
+  // Líneas huérfanas (sin ":", no URL, no orden, >10 chars) actúan como nombres adicionales
+  const lineasHuerfanas = lines.filter(l =>
+    !l.includes(':') &&
+    !/^https?:\/\//i.test(l) &&
+    !/^(TR|CR|SR)\d+/i.test(l) &&
+    l.length > 10
+  )
+  // Etiquetados tienen prioridad; huérfanas rellenan los slots sin nombre
+  const todosNombres = [...todosNombresEtiquetados]
+  for (const h of lineasHuerfanas) {
+    if (!todosNombres.includes(h)) todosNombres.push(h)
+  }
 
   const productos: ParsedPedido['productos'] = todosArticulos.map((art, i) => {
     const precio  = preciosNum[i] ?? preciosNum[preciosNum.length - 1]
@@ -385,17 +397,7 @@ function parsearLibre(texto: string): ParseResult {
 
     if (esLink) {
       marca = marcaDesdeUrl(art)
-      let nombre = todosNombres[i] ?? todosNombres[0] ?? null
-      // Si no hay etiqueta, buscar línea sin ":" que no sea número, URL ni asesor
-      if (!nombre) {
-        nombre = lines.find((l) =>
-          !l.includes(':') &&
-          !/^https?:\/\//i.test(l) &&
-          !/^(TR|CR|SR)\d+/i.test(l) &&
-          l !== ultimaCorta &&
-          l.length > 3
-        ) ?? descDesdeUrl(art)
-      }
+      const nombre = todosNombres[i] ?? descDesdeUrl(art)
       descripcion = nombre
     } else {
       const partes = art.split(/\s+/)
