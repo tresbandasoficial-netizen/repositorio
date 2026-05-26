@@ -42,6 +42,9 @@ export function CrearCompraForm() {
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10))
   const [totalUsd, setTotalUsd] = useState('')
   const [totalCopPagado, setTotalCopPagado] = useState('')
+  const [subtotalUsd, setSubtotalUsd] = useState('')
+  const [impuestosUsd, setImpuestosUsd] = useState('')
+  const [envioUsd, setEnvioUsd] = useState('')
   const [notas, setNotas] = useState('')
   const [items, setItems] = useState<ItemForm[]>([])
 
@@ -58,22 +61,20 @@ export function CrearCompraForm() {
 
   const totalCopNum = parseInt(totalCopPagado.replace(/\D/g, ''), 10) || 0
 
-  // Cuando la TRM cambia, auto-rellenar costo COP = (precio + tax + shipping proporcional) × TRM
-  function aplicarTrmAItems(trm: number) {
-    if (!factura) return
-    const multiples = factura.items.length > 1
-    const shipping = factura.shipping_usd ?? 0
-    const subtotal = factura.items.reduce((s, i) => s + i.precio_usd * i.cantidad, 0)
-
-    setItems((prev) =>
-      prev.map((item) => {
+  // Recalcular costos COP usando tasas reales de tax y envío
+  function recalcularCostos(trm: number, taxUsd: number, shippingUsd: number) {
+    setItems(prev => {
+      const subtotal = prev.reduce((s, item) => s + (item.precio_usd ?? 0), 0)
+      const taxRate = subtotal > 0 ? taxUsd / subtotal : 0
+      const shippingRate = subtotal > 0 ? shippingUsd / subtotal : 0
+      return prev.map(item => {
         if (!item.precio_usd) return item
-        const precioConTax = multiples ? item.precio_usd * 1.07 : item.precio_usd
-        const shippingProp = subtotal > 0 ? shipping * (item.precio_usd / subtotal) : 0
-        const costoTotal = Math.round((precioConTax + shippingProp) * trm)
-        return { ...item, costo_unitario_cop: String(costoTotal) }
+        const cantidad = parseInt(item.cantidad, 10) || 1
+        const unitPriceUsd = item.precio_usd / cantidad
+        const realCostUsd = unitPriceUsd * (1 + taxRate + shippingRate)
+        return { ...item, costo_unitario_cop: String(Math.round(realCostUsd * trm)) }
       })
-    )
+    })
   }
 
   function agregarItem() {
@@ -115,6 +116,9 @@ export function CrearCompraForm() {
         setFecha(data.fecha)
         setNumeroFactura(data.numero_factura ?? '')
         setTotalUsd(String(data.total_usd))
+        setSubtotalUsd(String(data.subtotal_usd || ''))
+        setImpuestosUsd(String(data.tax_usd || ''))
+        setEnvioUsd(String(data.shipping_usd || ''))
         setItems(facturaToItems(data.items))
         setTipo('usa')
         setPaso('revisar')
@@ -307,45 +311,123 @@ export function CrearCompraForm() {
 
           {/* Montos */}
           {tipo === 'usa' ? (
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Total USD (factura)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={totalUsd}
-                  onChange={(e) => setTotalUsd(e.target.value)}
-                  placeholder="0.00"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Total COP pagado</label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={totalCopPagado}
-                  onChange={(e) => {
-                    const cop = e.target.value.replace(/\D/g, '')
-                    setTotalCopPagado(cop)
-                    const usd = parseFloat(totalUsd)
-                    const copNum = parseInt(cop, 10)
-                    if (usd > 0 && copNum > 0) aplicarTrmAItems(Math.round(copNum / usd))
-                  }}
-                  placeholder="0"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                {totalCopNum > 0 && (
-                  <p className="text-xs text-gray-400 mt-1">{formatCOP(totalCopNum)}</p>
-                )}
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">TRM calculada</label>
-                <div className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700">
-                  {trmCalculada ? `$${trmCalculada.toLocaleString('es-CO')}` : '—'}
+            <div className="space-y-4">
+              {/* Fila 1: Total USD | Total COP pagado | TRM calculada */}
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Total USD (factura)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={totalUsd}
+                    onChange={(e) => setTotalUsd(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
                 </div>
-                <p className="text-xs text-gray-400 mt-1">COP por USD</p>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Total COP pagado</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={totalCopPagado}
+                    onChange={(e) => {
+                      const cop = e.target.value.replace(/\D/g, '')
+                      setTotalCopPagado(cop)
+                      const usd = parseFloat(totalUsd)
+                      const copNum = parseInt(cop, 10)
+                      if (usd > 0 && copNum > 0) {
+                        const trm = Math.round(copNum / usd)
+                        recalcularCostos(trm, parseFloat(impuestosUsd) || 0, parseFloat(envioUsd) || 0)
+                      }
+                    }}
+                    placeholder="0"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  {totalCopNum > 0 && (
+                    <p className="text-xs text-gray-400 mt-1">{formatCOP(totalCopNum)}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">TRM calculada</label>
+                  <div className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700">
+                    {trmCalculada ? `$${trmCalculada.toLocaleString('es-CO')}` : '—'}
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">COP por USD</p>
+                </div>
+              </div>
+
+              {/* Fila 2: Subtotal USD | Impuestos USD | Envío USD */}
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Subtotal USD</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={subtotalUsd}
+                    onChange={(e) => setSubtotalUsd(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Impuestos USD</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={impuestosUsd}
+                    onChange={(e) => {
+                      setImpuestosUsd(e.target.value)
+                      if (trmCalculada) {
+                        recalcularCostos(trmCalculada, parseFloat(e.target.value) || 0, parseFloat(envioUsd) || 0)
+                      }
+                    }}
+                    placeholder="0.00"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Envío USD</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={envioUsd}
+                    onChange={(e) => {
+                      setEnvioUsd(e.target.value)
+                      if (trmCalculada) {
+                        recalcularCostos(trmCalculada, parseFloat(impuestosUsd) || 0, parseFloat(e.target.value) || 0)
+                      }
+                    }}
+                    placeholder="0.00"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Tasas calculadas y botón recalcular */}
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-400">
+                  {subtotalUsd && parseFloat(subtotalUsd) > 0 ? (
+                    <>
+                      Tasa impuestos: {(parseFloat(impuestosUsd || '0') / parseFloat(subtotalUsd) * 100).toFixed(2)}%
+                      {' | '}
+                      Tasa envío: {(parseFloat(envioUsd || '0') / parseFloat(subtotalUsd) * 100).toFixed(2)}%
+                    </>
+                  ) : null}
+                </p>
+                {trmCalculada && (
+                  <button
+                    type="button"
+                    onClick={() => recalcularCostos(trmCalculada, parseFloat(impuestosUsd) || 0, parseFloat(envioUsd) || 0)}
+                    className="text-xs text-blue-600 hover:text-blue-800 font-medium border border-blue-300 rounded-lg px-3 py-1.5 hover:bg-blue-50 transition-colors"
+                  >
+                    Recalcular costos
+                  </button>
+                )}
               </div>
             </div>
           ) : (
