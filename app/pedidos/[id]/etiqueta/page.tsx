@@ -32,51 +32,16 @@ export default async function EtiquetaPedidoPage({
 
       {/* Etiqueta */}
       <div className="etiqueta">
-        {/* Número de orden */}
-        <div className="border-b-2 border-black pb-1 mb-2">
-          <p className="text-[9px] uppercase tracking-widest text-gray-500 leading-none">TR Original</p>
-          <p className="font-mono font-black text-xl leading-tight">{pedido.numero_orden}</p>
-        </div>
-
-        {/* Cliente */}
-        <p className="font-bold text-sm leading-tight">{pedido.cliente_nombre}</p>
-
-        {/* Artículos */}
-        <div className="mt-2 space-y-0.5">
-          {pedido.items.map((item) => (
-            <div key={item.id} className="flex items-baseline justify-between gap-2">
-              <span className="text-xs leading-tight">
-                <span className="font-semibold">{item.marca}</span>
-                {' '}{item.descripcion}
-                {item.talla && (
-                  <span className="font-bold"> T.{item.talla}</span>
-                )}
-                {item.cantidad > 1 && (
-                  <span className="text-gray-500"> x{item.cantidad}</span>
-                )}
-              </span>
-              <span className="text-xs font-medium whitespace-nowrap">{formatCOP(item.precio_venta)}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Totales */}
-        <div className="border-t border-black mt-2 pt-1.5 space-y-0.5">
-          <div className="flex justify-between text-xs">
+        <p className="font-mono font-black text-2xl leading-tight">{pedido.numero_orden}</p>
+        <p className="font-bold text-base mt-1 leading-tight">{pedido.cliente_nombre}</p>
+        <div className="border-t border-black mt-3 pt-2 space-y-1">
+          <div className="flex justify-between text-sm">
             <span>Total</span>
             <span className="font-semibold">{formatCOP(pedido.total)}</span>
           </div>
-          {pedido.total_pagado > 0 && (
-            <div className="flex justify-between text-xs">
-              <span>Abono</span>
-              <span className="font-semibold text-green-700">{formatCOP(pedido.total_pagado)}</span>
-            </div>
-          )}
-          <div className="flex justify-between text-sm font-black border-t border-black pt-1 mt-1">
+          <div className="flex justify-between text-base font-black">
             <span>{saldo > 0 ? 'Saldo' : 'PAGADO'}</span>
-            <span className={saldo > 0 ? 'text-black' : 'text-green-700'}>
-              {saldo > 0 ? formatCOP(saldo) : '✓'}
-            </span>
+            <span>{saldo > 0 ? formatCOP(saldo) : '✓'}</span>
           </div>
         </div>
       </div>
