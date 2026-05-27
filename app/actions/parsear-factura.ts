@@ -50,10 +50,11 @@ Analiza esta factura y devuelve ÚNICAMENTE un objeto JSON con esta estructura e
 }
 
 Reglas:
-- Extrae CADA artículo por separado aunque sean del mismo producto con distintas tallas
+- CRÍTICO: cada talla diferente es un ítem SEPARADO, aunque sea el mismo producto. Si hay una Camiseta en talla S y otra en talla M, son DOS ítems distintos, nunca uno solo con cantidad 2
+- Si hay 2 unidades del mismo producto en la MISMA talla, ese sí es un ítem con cantidad 2
 - Si no encuentras la marca por separado, intenta inferirla del nombre del producto
 - numero_factura: número, código o referencia de la factura. String vacío si no aparece
-- precio_usd de cada item: precio FINAL de ESA LÍNEA COMPLETA (todas las unidades), después de descuentos, ANTES de tax y shipping
+- precio_usd de cada item: precio FINAL de ESA LÍNEA COMPLETA (todas las unidades de esa talla), después de descuentos, ANTES de tax y shipping
 - subtotal_usd: suma de todos los precios de productos antes de tax y shipping
 - tax_usd: monto total de impuestos/taxes (0 si no aparece)
 - shipping_usd: costo de envío total (0 si no aparece)
@@ -83,10 +84,11 @@ Analiza esta factura y devuelve ÚNICAMENTE un objeto JSON con esta estructura e
 }
 
 Reglas:
-- Extrae CADA artículo por separado aunque sean del mismo producto con distintas tallas
+- CRÍTICO: cada talla diferente es un ítem SEPARADO, aunque sea el mismo producto. Si hay una Camiseta en talla S y otra en talla M, son DOS ítems distintos, nunca uno solo con cantidad 2
+- Si hay 2 unidades del mismo producto en la MISMA talla, ese sí es un ítem con cantidad 2
 - Si no encuentras la marca, deja string vacío
 - numero_factura: número o código de la factura. String vacío si no aparece
-- precio_usd de cada item: el precio TOTAL de esa línea para todas las unidades de ese producto, exactamente como aparece en la factura (en pesos colombianos)
+- precio_usd de cada item: el precio TOTAL de esa línea para todas las unidades de ese producto/talla, exactamente como aparece en la factura (en pesos colombianos)
 - total_usd: total final de la factura en pesos colombianos
 - subtotal_usd, tax_usd, shipping_usd: ponlos en 0 (no aplican)
 - Devuelve SOLO el JSON, sin texto adicional`
