@@ -86,7 +86,7 @@ Reglas:
 - Extrae CADA artículo por separado aunque sean del mismo producto con distintas tallas
 - Si no encuentras la marca, deja string vacío
 - numero_factura: número o código de la factura. String vacío si no aparece
-- precio_usd de cada item: el PRECIO UNITARIO exacto como aparece en la factura para ese producto (precio por unidad, en pesos colombianos). No multipliques ni dividas
+- precio_usd de cada item: el precio TOTAL de esa línea para todas las unidades de ese producto, exactamente como aparece en la factura (en pesos colombianos)
 - total_usd: total final de la factura en pesos colombianos
 - subtotal_usd, tax_usd, shipping_usd: ponlos en 0 (no aplican)
 - Devuelve SOLO el JSON, sin texto adicional`

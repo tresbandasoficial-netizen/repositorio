@@ -26,8 +26,8 @@ function facturaToItems(items: FacturaExtraida['items'], moneda: 'USD' | 'COP'):
     talla: i.talla,
     cantidad: String(i.cantidad || 1),
     precio_usd: moneda === 'USD' ? (i.precio_usd ?? null) : null,
-    // Para COP el AI ya devuelve el precio unitario exacto de la factura
-    costo_unitario_cop: moneda === 'COP' && i.precio_usd ? String(Math.round(i.precio_usd)) : '',
+    // Para COP: total de línea / cantidad = costo unitario
+    costo_unitario_cop: moneda === 'COP' && i.precio_usd ? String(Math.round(i.precio_usd / (i.cantidad || 1))) : '',
     destino: 'sin_asignar' as const,
   }))
 }
