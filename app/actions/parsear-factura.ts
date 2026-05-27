@@ -88,9 +88,9 @@ Reglas:
 - Si hay 2 unidades del mismo producto en la MISMA talla, ese sí es un ítem con cantidad 2
 - Si no encuentras la marca, deja string vacío
 - numero_factura: número o código de la factura. String vacío si no aparece
-- IMPORTANTE — notación colombiana: el punto es separador de MILES, NO decimales. $120.000 = 120000 (ciento veinte mil pesos). $1.200.000 = 1200000. Extrae siempre el número entero sin puntos
-- precio_usd de cada item: el precio TOTAL de esa línea para todas las unidades de ese producto/talla, exactamente como aparece en la factura (en pesos colombianos, número entero sin puntos)
-- total_usd: total final de la factura en pesos colombianos (número entero sin puntos)
+- IMPORTANTE — notación colombiana: el PUNTO es separador de MILES y la COMA es separador decimal. Ejemplos: "$449.925,00" = 449925, "$1.200.000" = 1200000, "$97.462,50" = 97463, "$179.925,00" = 179925. Extrae siempre como número entero (redondea si hay centavos)
+- precio_usd de cada item: el precio TOTAL de esa línea para todas las unidades de ese producto/talla, exactamente como aparece en la factura (en pesos colombianos, número entero)
+- total_usd: total final de la factura en pesos colombianos (número entero)
 - subtotal_usd, tax_usd, shipping_usd: ponlos en 0 (no aplican)
 - Devuelve SOLO el JSON, sin texto adicional`
 
