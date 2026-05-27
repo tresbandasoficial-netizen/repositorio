@@ -19,16 +19,22 @@ type ItemForm = {
   destino: 'pedido' | 'contoda' | 'sin_asignar'
 }
 
-function facturaToItems(items: FacturaExtraida['items']): ItemForm[] {
-  return items.map((i) => ({
-    descripcion: i.descripcion,
-    marca: i.marca,
-    talla: i.talla,
-    cantidad: String(i.cantidad),
-    precio_usd: i.precio_usd ?? null,
-    costo_unitario_cop: '',
-    destino: 'sin_asignar',
-  }))
+function facturaToItems(items: FacturaExtraida['items'], moneda: 'USD' | 'COP'): ItemForm[] {
+  return items.map((i) => {
+    const cantidad = i.cantidad || 1
+    const costoCop = moneda === 'COP' && i.precio_usd
+      ? String(Math.round(i.precio_usd / cantidad))
+      : ''
+    return {
+      descripcion: i.descripcion,
+      marca: i.marca,
+      talla: i.talla,
+      cantidad: String(cantidad),
+      precio_usd: moneda === 'USD' ? (i.precio_usd ?? null) : null,
+      costo_unitario_cop: costoCop,
+      destino: 'sin_asignar',
+    }
+  })
 }
 
 export function CrearCompraForm() {
@@ -111,16 +117,26 @@ export function CrearCompraForm() {
         }
 
         const data = result.data
+        const esCop = data.moneda === 'COP'
         setFactura(data)
         setProveedor(data.proveedor)
         setFecha(data.fecha)
         setNumeroFactura(data.numero_factura ?? '')
-        setTotalUsd(String(data.total_usd))
-        setSubtotalUsd(String(data.subtotal_usd || ''))
-        setImpuestosUsd(String(data.tax_usd || ''))
-        setEnvioUsd(String(data.shipping_usd || ''))
-        setItems(facturaToItems(data.items))
-        setTipo('usa')
+        if (esCop) {
+          setTipo('colombia')
+          setTotalCopPagado(String(Math.round(data.total_usd)))
+          setTotalUsd('')
+          setSubtotalUsd('')
+          setImpuestosUsd('')
+          setEnvioUsd('')
+        } else {
+          setTipo('usa')
+          setTotalUsd(String(data.total_usd))
+          setSubtotalUsd(String(data.subtotal_usd || ''))
+          setImpuestosUsd(String(data.tax_usd || ''))
+          setEnvioUsd(String(data.shipping_usd || ''))
+        }
+        setItems(facturaToItems(data.items, data.moneda ?? 'USD'))
         setPaso('revisar')
       })
     }
