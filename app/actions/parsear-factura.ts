@@ -16,7 +16,6 @@ export type FacturaExtraida = {
   proveedor: string
   fecha: string         // YYYY-MM-DD
   numero_factura: string  // número/código de la factura, vacío si no aparece
-  moneda: 'USD' | 'COP'
   subtotal_usd: number   // subtotal antes de tax y shipping (después de descuentos), en la moneda de la factura
   tax_usd: number        // total de impuestos, en la moneda de la factura
   shipping_usd: number
@@ -35,7 +34,6 @@ Analiza esta factura y devuelve ÚNICAMENTE un objeto JSON con esta estructura e
   "proveedor": "nombre del proveedor/tienda",
   "fecha": "YYYY-MM-DD",
   "numero_factura": "INV-12345",
-  "moneda": "USD",
   "subtotal_usd": 100.00,
   "tax_usd": 7.00,
   "shipping_usd": 12.00,
@@ -52,16 +50,14 @@ Analiza esta factura y devuelve ÚNICAMENTE un objeto JSON con esta estructura e
 }
 
 Reglas:
-- moneda: "USD" si la factura está en dólares, "COP" si está en pesos colombianos. Detecta por el símbolo ($, USD, COP, pesos) o el país del proveedor
 - Extrae CADA artículo por separado aunque sean del mismo producto con distintas tallas
 - Si no encuentras la marca por separado, intenta inferirla del nombre del producto
 - numero_factura: el número, código o referencia de la factura (Order #, Invoice #, Factura #, etc.). String vacío si no aparece
-- precio_usd de cada item: precio FINAL de ESA LÍNEA COMPLETA (todas las unidades), después de descuentos, ANTES de tax y shipping. Usa los valores exactos de la factura en la moneda detectada
+- precio_usd de cada item: precio FINAL de ESA LÍNEA COMPLETA (todas las unidades), después de descuentos, ANTES de tax y shipping. Usa los valores EXACTOS como aparecen en la factura sin convertir monedas
 - subtotal_usd: suma de todos los precios de productos antes de tax y shipping (después de descuentos)
 - tax_usd: monto total de impuestos/IVA (0 si no aparece)
 - shipping_usd: costo de envío total (0 si no aparece)
 - total_usd: total final incluyendo todo
-- Usa los valores EXACTOS como aparecen en la factura (no conviertas monedas)
 - Devuelve SOLO el JSON, sin texto adicional`
 
 export async function parsearFacturaAction(

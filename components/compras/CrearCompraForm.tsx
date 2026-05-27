@@ -117,26 +117,23 @@ export function CrearCompraForm() {
         }
 
         const data = result.data
-        const esCop = data.moneda === 'COP'
         setFactura(data)
         setProveedor(data.proveedor)
         setFecha(data.fecha)
         setNumeroFactura(data.numero_factura ?? '')
-        if (esCop) {
-          setTipo('colombia')
+        if (tipo === 'colombia') {
           setTotalCopPagado(String(Math.round(data.total_usd)))
           setTotalUsd('')
           setSubtotalUsd('')
           setImpuestosUsd('')
           setEnvioUsd('')
         } else {
-          setTipo('usa')
           setTotalUsd(String(data.total_usd))
           setSubtotalUsd(String(data.subtotal_usd || ''))
           setImpuestosUsd(String(data.tax_usd || ''))
           setEnvioUsd(String(data.shipping_usd || ''))
         }
-        setItems(facturaToItems(data.items, data.moneda ?? 'USD'))
+        setItems(facturaToItems(data.items, tipo === 'colombia' ? 'COP' : 'USD'))
         setPaso('revisar')
       })
     }
@@ -193,12 +190,31 @@ export function CrearCompraForm() {
       <div className="max-w-xl space-y-4">
         <Card>
           <CardHeader>
-            <h2 className="text-sm font-semibold text-gray-900">Subir factura</h2>
-            <p className="text-xs text-gray-500 mt-0.5">
-              PDF o imagen (JPG, PNG) — Claude extrae los datos automáticamente
-            </p>
+            <h2 className="text-sm font-semibold text-gray-900">Nueva compra</h2>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-5">
+            {/* Tipo de factura */}
+            <div>
+              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">¿La factura es en...?</label>
+              <div className="flex gap-2">
+                {(['usa', 'colombia'] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setTipo(t)}
+                    className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors ${
+                      tipo === t
+                        ? t === 'usa' ? 'bg-blue-600 text-white border-blue-600' : 'bg-green-600 text-white border-green-600'
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {t === 'usa' ? 'Dólares (USD)' : 'Pesos (COP)'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Subir archivo */}
             <label className={`flex flex-col items-center justify-center gap-3 border-2 border-dashed rounded-xl p-10 cursor-pointer transition-colors ${
               isParsing ? 'border-blue-300 bg-blue-50' : 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'
             }`}>
@@ -271,27 +287,6 @@ export function CrearCompraForm() {
           <h2 className="text-sm font-semibold text-gray-900">Datos de la factura</h2>
         </CardHeader>
         <CardContent className="space-y-5">
-          {/* Tipo */}
-          <div>
-            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Tipo de compra</label>
-            <div className="flex gap-2">
-              {(['usa', 'colombia'] as const).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setTipo(t)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                    tipo === t
-                      ? t === 'usa' ? 'bg-blue-600 text-white border-blue-600' : 'bg-green-600 text-white border-green-600'
-                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  {t === 'usa' ? 'USA' : 'Colombia'}
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* Proveedor + Número de factura + Fecha */}
           <div className="grid grid-cols-3 gap-4">
             <div>
