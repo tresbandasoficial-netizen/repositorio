@@ -27,7 +27,7 @@ export type ParsearFacturaResult =
   | { ok: true; data: FacturaExtraida }
   | { ok: false; error: string }
 
-const PROMPT = `Eres un extractor de facturas de compras de ropa y calzado.
+const PROMPT_USD = `Eres un extractor de facturas de compras de ropa y calzado en dólares (USD).
 Analiza esta factura y devuelve ÚNICAMENTE un objeto JSON con esta estructura exacta (sin markdown, sin explicación):
 
 {
@@ -52,17 +52,49 @@ Analiza esta factura y devuelve ÚNICAMENTE un objeto JSON con esta estructura e
 Reglas:
 - Extrae CADA artículo por separado aunque sean del mismo producto con distintas tallas
 - Si no encuentras la marca por separado, intenta inferirla del nombre del producto
-- numero_factura: el número, código o referencia de la factura (Order #, Invoice #, Factura #, etc.). String vacío si no aparece
-- precio_usd de cada item: precio FINAL de ESA LÍNEA COMPLETA (todas las unidades), después de descuentos, ANTES de tax y shipping. Usa los valores EXACTOS como aparecen en la factura sin convertir monedas
-- subtotal_usd: suma de todos los precios de productos antes de tax y shipping (después de descuentos)
-- tax_usd: monto total de impuestos/IVA (0 si no aparece)
+- numero_factura: número, código o referencia de la factura. String vacío si no aparece
+- precio_usd de cada item: precio FINAL de ESA LÍNEA COMPLETA (todas las unidades), después de descuentos, ANTES de tax y shipping
+- subtotal_usd: suma de todos los precios de productos antes de tax y shipping
+- tax_usd: monto total de impuestos/taxes (0 si no aparece)
 - shipping_usd: costo de envío total (0 si no aparece)
 - total_usd: total final incluyendo todo
 - Devuelve SOLO el JSON, sin texto adicional`
 
+const PROMPT_COP = `Eres un extractor de facturas de compras de ropa y calzado en pesos colombianos (COP).
+Analiza esta factura y devuelve ÚNICAMENTE un objeto JSON con esta estructura exacta (sin markdown, sin explicación):
+
+{
+  "proveedor": "nombre del proveedor/tienda",
+  "fecha": "YYYY-MM-DD",
+  "numero_factura": "FAC-001",
+  "subtotal_usd": 0,
+  "tax_usd": 0,
+  "shipping_usd": 0,
+  "total_usd": 350000,
+  "items": [
+    {
+      "descripcion": "descripción del producto",
+      "marca": "marca si aparece, sino string vacío",
+      "talla": "talla si aparece, sino string vacío",
+      "cantidad": 1,
+      "precio_usd": 120000
+    }
+  ]
+}
+
+Reglas:
+- Extrae CADA artículo por separado aunque sean del mismo producto con distintas tallas
+- Si no encuentras la marca, deja string vacío
+- numero_factura: número o código de la factura. String vacío si no aparece
+- precio_usd de cada item: el PRECIO UNITARIO exacto como aparece en la factura para ese producto (precio por unidad, en pesos colombianos). No multipliques ni dividas
+- total_usd: total final de la factura en pesos colombianos
+- subtotal_usd, tax_usd, shipping_usd: ponlos en 0 (no aplican)
+- Devuelve SOLO el JSON, sin texto adicional`
+
 export async function parsearFacturaAction(
   base64: string,
-  mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf'
+  mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf',
+  tipo: 'usa' | 'colombia' = 'usa'
 ): Promise<ParsearFacturaResult> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -96,7 +128,7 @@ export async function parsearFacturaAction(
             role: 'user',
             content: [
               { type: 'input_file', file_id: uploaded.id },
-              { type: 'input_text', text: PROMPT },
+              { type: 'input_text', text: tipo === 'colombia' ? PROMPT_COP : PROMPT_USD },
             ],
           },
         ],
@@ -117,7 +149,7 @@ export async function parsearFacturaAction(
                 type: 'image_url',
                 image_url: { url: `data:${mediaType};base64,${base64}` },
               },
-              { type: 'text', text: PROMPT },
+              { type: 'text', text: tipo === 'colombia' ? PROMPT_COP : PROMPT_USD },
             ],
           },
         ],

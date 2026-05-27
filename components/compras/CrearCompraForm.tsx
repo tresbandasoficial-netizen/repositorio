@@ -20,21 +20,16 @@ type ItemForm = {
 }
 
 function facturaToItems(items: FacturaExtraida['items'], moneda: 'USD' | 'COP'): ItemForm[] {
-  return items.map((i) => {
-    const cantidad = i.cantidad || 1
-    const costoCop = moneda === 'COP' && i.precio_usd
-      ? String(Math.round(i.precio_usd / cantidad))
-      : ''
-    return {
-      descripcion: i.descripcion,
-      marca: i.marca,
-      talla: i.talla,
-      cantidad: String(cantidad),
-      precio_usd: moneda === 'USD' ? (i.precio_usd ?? null) : null,
-      costo_unitario_cop: costoCop,
-      destino: 'sin_asignar',
-    }
-  })
+  return items.map((i) => ({
+    descripcion: i.descripcion,
+    marca: i.marca,
+    talla: i.talla,
+    cantidad: String(i.cantidad || 1),
+    precio_usd: moneda === 'USD' ? (i.precio_usd ?? null) : null,
+    // Para COP el AI ya devuelve el precio unitario exacto de la factura
+    costo_unitario_cop: moneda === 'COP' && i.precio_usd ? String(Math.round(i.precio_usd)) : '',
+    destino: 'sin_asignar' as const,
+  }))
 }
 
 export function CrearCompraForm() {
@@ -110,7 +105,7 @@ export function CrearCompraForm() {
       const mediaType = file.type as any
 
       startParsing(async () => {
-        const result = await parsearFacturaAction(base64, mediaType)
+        const result = await parsearFacturaAction(base64, mediaType, tipo)
         if (!result.ok) {
           setError(result.error)
           return
