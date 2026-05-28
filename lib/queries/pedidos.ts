@@ -86,7 +86,23 @@ export async function getPedidos(filtros?: {
   if (filtros?.estado)      query = query.eq('estado', filtros.estado)
   if (filtros?.sede)        query = query.eq('sede_codigo', filtros.sede)
   if (filtros?.asesor_id)   query = query.eq('asesor_id', filtros.asesor_id)
-  if (filtros?.alerta)      query = query.eq('en_alerta', true)
+  if (filtros?.alerta) {
+    // Consultar directamente por fechas en vez de depender de en_alerta de la vista,
+    // para que funcione independiente de qué migración tenga el DB.
+    const ts = (dias: number) => new Date(Date.now() - dias * 86_400_000).toISOString()
+    query = query.or(
+      [
+        `and(estado.eq.pendiente,fecha_actualizacion.lt.${ts(2)})`,
+        `and(estado.eq.comprado,fecha_actualizacion.lt.${ts(8)})`,
+        `and(estado.eq.llego_usa,fecha_actualizacion.lt.${ts(6)})`,
+        `and(estado.eq.bodega_colombia,fecha_actualizacion.lt.${ts(1)})`,
+        `and(estado.eq.avisado,fecha_actualizacion.lt.${ts(3)})`,
+        `and(estado.eq.en_sede,fecha_actualizacion.lt.${ts(2)})`,
+        `and(estado.in.(pendiente,comprado,llego_usa),fecha_creacion.lt.${ts(15)})`,
+        `and(estado.eq.pendiente,fecha_creacion.lt.${ts(30)})`,
+      ].join(',')
+    )
+  }
   if (filtros?.fecha_desde) query = query.gte('fecha_creacion', `${filtros.fecha_desde}T00:00:00`)
   if (filtros?.fecha_hasta) query = query.lte('fecha_creacion', `${filtros.fecha_hasta}T23:59:59`)
   if (filtros?.q) {
