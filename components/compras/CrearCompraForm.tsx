@@ -20,16 +20,27 @@ type ItemForm = {
 }
 
 function facturaToItems(items: FacturaExtraida['items'], moneda: 'USD' | 'COP'): ItemForm[] {
-  return items.map((i) => ({
-    descripcion: i.descripcion,
-    marca: i.marca,
-    talla: i.talla,
-    cantidad: String(i.cantidad || 1),
-    precio_usd: moneda === 'USD' ? (i.precio_usd ?? null) : null,
-    // Para COP: total de línea / cantidad = costo unitario
-    costo_unitario_cop: moneda === 'COP' && i.precio_usd ? String(Math.round(i.precio_usd / (i.cantidad || 1))) : '',
-    destino: 'sin_asignar' as const,
-  }))
+  const result: ItemForm[] = []
+  for (const i of items) {
+    const cantidad = i.cantidad || 1
+    const precioLinea = i.precio_usd ?? 0
+    const precioUnitUsd = moneda === 'USD' ? (precioLinea / cantidad) : null
+    const costoUnitCop = moneda === 'COP' && precioLinea
+      ? String(Math.round(precioLinea / cantidad))
+      : ''
+    for (let n = 0; n < cantidad; n++) {
+      result.push({
+        descripcion: i.descripcion,
+        marca: i.marca,
+        talla: i.talla,
+        cantidad: '1',
+        precio_usd: precioUnitUsd,
+        costo_unitario_cop: costoUnitCop,
+        destino: 'sin_asignar',
+      })
+    }
+  }
+  return result
 }
 
 export function CrearCompraForm() {
