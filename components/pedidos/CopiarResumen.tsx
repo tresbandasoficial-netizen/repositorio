@@ -73,13 +73,54 @@ Una experiencia original.
 Los cambios y devoluciones están sujetos a los términos y condiciones de la empresa.`
 }
 
+function buildGrupo(pedido: PedidoDetalle): string {
+  const saldo = pedido.total - pedido.total_pagado
+
+  const metodoPago = pedido.pagos.length > 0
+    ? METODO_LABELS[pedido.pagos[0].metodo] ?? pedido.pagos[0].metodo
+    : ''
+
+  const articulos = pedido.items.map((it) => {
+    const talla = it.talla ? ` / Talla ${it.talla}` : ''
+    return `Artículo: ${it.marca} ${it.descripcion}${talla}`
+  }).join('\n')
+
+  const ccLinea = pedido.cliente_cedula ? `CC: ${pedido.cliente_cedula}\n` : ''
+
+  const direccion = pedido.tipo_entrega === 'domicilio' && pedido.direccion_entrega
+    ? pedido.direccion_entrega
+    : 'Recogida en sede'
+
+  const abonoLinea = metodoPago
+    ? `Abono: ${formatCOPPlain(pedido.total_pagado)} (${metodoPago})`
+    : `Abono: ${formatCOPPlain(pedido.total_pagado)}`
+
+  return `Numero de pedido: ${pedido.numero_orden}
+Cliente: ${pedido.cliente_nombre}
+${ccLinea}Celular: ${pedido.cliente_telefono}
+Dirección: ${direccion}
+${articulos}
+Total: ${formatCOPPlain(pedido.total)}
+${abonoLinea}
+Saldo: ${formatCOPPlain(saldo)}
+Asesor: ${pedido.asesor_nombre}`
+}
+
 interface Props {
   pedido: PedidoDetalle
 }
 
 export function CopiarResumen({ pedido }: Props) {
+  const [copiadoGrupo, setCopiadoGrupo] = useState(false)
   const [copiadoResumen, setCopiadoResumen] = useState(false)
   const [copiadoConfirmacion, setCopiadoConfirmacion] = useState(false)
+
+  function handleCopiarGrupo() {
+    navigator.clipboard.writeText(buildGrupo(pedido)).then(() => {
+      setCopiadoGrupo(true)
+      setTimeout(() => setCopiadoGrupo(false), 2500)
+    })
+  }
 
   function handleCopiarResumen() {
     navigator.clipboard.writeText(buildTexto(pedido)).then(() => {
@@ -97,6 +138,12 @@ export function CopiarResumen({ pedido }: Props) {
 
   return (
     <div className="space-y-2">
+      <button
+        onClick={handleCopiarGrupo}
+        className="w-full text-left text-xs px-3 py-2 rounded-lg border border-green-200 bg-green-50 hover:bg-green-100 text-green-700 transition-colors font-medium"
+      >
+        {copiadoGrupo ? '✓ Copiado' : '📋 Copiar mensaje para grupo de pedidos'}
+      </button>
       <button
         onClick={handleCopiarConfirmacion}
         className="w-full text-left text-xs px-3 py-2 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 transition-colors font-medium"

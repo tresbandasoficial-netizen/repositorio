@@ -27,6 +27,7 @@ export type PedidoRow = {
 }
 
 export type PedidoDetalle = PedidoRow & {
+  cliente_cedula: string | null
   items: Array<{
     id: string
     marca: string
@@ -150,6 +151,15 @@ export async function getPedidoDetalle(id: string): Promise<PedidoDetalle | null
 
   if (pedidoRes.error || !pedidoRes.data) return null
 
+  const pedidoData = pedidoRes.data as PedidoRow
+
+  // Obtener cédula del cliente (no está en la vista)
+  const { data: clienteData } = await supabase
+    .from('clientes')
+    .select('cedula')
+    .eq('id', pedidoData.cliente_id)
+    .single()
+
   const pagos = (pagosRes.data ?? []).map((p: any) => ({
     id: p.id,
     monto: p.monto,
@@ -169,7 +179,8 @@ export async function getPedidoDetalle(id: string): Promise<PedidoDetalle | null
   }))
 
   return {
-    ...(pedidoRes.data as PedidoRow),
+    ...pedidoData,
+    cliente_cedula: clienteData?.cedula ?? null,
     items: itemsRes.data ?? [],
     pagos,
     historial,
