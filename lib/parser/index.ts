@@ -245,15 +245,33 @@ function nc(s: string): string {
   return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
 }
 
+// Extrae el valor de una línea dado un conjunto de claves.
+// Acepta tanto "Clave: valor" como "Clave valor" (sin dos puntos).
+function splitKeyVal(line: string, normKeys: string[]): string | null {
+  const ci = line.indexOf(':')
+  if (ci !== -1) {
+    if (normKeys.includes(nc(line.slice(0, ci)))) {
+      return line.slice(ci + 1).trim() || null
+    }
+    return null
+  }
+  // Sin dos puntos: busca si la línea empieza con alguna clave conocida
+  const lineNc = nc(line)
+  for (const nk of normKeys) {
+    if (lineNc.startsWith(nk + ' ') || lineNc === nk) {
+      const nkWordCount = nk.split(' ').length
+      const val = line.trim().split(/\s+/).slice(nkWordCount).join(' ').trim()
+      return val || null
+    }
+  }
+  return null
+}
+
 function findRaw(lines: string[], ...claves: string[]): string | null {
   const norm = claves.map(nc)
   for (const line of lines) {
-    const ci = line.indexOf(':')
-    if (ci === -1) continue
-    if (norm.includes(nc(line.slice(0, ci)))) {
-      const val = line.slice(ci + 1).trim()
-      return val || null
-    }
+    const val = splitKeyVal(line, norm)
+    if (val !== null) return val
   }
   return null
 }
@@ -263,12 +281,8 @@ function collectAll(lines: string[], ...claves: string[]): string[] {
   const norm = claves.map(nc)
   const results: string[] = []
   for (const line of lines) {
-    const ci = line.indexOf(':')
-    if (ci === -1) continue
-    if (norm.includes(nc(line.slice(0, ci)))) {
-      const val = line.slice(ci + 1).trim()
-      if (val) results.push(val)
-    }
+    const val = splitKeyVal(line, norm)
+    if (val !== null) results.push(val)
   }
   return results
 }
