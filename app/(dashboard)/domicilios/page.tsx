@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { getDomiciliosPorFecha, getCuadreDia, getFechasConDomicilios } from '@/lib/queries/domicilios'
+import { getDomiciliosPorFecha, getCuadreDia, getCuadreSemana, getFechasConDomicilios } from '@/lib/queries/domicilios'
 import { DomiciliosCliente } from '@/components/domicilios/DomiciliosCliente'
 
 export default async function DomiciliosPage({
@@ -25,9 +25,10 @@ export default async function DomiciliosPage({
   const hoy = new Date().toISOString().slice(0, 10)
   const fecha = fechaParam ?? hoy
 
-  const [domicilios, cuadre, fechasDisponibles] = await Promise.all([
+  const [domicilios, cuadre, cuadreSemana, fechasDisponibles] = await Promise.all([
     getDomiciliosPorFecha(fecha),
     getCuadreDia(fecha),
+    getCuadreSemana(fecha),
     getFechasConDomicilios(),
   ])
 
@@ -47,6 +48,7 @@ export default async function DomiciliosPage({
         fecha={fecha}
         domicilios={domicilios}
         cuadre={cuadre}
+        cuadreSemana={cuadreSemana}
         isAdmin={usuario.rol === 'admin'}
         fechasDisponibles={todasFechas}
       />

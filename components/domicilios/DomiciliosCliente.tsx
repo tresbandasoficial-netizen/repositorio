@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { NuevoDomicilioPanel } from './NuevoDomicilioPanel'
 import { DomicilioCard } from './DomicilioCard'
-import type { DomicilioRow, CuadreDia } from '@/lib/queries/domicilios'
+import type { DomicilioRow, CuadreDia, CuadreSemana } from '@/lib/queries/domicilios'
 
 const MENSAJERIA_LABELS = { exneider: 'Exneider', servigo: 'Servigo' }
 const WA_NUMEROS = { exneider: '573166579773', servigo: '573232501670' }
@@ -13,18 +13,27 @@ function formatCOP(v: number) {
   return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(v)
 }
 
+const DIAS_SEMANA = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+
+function labelDia(fecha: string) {
+  const d = new Date(fecha + 'T00:00:00Z')
+  return `${DIAS_SEMANA[d.getUTCDay()]} ${fecha.slice(8, 10)}/${fecha.slice(5, 7)}`
+}
+
 interface Props {
   fecha: string
   domicilios: DomicilioRow[]
   cuadre: CuadreDia
+  cuadreSemana: CuadreSemana
   isAdmin: boolean
   fechasDisponibles: string[]
 }
 
-export function DomiciliosCliente({ fecha, domicilios, cuadre, isAdmin, fechasDisponibles }: Props) {
+export function DomiciliosCliente({ fecha, domicilios, cuadre, cuadreSemana, isAdmin, fechasDisponibles }: Props) {
   const router = useRouter()
   const [mostrarNuevo, setMostrarNuevo] = useState(false)
   const [filtroMensajeria, setFiltroMensajeria] = useState<'todos' | 'exneider' | 'servigo'>('todos')
+  const [vistaCuadre, setVistaCuadre] = useState<'dia' | 'semana'>('dia')
 
   function handleFechaChange(f: string) {
     router.push(`/domicilios?fecha=${f}`)
@@ -46,6 +55,21 @@ export function DomiciliosCliente({ fecha, domicilios, cuadre, isAdmin, fechasDi
     }).join('\n')
     const total = grupo.reduce((s, d) => s + (d.cobrar_al_cliente ? d.valor_domicilio : 0), 0)
     const msg = `*DOMICILIOS ${fecha}*\n${lineas}\n\n*Total a recoger: ${formatCOP(total)}*`
+    window.open(`https://wa.me/${WA_NUMEROS[mensajeria]}?text=${encodeURIComponent(msg)}`, '_blank')
+  }
+
+  function abrirWhatsAppCuadreSemanal(mensajeria: 'exneider' | 'servigo') {
+    const dias = cuadreSemana.por_dia.filter(d =>
+      mensajeria === 'exneider' ? d.exneider_total > 0 : d.servigo_total > 0
+    )
+    if (dias.length === 0) return
+    const lineas = dias.map(d => {
+      const total = mensajeria === 'exneider' ? d.exneider_total : d.servigo_total
+      const valor = mensajeria === 'exneider' ? d.exneider_valor : d.servigo_valor
+      return `${labelDia(d.fecha)}: ${total} domicilio${total !== 1 ? 's' : ''} · ${formatCOP(valor)}`
+    }).join('\n')
+    const m = cuadreSemana.por_mensajeria.find(x => x.mensajeria === mensajeria)!
+    const msg = `*CUADRE SEMANAL ${MENSAJERIA_LABELS[mensajeria].toUpperCase()}*\nSemana del ${cuadreSemana.desde} al ${cuadreSemana.hasta}\n\n${lineas}\n\n*Total: ${m.total_domicilios} domicilios · ${formatCOP(m.total_valor)}*`
     window.open(`https://wa.me/${WA_NUMEROS[mensajeria]}?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
@@ -89,59 +113,178 @@ export function DomiciliosCliente({ fecha, domicilios, cuadre, isAdmin, fechasDi
         />
       )}
 
-      {/* Cuadre del día */}
-      {domicilios.length > 0 && (
+      {/* Cuadre */}
+      {(domicilios.length > 0 || cuadreSemana.total_domicilios > 0) && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-900">Cuadre del día</h2>
-            <span className="text-sm font-semibold text-gray-900">{formatCOP(cuadre.total_valor)}</span>
-          </div>
-          <div className="divide-y divide-gray-50">
-            {cuadre.por_mensajeria.filter(m => m.total_domicilios > 0).map(m => (
-              <div key={m.mensajeria} className="px-5 py-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                      m.mensajeria === 'exneider'
-                        ? 'bg-blue-100 text-blue-700'
-                        : 'bg-purple-100 text-purple-700'
-                    }`}>
-                      {MENSAJERIA_LABELS[m.mensajeria]}
-                    </span>
-                    <span className="text-sm text-gray-600">
-                      {m.total_domicilios} domicilio{m.total_domicilios !== 1 ? 's' : ''}
-                      {m.entregados > 0 && ` · ${m.entregados} entregado${m.entregados !== 1 ? 's' : ''}`}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="font-semibold text-gray-900">{formatCOP(m.total_valor)}</span>
-                    <button
-                      type="button"
-                      onClick={() => abrirWhatsAppCuadre(m.mensajeria)}
-                      className="text-xs px-2.5 py-1 rounded-lg bg-green-500 hover:bg-green-600 text-white font-medium transition-colors"
-                    >
-                      WA
-                    </button>
-                  </div>
-                </div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-gray-900">Cuadre</h2>
+              <div className="flex gap-1">
+                {(['dia', 'semana'] as const).map(v => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setVistaCuadre(v)}
+                    className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-colors ${
+                      vistaCuadre === v
+                        ? 'bg-gray-900 text-white'
+                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                    }`}
+                  >
+                    {v === 'dia' ? 'Día' : 'Semana'}
+                  </button>
+                ))}
               </div>
-            ))}
+            </div>
+            <span className="text-sm font-semibold text-gray-900">
+              {formatCOP(vistaCuadre === 'dia' ? cuadre.total_valor : cuadreSemana.total_valor)}
+            </span>
+          </div>
 
-            {/* Por asesor */}
-            {cuadre.por_asesor.length > 1 && (
-              <div className="px-5 py-3 bg-gray-50">
-                <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2">Por asesor</p>
-                <div className="flex flex-wrap gap-4">
-                  {cuadre.por_asesor.map(a => (
-                    <div key={a.asesor_nombre} className="text-sm">
-                      <span className="font-medium text-gray-700">{a.asesor_nombre}</span>
-                      <span className="text-gray-400 ml-1">{a.total} · {formatCOP(a.valor)}</span>
+          {/* Vista día */}
+          {vistaCuadre === 'dia' && (
+            <div className="divide-y divide-gray-50">
+              {cuadre.por_mensajeria.filter(m => m.total_domicilios > 0).map(m => (
+                <div key={m.mensajeria} className="px-5 py-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                        m.mensajeria === 'exneider'
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'bg-purple-100 text-purple-700'
+                      }`}>
+                        {MENSAJERIA_LABELS[m.mensajeria]}
+                      </span>
+                      <span className="text-sm text-gray-600">
+                        {m.total_domicilios} domicilio{m.total_domicilios !== 1 ? 's' : ''}
+                        {m.entregados > 0 && ` · ${m.entregados} entregado${m.entregados !== 1 ? 's' : ''}`}
+                      </span>
                     </div>
-                  ))}
+                    <div className="flex items-center gap-3">
+                      <span className="font-semibold text-gray-900">{formatCOP(m.total_valor)}</span>
+                      <button
+                        type="button"
+                        onClick={() => abrirWhatsAppCuadre(m.mensajeria)}
+                        className="text-xs px-2.5 py-1 rounded-lg bg-green-500 hover:bg-green-600 text-white font-medium transition-colors"
+                      >
+                        WA
+                      </button>
+                    </div>
+                  </div>
                 </div>
+              ))}
+
+              {cuadre.total_domicilios === 0 && (
+                <p className="px-5 py-4 text-sm text-gray-400">Sin domicilios este día</p>
+              )}
+
+              {/* Por asesor */}
+              {cuadre.por_asesor.length > 1 && (
+                <div className="px-5 py-3 bg-gray-50">
+                  <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2">Por asesor</p>
+                  <div className="flex flex-wrap gap-4">
+                    {cuadre.por_asesor.map(a => (
+                      <div key={a.asesor_nombre} className="text-sm">
+                        <span className="font-medium text-gray-700">{a.asesor_nombre}</span>
+                        <span className="text-gray-400 ml-1">{a.total} · {formatCOP(a.valor)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Vista semana */}
+          {vistaCuadre === 'semana' && (
+            <div>
+              <p className="px-5 pt-3 text-xs text-gray-400">
+                Semana del {cuadreSemana.desde} al {cuadreSemana.hasta}
+              </p>
+
+              {/* Tabla por día */}
+              <div className="px-5 py-3 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-xs text-gray-400 uppercase tracking-wide">
+                      <th className="text-left font-medium pb-2">Día</th>
+                      <th className="text-right font-medium pb-2">Exneider</th>
+                      <th className="text-right font-medium pb-2">Servigo</th>
+                      <th className="text-right font-medium pb-2">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {cuadreSemana.por_dia.map(d => (
+                      <tr key={d.fecha}>
+                        <td className="py-1.5 text-gray-700">{labelDia(d.fecha)}</td>
+                        <td className="py-1.5 text-right text-gray-600">
+                          {d.exneider_total > 0 ? `${d.exneider_total} · ${formatCOP(d.exneider_valor)}` : '—'}
+                        </td>
+                        <td className="py-1.5 text-right text-gray-600">
+                          {d.servigo_total > 0 ? `${d.servigo_total} · ${formatCOP(d.servigo_valor)}` : '—'}
+                        </td>
+                        <td className="py-1.5 text-right font-medium text-gray-900">
+                          {formatCOP(d.exneider_valor + d.servigo_valor)}
+                        </td>
+                      </tr>
+                    ))}
+                    {cuadreSemana.por_dia.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="py-4 text-center text-gray-400">
+                          Sin domicilios esta semana
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
-            )}
-          </div>
+
+              {/* Totales por mensajería con WA semanal */}
+              <div className="divide-y divide-gray-50 border-t border-gray-100">
+                {cuadreSemana.por_mensajeria.filter(m => m.total_domicilios > 0).map(m => (
+                  <div key={m.mensajeria} className="px-5 py-3 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                        m.mensajeria === 'exneider'
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'bg-purple-100 text-purple-700'
+                      }`}>
+                        {MENSAJERIA_LABELS[m.mensajeria]}
+                      </span>
+                      <span className="text-sm text-gray-600">
+                        {m.total_domicilios} domicilio{m.total_domicilios !== 1 ? 's' : ''} en la semana
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="font-semibold text-gray-900">{formatCOP(m.total_valor)}</span>
+                      <button
+                        type="button"
+                        onClick={() => abrirWhatsAppCuadreSemanal(m.mensajeria)}
+                        className="text-xs px-2.5 py-1 rounded-lg bg-green-500 hover:bg-green-600 text-white font-medium transition-colors"
+                      >
+                        WA semanal
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Por asesor (semana) */}
+                {cuadreSemana.por_asesor.length > 1 && (
+                  <div className="px-5 py-3 bg-gray-50">
+                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2">Por asesor (semana)</p>
+                    <div className="flex flex-wrap gap-4">
+                      {cuadreSemana.por_asesor.map(a => (
+                        <div key={a.asesor_nombre} className="text-sm">
+                          <span className="font-medium text-gray-700">{a.asesor_nombre}</span>
+                          <span className="text-gray-400 ml-1">{a.total} · {formatCOP(a.valor)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
