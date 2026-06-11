@@ -6,6 +6,8 @@ export type DomicilioParsed = {
   mensajeria: 'exneider' | 'servigo' | ''
   valor_domicilio: number
   cobrar_al_cliente: boolean
+  metodo_pago: 'efectivo' | 'transferencia'
+  articulo: string
   numero_pedido: string
   notas: string
 }
@@ -31,6 +33,8 @@ export function parsearDomicilio(texto: string): DomicilioParsed {
   let mensajeria: 'exneider' | 'servigo' | '' = ''
   let valor_domicilio = 0
   let cobrar_al_cliente = true
+  let metodo_pago: 'efectivo' | 'transferencia' = 'efectivo'
+  let articulo = ''
   let numero_pedido = ''
   let notas = ''
 
@@ -40,6 +44,17 @@ export function parsearDomicilio(texto: string): DomicilioParsed {
     // Mensajería
     if (/exneider/.test(ln)) { mensajeria = 'exneider'; continue }
     if (/servigo/.test(ln))  { mensajeria = 'servigo';  continue }
+
+    // Método de pago
+    if (/transferencia|transfirio|transferido|nequi|daviplata|bancolombia/.test(ln)) {
+      metodo_pago = 'transferencia'
+      if (/^(pago|pag[oó]|metodo|m[ée]todo)?\s*:?\s*(por\s+)?(transferencia|nequi|daviplata|bancolombia)\s*$/.test(ln)) continue
+    }
+    if (/^(pago\s*:?\s*)?(en\s+)?efectivo\s*$/.test(ln)) { metodo_pago = 'efectivo'; continue }
+
+    // Artículo (con prefijo explícito)
+    const artMatch = line.match(/^art[ií]culo\s*:?\s*(.+)$/i) ?? line.match(/^(?:se\s+env[ií]a|env[ií]o)\s*:?\s*(.+)$/i)
+    if (artMatch && !articulo) { articulo = artMatch[1].trim(); continue }
 
     // Número de pedido (TR/CR/SR + dígitos)
     const pedidoMatch = line.match(/\b(TR|CR|SR)\d+\b/i)
@@ -89,6 +104,8 @@ export function parsearDomicilio(texto: string): DomicilioParsed {
     mensajeria,
     valor_domicilio,
     cobrar_al_cliente,
+    metodo_pago,
+    articulo,
     numero_pedido,
     notas,
   }
@@ -101,6 +118,8 @@ export function buildMensajeMensajeria(d: {
   direccion: string
   valor_domicilio: number
   cobrar_al_cliente: boolean
+  metodo_pago: 'efectivo' | 'transferencia'
+  articulo: string | null
   numero_pedido: string | null
   notas: string | null
   asesor_nombre: string
@@ -108,9 +127,11 @@ export function buildMensajeMensajeria(d: {
   const valor = d.cobrar_al_cliente
     ? `$${d.valor_domicilio.toLocaleString('es-CO')}`
     : 'Sin cobro'
+  const pago = d.metodo_pago === 'transferencia' ? 'Transferencia' : 'Efectivo'
+  const articulo = d.articulo ? `\nArtículo: ${d.articulo}` : ''
   const pedido = d.numero_pedido ? `\nPedido: ${d.numero_pedido}` : ''
   const notas = d.notas ? `\nNotas: ${d.notas}` : ''
-  return `*DOMICILIO*\nCliente: ${d.cliente_nombre}\nCelular: ${d.cliente_telefono ?? '—'}\nDirección: ${d.direccion}\nValor: ${valor}\nAsesor: ${d.asesor_nombre}${pedido}${notas}`
+  return `*DOMICILIO*\nCliente: ${d.cliente_nombre}\nCelular: ${d.cliente_telefono ?? '—'}\nDirección: ${d.direccion}${articulo}\nValor: ${valor}\nPago: ${pago}\nAsesor: ${d.asesor_nombre}${pedido}${notas}`
 }
 
 // Genera la línea para Excel (separada por |)
@@ -122,6 +143,8 @@ export function buildLineaExcel(d: {
   mensajeria: string
   valor_domicilio: number
   cobrar_al_cliente: boolean
+  metodo_pago: 'efectivo' | 'transferencia'
+  articulo: string | null
   numero_pedido: string | null
   asesor_nombre: string
 }): string {
@@ -134,7 +157,9 @@ export function buildLineaExcel(d: {
     d.cliente_nombre,
     d.cliente_telefono ?? '',
     d.direccion,
+    d.articulo ?? '',
     valor,
+    d.metodo_pago === 'transferencia' ? 'Transferencia' : 'Efectivo',
     d.asesor_nombre,
     d.numero_pedido ?? '',
   ].join(' | ')

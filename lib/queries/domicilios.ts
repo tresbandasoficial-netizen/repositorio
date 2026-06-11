@@ -11,6 +11,8 @@ export type DomicilioRow = {
   mensajeria: 'exneider' | 'servigo'
   valor_domicilio: number
   cobrar_al_cliente: boolean
+  metodo_pago: 'efectivo' | 'transferencia'
+  articulo: string | null
   numero_pedido: string | null
   notas: string | null
   estado: 'pendiente' | 'entregado'
@@ -41,7 +43,7 @@ export async function getDomiciliosPorFecha(fecha: string): Promise<DomicilioRow
     .select(`
       id, fecha, asesor_id, cliente_nombre, cliente_telefono,
       direccion, mensajeria, valor_domicilio, cobrar_al_cliente,
-      numero_pedido, notas, estado, creado_en,
+      metodo_pago, articulo, numero_pedido, notas, estado, creado_en,
       usuarios(nombre)
     `)
     .eq('fecha', fecha)

@@ -79,11 +79,21 @@ export function DomicilioCard({ domicilio: d, isAdmin }: Props) {
               }`}>
                 {MENSAJERIA_LABELS[d.mensajeria]}
               </span>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                d.metodo_pago === 'transferencia'
+                  ? 'bg-cyan-100 text-cyan-700'
+                  : 'bg-amber-100 text-amber-700'
+              }`}>
+                {d.metodo_pago === 'transferencia' ? '🏦 Transferencia' : '💵 Efectivo'}
+              </span>
             </div>
             {d.cliente_telefono && (
               <p className="text-sm text-gray-500 mt-0.5">{d.cliente_telefono}</p>
             )}
             <p className="text-sm text-gray-600 mt-1">{d.direccion}</p>
+            {d.articulo && (
+              <p className="text-sm text-gray-500 mt-0.5">📦 {d.articulo}</p>
+            )}
             {d.notas && (
               <p className="text-xs text-gray-400 mt-0.5 italic">{d.notas}</p>
             )}

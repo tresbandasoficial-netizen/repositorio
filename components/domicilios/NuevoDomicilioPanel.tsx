@@ -18,6 +18,8 @@ const VACIO = {
   mensajeria: '' as 'exneider' | 'servigo' | '',
   valor_domicilio: '',
   cobrar_al_cliente: true,
+  metodo_pago: 'efectivo' as 'efectivo' | 'transferencia',
+  articulo: '',
   numero_pedido: '',
   notas: '',
 }
@@ -38,6 +40,8 @@ export function NuevoDomicilioPanel({ fecha, onCreado }: Props) {
       mensajeria:        p.mensajeria,
       valor_domicilio:   p.valor_domicilio ? String(p.valor_domicilio) : '',
       cobrar_al_cliente: p.cobrar_al_cliente,
+      metodo_pago:       p.metodo_pago,
+      articulo:          p.articulo,
       numero_pedido:     p.numero_pedido,
       notas:             p.notas,
     })
@@ -63,6 +67,8 @@ export function NuevoDomicilioPanel({ fecha, onCreado }: Props) {
         mensajeria:        form.mensajeria as 'exneider' | 'servigo',
         valor_domicilio:   parseInt(form.valor_domicilio.replace(/\D/g, ''), 10) || 0,
         cobrar_al_cliente: form.cobrar_al_cliente,
+        metodo_pago:       form.metodo_pago,
+        articulo:          form.articulo,
         numero_pedido:     form.numero_pedido,
         notas:             form.notas,
       })
@@ -101,7 +107,7 @@ export function NuevoDomicilioPanel({ fecha, onCreado }: Props) {
             value={texto}
             onChange={e => setTexto(e.target.value)}
             rows={6}
-            placeholder={`Pega los datos del domicilio aquí, en cualquier orden:\n\nMaría López\n3001234567\nCll 15 # 10-20 El Prado\nExneider\n5000`}
+            placeholder={`Pega los datos del domicilio aquí, en cualquier orden:\n\nMaría López\n3001234567\nCll 15 # 10-20 El Prado\nArtículo: Camiseta Adidas talla M\nTransferencia\nExneider\n5000`}
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
           />
           <button
@@ -156,6 +162,16 @@ export function NuevoDomicilioPanel({ fecha, onCreado }: Props) {
                 value={form.direccion}
                 onChange={e => set('direccion', e.target.value)}
                 placeholder="Cll 15 # 10-20, Barrio El Prado"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+              />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs text-gray-500 mb-1">Artículo enviado</label>
+              <input
+                type="text"
+                value={form.articulo}
+                onChange={e => set('articulo', e.target.value)}
+                placeholder="Adidas Camiseta / Talla M"
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
               />
             </div>
@@ -218,6 +234,27 @@ export function NuevoDomicilioPanel({ fecha, onCreado }: Props) {
                   className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
                 />
               )}
+            </div>
+          </div>
+
+          {/* Método de pago */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">El cliente pagó por</label>
+            <div className="flex gap-2">
+              {(['efectivo', 'transferencia'] as const).map(mp => (
+                <button
+                  key={mp}
+                  type="button"
+                  onClick={() => set('metodo_pago', mp)}
+                  className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                    form.metodo_pago === mp
+                      ? 'bg-gray-900 text-white border-gray-900'
+                      : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  {mp === 'efectivo' ? '💵 Efectivo' : '🏦 Transferencia'}
+                </button>
+              ))}
             </div>
           </div>
 

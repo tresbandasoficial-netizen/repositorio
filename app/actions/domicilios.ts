@@ -11,6 +11,8 @@ export type DomicilioInput = {
   mensajeria: 'exneider' | 'servigo'
   valor_domicilio: number
   cobrar_al_cliente: boolean
+  metodo_pago: 'efectivo' | 'transferencia'
+  articulo: string
   numero_pedido: string
   notas: string
 }
@@ -35,6 +37,8 @@ export async function crearDomicilioAction(data: DomicilioInput): Promise<Domici
       mensajeria:        data.mensajeria,
       valor_domicilio:   data.valor_domicilio,
       cobrar_al_cliente: data.cobrar_al_cliente,
+      metodo_pago:       data.metodo_pago,
+      articulo:          data.articulo.trim() || null,
       numero_pedido:     data.numero_pedido.trim().toUpperCase() || null,
       notas:             data.notas.trim() || null,
     })
