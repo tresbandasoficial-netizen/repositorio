@@ -68,6 +68,7 @@ export async function editarDomicilioAction(
   const { error } = await supabase
     .from('domicilios')
     .update({
+      fecha:             data.fecha,
       cliente_nombre:    data.cliente_nombre.trim(),
       cliente_telefono:  data.cliente_telefono.trim() || null,
       direccion:         data.direccion.trim(),

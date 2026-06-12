@@ -14,6 +14,7 @@ interface Props {
 
 export function EditarDomicilioPanel({ domicilio: d, onGuardado, onCancelar }: Props) {
   const [form, setForm] = useState({
+    fecha:             d.fecha,
     cliente_nombre:    d.cliente_nombre,
     cliente_telefono:  d.cliente_telefono ?? '',
     direccion:         d.direccion,
@@ -41,7 +42,7 @@ export function EditarDomicilioPanel({ domicilio: d, onGuardado, onCancelar }: P
 
     start(async () => {
       const r = await editarDomicilioAction(d.id, {
-        fecha:             d.fecha,
+        fecha:             form.fecha,
         cliente_nombre:    form.cliente_nombre,
         cliente_telefono:  form.cliente_telefono,
         direccion:         form.direccion,
@@ -62,6 +63,18 @@ export function EditarDomicilioPanel({ domicilio: d, onGuardado, onCancelar }: P
   return (
     <div className="border-t border-gray-100 pt-4 mt-3 space-y-3">
       <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Fecha</label>
+          <input
+            type="date"
+            value={form.fecha}
+            onChange={e => set('fecha', e.target.value)}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+          />
+        </div>
+        <div className="flex items-end">
+          <p className="text-xs text-gray-400 pb-2">Cambia la fecha para mover el domi a otro cuadre</p>
+        </div>
         <div className="col-span-2">
           <label className="block text-xs text-gray-500 mb-1">Cliente *</label>
           <input
