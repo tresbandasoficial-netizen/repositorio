@@ -88,6 +88,30 @@ export async function editarDomicilioAction(
   return { ok: true }
 }
 
+export type CerrarDiaResult =
+  | { ok: true }
+  | { ok: false; error: string }
+
+export async function cerrarCuadreDiaAction(
+  fecha: string,
+  total_neto: number,
+  resumen: object
+): Promise<CerrarDiaResult> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'No autenticado' }
+
+  const { error } = await supabase
+    .from('cuadres_domicilios')
+    .upsert({ fecha, cerrado_por: user.id, total_neto, resumen }, { onConflict: 'fecha' })
+
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/domicilios')
+  revalidatePath('/domicilios/cuadre')
+  return { ok: true }
+}
+
 export type ActualizarEstadoResult =
   | { ok: true }
   | { ok: false; error: string }

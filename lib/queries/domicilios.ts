@@ -223,6 +223,30 @@ export async function getCuadreSemana(fecha: string): Promise<CuadreSemana> {
   }
 }
 
+export type CierreDia = {
+  fecha: string
+  cerrado_en: string
+  cerrado_por_nombre: string
+  total_neto: number
+} | null
+
+export async function getCierreDia(fecha: string): Promise<CierreDia> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('cuadres_domicilios')
+    .select('fecha, cerrado_en, total_neto, usuarios(nombre)')
+    .eq('fecha', fecha)
+    .single()
+
+  if (!data) return null
+  return {
+    fecha: data.fecha,
+    cerrado_en: data.cerrado_en,
+    cerrado_por_nombre: (data.usuarios as any)?.nombre ?? '',
+    total_neto: data.total_neto,
+  }
+}
+
 export async function getFechasConDomicilios(limite = 30): Promise<string[]> {
   const supabase = await createClient()
 

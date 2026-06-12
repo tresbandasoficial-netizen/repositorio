@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { getDomiciliosPorFecha, getCuadreDia, calcularCuadreDomicilio } from '@/lib/queries/domicilios'
+import { getDomiciliosPorFecha, getCuadreDia, getCierreDia, calcularCuadreDomicilio } from '@/lib/queries/domicilios'
 import Link from 'next/link'
+import { CuadreDiaCierreBotones } from '@/components/domicilios/CuadreDiaCierreBotones'
 
 function formatCOP(v: number) {
   return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(v)
@@ -22,9 +23,10 @@ export default async function CuadreDiaPage({
   const hoy = new Date().toISOString().slice(0, 10)
   const fecha = fechaParam ?? hoy
 
-  const [domicilios, cuadre] = await Promise.all([
+  const [domicilios, cuadre, cierre] = await Promise.all([
     getDomiciliosPorFecha(fecha),
     getCuadreDia(fecha),
+    getCierreDia(fecha),
   ])
 
   const exneider = domicilios.filter(d => d.mensajeria === 'exneider')
@@ -33,21 +35,42 @@ export default async function CuadreDiaPage({
   return (
     <div className="p-6 max-w-4xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <Link href={`/domicilios?fecha=${fecha}`} className="text-sm text-gray-400 hover:text-gray-600 mb-1 inline-block">
             ← Volver
           </Link>
-          <h1 className="text-xl font-bold text-gray-900">Cuadre de caja</h1>
+          <h1 className="text-xl font-bold text-gray-900">Cuadre diario</h1>
           <p className="text-sm text-gray-500">{fecha}</p>
         </div>
-        <div className="text-right">
-          <p className="text-xs text-gray-400">Neto total del día</p>
-          <p className={`text-2xl font-bold ${cuadre.total_neto >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
-            {formatCOP(cuadre.total_neto)}
-          </p>
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <p className="text-xs text-gray-400">Neto del día</p>
+            <p className={`text-2xl font-bold ${cuadre.total_neto >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
+              {formatCOP(cuadre.total_neto)}
+            </p>
+          </div>
+          {/* Botón cerrar / estado cerrado */}
+          <CuadreDiaCierreBotones
+            fecha={fecha}
+            cierre={cierre}
+            cuadre={cuadre}
+          />
         </div>
       </div>
+
+      {/* Banner día cerrado */}
+      {cierre && (
+        <div className="mb-6 bg-green-50 border border-green-200 rounded-xl px-5 py-3 flex items-center gap-3">
+          <span className="text-green-600 text-lg">✓</span>
+          <div>
+            <p className="text-sm font-semibold text-green-800">Día cuadrado</p>
+            <p className="text-xs text-green-600">
+              Cerrado por {cierre.cerrado_por_nombre} el {new Date(cierre.cerrado_en).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' })}
+            </p>
+          </div>
+        </div>
+      )}
 
       {domicilios.length === 0 ? (
         <div className="text-center py-20 text-gray-400">No hay domicilios registrados para este día</div>
@@ -91,9 +114,9 @@ export default async function CuadreDiaPage({
           </div>
 
           {/* Detalle por mensajería */}
-          {[{ label: 'Exneider', lista: exneider, color: 'blue' }, { label: 'Servigo', lista: servigo, color: 'purple' }]
+          {[{ label: 'Exneider', lista: exneider }, { label: 'Servigo', lista: servigo }]
             .filter(g => g.lista.length > 0)
-            .map(({ label, lista, color }) => (
+            .map(({ label, lista }) => (
               <div key={label} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
                   <h2 className="text-sm font-semibold text-gray-900">Detalle {label}</h2>
