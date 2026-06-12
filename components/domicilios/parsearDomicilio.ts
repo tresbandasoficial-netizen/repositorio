@@ -43,6 +43,63 @@ export function parsearDomicilio(texto: string): DomicilioParsed {
   for (const line of lines) {
     const ln = nc(line)
 
+    // Formato plantilla "clave: valor" (Nombre:, Dirección:, Mensajería:...)
+    const ci = line.indexOf(':')
+    if (ci > 0) {
+      const key = nc(line.slice(0, ci))
+      const val = line.slice(ci + 1).trim()
+      const valNc = nc(val)
+
+      if (['nombre', 'cliente'].includes(key)) {
+        if (val) cliente_nombre = val
+        continue
+      }
+      if (['celular', 'telefono', 'tel', 'cel', 'whatsapp'].includes(key)) {
+        const c = val.replace(/\D/g, '')
+        if (c) cliente_telefono = c
+        continue
+      }
+      if (['direccion', 'dir'].includes(key)) {
+        if (val) direccion = val
+        continue
+      }
+      if (key === 'mensajeria') {
+        if (valNc.includes('exneider')) mensajeria = 'exneider'
+        else if (valNc.includes('servigo')) mensajeria = 'servigo'
+        continue
+      }
+      if (['fecha', 'asesor'].includes(key)) continue
+      if (['observaciones', 'observacion', 'notas', 'nota', 'indicaciones'].includes(key)) {
+        if (val) notas = notas ? `${notas} | ${val}` : val
+        continue
+      }
+      if (key.startsWith('pedido o articulo') || ['articulo', 'articulos', 'articulo enviado', 'pedido'].includes(key)) {
+        if (val) {
+          const pm = val.match(/\b(TR|CR|SR)\d+\b/i)
+          if (pm) numero_pedido = pm[0].toUpperCase()
+          const resto = val.replace(/\b(TR|CR|SR)\d+\b\s*[\/|,-]?\s*/i, '').trim()
+          if (resto) articulo = resto
+        }
+        continue
+      }
+      if (['valor a cobrar', 'valor', 'valor pedido', 'valor del pedido', 'precio', 'total'].includes(key)) {
+        const v = parseInt(val.replace(/\D/g, ''), 10) || 0
+        if (v === 0 || /no\s+cobrar|nada/.test(valNc)) {
+          metodo_pago = 'transferencia'
+        } else if (v <= 20000) {
+          valor_domicilio = v
+        } else {
+          valor_pedido = v
+          metodo_pago = 'efectivo'
+        }
+        continue
+      }
+      if (['valor domicilio', 'valor del domicilio', 'domicilio', 'domi'].includes(key)) {
+        valor_domicilio = parseInt(val.replace(/\D/g, ''), 10) || 0
+        continue
+      }
+    }
+
     // Mensajería
     if (/exneider/.test(ln)) { mensajeria = 'exneider'; continue }
     if (/servigo/.test(ln))  { mensajeria = 'servigo';  continue }
