@@ -4,6 +4,7 @@ export type DomicilioParsed = {
   cliente_telefono: string
   direccion: string
   mensajeria: 'exneider' | 'servigo' | ''
+  valor_pedido: number
   valor_domicilio: number
   cobrar_al_cliente: boolean
   metodo_pago: 'efectivo' | 'transferencia'
@@ -31,6 +32,7 @@ export function parsearDomicilio(texto: string): DomicilioParsed {
   let cliente_telefono = ''
   let direccion = ''
   let mensajeria: 'exneider' | 'servigo' | '' = ''
+  let valor_pedido = 0
   let valor_domicilio = 0
   let cobrar_al_cliente = true
   let metodo_pago: 'efectivo' | 'transferencia' = 'efectivo'
@@ -69,10 +71,12 @@ export function parsearDomicilio(texto: string): DomicilioParsed {
       cobrar_al_cliente = false
       continue
     }
-    const valorMatch = line.replace(/\./g, '').match(/\$?\s*(\d{3,7})/)
-    if (valorMatch && !valor_domicilio) {
+    // Valores: <= $20.000 se asume domicilio, mayores se asumen valor del pedido
+    const valorMatch = line.replace(/\./g, '').match(/\$?\s*(\d{4,8})/)
+    if (valorMatch) {
       const v = parseInt(valorMatch[1], 10)
-      if (v >= 1000 && v <= 50000) { valor_domicilio = v; continue }
+      if (v >= 1000 && v <= 20000 && !valor_domicilio) { valor_domicilio = v; continue }
+      if (v > 20000 && v <= 10000000 && !valor_pedido) { valor_pedido = v; continue }
     }
 
     // Dirección colombiana
@@ -102,6 +106,7 @@ export function parsearDomicilio(texto: string): DomicilioParsed {
     cliente_telefono,
     direccion,
     mensajeria,
+    valor_pedido,
     valor_domicilio,
     cobrar_al_cliente,
     metodo_pago,
@@ -112,10 +117,15 @@ export function parsearDomicilio(texto: string): DomicilioParsed {
 }
 
 // Genera el mensaje formateado para enviar a la mensajería
+function fmt(v: number) {
+  return `$${v.toLocaleString('es-CO')}`
+}
+
 export function buildMensajeMensajeria(d: {
   cliente_nombre: string
   cliente_telefono: string | null
   direccion: string
+  valor_pedido: number
   valor_domicilio: number
   cobrar_al_cliente: boolean
   metodo_pago: 'efectivo' | 'transferencia'
@@ -124,14 +134,27 @@ export function buildMensajeMensajeria(d: {
   notas: string | null
   asesor_nombre: string
 }): string {
-  const valor = d.cobrar_al_cliente
-    ? `$${d.valor_domicilio.toLocaleString('es-CO')}`
-    : 'Sin cobro'
-  const pago = d.metodo_pago === 'transferencia' ? 'Transferencia' : 'Efectivo'
+  // Qué debe cobrar la mensajería al cliente
+  const cobraPedido = d.metodo_pago === 'efectivo' ? d.valor_pedido : 0
+  const cobraDomicilio = d.cobrar_al_cliente ? d.valor_domicilio : 0
+  const totalCobrar = cobraPedido + cobraDomicilio
+
+  let cobro: string
+  if (totalCobrar === 0) {
+    cobro = 'NO COBRAR NADA (ya está pago)'
+  } else {
+    const partes: string[] = []
+    if (cobraPedido > 0) partes.push(`${fmt(cobraPedido)} pedido`)
+    if (cobraDomicilio > 0) partes.push(`${fmt(cobraDomicilio)} domicilio`)
+    cobro = `${fmt(totalCobrar)} (${partes.join(' + ')})`
+  }
+
+  const pagoInfo = d.metodo_pago === 'transferencia' ? '\nPedido ya pagado por transferencia' : ''
+  const domNuestro = !d.cobrar_al_cliente ? '\nEl domicilio lo pagamos nosotros' : ''
   const articulo = d.articulo ? `\nArtículo: ${d.articulo}` : ''
   const pedido = d.numero_pedido ? `\nPedido: ${d.numero_pedido}` : ''
   const notas = d.notas ? `\nNotas: ${d.notas}` : ''
-  return `*DOMICILIO*\nCliente: ${d.cliente_nombre}\nCelular: ${d.cliente_telefono ?? '—'}\nDirección: ${d.direccion}${articulo}\nValor: ${valor}\nPago: ${pago}\nAsesor: ${d.asesor_nombre}${pedido}${notas}`
+  return `*DOMICILIO*\nCliente: ${d.cliente_nombre}\nCelular: ${d.cliente_telefono ?? '—'}\nDirección: ${d.direccion}${articulo}\n*Cobrar al cliente: ${cobro}*${pagoInfo}${domNuestro}\nAsesor: ${d.asesor_nombre}${pedido}${notas}`
 }
 
 // Genera la línea para Excel (separada por |)
@@ -141,6 +164,7 @@ export function buildLineaExcel(d: {
   cliente_telefono: string | null
   direccion: string
   mensajeria: string
+  valor_pedido: number
   valor_domicilio: number
   cobrar_al_cliente: boolean
   metodo_pago: 'efectivo' | 'transferencia'
@@ -148,9 +172,10 @@ export function buildLineaExcel(d: {
   numero_pedido: string | null
   asesor_nombre: string
 }): string {
-  const valor = d.cobrar_al_cliente
-    ? `$${d.valor_domicilio.toLocaleString('es-CO')}`
-    : 'Sin cobro'
+  const pedidoEfectivo = d.metodo_pago === 'efectivo' ? fmt(d.valor_pedido) : 'Transferencia'
+  const domicilio = d.cobrar_al_cliente
+    ? `${fmt(d.valor_domicilio)} cliente`
+    : `${fmt(d.valor_domicilio)} nosotros`
   return [
     d.fecha,
     d.mensajeria.charAt(0).toUpperCase() + d.mensajeria.slice(1),
@@ -158,8 +183,8 @@ export function buildLineaExcel(d: {
     d.cliente_telefono ?? '',
     d.direccion,
     d.articulo ?? '',
-    valor,
-    d.metodo_pago === 'transferencia' ? 'Transferencia' : 'Efectivo',
+    pedidoEfectivo,
+    domicilio,
     d.asesor_nombre,
     d.numero_pedido ?? '',
   ].join(' | ')

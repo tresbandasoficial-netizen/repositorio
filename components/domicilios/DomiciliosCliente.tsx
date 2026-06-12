@@ -50,11 +50,20 @@ export function DomiciliosCliente({ fecha, domicilios, cuadre, cuadreSemana, isA
     const grupo = domicilios.filter(d => d.mensajeria === mensajeria)
     if (grupo.length === 0) return
     const lineas = grupo.map((d, i) => {
-      const valor = d.cobrar_al_cliente ? formatCOP(d.valor_domicilio) : 'Sin cobro'
-      return `${i + 1}. ${d.cliente_nombre} | ${d.direccion} | ${valor}`
+      const recoge = d.metodo_pago === 'efectivo' ? d.valor_pedido : 0
+      const cobro = recoge > 0 ? `recoge ${formatCOP(recoge)}` : 'transferencia'
+      const domi = d.cobrar_al_cliente
+        ? `domi ${formatCOP(d.valor_domicilio)} cliente`
+        : `domi ${formatCOP(d.valor_domicilio)} nosotros`
+      return `${i + 1}. ${d.cliente_nombre} | ${d.direccion} | ${cobro} | ${domi}`
     }).join('\n')
-    const total = grupo.reduce((s, d) => s + (d.cobrar_al_cliente ? d.valor_domicilio : 0), 0)
-    const msg = `*DOMICILIOS ${fecha}*\n${lineas}\n\n*Total a recoger: ${formatCOP(total)}*`
+    const m = cuadre.por_mensajeria.find(x => x.mensajeria === mensajeria)!
+    const resumen = [
+      `Efectivo recogido (nos deben): ${formatCOP(m.nos_deben)}`,
+      `Domicilios que pagamos nosotros: ${formatCOP(m.les_debemos)}`,
+      `*Neto a entregarnos: ${formatCOP(m.neto)}*`,
+    ].join('\n')
+    const msg = `*CUADRE DOMICILIOS ${fecha}*\n${lineas}\n\n${resumen}`
     window.open(`https://wa.me/${WA_NUMEROS[mensajeria]}?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
@@ -65,11 +74,16 @@ export function DomiciliosCliente({ fecha, domicilios, cuadre, cuadreSemana, isA
     if (dias.length === 0) return
     const lineas = dias.map(d => {
       const total = mensajeria === 'exneider' ? d.exneider_total : d.servigo_total
-      const valor = mensajeria === 'exneider' ? d.exneider_valor : d.servigo_valor
-      return `${labelDia(d.fecha)}: ${total} domicilio${total !== 1 ? 's' : ''} · ${formatCOP(valor)}`
+      const neto = mensajeria === 'exneider' ? d.exneider_neto : d.servigo_neto
+      return `${labelDia(d.fecha)}: ${total} domicilio${total !== 1 ? 's' : ''} · neto ${formatCOP(neto)}`
     }).join('\n')
     const m = cuadreSemana.por_mensajeria.find(x => x.mensajeria === mensajeria)!
-    const msg = `*CUADRE SEMANAL ${MENSAJERIA_LABELS[mensajeria].toUpperCase()}*\nSemana del ${cuadreSemana.desde} al ${cuadreSemana.hasta}\n\n${lineas}\n\n*Total: ${m.total_domicilios} domicilios · ${formatCOP(m.total_valor)}*`
+    const resumen = [
+      `Efectivo recogido (nos deben): ${formatCOP(m.nos_deben)}`,
+      `Domicilios que pagamos nosotros: ${formatCOP(m.les_debemos)}`,
+      `*Neto a entregarnos: ${formatCOP(m.neto)}*`,
+    ].join('\n')
+    const msg = `*CUADRE SEMANAL ${MENSAJERIA_LABELS[mensajeria].toUpperCase()}*\nSemana del ${cuadreSemana.desde} al ${cuadreSemana.hasta}\n\n${lineas}\n\n${resumen}`
     window.open(`https://wa.me/${WA_NUMEROS[mensajeria]}?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
@@ -137,7 +151,7 @@ export function DomiciliosCliente({ fecha, domicilios, cuadre, cuadreSemana, isA
               </div>
             </div>
             <span className="text-sm font-semibold text-gray-900">
-              {formatCOP(vistaCuadre === 'dia' ? cuadre.total_valor : cuadreSemana.total_valor)}
+              Neto {formatCOP(vistaCuadre === 'dia' ? cuadre.total_neto : cuadreSemana.total_neto)}
             </span>
           </div>
 
@@ -161,7 +175,9 @@ export function DomiciliosCliente({ fecha, domicilios, cuadre, cuadreSemana, isA
                       </span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="font-semibold text-gray-900">{formatCOP(m.total_valor)}</span>
+                      <span className={`font-semibold ${m.neto >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
+                        {m.neto >= 0 ? 'Nos debe' : 'Le debemos'} {formatCOP(Math.abs(m.neto))}
+                      </span>
                       <button
                         type="button"
                         onClick={() => abrirWhatsAppCuadre(m.mensajeria)}
@@ -170,6 +186,10 @@ export function DomiciliosCliente({ fecha, domicilios, cuadre, cuadreSemana, isA
                         WA
                       </button>
                     </div>
+                  </div>
+                  <div className="flex gap-4 mt-1.5 text-xs text-gray-400">
+                    <span>Efectivo recogido: {formatCOP(m.nos_deben)}</span>
+                    <span>Domis que pagamos: {formatCOP(m.les_debemos)}</span>
                   </div>
                 </div>
               ))}
@@ -218,13 +238,13 @@ export function DomiciliosCliente({ fecha, domicilios, cuadre, cuadreSemana, isA
                       <tr key={d.fecha}>
                         <td className="py-1.5 text-gray-700">{labelDia(d.fecha)}</td>
                         <td className="py-1.5 text-right text-gray-600">
-                          {d.exneider_total > 0 ? `${d.exneider_total} · ${formatCOP(d.exneider_valor)}` : '—'}
+                          {d.exneider_total > 0 ? `${d.exneider_total} · ${formatCOP(d.exneider_neto)}` : '—'}
                         </td>
                         <td className="py-1.5 text-right text-gray-600">
-                          {d.servigo_total > 0 ? `${d.servigo_total} · ${formatCOP(d.servigo_valor)}` : '—'}
+                          {d.servigo_total > 0 ? `${d.servigo_total} · ${formatCOP(d.servigo_neto)}` : '—'}
                         </td>
                         <td className="py-1.5 text-right font-medium text-gray-900">
-                          {formatCOP(d.exneider_valor + d.servigo_valor)}
+                          {formatCOP(d.exneider_neto + d.servigo_neto)}
                         </td>
                       </tr>
                     ))}
@@ -242,28 +262,36 @@ export function DomiciliosCliente({ fecha, domicilios, cuadre, cuadreSemana, isA
               {/* Totales por mensajería con WA semanal */}
               <div className="divide-y divide-gray-50 border-t border-gray-100">
                 {cuadreSemana.por_mensajeria.filter(m => m.total_domicilios > 0).map(m => (
-                  <div key={m.mensajeria} className="px-5 py-3 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                        m.mensajeria === 'exneider'
-                          ? 'bg-blue-100 text-blue-700'
-                          : 'bg-purple-100 text-purple-700'
-                      }`}>
-                        {MENSAJERIA_LABELS[m.mensajeria]}
-                      </span>
-                      <span className="text-sm text-gray-600">
-                        {m.total_domicilios} domicilio{m.total_domicilios !== 1 ? 's' : ''} en la semana
-                      </span>
+                  <div key={m.mensajeria} className="px-5 py-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          m.mensajeria === 'exneider'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-purple-100 text-purple-700'
+                        }`}>
+                          {MENSAJERIA_LABELS[m.mensajeria]}
+                        </span>
+                        <span className="text-sm text-gray-600">
+                          {m.total_domicilios} domicilio{m.total_domicilios !== 1 ? 's' : ''} en la semana
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className={`font-semibold ${m.neto >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
+                          {m.neto >= 0 ? 'Nos debe' : 'Le debemos'} {formatCOP(Math.abs(m.neto))}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => abrirWhatsAppCuadreSemanal(m.mensajeria)}
+                          className="text-xs px-2.5 py-1 rounded-lg bg-green-500 hover:bg-green-600 text-white font-medium transition-colors"
+                        >
+                          WA semanal
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-semibold text-gray-900">{formatCOP(m.total_valor)}</span>
-                      <button
-                        type="button"
-                        onClick={() => abrirWhatsAppCuadreSemanal(m.mensajeria)}
-                        className="text-xs px-2.5 py-1 rounded-lg bg-green-500 hover:bg-green-600 text-white font-medium transition-colors"
-                      >
-                        WA semanal
-                      </button>
+                    <div className="flex gap-4 mt-1.5 text-xs text-gray-400">
+                      <span>Efectivo recogido: {formatCOP(m.nos_deben)}</span>
+                      <span>Domis que pagamos: {formatCOP(m.les_debemos)}</span>
                     </div>
                   </div>
                 ))}

@@ -9,6 +9,7 @@ export type DomicilioRow = {
   cliente_telefono: string | null
   direccion: string
   mensajeria: 'exneider' | 'servigo'
+  valor_pedido: number
   valor_domicilio: number
   cobrar_al_cliente: boolean
   metodo_pago: 'efectivo' | 'transferencia'
@@ -19,18 +20,35 @@ export type DomicilioRow = {
   creado_en: string
 }
 
+// Lógica del cuadre:
+// - Si el cliente paga en efectivo, la mensajería recoge valor_pedido → nos lo debe.
+// - Si nosotros pagamos el domicilio (cobrar_al_cliente = false) → le debemos valor_domicilio.
+// - Neto = lo que nos deben − lo que les debemos.
+export function calcularCuadreDomicilio(d: {
+  metodo_pago: 'efectivo' | 'transferencia'
+  valor_pedido: number
+  valor_domicilio: number
+  cobrar_al_cliente: boolean
+}): { nos_deben: number; les_debemos: number; neto: number } {
+  const nos_deben = d.metodo_pago === 'efectivo' ? d.valor_pedido : 0
+  const les_debemos = d.cobrar_al_cliente ? 0 : d.valor_domicilio
+  return { nos_deben, les_debemos, neto: nos_deben - les_debemos }
+}
+
 export type CuadreMensajeria = {
   mensajeria: 'exneider' | 'servigo'
   total_domicilios: number
-  total_valor: number
   entregados: number
   pendientes: number
+  nos_deben: number      // recaudo en efectivo que la mensajería nos debe
+  les_debemos: number    // domicilios que nosotros pagamos a la mensajería
+  neto: number           // nos_deben - les_debemos
 }
 
 export type CuadreDia = {
   fecha: string
   total_domicilios: number
-  total_valor: number
+  total_neto: number
   por_mensajeria: CuadreMensajeria[]
   por_asesor: { asesor_nombre: string; total: number; valor: number }[]
 }
@@ -42,7 +60,7 @@ export async function getDomiciliosPorFecha(fecha: string): Promise<DomicilioRow
     .from('domicilios')
     .select(`
       id, fecha, asesor_id, cliente_nombre, cliente_telefono,
-      direccion, mensajeria, valor_domicilio, cobrar_al_cliente,
+      direccion, mensajeria, valor_pedido, valor_domicilio, cobrar_al_cliente,
       metodo_pago, articulo, numero_pedido, notas, estado, creado_en,
       usuarios(nombre)
     `)
@@ -57,36 +75,53 @@ export async function getDomiciliosPorFecha(fecha: string): Promise<DomicilioRow
   }))
 }
 
-export async function getCuadreDia(fecha: string): Promise<CuadreDia> {
-  const domicilios = await getDomiciliosPorFecha(fecha)
-
-  const total_domicilios = domicilios.length
-  const total_valor = domicilios.reduce((s, d) => s + d.valor_domicilio, 0)
-
+function resumirMensajerias(domicilios: Array<{
+  mensajeria: 'exneider' | 'servigo'
+  estado: string
+  metodo_pago: 'efectivo' | 'transferencia'
+  valor_pedido: number
+  valor_domicilio: number
+  cobrar_al_cliente: boolean
+}>): CuadreMensajeria[] {
   const mensajerias: ('exneider' | 'servigo')[] = ['exneider', 'servigo']
-  const por_mensajeria: CuadreMensajeria[] = mensajerias.map((m) => {
+  return mensajerias.map((m) => {
     const grupo = domicilios.filter((d) => d.mensajeria === m)
+    let nos_deben = 0
+    let les_debemos = 0
+    for (const d of grupo) {
+      const c = calcularCuadreDomicilio(d)
+      nos_deben += c.nos_deben
+      les_debemos += c.les_debemos
+    }
     return {
       mensajeria: m,
       total_domicilios: grupo.length,
-      total_valor: grupo.reduce((s, d) => s + d.valor_domicilio, 0),
       entregados: grupo.filter((d) => d.estado === 'entregado').length,
       pendientes: grupo.filter((d) => d.estado === 'pendiente').length,
+      nos_deben,
+      les_debemos,
+      neto: nos_deben - les_debemos,
     }
   })
+}
+
+export async function getCuadreDia(fecha: string): Promise<CuadreDia> {
+  const domicilios = await getDomiciliosPorFecha(fecha)
+
+  const por_mensajeria = resumirMensajerias(domicilios)
 
   const asesorMap = new Map<string, { asesor_nombre: string; total: number; valor: number }>()
   for (const d of domicilios) {
     const entry = asesorMap.get(d.asesor_id) ?? { asesor_nombre: d.asesor_nombre, total: 0, valor: 0 }
     entry.total += 1
-    entry.valor += d.valor_domicilio
+    entry.valor += calcularCuadreDomicilio(d).nos_deben
     asesorMap.set(d.asesor_id, entry)
   }
 
   return {
     fecha,
-    total_domicilios,
-    total_valor,
+    total_domicilios: domicilios.length,
+    total_neto: por_mensajeria.reduce((s, m) => s + m.neto, 0),
     por_mensajeria,
     por_asesor: Array.from(asesorMap.values()),
   }
@@ -95,16 +130,16 @@ export async function getCuadreDia(fecha: string): Promise<CuadreDia> {
 export type CuadreSemanaDia = {
   fecha: string
   exneider_total: number
-  exneider_valor: number
+  exneider_neto: number
   servigo_total: number
-  servigo_valor: number
+  servigo_neto: number
 }
 
 export type CuadreSemana = {
   desde: string
   hasta: string
   total_domicilios: number
-  total_valor: number
+  total_neto: number
   por_mensajeria: CuadreMensajeria[]
   por_dia: CuadreSemanaDia[]
   por_asesor: { asesor_nombre: string; total: number; valor: number }[]
@@ -132,7 +167,8 @@ export async function getCuadreSemana(fecha: string): Promise<CuadreSemana> {
   const { data, error } = await supabase
     .from('domicilios')
     .select(`
-      id, fecha, asesor_id, mensajeria, valor_domicilio, estado,
+      id, fecha, asesor_id, mensajeria, valor_pedido, valor_domicilio,
+      cobrar_al_cliente, metodo_pago, estado,
       usuarios(nombre)
     `)
     .gte('fecha', desde)
@@ -146,33 +182,24 @@ export async function getCuadreSemana(fecha: string): Promise<CuadreSemana> {
     asesor_nombre: d.usuarios?.nombre ?? '',
   }))
 
-  const mensajerias: ('exneider' | 'servigo')[] = ['exneider', 'servigo']
-  const por_mensajeria: CuadreMensajeria[] = mensajerias.map((m) => {
-    const grupo = domicilios.filter((d) => d.mensajeria === m)
-    return {
-      mensajeria: m,
-      total_domicilios: grupo.length,
-      total_valor: grupo.reduce((s, d) => s + d.valor_domicilio, 0),
-      entregados: grupo.filter((d) => d.estado === 'entregado').length,
-      pendientes: grupo.filter((d) => d.estado === 'pendiente').length,
-    }
-  })
+  const por_mensajeria = resumirMensajerias(domicilios)
 
   const diaMap = new Map<string, CuadreSemanaDia>()
   for (const d of domicilios) {
     const entry = diaMap.get(d.fecha) ?? {
       fecha: d.fecha,
       exneider_total: 0,
-      exneider_valor: 0,
+      exneider_neto: 0,
       servigo_total: 0,
-      servigo_valor: 0,
+      servigo_neto: 0,
     }
+    const { neto } = calcularCuadreDomicilio(d)
     if (d.mensajeria === 'exneider') {
       entry.exneider_total += 1
-      entry.exneider_valor += d.valor_domicilio
+      entry.exneider_neto += neto
     } else {
       entry.servigo_total += 1
-      entry.servigo_valor += d.valor_domicilio
+      entry.servigo_neto += neto
     }
     diaMap.set(d.fecha, entry)
   }
@@ -181,7 +208,7 @@ export async function getCuadreSemana(fecha: string): Promise<CuadreSemana> {
   for (const d of domicilios) {
     const entry = asesorMap.get(d.asesor_id) ?? { asesor_nombre: d.asesor_nombre, total: 0, valor: 0 }
     entry.total += 1
-    entry.valor += d.valor_domicilio
+    entry.valor += calcularCuadreDomicilio(d).nos_deben
     asesorMap.set(d.asesor_id, entry)
   }
 
@@ -189,7 +216,7 @@ export async function getCuadreSemana(fecha: string): Promise<CuadreSemana> {
     desde,
     hasta,
     total_domicilios: domicilios.length,
-    total_valor: domicilios.reduce((s, d) => s + d.valor_domicilio, 0),
+    total_neto: por_mensajeria.reduce((s, m) => s + m.neto, 0),
     por_mensajeria,
     por_dia: Array.from(diaMap.values()).sort((a, b) => a.fecha.localeCompare(b.fecha)),
     por_asesor: Array.from(asesorMap.values()),

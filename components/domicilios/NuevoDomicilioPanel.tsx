@@ -16,6 +16,7 @@ const VACIO = {
   cliente_telefono: '',
   direccion: '',
   mensajeria: '' as 'exneider' | 'servigo' | '',
+  valor_pedido: '',
   valor_domicilio: '',
   cobrar_al_cliente: true,
   metodo_pago: 'efectivo' as 'efectivo' | 'transferencia',
@@ -38,6 +39,7 @@ export function NuevoDomicilioPanel({ fecha, onCreado }: Props) {
       cliente_telefono:  p.cliente_telefono,
       direccion:         p.direccion,
       mensajeria:        p.mensajeria,
+      valor_pedido:      p.valor_pedido ? String(p.valor_pedido) : '',
       valor_domicilio:   p.valor_domicilio ? String(p.valor_domicilio) : '',
       cobrar_al_cliente: p.cobrar_al_cliente,
       metodo_pago:       p.metodo_pago,
@@ -65,6 +67,7 @@ export function NuevoDomicilioPanel({ fecha, onCreado }: Props) {
         cliente_telefono:  form.cliente_telefono,
         direccion:         form.direccion,
         mensajeria:        form.mensajeria as 'exneider' | 'servigo',
+        valor_pedido:      parseInt(form.valor_pedido.replace(/\D/g, ''), 10) || 0,
         valor_domicilio:   parseInt(form.valor_domicilio.replace(/\D/g, ''), 10) || 0,
         cobrar_al_cliente: form.cobrar_al_cliente,
         metodo_pago:       form.metodo_pago,
@@ -198,48 +201,9 @@ export function NuevoDomicilioPanel({ fecha, onCreado }: Props) {
             </div>
           </div>
 
-          {/* Valor */}
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Valor domicilio</label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => set('cobrar_al_cliente', true)}
-                className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
-                  form.cobrar_al_cliente
-                    ? 'bg-gray-900 text-white border-gray-900'
-                    : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
-                }`}
-              >
-                Cobrar
-              </button>
-              <button
-                type="button"
-                onClick={() => { set('cobrar_al_cliente', false); set('valor_domicilio', '0') }}
-                className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
-                  !form.cobrar_al_cliente
-                    ? 'bg-gray-900 text-white border-gray-900'
-                    : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
-                }`}
-              >
-                Sin cobro
-              </button>
-              {form.cobrar_al_cliente && (
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={form.valor_domicilio}
-                  onChange={e => set('valor_domicilio', e.target.value.replace(/\D/g, ''))}
-                  placeholder="5000"
-                  className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-                />
-              )}
-            </div>
-          </div>
-
           {/* Método de pago */}
           <div>
-            <label className="block text-xs text-gray-500 mb-1">El cliente pagó por</label>
+            <label className="block text-xs text-gray-500 mb-1">El cliente paga el pedido por</label>
             <div className="flex gap-2">
               {(['efectivo', 'transferencia'] as const).map(mp => (
                 <button
@@ -256,6 +220,65 @@ export function NuevoDomicilioPanel({ fecha, onCreado }: Props) {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Valor del pedido (solo efectivo: la mensajería lo recoge) */}
+          {form.metodo_pago === 'efectivo' && (
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">
+                Valor del pedido (lo recoge la mensajería en efectivo)
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={form.valor_pedido}
+                onChange={e => set('valor_pedido', e.target.value.replace(/\D/g, ''))}
+                placeholder="110000"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+              />
+            </div>
+          )}
+
+          {/* Domicilio: quién lo paga y cuánto vale */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">El domicilio lo paga</label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => set('cobrar_al_cliente', true)}
+                className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
+                  form.cobrar_al_cliente
+                    ? 'bg-gray-900 text-white border-gray-900'
+                    : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                El cliente
+              </button>
+              <button
+                type="button"
+                onClick={() => set('cobrar_al_cliente', false)}
+                className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
+                  !form.cobrar_al_cliente
+                    ? 'bg-gray-900 text-white border-gray-900'
+                    : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                Nosotros
+              </button>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={form.valor_domicilio}
+                onChange={e => set('valor_domicilio', e.target.value.replace(/\D/g, ''))}
+                placeholder="Valor: 5000"
+                className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+              />
+            </div>
+            {!form.cobrar_al_cliente && (
+              <p className="text-xs text-amber-600 mt-1">
+                Nosotros le pagamos este valor a la mensajería (entra al cuadre)
+              </p>
+            )}
           </div>
 
           {/* Notas */}
