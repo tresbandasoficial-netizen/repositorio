@@ -303,14 +303,50 @@ function parsearLibre(texto: string): ParseResult {
     return { ok: false, error: `El número de pedido "${numeroOrden}" debe empezar con TR (Bucaramanga), CR (Cúcuta) o SR (Santa Rosa).` }
   const sede = prefijo
 
-  // ── Campos obligatorios ───────────────────────────────────────────────────
-  const clienteNombre = findRaw(lines, 'Nombre', 'Cliente', 'Nombre del cliente')
-  if (!clienteNombre) faltantes.push('Nombre')
-
-  const telefonoRaw = findRaw(lines, 'Celular', 'Teléfono', 'Tel', 'Cel')
+  // ── Teléfono (etiquetado o patrón colombiano suelto) ─────────────────────
+  let telefonoRaw = findRaw(lines, 'Celular', 'Teléfono', 'Tel', 'Cel', 'Whatsapp')
+  if (!telefonoRaw) {
+    for (const line of lines) {
+      const cleaned = line.replace(/[\s\-().+]/g, '')
+      if (/^(57)?3\d{9}$/.test(cleaned)) { telefonoRaw = cleaned.replace(/^57/, ''); break }
+    }
+  }
   if (!telefonoRaw) faltantes.push('Celular')
 
-  // Recoger TODOS los artículos (etiquetados o links sueltos)
+  // ── Nombre (etiquetado o primera línea multi-palabra con mayúsculas) ──────
+  let clienteNombre = findRaw(lines, 'Nombre', 'Cliente', 'Nombre del cliente')
+  if (!clienteNombre) {
+    const phoneStr = telefonoRaw?.replace(/\D/g, '') ?? ''
+    for (const line of lines) {
+      if (line.includes(':')) continue
+      if (/^(TR|CR|SR)\d+/i.test(line)) continue
+      if (/\d{7,}/.test(line.replace(/\s/g, ''))) continue  // cédula / número largo
+      if (phoneStr && line.replace(/\D/g, '') === phoneStr) continue
+      const palabras = line.trim().split(/\s+/)
+      if (palabras.length < 2) continue                      // una sola palabra
+      if (line.length < 4 || line.length > 60) continue
+      // Preferir líneas con al menos una palabra en mayúscula (nombres propios)
+      const tieneMayuscula = palabras.some(w => /^[A-ZÁÉÍÓÚÑÜ]/.test(w))
+      if (!tieneMayuscula) continue
+      clienteNombre = line; break
+    }
+    // Último recurso: primera línea multi-palabra aunque sea todo minúscula
+    if (!clienteNombre) {
+      const phoneStr2 = telefonoRaw?.replace(/\D/g, '') ?? ''
+      for (const line of lines) {
+        if (line.includes(':')) continue
+        if (/^(TR|CR|SR)\d+/i.test(line)) continue
+        if (/\d{7,}/.test(line.replace(/\s/g, ''))) continue
+        if (phoneStr2 && line.replace(/\D/g, '') === phoneStr2) continue
+        if (line.trim().split(/\s+/).length < 2) continue
+        if (line.length < 4 || line.length > 60) continue
+        clienteNombre = line; break
+      }
+    }
+  }
+  if (!clienteNombre) faltantes.push('Nombre')
+
+  // ── Artículos (etiquetados, links, o líneas huérfanas de descripción) ─────
   const articuloKeysNorm = ['articulo/link', 'articulo', 'codigo de producto', 'codigo', 'producto', 'prenda', 'ref', 'referencia', 'link', 'url']
   const todosArticulos: string[] = []
   for (const line of lines) {
@@ -322,13 +358,34 @@ function parsearLibre(texto: string): ParseResult {
     }
     if (!matched && /^https?:\/\//i.test(line)) todosArticulos.push(line.trim())
   }
+  // Fallback: líneas huérfanas que parecen descripción de artículo
+  if (todosArticulos.length === 0) {
+    const nombreNc = clienteNombre ? nc(clienteNombre) : ''
+    const phoneStr = telefonoRaw?.replace(/\D/g, '') ?? ''
+    // Palabras clave que indican que la línea ya fue (o será) consumida por otro campo
+    const camposOcupados = ['talla', 'abono', 'anticipo', 'adelanto', 'precio', 'valor', 'costo', 'valo', 'val', 'vlr', 'cc', 'cedula', 'documento', 'doc', 'notas', 'nota', 'observaciones', 'ciudad', 'barrio', 'asesor', 'vendedor', 'pago', 'metodo', 'entrega', 'direccion', 'dir', 'separado']
+    for (const line of lines) {
+      if (line.includes(':')) continue
+      if (/^https?:\/\//i.test(line)) continue
+      if (/^(TR|CR|SR)\d+/i.test(line)) continue
+      if (/\d{7,}/.test(line.replace(/\s/g, ''))) continue
+      if (phoneStr && line.replace(/\D/g, '') === phoneStr) continue
+      if (nombreNc && nc(line) === nombreNc) continue         // ya tomado como nombre
+      if (line.trim().split(/\s+/).length < 2) continue       // una sola palabra
+      const lineNc = nc(line)
+      if (camposOcupados.some(k => lineNc === k || lineNc.startsWith(k + ' '))) continue
+      todosArticulos.push(line.trim()); break
+    }
+  }
   if (todosArticulos.length === 0) faltantes.push('Artículo (o pega el link del producto)')
 
+  // ── Talla ─────────────────────────────────────────────────────────────────
   const todasTallasRaw = collectAll(lines, 'Talla')
   const todasTallas = todasTallasRaw.flatMap(t => t.split(/\s*\/\s*/).map(s => s.trim()).filter(Boolean))
   if (todasTallas.length === 0) faltantes.push('Talla')
 
-  const todosPrecios = collectAll(lines, 'Precio', 'Valor', 'Costo')
+  // ── Precios (etiquetados con alias comunes) ───────────────────────────────
+  const todosPrecios = collectAll(lines, 'Precio', 'Valor', 'Costo', 'Valo', 'Val', 'Vlr', 'Precio venta', 'Precio de venta')
   if (todosPrecios.length === 0) faltantes.push('Precio')
 
   const todosAbonos  = collectAll(lines, 'Abono', 'Anticipo', 'Adelanto', 'Cuota inicial', 'Separado')
