@@ -66,10 +66,8 @@ export function parsearDomicilio(texto: string): DomicilioParsed {
     const celMatch = line.replace(/[\s\-()]/g, '').match(/\b3\d{9}\b/)
     if (celMatch && !cliente_telefono) { cliente_telefono = celMatch[0]; continue }
 
-    // Cédula: línea que es solo un número de 8-11 dígitos (no celular) → a notas
+    // Cédula: línea que es solo un número de 8-11 dígitos (no celular) → ignorar
     if (/^(cc|c\.c\.?|cedula|cédula)?\s*:?\s*\d{8,11}$/i.test(line.replace(/\./g, ''))) {
-      const ced = line.replace(/\D/g, '')
-      notas = notas ? `${notas} | CC: ${ced}` : `CC: ${ced}`
       continue
     }
 
@@ -109,7 +107,13 @@ export function parsearDomicilio(texto: string): DomicilioParsed {
       // Segunda línea sin clasificar → podría ser dirección
       direccion = line
     } else if (line.length > 0) {
-      notas = notas ? `${notas} | ${line}` : line
+      // Indicaciones de entrega → notas; barrio/ciudad → complementa la dirección
+      const esIndicacion = /\b(dejar|entregar|entrega|llamar|llame|llamen|timbrar|timbre|preguntar|pregunte|recibe|reciben|recibir|horario|favor|porter[ií]a|portero|antes|despues|después)\b/i.test(ln)
+      if (!esIndicacion && direccion && line.length <= 35 && !/\d/.test(line) && line.split(/\s+/).length <= 3) {
+        direccion = `${direccion}, ${line}`
+      } else {
+        notas = notas ? `${notas} | ${line}` : line
+      }
     }
   }
 
