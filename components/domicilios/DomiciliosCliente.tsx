@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { NuevoDomicilioPanel } from './NuevoDomicilioPanel'
 import { DomicilioCard } from './DomicilioCard'
 import type { DomicilioRow, CuadreDia, CuadreSemana } from '@/lib/queries/domicilios'
@@ -150,9 +151,19 @@ export function DomiciliosCliente({ fecha, domicilios, cuadre, cuadreSemana, isA
                 ))}
               </div>
             </div>
-            <span className="text-sm font-semibold text-gray-900">
-              Neto {formatCOP(vistaCuadre === 'dia' ? cuadre.total_neto : cuadreSemana.total_neto)}
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-semibold text-gray-900">
+                Neto {formatCOP(vistaCuadre === 'dia' ? cuadre.total_neto : cuadreSemana.total_neto)}
+              </span>
+              {vistaCuadre === 'dia' && (
+                <Link
+                  href={`/domicilios/cuadre?fecha=${fecha}`}
+                  className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors"
+                >
+                  Ver detalle
+                </Link>
+              )}
+            </div>
           </div>
 
           {/* Vista día */}

@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { actualizarEstadoDomicilioAction, eliminarDomicilioAction } from '@/app/actions/domicilios'
 import { buildMensajeMensajeria, buildLineaExcel } from './parsearDomicilio'
+import { EditarDomicilioPanel } from './EditarDomicilioPanel'
 import type { DomicilioRow } from '@/lib/queries/domicilios'
 
 const WA_NUMEROS = {
@@ -25,6 +26,7 @@ interface Props {
 export function DomicilioCard({ domicilio: d, isAdmin }: Props) {
   const router = useRouter()
   const [copiado, setCopiado] = useState<'msg' | 'excel' | null>(null)
+  const [editando, setEditando] = useState(false)
   const [isPending, start] = useTransition()
 
   function copiar(tipo: 'msg' | 'excel') {
@@ -162,8 +164,17 @@ export function DomicilioCard({ domicilio: d, isAdmin }: Props) {
             {copiado === 'excel' ? '✓ Copiado' : 'Línea Excel'}
           </button>
 
+          {/* Editar */}
+          <button
+            type="button"
+            onClick={() => setEditando(v => !v)}
+            className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-600 transition-colors"
+          >
+            {editando ? 'Cancelar' : 'Editar'}
+          </button>
+
           {/* Eliminar */}
-          {(isAdmin) && (
+          {isAdmin && (
             <button
               type="button"
               onClick={eliminar}
@@ -174,6 +185,14 @@ export function DomicilioCard({ domicilio: d, isAdmin }: Props) {
             </button>
           )}
         </div>
+
+        {editando && (
+          <EditarDomicilioPanel
+            domicilio={d}
+            onGuardado={() => { setEditando(false); router.refresh() }}
+            onCancelar={() => setEditando(false)}
+          />
+        )}
       </div>
     </div>
   )

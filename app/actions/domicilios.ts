@@ -53,6 +53,41 @@ export async function crearDomicilioAction(data: DomicilioInput): Promise<Domici
   return { ok: true, id: dom.id }
 }
 
+export type EditarDomicilioResult =
+  | { ok: true }
+  | { ok: false; error: string }
+
+export async function editarDomicilioAction(
+  id: string,
+  data: DomicilioInput
+): Promise<EditarDomicilioResult> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'No autenticado' }
+
+  const { error } = await supabase
+    .from('domicilios')
+    .update({
+      cliente_nombre:    data.cliente_nombre.trim(),
+      cliente_telefono:  data.cliente_telefono.trim() || null,
+      direccion:         data.direccion.trim(),
+      mensajeria:        data.mensajeria,
+      valor_pedido:      data.metodo_pago === 'efectivo' ? data.valor_pedido : 0,
+      valor_domicilio:   data.valor_domicilio,
+      cobrar_al_cliente: data.cobrar_al_cliente,
+      metodo_pago:       data.metodo_pago,
+      articulo:          data.articulo.trim() || null,
+      numero_pedido:     data.numero_pedido.trim().toUpperCase() || null,
+      notas:             data.notas.trim() || null,
+    })
+    .eq('id', id)
+
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/domicilios')
+  return { ok: true }
+}
+
 export type ActualizarEstadoResult =
   | { ok: true }
   | { ok: false; error: string }
