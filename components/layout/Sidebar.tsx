@@ -18,6 +18,7 @@ const navItems = [
   { href: '/alertas',   label: 'Alertas',   rol: ['asesor', 'admin'] },
   { href: '/clientes',   label: 'Clientes',   rol: ['asesor', 'admin'] },
   { href: '/domicilios', label: 'Domicilios', rol: ['asesor', 'admin'] },
+  { href: '/estadisticas', label: 'Estadísticas', rol: ['admin'] },
   { href: '/cartera',    label: 'Cartera',    rol: ['admin'] },
   { href: '/compras',   label: 'Compras',   rol: ['admin'] },
   { href: '/usuarios',  label: 'Usuarios',  rol: ['admin'] },
