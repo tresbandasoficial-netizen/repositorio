@@ -58,7 +58,7 @@ export function parsearDomicilio(texto: string): DomicilioParsed {
     const artMatch = line.match(/^art[ií]culo\s*:?\s*(.+)$/i) ?? line.match(/^(?:se\s+env[ií]a|env[ií]o)\s*:?\s*(.+)$/i)
     if (artMatch && !articulo) { articulo = artMatch[1].trim(); continue }
 
-    // Número de pedido (TR/CR/SR + dígitos)
+    // Número de pedido (TR/CR/SR + dígitos pegados, ej TR6270)
     const pedidoMatch = line.match(/\b(TR|CR|SR)\d+\b/i)
     if (pedidoMatch && !numero_pedido) { numero_pedido = pedidoMatch[0].toUpperCase(); }
 
@@ -66,27 +66,37 @@ export function parsearDomicilio(texto: string): DomicilioParsed {
     const celMatch = line.replace(/[\s\-()]/g, '').match(/\b3\d{9}\b/)
     if (celMatch && !cliente_telefono) { cliente_telefono = celMatch[0]; continue }
 
-    // Valor / cobro
+    // Cédula: línea que es solo un número de 8-11 dígitos (no celular) → a notas
+    if (/^(cc|c\.c\.?|cedula|cédula)?\s*:?\s*\d{8,11}$/i.test(line.replace(/\./g, ''))) {
+      const ced = line.replace(/\D/g, '')
+      notas = notas ? `${notas} | CC: ${ced}` : `CC: ${ced}`
+      continue
+    }
+
     // "No cobrar nada" = pedido ya pagado y el domi corre por nuestra cuenta
     if (/no\s+cobrar|sin\s+cobro|gratis|ya\s+pag[oó]/.test(ln)) {
       cobrar_al_cliente = false
       metodo_pago = 'transferencia'
       continue
     }
-    // Valores: <= $20.000 se asume domicilio, mayores se asumen valor del pedido
-    const valorMatch = line.replace(/\./g, '').match(/\$?\s*(\d{4,8})/)
-    if (valorMatch) {
-      const v = parseInt(valorMatch[1], 10)
-      if (v >= 1000 && v <= 20000 && !valor_domicilio) { valor_domicilio = v; continue }
-      if (v > 20000 && v <= 10000000 && !valor_pedido) { valor_pedido = v; continue }
-    }
 
-    // Dirección colombiana
-    if (/^(cll|calle|cra|carrera|av\b|avenida|tv|transv|diag|kr|cl)\b/i.test(line)) {
+    // Dirección colombiana (antes que valores, para no confundir apto/número con plata)
+    if (/^(cll|calle|cra|carrera|cr|kr|cl|av|avenida|tv|transv|transversal|diag|diagonal|mz|manzana|circular|autopista|km)[\s.#]/i.test(line)) {
       if (!direccion) { direccion = line; continue }
     }
-    if (!direccion && /\b(#|no\.?)\s*\d/.test(line)) {
+    if (!direccion && /(#|n[o°]\.?)\s*\d/i.test(line)) {
       direccion = line; continue
+    }
+
+    // Valores: solo líneas que son un número solo (con $ o puntos opcionales)
+    // o que traen palabra clave de plata. <= $20.000 = domicilio, mayor = pedido
+    const esNumeroSolo = /^\$?\s*\d{1,3}(?:[.,]\d{3})*\s*$/.test(line) || /^\$?\s*\d{4,8}\s*$/.test(line)
+    const conClave = /(valor|precio|cobrar|cobro|total|domi(cilio)?)\s*:?\s*\$?\s*[\d.,]+/i.exec(ln)
+    if (esNumeroSolo || conClave) {
+      const crudo = (esNumeroSolo ? line : conClave![0]).replace(/[^\d]/g, '')
+      const v = parseInt(crudo, 10)
+      if (v >= 1000 && v <= 20000 && !valor_domicilio) { valor_domicilio = v; continue }
+      if (v > 20000 && v <= 10000000 && !valor_pedido) { valor_pedido = v; continue }
     }
 
     // Asesor (ignorar, ya lo sabemos del usuario logueado)
@@ -95,9 +105,9 @@ export function parsearDomicilio(texto: string): DomicilioParsed {
     // Si nada más coincide y no tenemos nombre, tomar como nombre
     if (!cliente_nombre && line.length >= 3 && line.length <= 60 && !/\d{5,}/.test(line)) {
       cliente_nombre = line
-    } else if (cliente_nombre && !direccion && line.length >= 5) {
+    } else if (cliente_nombre && !direccion && line.length >= 5 && !/^\d+$/.test(line)) {
       // Segunda línea sin clasificar → podría ser dirección
-      if (!direccion) direccion = line
+      direccion = line
     } else if (line.length > 0) {
       notas = notas ? `${notas} | ${line}` : line
     }
