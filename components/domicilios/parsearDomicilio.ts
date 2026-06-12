@@ -67,8 +67,10 @@ export function parsearDomicilio(texto: string): DomicilioParsed {
     if (celMatch && !cliente_telefono) { cliente_telefono = celMatch[0]; continue }
 
     // Valor / cobro
-    if (/no\s+cobrar|sin\s+cobro|gratis|nada/.test(ln)) {
+    // "No cobrar nada" = pedido ya pagado y el domi corre por nuestra cuenta
+    if (/no\s+cobrar|sin\s+cobro|gratis|ya\s+pag[oó]/.test(ln)) {
       cobrar_al_cliente = false
+      metodo_pago = 'transferencia'
       continue
     }
     // Valores: <= $20.000 se asume domicilio, mayores se asumen valor del pedido
@@ -134,13 +136,23 @@ export function buildMensajeMensajeria(d: {
   notas: string | null
   asesor_nombre: string
 }): string {
-  // La mensajería solo cobra el pedido si es en efectivo
+  // Qué cobra la mensajería al cliente:
+  // - pedido en efectivo → cobra el pedido (+ su domicilio si lo paga el cliente)
+  // - transferencia + cliente paga domi → cobra solo el domicilio
+  // - transferencia + nosotros pagamos → NO COBRA NADA y le debemos el domi
   const cobraPedido = d.metodo_pago === 'efectivo' ? d.valor_pedido : 0
+  const domiCliente = d.cobrar_al_cliente && d.valor_domicilio > 0
+    ? `${fmt(d.valor_domicilio)} domicilio`
+    : 'el domicilio'
   let cobro: string
-  if (cobraPedido === 0) {
-    cobro = 'NO COBRAR pedido (ya está pago por transferencia)'
+  if (cobraPedido > 0) {
+    cobro = d.cobrar_al_cliente
+      ? `${fmt(cobraPedido)} + ${domiCliente}`
+      : fmt(cobraPedido)
+  } else if (d.cobrar_al_cliente) {
+    cobro = `Solo ${domiCliente} (pedido ya pagado por transferencia)`
   } else {
-    cobro = fmt(cobraPedido)
+    cobro = 'NO COBRAR NADA (pedido ya pagado por transferencia)'
   }
 
   const domNuestro = !d.cobrar_al_cliente

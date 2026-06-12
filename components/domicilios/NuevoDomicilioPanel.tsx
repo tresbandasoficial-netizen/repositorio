@@ -266,16 +266,25 @@ export function NuevoDomicilioPanel({ fecha, onCreado }: Props) {
                 Nosotros
               </button>
             </div>
-            {!form.cobrar_al_cliente && (
-              <input
-                type="text"
-                inputMode="numeric"
-                value={form.valor_domicilio}
-                onChange={e => set('valor_domicilio', e.target.value.replace(/\D/g, ''))}
-                placeholder="Valor del domicilio que pagamos nosotros"
-                className="mt-2 w-full rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-              />
-            )}
+            <input
+              type="text"
+              inputMode="numeric"
+              value={form.valor_domicilio}
+              onChange={e => set('valor_domicilio', e.target.value.replace(/\D/g, ''))}
+              placeholder={form.cobrar_al_cliente
+                ? 'Valor del domicilio (opcional, lo cobra la mensajería)'
+                : 'Valor del domicilio que pagamos nosotros'}
+              className={`mt-2 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 ${
+                form.cobrar_al_cliente
+                  ? 'border-gray-300 focus:ring-gray-900'
+                  : 'border-amber-300 bg-amber-50 focus:ring-amber-400'
+              }`}
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              {form.cobrar_al_cliente
+                ? 'El cliente se lo paga a la mensajería — no entra a nuestro cuadre'
+                : 'Este valor se lo debemos a la mensajería — entra al cuadre'}
+            </p>
           </div>
 
           {/* Notas */}

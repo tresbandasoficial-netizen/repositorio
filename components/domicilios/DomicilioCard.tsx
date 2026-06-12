@@ -106,9 +106,13 @@ export function DomicilioCard({ domicilio: d, isAdmin }: Props) {
             {d.metodo_pago === 'transferencia' && (
               <p className="text-xs text-cyan-600 font-medium">Transferencia</p>
             )}
-            {!d.cobrar_al_cliente && (
+            {!d.cobrar_al_cliente ? (
               <p className="text-xs text-amber-600 mt-0.5">
                 Domi {formatCOP(d.valor_domicilio)} nosotros
+              </p>
+            ) : d.valor_domicilio > 0 && (
+              <p className="text-xs text-gray-400 mt-0.5">
+                Domi {formatCOP(d.valor_domicilio)} cliente
               </p>
             )}
             <p className="text-xs text-gray-400 mt-0.5">{d.asesor_nombre}</p>
