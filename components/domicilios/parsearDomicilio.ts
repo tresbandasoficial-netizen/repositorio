@@ -134,27 +134,22 @@ export function buildMensajeMensajeria(d: {
   notas: string | null
   asesor_nombre: string
 }): string {
-  // Qué debe cobrar la mensajería al cliente
+  // La mensajería solo cobra el pedido si es en efectivo
   const cobraPedido = d.metodo_pago === 'efectivo' ? d.valor_pedido : 0
-  const cobraDomicilio = d.cobrar_al_cliente ? d.valor_domicilio : 0
-  const totalCobrar = cobraPedido + cobraDomicilio
-
   let cobro: string
-  if (totalCobrar === 0) {
-    cobro = 'NO COBRAR NADA (ya está pago)'
+  if (cobraPedido === 0) {
+    cobro = 'NO COBRAR pedido (ya está pago por transferencia)'
   } else {
-    const partes: string[] = []
-    if (cobraPedido > 0) partes.push(`${fmt(cobraPedido)} pedido`)
-    if (cobraDomicilio > 0) partes.push(`${fmt(cobraDomicilio)} domicilio`)
-    cobro = `${fmt(totalCobrar)} (${partes.join(' + ')})`
+    cobro = fmt(cobraPedido)
   }
 
-  const pagoInfo = d.metodo_pago === 'transferencia' ? '\nPedido ya pagado por transferencia' : ''
-  const domNuestro = !d.cobrar_al_cliente ? '\nEl domicilio lo pagamos nosotros' : ''
+  const domNuestro = !d.cobrar_al_cliente
+    ? `\n⚠️ El domicilio lo pagamos nosotros: ${fmt(d.valor_domicilio)}`
+    : ''
   const articulo = d.articulo ? `\nArtículo: ${d.articulo}` : ''
   const pedido = d.numero_pedido ? `\nPedido: ${d.numero_pedido}` : ''
   const notas = d.notas ? `\nNotas: ${d.notas}` : ''
-  return `*DOMICILIO*\nCliente: ${d.cliente_nombre}\nCelular: ${d.cliente_telefono ?? '—'}\nDirección: ${d.direccion}${articulo}\n*Cobrar al cliente: ${cobro}*${pagoInfo}${domNuestro}\nAsesor: ${d.asesor_nombre}${pedido}${notas}`
+  return `*DOMICILIO*\nCliente: ${d.cliente_nombre}\nCelular: ${d.cliente_telefono ?? '—'}\nDirección: ${d.direccion}${articulo}\n*Cobrar al cliente: ${cobro}*${domNuestro}\nAsesor: ${d.asesor_nombre}${pedido}${notas}`
 }
 
 // Genera la línea para Excel (separada por |)

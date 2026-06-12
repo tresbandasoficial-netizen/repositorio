@@ -239,14 +239,14 @@ export function NuevoDomicilioPanel({ fecha, onCreado }: Props) {
             </div>
           )}
 
-          {/* Domicilio: quién lo paga y cuánto vale */}
+          {/* Domicilio: quién lo paga */}
           <div>
             <label className="block text-xs text-gray-500 mb-1">El domicilio lo paga</label>
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => set('cobrar_al_cliente', true)}
-                className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
+                className={`flex-1 py-2 rounded-lg text-sm border transition-colors ${
                   form.cobrar_al_cliente
                     ? 'bg-gray-900 text-white border-gray-900'
                     : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
@@ -257,7 +257,7 @@ export function NuevoDomicilioPanel({ fecha, onCreado }: Props) {
               <button
                 type="button"
                 onClick={() => set('cobrar_al_cliente', false)}
-                className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
+                className={`flex-1 py-2 rounded-lg text-sm border transition-colors ${
                   !form.cobrar_al_cliente
                     ? 'bg-gray-900 text-white border-gray-900'
                     : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
@@ -265,19 +265,16 @@ export function NuevoDomicilioPanel({ fecha, onCreado }: Props) {
               >
                 Nosotros
               </button>
+            </div>
+            {!form.cobrar_al_cliente && (
               <input
                 type="text"
                 inputMode="numeric"
                 value={form.valor_domicilio}
                 onChange={e => set('valor_domicilio', e.target.value.replace(/\D/g, ''))}
-                placeholder="Valor: 5000"
-                className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                placeholder="Valor del domicilio que pagamos nosotros"
+                className="mt-2 w-full rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
               />
-            </div>
-            {!form.cobrar_al_cliente && (
-              <p className="text-xs text-amber-600 mt-1">
-                Nosotros le pagamos este valor a la mensajería (entra al cuadre)
-              </p>
             )}
           </div>
 

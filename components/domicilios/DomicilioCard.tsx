@@ -100,18 +100,17 @@ export function DomicilioCard({ domicilio: d, isAdmin }: Props) {
           </div>
 
           <div className="text-right shrink-0">
-            {(() => {
-              const cobra = (d.metodo_pago === 'efectivo' ? d.valor_pedido : 0)
-                + (d.cobrar_al_cliente ? d.valor_domicilio : 0)
-              return (
-                <p className="font-semibold text-gray-900">
-                  {cobra > 0 ? `Cobra ${formatCOP(cobra)}` : 'No cobra'}
-                </p>
-              )
-            })()}
-            <p className="text-xs text-gray-400 mt-0.5">
-              Domi {formatCOP(d.valor_domicilio)} · {d.cobrar_al_cliente ? 'cliente' : 'nosotros'}
-            </p>
+            {d.metodo_pago === 'efectivo' && d.valor_pedido > 0 && (
+              <p className="font-semibold text-gray-900">Cobra {formatCOP(d.valor_pedido)}</p>
+            )}
+            {d.metodo_pago === 'transferencia' && (
+              <p className="text-xs text-cyan-600 font-medium">Transferencia</p>
+            )}
+            {!d.cobrar_al_cliente && (
+              <p className="text-xs text-amber-600 mt-0.5">
+                Domi {formatCOP(d.valor_domicilio)} nosotros
+              </p>
+            )}
             <p className="text-xs text-gray-400 mt-0.5">{d.asesor_nombre}</p>
           </div>
         </div>
