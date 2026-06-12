@@ -20,7 +20,7 @@ export default async function CuadreDiaPage({
   if (!user) redirect('/login')
 
   const { fecha: fechaParam } = await searchParams
-  const hoy = new Date().toISOString().slice(0, 10)
+  const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date())
   const fecha = fechaParam ?? hoy
 
   const [domicilios, cuadre, cierre] = await Promise.all([
@@ -66,7 +66,7 @@ export default async function CuadreDiaPage({
           <div>
             <p className="text-sm font-semibold text-green-800">Día cuadrado</p>
             <p className="text-xs text-green-600">
-              Cerrado por {cierre.cerrado_por_nombre} el {new Date(cierre.cerrado_en).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' })}
+              Cerrado por {cierre.cerrado_por_nombre} el {new Date(cierre.cerrado_en).toLocaleString('es-CO', { timeZone: 'America/Bogota', dateStyle: 'medium', timeStyle: 'short' })}
             </p>
           </div>
         </div>

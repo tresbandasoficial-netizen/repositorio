@@ -22,7 +22,7 @@ export default async function DomiciliosPage({
   if (!usuario) redirect('/login')
 
   const { fecha: fechaParam } = await searchParams
-  const hoy = new Date().toISOString().slice(0, 10)
+  const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date())
   const fecha = fechaParam ?? hoy
 
   const [domicilios, cuadre, cuadreSemana, fechasDisponibles] = await Promise.all([
