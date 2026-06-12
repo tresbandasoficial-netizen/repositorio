@@ -134,6 +134,8 @@ function fmt(v: number) {
 }
 
 export function buildMensajeMensajeria(d: {
+  fecha: string
+  mensajeria: 'exneider' | 'servigo'
   cliente_nombre: string
   cliente_telefono: string | null
   direccion: string
@@ -165,13 +167,26 @@ export function buildMensajeMensajeria(d: {
     cobro = 'NO COBRAR NADA (pedido ya pagado por transferencia)'
   }
 
-  const domNuestro = !d.cobrar_al_cliente
-    ? `\n⚠️ El domicilio lo pagamos nosotros: ${fmt(d.valor_domicilio)}`
-    : ''
-  const articulo = d.articulo ? `\nArtículo: ${d.articulo}` : ''
-  const pedido = d.numero_pedido ? `\nPedido: ${d.numero_pedido}` : ''
-  const notas = d.notas ? `\nNotas: ${d.notas}` : ''
-  return `*DOMICILIO*\nCliente: ${d.cliente_nombre}\nCelular: ${d.cliente_telefono ?? '—'}\nDirección: ${d.direccion}${articulo}\n*Cobrar al cliente: ${cobro}*${domNuestro}\nAsesor: ${d.asesor_nombre}${pedido}${notas}`
+  const pedidoArticulos = [d.numero_pedido, d.articulo].filter(Boolean).join(' / ')
+
+  const observaciones = [
+    d.notas,
+    !d.cobrar_al_cliente ? `El domicilio lo pagamos nosotros: ${fmt(d.valor_domicilio)}` : null,
+  ].filter(Boolean).join(' | ')
+
+  const mensajeriaLabel = d.mensajeria === 'exneider' ? 'Exneider' : 'Servigo'
+
+  return [
+    `Mensajería: ${mensajeriaLabel}`,
+    `Fecha: ${d.fecha}`,
+    `Nombre: ${d.cliente_nombre}`,
+    `Celular: ${d.cliente_telefono ?? ''}`,
+    `Dirección: ${d.direccion}`,
+    `Pedido o artículos enviados: ${pedidoArticulos}`,
+    `Valor a cobrar: ${cobro}`,
+    `Observaciones: ${observaciones}`,
+    `Asesor: ${d.asesor_nombre}`,
+  ].join('\n')
 }
 
 // Genera la línea para Excel (separada por |)

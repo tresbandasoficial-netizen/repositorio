@@ -150,7 +150,7 @@ export function DomicilioCard({ domicilio: d, isAdmin }: Props) {
             onClick={() => copiar('msg')}
             className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-600 transition-colors"
           >
-            {copiado === 'msg' ? '✓ Copiado' : 'Copiar mensaje'}
+            {copiado === 'msg' ? '✓ Copiado' : 'Pedir domicilio'}
           </button>
 
           {/* Copiar Excel */}
