@@ -21,17 +21,27 @@ export type EstadisticaSede = {
   ventas: number
 }
 
+export type EstadisticaMetodoPago = {
+  metodo: string
+  count: number
+  monto: number
+  porcentaje_count: number
+  porcentaje_monto: number
+}
+
 export type Estadisticas = {
   desde: string
   hasta: string
   total_pedidos: number
   total_ventas: number
   ticket_promedio: number
-  promedio_diario: number   // pedidos por día (solo días con pedidos)
+  promedio_diario: number
   mejor_dia: EstadisticaDia | null
   por_dia: EstadisticaDia[]
   por_asesor: EstadisticaAsesor[]
   por_sede: EstadisticaSede[]
+  por_metodo_pago: EstadisticaMetodoPago[]
+  total_recaudado: number   // suma de todos los pagos en el período
 }
 
 // Fecha YYYY-MM-DD en hora Colombia para un timestamp
@@ -44,15 +54,24 @@ export async function getEstadisticas(dias: number): Promise<Estadisticas> {
 
   const desde = new Date()
   desde.setDate(desde.getDate() - dias)
+  const desdeISO = desde.toISOString()
+  const desdeFecha = fechaBogota(desde)
   const hasta = fechaBogota(new Date())
 
-  const { data, error } = await supabase
-    .from('vista_pedidos_asesor')
-    .select('fecha_creacion, total, sede_codigo, asesor_nombre, estado')
-    .gte('fecha_creacion', desde.toISOString())
-    .neq('estado', 'cancelado')
-    .order('fecha_creacion', { ascending: true })
+  const [pedidosRes, pagosRes] = await Promise.all([
+    supabase
+      .from('vista_pedidos_asesor')
+      .select('fecha_creacion, total, sede_codigo, asesor_nombre, estado')
+      .gte('fecha_creacion', desdeISO)
+      .neq('estado', 'cancelado')
+      .order('fecha_creacion', { ascending: true }),
+    supabase
+      .from('pagos')
+      .select('metodo, monto, fecha')
+      .gte('fecha', desdeFecha),
+  ])
 
+  const { data, error } = pedidosRes
   if (error) throw new Error(`Error cargando estadísticas: ${error.message}`)
 
   const pedidos = (data ?? []) as Array<{
@@ -121,8 +140,33 @@ export async function getEstadisticas(dias: number): Promise<Estadisticas> {
     ? [...por_dia].sort((a, b) => b.pedidos - a.pedidos)[0]
     : null
 
+  // ── Por método de pago ────────────────────────────────────────────────────
+  const pagos = (pagosRes.data ?? []) as Array<{ metodo: string; monto: number; fecha: string }>
+  const METODOS = ['efectivo', 'transferencia', 'datafono', 'addi', 'bold', 'sistecredito', 'otro']
+  const metodoMap = new Map<string, { count: number; monto: number }>()
+  let total_recaudado = 0
+  for (const p of pagos) {
+    const entry = metodoMap.get(p.metodo) ?? { count: 0, monto: 0 }
+    entry.count += 1
+    entry.monto += p.monto
+    total_recaudado += p.monto
+    metodoMap.set(p.metodo, entry)
+  }
+  const por_metodo_pago: EstadisticaMetodoPago[] = METODOS
+    .filter(m => metodoMap.has(m))
+    .map(m => {
+      const e = metodoMap.get(m)!
+      return {
+        metodo: m,
+        count: e.count,
+        monto: e.monto,
+        porcentaje_count: pagos.length > 0 ? Math.round((e.count / pagos.length) * 100) : 0,
+        porcentaje_monto: total_recaudado > 0 ? Math.round((e.monto / total_recaudado) * 100) : 0,
+      }
+    })
+
   return {
-    desde: fechaBogota(desde),
+    desde: desdeFecha,
     hasta,
     total_pedidos,
     total_ventas,
@@ -132,5 +176,7 @@ export async function getEstadisticas(dias: number): Promise<Estadisticas> {
     por_dia,
     por_asesor,
     por_sede,
+    por_metodo_pago,
+    total_recaudado,
   }
 }

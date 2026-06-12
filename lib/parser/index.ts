@@ -4,7 +4,7 @@ import { normalizarTelefono } from '@/lib/utils/phone'
 // ── Formato estructurado (===INICIO_PEDIDO===) ────────────────────────────────
 
 const SEDES_VALIDAS = ['TR', 'CR', 'SR'] as const
-const METODOS_PAGO: MetodoPago[] = ['efectivo', 'transferencia', 'datafono', 'otro']
+const METODOS_PAGO: MetodoPago[] = ['efectivo', 'transferencia', 'datafono', 'addi', 'bold', 'sistecredito', 'otro']
 const VERSION_SOPORTADA = '1'
 
 function extractField(lines: string[], key: string): string | null {
@@ -230,6 +230,9 @@ function detectarMetodo(texto: string): MetodoPago {
   const n = texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
   if (/bancolombia|nequi|daviplata|transferencia|pse|consignacion/.test(n)) return 'transferencia'
   if (/datafono|tarjeta/.test(n)) return 'datafono'
+  if (/addi/.test(n)) return 'addi'
+  if (/bold/.test(n)) return 'bold'
+  if (/sistecredito|siste/.test(n)) return 'sistecredito'
   if (/efectivo|cash/.test(n)) return 'efectivo'
   return 'otro'
 }

@@ -226,6 +226,60 @@ export default async function EstadisticasPage({
               </tbody>
             </table>
           </div>
+
+          {/* Tabla: métodos de pago */}
+          {stats.por_metodo_pago.length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-gray-900">Métodos de pago</h2>
+                <span className="text-xs text-gray-400">
+                  Total recaudado: <span className="font-semibold text-gray-700">{formatCOP(stats.total_recaudado)}</span>
+                </span>
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 text-xs text-gray-400 uppercase tracking-wide">
+                    <th className="text-left px-4 py-2 font-medium">Método</th>
+                    <th className="text-right px-4 py-2 font-medium">Transacciones</th>
+                    <th className="text-left px-4 py-2 font-medium w-1/4"></th>
+                    <th className="text-right px-4 py-2 font-medium">Monto</th>
+                    <th className="text-right px-4 py-2 font-medium">% monto</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {stats.por_metodo_pago.map(m => (
+                    <tr key={m.metodo} className="hover:bg-gray-50/50">
+                      <td className="px-4 py-2.5 font-medium text-gray-900 capitalize">{m.metodo}</td>
+                      <td className="px-4 py-2.5 text-right font-semibold text-gray-900">
+                        {m.count} <span className="text-xs text-gray-400 font-normal">({m.porcentaje_count}%)</span>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-green-500 rounded-full"
+                            style={{ width: `${m.porcentaje_monto}%` }}
+                          />
+                        </div>
+                      </td>
+                      <td className="px-4 py-2.5 text-right text-gray-700">{formatCOP(m.monto)}</td>
+                      <td className="px-4 py-2.5 text-right text-gray-400">{m.porcentaje_monto}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-gray-50 font-semibold border-t border-gray-200">
+                    <td className="px-4 py-2.5 text-gray-500">Total</td>
+                    <td className="px-4 py-2.5 text-right text-gray-900">
+                      {stats.por_metodo_pago.reduce((s, m) => s + m.count, 0)}
+                    </td>
+                    <td />
+                    <td className="px-4 py-2.5 text-right text-gray-900">{formatCOP(stats.total_recaudado)}</td>
+                    <td />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </div>
