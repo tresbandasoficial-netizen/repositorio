@@ -160,7 +160,7 @@ export function DomiciliosCliente({ fecha, domicilios, cuadre, cuadreSemana, isA
                   href={`/domicilios/cuadre?fecha=${fecha}`}
                   className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors"
                 >
-                  Ver detalle
+                  Cuadre diario
                 </Link>
               )}
             </div>
