@@ -98,6 +98,8 @@ export function parsearDomicilio(texto: string): DomicilioParsed {
         valor_domicilio = parseInt(val.replace(/\D/g, ''), 10) || 0
         continue
       }
+      // Clave desconocida (talla, abono, etc.) → ignorar, no dejar caer al resto
+      continue
     }
 
     // Mensajería
@@ -115,9 +117,12 @@ export function parsearDomicilio(texto: string): DomicilioParsed {
     const artMatch = line.match(/^art[ií]culo\s*:?\s*(.+)$/i) ?? line.match(/^(?:se\s+env[ií]a|env[ií]o)\s*:?\s*(.+)$/i)
     if (artMatch && !articulo) { articulo = artMatch[1].trim(); continue }
 
-    // Número de pedido (TR/CR/SR + dígitos pegados, ej TR6270)
+    // Número de pedido (TR/CR/SR + dígitos). Si la línea es SOLO el pedido → continue
     const pedidoMatch = line.match(/\b(TR|CR|SR)\d+\b/i)
-    if (pedidoMatch && !numero_pedido) { numero_pedido = pedidoMatch[0].toUpperCase(); }
+    if (pedidoMatch && !numero_pedido) {
+      numero_pedido = pedidoMatch[0].toUpperCase()
+      if (/^\s*(TR|CR|SR)\d+\s*$/i.test(line)) continue
+    }
 
     // Celular colombiano (10 dígitos empezando en 3)
     const celMatch = line.replace(/[\s\-()]/g, '').match(/\b3\d{9}\b/)
@@ -135,9 +140,11 @@ export function parsearDomicilio(texto: string): DomicilioParsed {
       continue
     }
 
-    // Dirección colombiana (antes que valores, para no confundir apto/número con plata)
-    if (/^(cll|calle|cra|carrera|cr|kr|cl|av|avenida|tv|transv|transversal|diag|diagonal|mz|manzana|circular|autopista|km)[\s.#]/i.test(line)) {
-      if (!direccion) { direccion = line; continue }
+    // Dirección colombiana — siempre gana sobre cualquier dirección previa que no sea calle
+    const esCalleFormal = /^(cll|calle|cra|carrera|cr|kr|cl|av|avenida|tv|transv|transversal|diag|diagonal|mz|manzana|circular|autopista|km)[\s.#]/i.test(line)
+    if (esCalleFormal) {
+      // Sobreescribe si la dirección anterior era solo ciudad/barrio (sin dígitos)
+      if (!direccion || !/\d/.test(direccion)) { direccion = line; continue }
     }
     if (!direccion && /(#|n[o°]\.?)\s*\d/i.test(line)) {
       direccion = line; continue
