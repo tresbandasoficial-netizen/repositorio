@@ -27,6 +27,7 @@ function nc(s: string) {
 
 export function parsearDomicilio(texto: string): DomicilioParsed {
   const lines = texto.split('\n').map(l => l.trim()).filter(Boolean)
+  const usado = new Set<number>()
 
   let cliente_nombre = ''
   let cliente_telefono = ''
@@ -40,145 +41,143 @@ export function parsearDomicilio(texto: string): DomicilioParsed {
   let numero_pedido = ''
   let notas = ''
 
-  for (const line of lines) {
+  // ── PASADA 1: campos inequívocos ──────────────────────────────────────────
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
     const ln = nc(line)
 
-    // Formato plantilla "clave: valor" (Nombre:, Dirección:, Mensajería:...)
+    // Plantilla "clave: valor"
     const ci = line.indexOf(':')
-    if (ci > 0) {
+    if (ci > 0 && ci < 35) {
       const key = nc(line.slice(0, ci))
       const val = line.slice(ci + 1).trim()
       const valNc = nc(val)
 
       if (['nombre', 'cliente'].includes(key)) {
-        if (val) cliente_nombre = val
-        continue
+        if (val) cliente_nombre = val; usado.add(i); continue
       }
       if (['celular', 'telefono', 'tel', 'cel', 'whatsapp'].includes(key)) {
-        const c = val.replace(/\D/g, '')
-        if (c) cliente_telefono = c
-        continue
+        const c = val.replace(/\D/g, ''); if (c) cliente_telefono = c; usado.add(i); continue
       }
       if (['direccion', 'dir'].includes(key)) {
-        if (val) direccion = val
-        continue
+        if (val) direccion = val; usado.add(i); continue
       }
       if (key === 'mensajeria') {
         if (valNc.includes('exneider')) mensajeria = 'exneider'
         else if (valNc.includes('servigo')) mensajeria = 'servigo'
-        continue
+        usado.add(i); continue
       }
-      if (['fecha', 'asesor'].includes(key)) continue
+      if (['fecha', 'asesor', 'talla', 'abono', 'referencia', 'ref'].includes(key)) {
+        usado.add(i); continue
+      }
       if (['observaciones', 'observacion', 'notas', 'nota', 'indicaciones'].includes(key)) {
-        if (val) notas = notas ? `${notas} | ${val}` : val
-        continue
+        if (val) notas = notas ? `${notas} | ${val}` : val; usado.add(i); continue
       }
       if (key.startsWith('pedido o articulo') || ['articulo', 'articulos', 'articulo enviado', 'pedido'].includes(key)) {
         if (val) {
           const pm = val.match(/\b(TR|CR|SR)\d+\b/i)
-          if (pm) numero_pedido = pm[0].toUpperCase()
+          if (pm && !numero_pedido) numero_pedido = pm[0].toUpperCase()
           const resto = val.replace(/\b(TR|CR|SR)\d+\b\s*[\/|,-]?\s*/i, '').trim()
-          if (resto) articulo = resto
+          if (resto && !articulo) articulo = resto
         }
-        continue
+        usado.add(i); continue
       }
       if (['valor a cobrar', 'valor', 'valor pedido', 'valor del pedido', 'precio', 'total'].includes(key)) {
         const v = parseInt(val.replace(/\D/g, ''), 10) || 0
-        if (v === 0 || /no\s+cobrar|nada/.test(valNc)) {
-          metodo_pago = 'transferencia'
-        } else if (v <= 20000) {
-          valor_domicilio = v
-        } else {
-          valor_pedido = v
-          metodo_pago = 'efectivo'
-        }
-        continue
+        if (v === 0 || /no\s+cobrar|nada/.test(valNc)) { metodo_pago = 'transferencia' }
+        else if (v <= 20000) { valor_domicilio = v }
+        else { valor_pedido = v; metodo_pago = 'efectivo' }
+        usado.add(i); continue
       }
       if (['valor domicilio', 'valor del domicilio', 'domicilio', 'domi'].includes(key)) {
-        valor_domicilio = parseInt(val.replace(/\D/g, ''), 10) || 0
-        continue
+        valor_domicilio = parseInt(val.replace(/\D/g, ''), 10) || 0; usado.add(i); continue
       }
-      // Clave desconocida (talla, abono, etc.) → ignorar, no dejar caer al resto
-      continue
+      // clave desconocida → ignorar línea completa
+      usado.add(i); continue
+    }
+
+    // Número de pedido solo en la línea (ej. TR6282)
+    if (/^\s*(TR|CR|SR)\d+\s*$/i.test(line)) {
+      if (!numero_pedido) numero_pedido = line.trim().toUpperCase()
+      usado.add(i); continue
+    }
+    // Pedido dentro de otra línea → extraer pero no consumir la línea
+    const pm = line.match(/\b(TR|CR|SR)\d+\b/i)
+    if (pm && !numero_pedido) numero_pedido = pm[0].toUpperCase()
+
+    // Celular colombiano (10 dígitos empezando en 3)
+    const celMatch = line.replace(/[\s\-()]/g, '').match(/^3\d{9}$/)
+    if (celMatch && !cliente_telefono) { cliente_telefono = celMatch[0]; usado.add(i); continue }
+
+    // Cédula (8-11 dígitos, no empieza en 3)
+    if (/^(cc\s*:?\s*)?\d{8,11}$/.test(line.replace(/[\s.]/g, '')) && !line.replace(/\D/g,'').startsWith('3')) {
+      usado.add(i); continue
     }
 
     // Mensajería
-    if (/exneider/.test(ln)) { mensajeria = 'exneider'; continue }
-    if (/servigo/.test(ln))  { mensajeria = 'servigo';  continue }
+    if (/^exneider\s*$/.test(ln)) { mensajeria = 'exneider'; usado.add(i); continue }
+    if (/^servigo\s*$/.test(ln))  { mensajeria = 'servigo';  usado.add(i); continue }
+    if (/exneider/.test(ln) && line.length < 25) { mensajeria = 'exneider'; usado.add(i); continue }
+    if (/servigo/.test(ln)  && line.length < 25) { mensajeria = 'servigo';  usado.add(i); continue }
 
-    // Método de pago
-    if (/transferencia|transfirio|transferido|nequi|daviplata|bancolombia/.test(ln)) {
-      metodo_pago = 'transferencia'
-      if (/^(pago|pag[oó]|metodo|m[ée]todo)?\s*:?\s*(por\s+)?(transferencia|nequi|daviplata|bancolombia)\s*$/.test(ln)) continue
-    }
-    if (/^(pago\s*:?\s*)?(en\s+)?efectivo\s*$/.test(ln)) { metodo_pago = 'efectivo'; continue }
-
-    // Artículo (con prefijo explícito)
-    const artMatch = line.match(/^art[ií]culo\s*:?\s*(.+)$/i) ?? line.match(/^(?:se\s+env[ií]a|env[ií]o)\s*:?\s*(.+)$/i)
-    if (artMatch && !articulo) { articulo = artMatch[1].trim(); continue }
-
-    // Número de pedido (TR/CR/SR + dígitos). Si la línea es SOLO el pedido → continue
-    const pedidoMatch = line.match(/\b(TR|CR|SR)\d+\b/i)
-    if (pedidoMatch && !numero_pedido) {
-      numero_pedido = pedidoMatch[0].toUpperCase()
-      if (/^\s*(TR|CR|SR)\d+\s*$/i.test(line)) continue
-    }
-
-    // Celular colombiano (10 dígitos empezando en 3)
-    const celMatch = line.replace(/[\s\-()]/g, '').match(/\b3\d{9}\b/)
-    if (celMatch && !cliente_telefono) { cliente_telefono = celMatch[0]; continue }
-
-    // Cédula: línea que es solo un número de 8-11 dígitos (no celular) → ignorar
-    if (/^(cc|c\.c\.?|cedula|cédula)?\s*:?\s*\d{8,11}$/i.test(line.replace(/\./g, ''))) {
-      continue
-    }
-
-    // "No cobrar nada" = pedido ya pagado y el domi corre por nuestra cuenta
+    // Pago
     if (/no\s+cobrar|sin\s+cobro|gratis|ya\s+pag[oó]/.test(ln)) {
-      cobrar_al_cliente = false
-      metodo_pago = 'transferencia'
-      continue
+      cobrar_al_cliente = false; metodo_pago = 'transferencia'; usado.add(i); continue
+    }
+    if (/^(transferencia|nequi|daviplata|bancolombia)/.test(ln)) {
+      metodo_pago = 'transferencia'; usado.add(i); continue
+    }
+    if (/^efectivo$/.test(ln)) { metodo_pago = 'efectivo'; usado.add(i); continue }
+
+    // Artículo con prefijo explícito
+    const artMatch = line.match(/^art[ií]culo\s*:?\s*(.+)$/i)
+    if (artMatch && !articulo) { articulo = artMatch[1].trim(); usado.add(i); continue }
+
+    // Dirección formal (Calle, Cra, Cr, Av, Tv, etc.) — siempre gana
+    if (/^(cll|calle|cra|carrera|cr|kr|cl|av|avenida|tv|transv|transversal|diag|diagonal|mz|manzana|circular|autopista|km)[\s.#]/i.test(line)) {
+      direccion = line; usado.add(i); continue
+    }
+    // Dirección con # o No.
+    if (/(#|n[o°]\.?)\s*\d/i.test(line) && !direccion) {
+      direccion = line; usado.add(i); continue
     }
 
-    // Dirección colombiana — siempre gana sobre cualquier dirección previa que no sea calle
-    const esCalleFormal = /^(cll|calle|cra|carrera|cr|kr|cl|av|avenida|tv|transv|transversal|diag|diagonal|mz|manzana|circular|autopista|km)[\s.#]/i.test(line)
-    if (esCalleFormal) {
-      // Sobreescribe si la dirección anterior era solo ciudad/barrio (sin dígitos)
-      if (!direccion || !/\d/.test(direccion)) { direccion = line; continue }
-    }
-    if (!direccion && /(#|n[o°]\.?)\s*\d/i.test(line)) {
-      direccion = line; continue
+    // Valor numérico solo en la línea
+    if (/^\$?\s*[\d.,]+\s*$/.test(line)) {
+      const v = parseInt(line.replace(/\D/g, ''), 10)
+      if (v >= 1000 && v <= 20000 && !valor_domicilio) { valor_domicilio = v; usado.add(i); continue }
+      if (v > 20000 && v <= 10000000 && !valor_pedido) { valor_pedido = v; metodo_pago = 'efectivo'; usado.add(i); continue }
     }
 
-    // Valores: solo líneas que son un número solo (con $ o puntos opcionales)
-    // o que traen palabra clave de plata. <= $20.000 = domicilio, mayor = pedido
-    const esNumeroSolo = /^\$?\s*\d{1,3}(?:[.,]\d{3})*\s*$/.test(line) || /^\$?\s*\d{4,8}\s*$/.test(line)
-    const conClave = /(valor|precio|cobrar|cobro|total|domi(cilio)?)\s*:?\s*\$?\s*[\d.,]+/i.exec(ln)
-    if (esNumeroSolo || conClave) {
-      const crudo = (esNumeroSolo ? line : conClave![0]).replace(/[^\d]/g, '')
-      const v = parseInt(crudo, 10)
-      if (v >= 1000 && v <= 20000 && !valor_domicilio) { valor_domicilio = v; continue }
-      if (v > 20000 && v <= 10000000 && !valor_pedido) { valor_pedido = v; continue }
+    // Asesor conocido → ignorar
+    if (Object.keys(ASESORES).some(k => ln === k || ln.startsWith(k + ' '))) {
+      usado.add(i); continue
+    }
+  }
+
+  // ── PASADA 2: líneas restantes → nombre y notas ───────────────────────────
+  for (let i = 0; i < lines.length; i++) {
+    if (usado.has(i)) continue
+    const line = lines[i]
+    const ln = nc(line)
+
+    // Indicaciones de entrega → notas
+    if (/\b(dejar|entregar|llamar|llame|timbrar|preguntar|recibe|recibir|horario|porter[ií]a|portero|antes|despu[eé]s|entregar a|preguntar por)\b/i.test(line)) {
+      notas = notas ? `${notas} | ${line}` : line; continue
     }
 
-    // Asesor (ignorar, ya lo sabemos del usuario logueado)
-    if (Object.keys(ASESORES).some(k => nc(line) === k || nc(line).startsWith(k + ' '))) continue
-
-    // Si nada más coincide y no tenemos nombre, tomar como nombre
-    if (!cliente_nombre && line.length >= 3 && line.length <= 60 && !/\d{5,}/.test(line)) {
-      cliente_nombre = line
-    } else if (cliente_nombre && !direccion && line.length >= 5 && !/^\d+$/.test(line)) {
-      // Segunda línea sin clasificar → podría ser dirección
-      direccion = line
-    } else if (line.length > 0) {
-      // Indicaciones de entrega → notas; barrio/ciudad → complementa la dirección
-      const esIndicacion = /\b(dejar|entregar|entrega|llamar|llame|llamen|timbrar|timbre|preguntar|pregunte|recibe|reciben|recibir|horario|favor|porter[ií]a|portero|antes|despues|después)\b/i.test(ln)
-      if (!esIndicacion && direccion && line.length <= 35 && !/\d/.test(line) && line.split(/\s+/).length <= 3) {
-        direccion = `${direccion}, ${line}`
-      } else {
-        notas = notas ? `${notas} | ${line}` : line
-      }
+    // Parece nombre: sin dígitos, 2+ palabras o longitud razonable
+    if (!cliente_nombre && !/\d/.test(line) && line.length >= 4 && line.length <= 55) {
+      cliente_nombre = line; continue
     }
+
+    // Ciudad/barrio corto sin dígitos → complementa dirección si ya existe
+    if (direccion && !/\d/.test(line) && line.length <= 30 && line.split(/\s+/).length <= 3) {
+      direccion = `${direccion}, ${line}`; continue
+    }
+
+    // Resto → notas
+    if (line.length > 0) notas = notas ? `${notas} | ${line}` : line
   }
 
   return {
