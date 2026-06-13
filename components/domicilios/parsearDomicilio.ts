@@ -223,43 +223,61 @@ export function parsearDomicilio(texto: string): DomicilioParsed {
     }
   }
 
-  // ── PASADA 2: líneas restantes → nombre, artículo y notas ────────────────
+  // ── PASADA 2: nombre, artículo y notas ──────────────────────────────────
   for (let i = 0; i < lines.length; i++) {
     if (usado.has(i)) continue
     const line = stripEmoji(lines[i])
     const ln   = nc(line)
 
-    // Indicaciones de entrega → notas
-    if (/\b(dejar|entregar|llamar|llame|timbrar|preguntar|recibe|recibir|horario|porter[ií]a|portero|antes|despu[eé]s|entregar a|preguntar por|tocar)\b/i.test(line)) {
+    // ── 2A. INDICACIONES DE ENTREGA → notas ────────────────────────────────
+    // SOLO van a notas líneas con palabras de instrucción explícita
+    if (/\b(dejar|entregar|llamar|llame|timbrar|preguntar|recibe|recibir|horario|porter[ií]a|portero|antes|despu[eé]s|entregar a|preguntar por|tocar|apartamento|apto|torre|piso|casa)\b/i.test(line)) {
       notas = notas ? `${notas} | ${line}` : line; continue
     }
 
-    // Nombre: sin dígitos, longitud razonable
+    // ── 2B. DESCARTAR SILENCIOSAMENTE (nunca a notas) ─────────────────────
+    // Cédulas que pasaron el filtro de pass 1 (p.ej. formatos raros)
+    if (/^(c\.?c\.?|cedula|documento|nit)?\s*[\d.]{6,15}$/i.test(line.replace(/\s/g, ''))) continue
+    // Líneas puramente numéricas o casi numéricas sin valor reconocido
+    if (/^\d[\d\s.,-]{4,}$/.test(line)) continue
+
+    // ── 2C. NOMBRE ────────────────────────────────────────────────────────
     if (!cliente_nombre && !/\d/.test(line) && line.length >= 4 && line.length <= 60) {
       cliente_nombre = line; continue
     }
 
-    // "Barrio xxx" pendiente → si ya tenemos dirección, append
-    if (/^barrio\b/i.test(ln) && direccion) {
+    // ── 2D. "BARRIO xxx" PENDIENTE ────────────────────────────────────────
+    if (/^barrio\b/i.test(ln)) {
       const barrio = line.replace(/^barrio\s*/i, '').trim()
-      if (barrio) direccion = `${direccion}, ${barrio}`
-      continue
+      if (barrio && direccion) direccion = `${direccion}, ${barrio}`
+      continue  // siempre descartar, nunca a notas
     }
 
-    // Ciudad/barrio corto sin dígitos → complementa dirección
-    if (direccion && !/\d/.test(line) && line.length <= 35 && line.split(/\s+/).length <= 4) {
-      direccion = `${direccion}, ${line}`; continue
-    }
-
-    // Si ya tenemos nombre, teléfono y dirección pero no artículo,
-    // una línea sin dígitos (o con pocos) puede ser el artículo
+    // ── 2E. ARTÍCULO (antes de la detección de ciudad) ────────────────────
+    // Si tenemos nombre + (teléfono o dirección) pero no artículo,
+    // una línea de 2+ palabras sin dígitos es probablemente el artículo
     if (!articulo && cliente_nombre && (cliente_telefono || direccion) &&
-        line.length >= 3 && line.length <= 80 && !/^\d+$/.test(line)) {
+        !/\d/.test(line) && line.split(/\s+/).length >= 2 &&
+        line.length >= 4 && line.length <= 80) {
       articulo = line; continue
     }
 
-    // Resto → notas
-    if (line.length > 0) notas = notas ? `${notas} | ${line}` : line
+    // ── 2F. CIUDAD / BARRIO CORTO ─────────────────────────────────────────
+    // Sin dígitos, ≤ 3 palabras → complementa dirección si existe, si no se descarta
+    // NUNCA va a notas (evita que "Bucaramanga" o similar ensucie las notas)
+    if (!/\d/.test(line) && line.length <= 35 && line.split(/\s+/).length <= 3) {
+      if (direccion) direccion = `${direccion}, ${line}`
+      continue  // si no hay dirección, descartamos silenciosamente
+    }
+
+    // ── 2G. ARTÍCULO CON DÍGITOS (ej. "Tenis Nike 42") ───────────────────
+    if (!articulo && cliente_nombre && (cliente_telefono || direccion) &&
+        line.length >= 4 && line.length <= 80) {
+      articulo = line; continue
+    }
+
+    // ── 2H. RESTO → notas (solo si parece una indicación real) ────────────
+    if (line.length > 10) notas = notas ? `${notas} | ${line}` : line
   }
 
   return {
