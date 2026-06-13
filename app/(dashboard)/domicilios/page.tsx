@@ -20,6 +20,7 @@ export default async function DomiciliosPage({
     .single()
 
   if (!usuario) redirect('/login')
+  if (usuario.rol === 'visor') redirect('/pedidos')
 
   const { fecha: fechaParam } = await searchParams
   const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date())

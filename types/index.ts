@@ -1,4 +1,4 @@
-export type Rol = 'asesor' | 'admin'
+export type Rol = 'asesor' | 'admin' | 'visor'
 
 export type Sede = {
   id: string

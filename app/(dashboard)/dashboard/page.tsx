@@ -44,6 +44,8 @@ export default async function DashboardPage() {
 
   if (!usuario) redirect('/login')
 
+  if (usuario.rol === 'visor') redirect('/pedidos')
+
   const esAdmin = usuario.rol === 'admin'
 
   if (esAdmin) {

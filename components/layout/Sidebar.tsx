@@ -13,15 +13,15 @@ interface SidebarProps {
 }
 
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard', rol: ['asesor', 'admin'] },
-  { href: '/pedidos',   label: 'Pedidos',   rol: ['asesor', 'admin'] },
-  { href: '/alertas',   label: 'Alertas',   rol: ['asesor', 'admin'] },
-  { href: '/clientes',   label: 'Clientes',   rol: ['asesor', 'admin'] },
-  { href: '/domicilios', label: 'Domicilios', rol: ['asesor', 'admin'] },
+  { href: '/dashboard',    label: 'Dashboard',    rol: ['asesor', 'admin'] },
+  { href: '/pedidos',      label: 'Pedidos',      rol: ['asesor', 'admin', 'visor'] },
+  { href: '/alertas',      label: 'Alertas',      rol: ['asesor', 'admin'] },
+  { href: '/clientes',     label: 'Clientes',     rol: ['asesor', 'admin'] },
+  { href: '/domicilios',   label: 'Domicilios',   rol: ['asesor', 'admin'] },
   { href: '/estadisticas', label: 'Estadísticas', rol: ['admin'] },
-  { href: '/cartera',    label: 'Cartera',    rol: ['admin'] },
-  { href: '/compras',   label: 'Compras',   rol: ['admin'] },
-  { href: '/usuarios',  label: 'Usuarios',  rol: ['admin'] },
+  { href: '/cartera',      label: 'Cartera',      rol: ['admin'] },
+  { href: '/compras',      label: 'Compras',      rol: ['admin'] },
+  { href: '/usuarios',     label: 'Usuarios',     rol: ['admin'] },
 ]
 
 export function Sidebar({ usuario, onClose }: SidebarProps) {

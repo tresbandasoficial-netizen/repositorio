@@ -15,6 +15,15 @@ export default async function ClientesPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  const { data: usuario } = await supabase
+    .from('usuarios')
+    .select('rol')
+    .eq('id', user.id)
+    .single()
+
+  if (!usuario) redirect('/login')
+  if (usuario.rol === 'visor') redirect('/pedidos')
+
   const { q, pagina: paginaParam } = await searchParams
   const pagina = Math.max(1, parseInt(paginaParam ?? '1', 10) || 1)
   const resultado = await getClientes({ busqueda: q, pagina })

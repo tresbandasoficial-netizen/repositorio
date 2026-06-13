@@ -1,4 +1,6 @@
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { createClient } from '@/lib/supabase/server'
 import { getPedidos } from '@/lib/queries/pedidos'
 import { EstadoBadge } from '@/components/pedidos/EstadoBadge'
 import { EstadoPedido, ESTADO_LABELS } from '@/types'
@@ -46,6 +48,19 @@ function urgencia(p: { estado: EstadoPedido; fecha_actualizacion: string; fecha_
 }
 
 export default async function AlertasPage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: usuario } = await supabase
+    .from('usuarios')
+    .select('rol')
+    .eq('id', user.id)
+    .single()
+
+  if (!usuario) redirect('/login')
+  if (usuario.rol === 'visor') redirect('/pedidos')
+
   const { pedidos } = await getPedidos({ alerta: true, pagina: 1 })
 
   const ordenados = [...pedidos].sort(
