@@ -46,6 +46,14 @@ export function parsearDomicilio(texto: string): DomicilioParsed {
     const line = lines[i]
     const ln = nc(line)
 
+    // Dirección formal PRIMERO — antes del bloque colon, para que "Calle... BARRIO:xxx"
+    // no se interprete como clave:valor por el colon dentro de la línea
+    if (/^(cll|calle|cra|carrera|cr|kr|cl|av|avenida|tv|transv|transversal|diag|diagonal|mz|manzana|circular|autopista|km)[\s.#]/i.test(line)) {
+      // Limpiar "BARRIO:Xxx" dentro de la dirección para que quede legible
+      const dirLimpia = line.replace(/\s+BARRIO\s*:\s*/gi, ', ').trim()
+      direccion = dirLimpia; usado.add(i); continue
+    }
+
     // Plantilla "clave: valor"
     const ci = line.indexOf(':')
     if (ci > 0 && ci < 35) {
@@ -109,10 +117,16 @@ export function parsearDomicilio(texto: string): DomicilioParsed {
     const celMatch = line.replace(/[\s\-()]/g, '').match(/^3\d{9}$/)
     if (celMatch && !cliente_telefono) { cliente_telefono = celMatch[0]; usado.add(i); continue }
 
-    // Cédula (8-11 dígitos, no empieza en 3)
-    if (/^(cc\s*:?\s*)?\d{8,11}$/.test(line.replace(/[\s.]/g, '')) && !line.replace(/\D/g,'').startsWith('3')) {
+    // Cédula (8-11 dígitos, no empieza en 3) — case-insensitive para "Cc 123..."
+    if (/^(cc\s*:?\s*)?\d{8,11}$/i.test(line.replace(/[\s.]/g, '')) && !line.replace(/\D/g,'').startsWith('3')) {
       usado.add(i); continue
     }
+
+    // Talla sin colon ("Talla L", "Talla XL", "Talla 32", etc.) → ignorar
+    if (/^talla\s+\S+$/i.test(ln)) { usado.add(i); continue }
+
+    // Abono/valo sin colon ("abono 0", "valo 299000") → ignorar (son del pedido)
+    if (/^(abono|valo[r]?)\s+[\d.,]+$/i.test(ln)) { usado.add(i); continue }
 
     // Mensajería
     if (/^exneider\s*$/.test(ln)) { mensajeria = 'exneider'; usado.add(i); continue }
@@ -133,10 +147,6 @@ export function parsearDomicilio(texto: string): DomicilioParsed {
     const artMatch = line.match(/^art[ií]culo\s*:?\s*(.+)$/i)
     if (artMatch && !articulo) { articulo = artMatch[1].trim(); usado.add(i); continue }
 
-    // Dirección formal (Calle, Cra, Cr, Av, Tv, etc.) — siempre gana
-    if (/^(cll|calle|cra|carrera|cr|kr|cl|av|avenida|tv|transv|transversal|diag|diagonal|mz|manzana|circular|autopista|km)[\s.#]/i.test(line)) {
-      direccion = line; usado.add(i); continue
-    }
     // Dirección con # o No.
     if (/(#|n[o°]\.?)\s*\d/i.test(line) && !direccion) {
       direccion = line; usado.add(i); continue
