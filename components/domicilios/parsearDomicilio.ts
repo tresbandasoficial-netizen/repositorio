@@ -72,13 +72,23 @@ export function parsearDomicilio(texto: string): DomicilioParsed {
 
     // ── 1A. DIRECCIÓN FORMAL — va ANTES del bloque colon para que
     //        "Calle 47a BARRIO:Villa" no se interprete como clave:valor
-    if (/^(cll|calle|cra|carrera|cr|kr|cl|av|avenida|tv|transv|transversal|diag|diagonal|via|variante|autopista|km|conj|conjunto|urb|urbanizacion|sector|interior|res\b)[\s.#]/i.test(line)) {
+    if (/^(cll|clle|calle|cra|carrera|cr|kr|cl|av|avenida|tv|transv|transversal|diag|diagonal|via|variante|autopista|km|conj|conjunto|urb|urbanizacion|sector|interior|res\b)[\s.#]/i.test(line)) {
       // Normalizar "BARRIO:Xxx" y "BARRIO Xxx" dentro de la dirección
       const dirLimpia = line
         .replace(/\s+BARRIO\s*:\s*/gi, ', ')
         .replace(/\bBARRIO\b\s+/gi, '')
         .trim()
-      direccion = dirLimpia; usado.add(i); continue
+      // Prefiere la dirección más completa (con más detalle)
+      if (!direccion || dirLimpia.length > direccion.length) direccion = dirLimpia
+      usado.add(i); continue
+    }
+
+    // ── 1A2. "Direccion, xxx" o "Dirección: xxx" con coma como separador ────
+    const dirCommaMatch = line.match(/^direcci[oó]n\s*[,]\s*(.+)$/i)
+    if (dirCommaMatch) {
+      const val = dirCommaMatch[1].trim()
+      if (val && (!direccion || val.length > direccion.length)) direccion = val
+      usado.add(i); continue
     }
 
     // ── 1B. PLANTILLA "clave: valor" ──────────────────────────────────────
@@ -98,7 +108,8 @@ export function parsearDomicilio(texto: string): DomicilioParsed {
         if (cel) cliente_telefono = cel; usado.add(i); continue
       }
       if (['direccion', 'dir', 'address', 'dirección'].includes(key)) {
-        if (val) direccion = val; usado.add(i); continue
+        if (val && (!direccion || val.length > direccion.length)) direccion = val
+        usado.add(i); continue
       }
       if (key === 'mensajeria' || key === 'mensajería') {
         if (valNc.includes('exneider')) mensajeria = 'exneider'
@@ -146,6 +157,11 @@ export function parsearDomicilio(texto: string): DomicilioParsed {
 
     // ── 1D. CELULAR ────────────────────────────────────────────────────────
     // Acepta: 3XXXXXXXXX | +57 3XXXXXXXXX | 57 3XXXXXXXXX | 3XX-XXX-XXXX
+    // También: "Tel 3XXXXXXXXX" o "Cel 3XXXXXXXXX" sin dos puntos
+    const telPrefixMatch = line.match(/^(?:tel\.?|cel\.?|celular|telf|tlf|whatsapp|movil|contacto)\s+(?:\+?57\s*)?(3\d{9})\b/i)
+    if (telPrefixMatch && !cliente_telefono) {
+      cliente_telefono = telPrefixMatch[1]; usado.add(i); continue
+    }
     const celRaw = line.replace(/[\s\-().+]/g, '')
     const celClean = celRaw.startsWith('57') && celRaw.length === 12
       ? celRaw.slice(2)   // quitar código de país 57
@@ -230,8 +246,10 @@ export function parsearDomicilio(texto: string): DomicilioParsed {
     const ln   = nc(line)
 
     // ── 2A. INDICACIONES DE ENTREGA → notas ────────────────────────────────
-    // SOLO van a notas líneas con palabras de instrucción explícita
-    if (/\b(dejar|entregar|llamar|llame|timbrar|preguntar|recibe|recibir|horario|porter[ií]a|portero|antes|despu[eé]s|entregar a|preguntar por|tocar|apartamento|apto|torre|piso|casa)\b/i.test(line)) {
+    // Solo van a notas líneas con VERBOS o palabras de instrucción explícita.
+    // No incluimos sustantivos de lugar (torre, apto, piso, casa) porque
+    // aparecen en direcciones normales y causarían falsos positivos.
+    if (/\b(dejar|entregar|llamar|llame|timbrar|preguntar|recibe|recibir|horario|porter[ií]a|portero|antes|despu[eé]s|preguntar por|tocar)\b/i.test(line)) {
       notas = notas ? `${notas} | ${line}` : line; continue
     }
 
