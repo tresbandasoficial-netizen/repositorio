@@ -52,7 +52,7 @@ function buildConfirmacion(pedido: PedidoDetalle): string {
 
   const productos = pedido.items.map((it) => {
     const talla = it.talla ? ` / Talla ${it.talla}` : ''
-    return `${it.marca} ${it.descripcion}${talla}`
+    return `${it.marca} ${it.descripcion}${talla} — ${formatCOPPlain(it.precio_venta)}`
   }).join('\n🛒 ')
 
   return `🛍️ Estamos preparando tu pedido
