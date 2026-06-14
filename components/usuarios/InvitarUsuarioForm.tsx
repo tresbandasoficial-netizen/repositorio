@@ -11,7 +11,7 @@ interface Props {
 export function InvitarUsuarioForm({ sedes }: Props) {
   const [nombre, setNombre] = useState('')
   const [email, setEmail]   = useState('')
-  const [rol, setRol]       = useState<'asesor' | 'admin'>('asesor')
+  const [rol, setRol]       = useState<'asesor' | 'admin' | 'visor'>('asesor')
   const [sedeId, setSedeId] = useState('')
   const [error, setError]             = useState<string | null>(null)
   const [passwordTemporal, setPasswordTemporal] = useState<string | null>(null)
@@ -21,8 +21,8 @@ export function InvitarUsuarioForm({ sedes }: Props) {
     e.preventDefault()
     setError(null)
 
-    if (rol === 'asesor' && !sedeId) {
-      setError('Un asesor debe tener una sede asignada.')
+    if ((rol === 'asesor' || rol === 'visor') && !sedeId) {
+      setError('Un asesor o visor debe tener una sede asignada.')
       return
     }
 
@@ -76,7 +76,7 @@ export function InvitarUsuarioForm({ sedes }: Props) {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">Rol</label>
           <div className="flex gap-2">
-            {(['asesor', 'admin'] as const).map((r) => (
+            {(['asesor', 'admin', 'visor'] as const).map((r) => (
               <button
                 key={r}
                 type="button"
@@ -91,15 +91,20 @@ export function InvitarUsuarioForm({ sedes }: Props) {
               </button>
             ))}
           </div>
+          {rol === 'visor' && (
+            <p className="mt-1.5 text-xs text-gray-500">
+              Solo ve los pedidos de su sede. Sin acceso a las demás secciones.
+            </p>
+          )}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            Sede {rol === 'asesor' && <span className="text-red-500">*</span>}
+            Sede {(rol === 'asesor' || rol === 'visor') && <span className="text-red-500">*</span>}
           </label>
           <select
             value={sedeId}
             onChange={(e) => setSedeId(e.target.value)}
-            required={rol === 'asesor'}
+            required={rol === 'asesor' || rol === 'visor'}
             className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
           >
             <option value="">Sin sede asignada</option>

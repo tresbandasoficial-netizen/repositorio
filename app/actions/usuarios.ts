@@ -28,7 +28,7 @@ export type InvitarUsuarioResult =
 export async function invitarUsuarioAction(data: {
   email: string
   nombre: string
-  rol: 'asesor' | 'admin'
+  rol: 'asesor' | 'admin' | 'visor'
   sede_id: string | null
 }): Promise<InvitarUsuarioResult> {
   const { adminClient } = await verificarAdmin()
