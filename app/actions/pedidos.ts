@@ -227,6 +227,10 @@ export async function editarPedidoAction(
     tipo_entrega: 'sede' | 'domicilio'
     direccion_entrega: string
     numero_guia: string
+    cliente_nombre: string
+    cliente_telefono: string
+    cliente_id: string
+    productos: Array<{ marca: string; descripcion: string; talla: string; cantidad: number; precio_venta: number }>
   }
 ): Promise<EditarPedidoResult> {
   const sesion = await getSesion()
@@ -248,11 +252,24 @@ export async function editarPedidoAction(
   if (!nuevoNumero.startsWith(sedeCodigo)) {
     return { ok: false, error: `El número debe empezar con ${sedeCodigo}` }
   }
-
   if (data.tipo_entrega === 'domicilio' && !data.direccion_entrega.trim()) {
     return { ok: false, error: 'La dirección de entrega es obligatoria para domicilio' }
   }
+  if (!data.cliente_nombre.trim()) return { ok: false, error: 'El nombre del cliente es obligatorio' }
+  if (data.productos.length === 0) return { ok: false, error: 'Debe haber al menos un producto' }
 
+  // Actualizar cliente
+  const telefonoNormalizado = normalizarTelefono(data.cliente_telefono)
+  if (!telefonoNormalizado) return { ok: false, error: 'Teléfono inválido' }
+  await supabase
+    .from('clientes')
+    .update({ nombre: data.cliente_nombre.trim(), telefono_normalizado: telefonoNormalizado })
+    .eq('id', data.cliente_id)
+
+  // Calcular nuevo total
+  const nuevoTotal = data.productos.reduce((s, p) => s + p.precio_venta * p.cantidad, 0)
+
+  // Actualizar pedido
   const { error: updateError } = await supabase
     .from('pedidos')
     .update({
@@ -261,6 +278,7 @@ export async function editarPedidoAction(
       tipo_entrega:      data.tipo_entrega,
       direccion_entrega: data.tipo_entrega === 'domicilio' ? data.direccion_entrega.trim() : null,
       numero_guia:       data.numero_guia.trim() || null,
+      total:             nuevoTotal,
     })
     .eq('id', pedidoId)
 
@@ -268,6 +286,20 @@ export async function editarPedidoAction(
     if (updateError.code === '23505') return { ok: false, error: `El número "${nuevoNumero}" ya está en uso.` }
     return { ok: false, error: updateError.message }
   }
+
+  // Reemplazar items (delete + insert)
+  await supabase.from('pedido_items').delete().eq('pedido_id', pedidoId)
+  const { error: itemsError } = await supabase.from('pedido_items').insert(
+    data.productos.map(p => ({
+      pedido_id:    pedidoId,
+      marca:        p.marca.trim(),
+      descripcion:  p.descripcion.trim(),
+      talla:        p.talla.trim() || null,
+      cantidad:     p.cantidad,
+      precio_venta: p.precio_venta,
+    }))
+  )
+  if (itemsError) return { ok: false, error: `Error actualizando productos: ${itemsError.message}` }
 
   redirect(`/pedidos/${pedidoId}`)
 }
