@@ -287,9 +287,11 @@ export async function editarPedidoAction(
     return { ok: false, error: updateError.message }
   }
 
-  // Reemplazar items (delete + insert)
-  await supabase.from('pedido_items').delete().eq('pedido_id', pedidoId)
-  const { error: itemsError } = await supabase.from('pedido_items').insert(
+  // Reemplazar items (delete + insert) — se usa adminClient porque RLS no tiene policy DELETE
+  const adminClient = createAdminClient()
+  const { error: deleteError } = await adminClient.from('pedido_items').delete().eq('pedido_id', pedidoId)
+  if (deleteError) return { ok: false, error: `Error eliminando productos anteriores: ${deleteError.message}` }
+  const { error: itemsError } = await adminClient.from('pedido_items').insert(
     data.productos.map(p => ({
       pedido_id:    pedidoId,
       marca:        p.marca.trim(),
