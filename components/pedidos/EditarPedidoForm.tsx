@@ -139,31 +139,17 @@ export function EditarPedidoForm({
         <div className="space-y-3">
           {productos.map((p, i) => (
             <div key={i} className="border border-gray-200 rounded-lg p-3 space-y-2">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-xs text-gray-500 mb-0.5">Marca</label>
-                  <input type="text" value={p.marca}
-                    onChange={e => updateProducto(i, 'marca', e.target.value)}
-                    className="w-full px-2.5 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-0.5">Descripción</label>
-                  <input type="text" value={p.descripcion}
-                    onChange={e => updateProducto(i, 'descripcion', e.target.value)}
-                    className="w-full px-2.5 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-0.5">Artículo</label>
+                <input type="text" value={[p.marca, p.descripcion].filter(Boolean).join(' ')}
+                  onChange={e => { updateProducto(i, 'marca', ''); updateProducto(i, 'descripcion', e.target.value) }}
+                  className="w-full px-2.5 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-xs text-gray-500 mb-0.5">Talla</label>
                   <input type="text" value={p.talla}
                     onChange={e => updateProducto(i, 'talla', e.target.value)}
-                    className="w-full px-2.5 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-0.5">Cantidad</label>
-                  <input type="number" min={1} value={p.cantidad}
-                    onChange={e => updateProducto(i, 'cantidad', Math.max(1, parseInt(e.target.value) || 1))}
                     className="w-full px-2.5 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div>

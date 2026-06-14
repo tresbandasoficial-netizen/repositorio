@@ -229,29 +229,16 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
                 <div className="space-y-3">
                   {editableData.productos.map((p, i) => (
                     <div key={i} className="border border-gray-200 rounded-lg p-3 space-y-2">
+                      <InputField
+                        label="Artículo"
+                        value={[p.marca, p.descripcion].filter(Boolean).join(' ')}
+                        onChange={v => { updateProducto(i, 'marca', ''); updateProducto(i, 'descripcion', v) }}
+                      />
                       <div className="grid grid-cols-2 gap-2">
-                        <InputField
-                          label="Marca"
-                          value={p.marca}
-                          onChange={v => updateProducto(i, 'marca', v)}
-                        />
-                        <InputField
-                          label="Descripción"
-                          value={p.descripcion}
-                          onChange={v => updateProducto(i, 'descripcion', v)}
-                        />
-                      </div>
-                      <div className="grid grid-cols-3 gap-2">
                         <InputField
                           label="Talla"
                           value={p.talla ?? ''}
                           onChange={v => updateProducto(i, 'talla', v)}
-                        />
-                        <InputField
-                          label="Cantidad"
-                          value={p.cantidad}
-                          type="number"
-                          onChange={v => updateProducto(i, 'cantidad', Math.max(1, parseInt(v) || 1))}
                         />
                         <InputField
                           label="Precio"
