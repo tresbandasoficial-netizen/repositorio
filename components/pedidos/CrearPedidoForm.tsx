@@ -47,6 +47,7 @@ function InputField({ label, value, onChange, type = 'text', className = '' }: {
 
 export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFormProps) {
   const [paso, setPaso] = useState<Paso>('pegar')
+  const [modoCrear, setModoCrear] = useState<'texto' | 'buscar'>('texto')
   const [texto, setTexto] = useState('')
   const [editableData, setEditableData] = useState<ParsedPedido | null>(null)
   const [errorParser, setErrorParser] = useState<string | null>(null)
@@ -182,64 +183,92 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
 
   return (
     <div className="space-y-6 max-w-2xl">
-      {/* Paso 1: pegar texto */}
+      {/* Paso 1: pegar texto o buscar cliente */}
       {(paso === 'pegar' || paso === 'error_parser') && (
         <Card>
-          <CardHeader>
-            <h2 className="text-sm font-semibold text-gray-900">Pega el resumen del Claude externo</h2>
-            <p className="text-xs text-gray-500 mt-0.5">
-              El resumen debe incluir <code className="bg-gray-100 px-1 rounded">===INICIO_PEDIDO===</code> y <code className="bg-gray-100 px-1 rounded">===FIN_PEDIDO===</code>
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <textarea
-              value={texto}
-              onChange={(e) => {
-                setTexto(e.target.value)
-                if (paso === 'error_parser') setPaso('pegar')
-              }}
-              rows={14}
-              placeholder={`Numero de pedido: TR5946\nNombre: Juan Pérez\nCelular: 3001234567\nPrenda: https://www.nike.com/... ó Nike Air Max 95 negro\nNombre del producto: Tenis Nike Air Max 95  ← solo si pasas link\nTalla: 40\nPrecio: 350.000\nAbono: 100.000\nMétodo de pago: Bancolombia\nAsesor: nombre del asesor\n\n— Opcionales —\nCédula: 12345678\nDirección: Cra 10 # 20-30\nBarrio: El Prado\nCiudad: Bucaramanga`}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-            />
-            {paso === 'error_parser' && errorParser && (
-              <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
-                <p className="font-medium mb-1">Error en el formato del resumen:</p>
-                <p className="font-mono text-xs">{errorParser}</p>
+          <CardContent className="pt-5 space-y-4">
+            {/* Tabs */}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setModoCrear('texto')}
+                className={`flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${
+                  modoCrear === 'texto'
+                    ? 'bg-blue-600 border-blue-600 text-white'
+                    : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400'
+                }`}
+              >
+                📋 Pegar resumen
+              </button>
+              <button
+                type="button"
+                onClick={() => setModoCrear('buscar')}
+                className={`flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${
+                  modoCrear === 'buscar'
+                    ? 'bg-blue-600 border-blue-600 text-white'
+                    : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400'
+                }`}
+              >
+                🔍 Buscar cliente
+              </button>
+            </div>
+
+            {/* Modo: pegar texto */}
+            {modoCrear === 'texto' && (
+              <>
+                <textarea
+                  value={texto}
+                  onChange={(e) => {
+                    setTexto(e.target.value)
+                    if (paso === 'error_parser') setPaso('pegar')
+                  }}
+                  rows={12}
+                  placeholder={`Numero de pedido: TR5946\nNombre: Juan Pérez\nCelular: 3001234567\nPrenda: Nike Air Max 95 negro\nTalla: 40\nPrecio: 350.000\nAbono: 100.000\nMétodo de pago: Bancolombia`}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                />
+                {paso === 'error_parser' && errorParser && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
+                    <p className="font-medium mb-1">Error en el formato del resumen:</p>
+                    <p className="font-mono text-xs">{errorParser}</p>
+                  </div>
+                )}
+                <Button onClick={handleParsear} disabled={texto.trim().length < 10}>
+                  Validar resumen →
+                </Button>
+              </>
+            )}
+
+            {/* Modo: buscar cliente */}
+            {modoCrear === 'buscar' && (
+              <div>
+                <p className="text-xs text-gray-500 mb-3">Busca el cliente y luego llena los productos y número de pedido.</p>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={busquedaDirecta}
+                    onChange={e => setBusquedaDirecta(e.target.value)}
+                    onBlur={() => setTimeout(() => setResultadosDirecta([]), 150)}
+                    placeholder="Nombre o celular del cliente..."
+                    autoFocus
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  {resultadosDirecta.length > 0 && (
+                    <ul className="absolute z-20 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-60 overflow-auto">
+                      {resultadosDirecta.map(c => (
+                        <li
+                          key={c.id}
+                          onMouseDown={() => crearDesdeCliente(c)}
+                          className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-0"
+                        >
+                          <p className="text-sm font-medium text-gray-900">{c.nombre}</p>
+                          <p className="text-xs text-gray-400">{c.telefono_normalizado}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </div>
             )}
-            <Button onClick={handleParsear} disabled={texto.trim().length < 10}>
-              Validar resumen →
-            </Button>
-
-            {/* Alternativa: buscar cliente directamente */}
-            <div className="border-t border-gray-200 pt-4">
-              <p className="text-xs text-gray-500 mb-2 font-medium">O busca un cliente existente y llena los productos a mano:</p>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={busquedaDirecta}
-                  onChange={e => setBusquedaDirecta(e.target.value)}
-                  onBlur={() => setTimeout(() => setResultadosDirecta([]), 150)}
-                  placeholder="Nombre o celular del cliente..."
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                {resultadosDirecta.length > 0 && (
-                  <ul className="absolute z-20 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-48 overflow-auto">
-                    {resultadosDirecta.map(c => (
-                      <li
-                        key={c.id}
-                        onMouseDown={() => crearDesdeCliente(c)}
-                        className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm flex justify-between items-center"
-                      >
-                        <span className="font-medium text-gray-900">{c.nombre}</span>
-                        <span className="text-gray-400 text-xs">{c.telefono_normalizado}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </div>
           </CardContent>
         </Card>
       )}
