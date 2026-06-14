@@ -419,9 +419,21 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
                         onChange={v => updateProducto(i, 'precio_venta', parseInt(v) || 0)}
                         className="max-w-[160px]"
                       />
+                      {editableData.productos.length > 1 && (
+                        <button type="button"
+                          onClick={() => setEditableData(prev => prev ? { ...prev, productos: prev.productos.filter((_, j) => j !== i) } : null)}
+                          className="text-xs text-red-500 hover:text-red-700">
+                          Quitar producto
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
+                <button type="button"
+                  onClick={() => setEditableData(prev => prev ? { ...prev, productos: [...prev.productos, { marca: '', descripcion: '', talla: null, cantidad: 1, precio_venta: 0 }] } : null)}
+                  className="mt-2 text-sm text-blue-600 hover:text-blue-800 font-medium">
+                  + Agregar producto
+                </button>
               </div>
 
               {/* Abono y método de pago */}
