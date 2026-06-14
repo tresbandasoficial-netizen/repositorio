@@ -2,10 +2,9 @@
 
 import { useState, useTransition } from 'react'
 import { parsearPedido } from '@/lib/parser'
-import { ParsedPedido } from '@/types'
+import { ParsedPedido, MetodoPago } from '@/types'
 import { formatCOP } from '@/lib/utils/format'
-import { formatearTelefono } from '@/lib/utils/phone'
-import { crearPedidoAction } from '@/app/actions/pedidos'
+import { crearPedidoDesdeDataAction } from '@/app/actions/pedidos'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 
@@ -16,10 +15,38 @@ interface CrearPedidoFormProps {
 
 type Paso = 'pegar' | 'preview' | 'error_parser'
 
+const METODOS: { value: MetodoPago; label: string }[] = [
+  { value: 'efectivo',      label: 'Efectivo' },
+  { value: 'transferencia', label: 'Transferencia' },
+  { value: 'addi',          label: 'Addi' },
+  { value: 'bold',          label: 'Bold' },
+  { value: 'sistecredito',  label: 'Sistecredito' },
+]
+
+function InputField({ label, value, onChange, type = 'text', className = '' }: {
+  label: string
+  value: string | number
+  onChange: (v: string) => void
+  type?: string
+  className?: string
+}) {
+  return (
+    <div className={className}>
+      <label className="block text-xs text-gray-500 mb-0.5">{label}</label>
+      <input
+        type={type}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+    </div>
+  )
+}
+
 export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFormProps) {
   const [paso, setPaso] = useState<Paso>('pegar')
   const [texto, setTexto] = useState('')
-  const [parsedData, setParsedData] = useState<ParsedPedido | null>(null)
+  const [editableData, setEditableData] = useState<ParsedPedido | null>(null)
   const [errorParser, setErrorParser] = useState<string | null>(null)
   const [numeroOrden, setNumeroOrden] = useState(numeroSugerido)
   const [errorAccion, setErrorAccion] = useState<string | null>(null)
@@ -33,9 +60,8 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
       setPaso('error_parser')
       return
     }
-    setParsedData(result.data)
+    setEditableData(result.data)
     setErrorParser(null)
-    // Usar número extraído del pedido libre, o el sugerido si no hay
     if (result.data.numero_orden_sugerido) {
       setNumeroOrden(result.data.numero_orden_sugerido)
     } else if (!numeroOrden.startsWith(result.data.sede)) {
@@ -47,25 +73,30 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
   function handleReintentar() {
     setPaso('pegar')
     setErrorParser(null)
-    setParsedData(null)
+    setEditableData(null)
   }
 
-  function handleUsarSiguiente() {
-    if (siguienteNumero) {
-      setNumeroOrden(siguienteNumero)
-      setSiguienteNumero(null)
-      setErrorAccion(null)
-    }
+  function updateField<K extends keyof ParsedPedido>(field: K, value: ParsedPedido[K]) {
+    setEditableData(prev => prev ? { ...prev, [field]: value } : null)
+  }
+
+  function updateProducto(idx: number, field: string, value: string | number) {
+    setEditableData(prev => {
+      if (!prev) return null
+      const productos = prev.productos.map((p, i) =>
+        i === idx ? { ...p, [field]: value } : p
+      )
+      return { ...prev, productos }
+    })
   }
 
   function handleConfirmar() {
-    if (!parsedData) return
+    if (!editableData) return
     setErrorAccion(null)
     setSiguienteNumero(null)
 
     startTransition(async () => {
-      const result = await crearPedidoAction(texto, numeroOrden)
-      // Si llega aquí es porque no hubo redirect (hubo error)
+      const result = await crearPedidoDesdeDataAction(editableData, numeroOrden)
       if (!result.ok) {
         setErrorAccion(result.error)
         if (result.siguienteNumero) setSiguienteNumero(result.siguienteNumero)
@@ -73,11 +104,12 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
     })
   }
 
-  const saldo = parsedData ? parsedData.total - parsedData.abono : 0
+  const total = editableData?.productos.reduce((s, p) => s + p.precio_venta * p.cantidad, 0) ?? 0
+  const saldo = total - (editableData?.abono ?? 0)
 
   return (
     <div className="space-y-6 max-w-2xl">
-      {/* Paso 1: pegar resumen */}
+      {/* Paso 1: pegar texto */}
       {(paso === 'pegar' || paso === 'error_parser') && (
         <Card>
           <CardHeader>
@@ -97,40 +129,33 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
               placeholder={`Numero de pedido: TR5946\nNombre: Juan Pérez\nCelular: 3001234567\nPrenda: https://www.nike.com/... ó Nike Air Max 95 negro\nNombre del producto: Tenis Nike Air Max 95  ← solo si pasas link\nTalla: 40\nPrecio: 350.000\nAbono: 100.000\nMétodo de pago: Bancolombia\nAsesor: nombre del asesor\n\n— Opcionales —\nCédula: 12345678\nDirección: Cra 10 # 20-30\nBarrio: El Prado\nCiudad: Bucaramanga`}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
             />
-
             {paso === 'error_parser' && errorParser && (
               <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
                 <p className="font-medium mb-1">Error en el formato del resumen:</p>
                 <p className="font-mono text-xs">{errorParser}</p>
               </div>
             )}
-
-            <Button
-              onClick={handleParsear}
-              disabled={texto.trim().length < 10}
-            >
+            <Button onClick={handleParsear} disabled={texto.trim().length < 10}>
               Validar resumen →
             </Button>
           </CardContent>
         </Card>
       )}
 
-      {/* Paso 2: preview + confirmación */}
-      {paso === 'preview' && parsedData && (
+      {/* Paso 2: preview editable */}
+      {paso === 'preview' && editableData && (
         <>
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-gray-900">Resumen parseado — confirma antes de guardar</h2>
-                <button
-                  onClick={handleReintentar}
-                  className="text-xs text-gray-400 hover:text-gray-600"
-                >
-                  ← Editar resumen
+                <h2 className="text-sm font-semibold text-gray-900">Confirma y edita antes de guardar</h2>
+                <button onClick={handleReintentar} className="text-xs text-gray-400 hover:text-gray-600">
+                  ← Volver al texto
                 </button>
               </div>
             </CardHeader>
             <CardContent className="space-y-5">
+
               {/* Número de orden */}
               <div>
                 <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
@@ -146,71 +171,142 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
                   }}
                   className="font-mono font-bold text-lg border border-gray-300 rounded-lg px-3 py-2 w-40 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-                <p className="text-xs text-gray-400 mt-1">
-                  Puedes cambiarlo. El sistema valida que no exista.
-                </p>
+                <p className="text-xs text-gray-400 mt-1">Puedes cambiarlo. El sistema valida que no exista.</p>
               </div>
 
               {/* Cliente */}
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-1">Cliente</p>
-                  <p className="font-medium text-gray-900">{parsedData.cliente_nombre}</p>
-                  <p className="text-gray-500">{formatearTelefono(parsedData.cliente_telefono)}</p>
-                  {parsedData.cliente_doc && (
-                    <p className="text-gray-400 text-xs">{parsedData.cliente_doc}</p>
-                  )}
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Cliente</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <InputField
+                    label="Nombre"
+                    value={editableData.cliente_nombre}
+                    onChange={v => updateField('cliente_nombre', v)}
+                  />
+                  <InputField
+                    label="Celular"
+                    value={editableData.cliente_telefono}
+                    onChange={v => updateField('cliente_telefono', v)}
+                  />
                 </div>
-                <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-1">Entrega</p>
-                  <p className="font-medium text-gray-900 capitalize">{parsedData.tipo_entrega}</p>
-                  {parsedData.direccion && (
-                    <p className="text-gray-500 text-xs">{parsedData.direccion}</p>
-                  )}
-                  <p className="text-gray-400 text-xs mt-1">Asesor: {asesorNombre} · Sede: {parsedData.sede}</p>
+                <p className="text-xs text-gray-400 mt-1.5">
+                  Asesor: {asesorNombre} · Sede: {editableData.sede}
+                </p>
+              </div>
+
+              {/* Entrega */}
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Entrega</p>
+                <div className="flex gap-2 mb-2">
+                  {(['sede', 'domicilio'] as const).map(t => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => updateField('tipo_entrega', t)}
+                      className={`px-3 py-1.5 rounded-lg border text-sm font-medium capitalize transition-colors ${
+                        editableData.tipo_entrega === t
+                          ? 'bg-blue-600 border-blue-600 text-white'
+                          : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400'
+                      }`}
+                    >
+                      {t}
+                    </button>
+                  ))}
                 </div>
+                {editableData.tipo_entrega === 'domicilio' && (
+                  <InputField
+                    label="Dirección"
+                    value={editableData.direccion ?? ''}
+                    onChange={v => updateField('direccion', (v || null) as string | null)}
+                  />
+                )}
               </div>
 
               {/* Productos */}
               <div>
-                <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-2">Productos</p>
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-100 text-xs text-gray-400">
-                      <th className="text-left pb-1">Marca / Producto</th>
-                      <th className="text-center pb-1">Talla</th>
-                      <th className="text-center pb-1">Cant.</th>
-                      <th className="text-right pb-1">Precio</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {parsedData.productos.map((p, i) => (
-                      <tr key={i}>
-                        <td className="py-1.5">
-                          <span className="font-medium text-gray-900">{p.marca}</span>
-                          <span className="text-gray-500 ml-1.5">{p.descripcion}</span>
-                        </td>
-                        <td className="py-1.5 text-center text-gray-500">{p.talla ?? '—'}</td>
-                        <td className="py-1.5 text-center text-gray-500">{p.cantidad}</td>
-                        <td className="py-1.5 text-right font-medium text-gray-900">{formatCOP(p.precio_venta)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Productos</p>
+                <div className="space-y-3">
+                  {editableData.productos.map((p, i) => (
+                    <div key={i} className="border border-gray-200 rounded-lg p-3 space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <InputField
+                          label="Marca"
+                          value={p.marca}
+                          onChange={v => updateProducto(i, 'marca', v)}
+                        />
+                        <InputField
+                          label="Descripción"
+                          value={p.descripcion}
+                          onChange={v => updateProducto(i, 'descripcion', v)}
+                        />
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <InputField
+                          label="Talla"
+                          value={p.talla ?? ''}
+                          onChange={v => updateProducto(i, 'talla', v)}
+                        />
+                        <InputField
+                          label="Cantidad"
+                          value={p.cantidad}
+                          type="number"
+                          onChange={v => updateProducto(i, 'cantidad', Math.max(1, parseInt(v) || 1))}
+                        />
+                        <InputField
+                          label="Precio"
+                          value={p.precio_venta}
+                          type="number"
+                          onChange={v => updateProducto(i, 'precio_venta', parseInt(v) || 0)}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Abono y método de pago */}
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Abono</p>
+                <div className="space-y-3">
+                  <InputField
+                    label="Monto del abono"
+                    value={editableData.abono}
+                    type="number"
+                    onChange={v => updateField('abono', parseInt(v) || 0)}
+                    className="max-w-[180px]"
+                  />
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1.5">Método de pago</label>
+                    <div className="flex flex-wrap gap-2">
+                      {METODOS.map(m => (
+                        <button
+                          key={m.value}
+                          type="button"
+                          onClick={() => updateField('metodo_pago_abono', m.value)}
+                          className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
+                            editableData.metodo_pago_abono === m.value
+                              ? 'bg-blue-600 border-blue-600 text-white'
+                              : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400'
+                          }`}
+                        >
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Totales */}
               <div className="border-t border-gray-100 pt-3 space-y-1 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Total pedido</span>
-                  <span className="font-semibold text-gray-900">{formatCOP(parsedData.total)}</span>
+                  <span className="font-semibold text-gray-900">{formatCOP(total)}</span>
                 </div>
-                {parsedData.abono > 0 && (
+                {editableData.abono > 0 && (
                   <div className="flex justify-between">
-                    <span className="text-gray-600">
-                      Abono ({parsedData.metodo_pago_abono})
-                    </span>
-                    <span className="text-green-700">− {formatCOP(parsedData.abono)}</span>
+                    <span className="text-gray-600">Abono ({editableData.metodo_pago_abono})</span>
+                    <span className="text-green-700">− {formatCOP(editableData.abono)}</span>
                   </div>
                 )}
                 <div className="flex justify-between font-semibold">
@@ -223,15 +319,18 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
                 </div>
               </div>
 
-              {parsedData.notas && (
-                <div className="bg-yellow-50 rounded-lg px-3 py-2 text-sm text-yellow-800">
-                  <span className="font-medium">Notas: </span>{parsedData.notas}
+              {editableData.notas && (
+                <div>
+                  <InputField
+                    label="Notas"
+                    value={editableData.notas}
+                    onChange={v => updateField('notas', v || null)}
+                  />
                 </div>
               )}
             </CardContent>
           </Card>
 
-          {/* Error de acción (ej. número duplicado) */}
           {errorAccion && (
             <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700 space-y-2">
               <p>{errorAccion}</p>
@@ -241,7 +340,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
                     Próximo disponible: <strong className="font-mono">{siguienteNumero}</strong>
                   </span>
                   <button
-                    onClick={handleUsarSiguiente}
+                    onClick={() => { setNumeroOrden(siguienteNumero); setSiguienteNumero(null); setErrorAccion(null) }}
                     className="underline text-red-700 font-medium hover:text-red-900"
                   >
                     Usar este número
@@ -251,13 +350,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
             </div>
           )}
 
-          {/* Botón confirmar */}
-          <Button
-            onClick={handleConfirmar}
-            disabled={isPending}
-            size="md"
-            className="w-full"
-          >
+          <Button onClick={handleConfirmar} disabled={isPending} size="md" className="w-full">
             {isPending ? 'Guardando pedido...' : `Confirmar y crear pedido ${numeroOrden}`}
           </Button>
         </>
