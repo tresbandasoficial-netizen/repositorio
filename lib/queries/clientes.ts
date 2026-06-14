@@ -44,20 +44,27 @@ export type ClienteDetalle = {
 export async function getClientes(params?: {
   busqueda?: string
   pagina?: number
+  sede_id?: string
 }): Promise<ClientesResult> {
   const supabase = await createClient()
   const pagina = Math.max(1, params?.pagina ?? 1)
   const desde  = (pagina - 1) * PAGE_SIZE
   const hasta  = desde + PAGE_SIZE - 1
 
+  // Con sede_id usamos inner join para traer solo clientes con pedidos en esa sede
+  const pedidosSelect = params?.sede_id
+    ? 'pedidos!inner(fecha_creacion, sede_id)'
+    : 'pedidos(fecha_creacion)'
+
   let query = supabase
     .from('clientes')
-    .select(`
-      id, nombre, telefono_normalizado, cedula, email, notas, creado_en,
-      pedidos (fecha_creacion)
-    `, { count: 'exact' })
+    .select(`id, nombre, telefono_normalizado, cedula, email, notas, creado_en, ${pedidosSelect}`, { count: 'exact' })
     .order('nombre', { ascending: true })
     .range(desde, hasta)
+
+  if (params?.sede_id) {
+    query = query.eq('pedidos.sede_id', params.sede_id)
+  }
 
   if (params?.busqueda) {
     query = query.or(

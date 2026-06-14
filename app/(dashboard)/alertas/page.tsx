@@ -54,14 +54,14 @@ export default async function AlertasPage() {
 
   const { data: usuario } = await supabase
     .from('usuarios')
-    .select('rol')
+    .select('rol, sedes(codigo)')
     .eq('id', user.id)
     .single()
 
   if (!usuario) redirect('/login')
-  if (usuario.rol === 'visor') redirect('/pedidos')
 
-  const { pedidos } = await getPedidos({ alerta: true, pagina: 1 })
+  const sedeCodigo = usuario.rol === 'visor' ? (usuario.sedes as any)?.codigo : undefined
+  const { pedidos } = await getPedidos({ alerta: true, pagina: 1, ...(sedeCodigo ? { sede: sedeCodigo } : {}) })
 
   const ordenados = [...pedidos].sort(
     (a, b) => urgencia(b) - urgencia(a)
