@@ -56,6 +56,8 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
   const [advertencias, setAdvertencias] = useState<string[]>([])
   const [busquedaCliente, setBusquedaCliente] = useState('')
   const [resultadosCliente, setResultadosCliente] = useState<ClienteBusqueda[]>([])
+  const [busquedaDirecta, setBusquedaDirecta] = useState('')
+  const [resultadosDirecta, setResultadosDirecta] = useState<ClienteBusqueda[]>([])
   const [isPending, startTransition] = useTransition()
   const dropdownRef = useRef<HTMLUListElement>(null)
 
@@ -68,11 +70,45 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
     return () => clearTimeout(t)
   }, [busquedaCliente])
 
+  useEffect(() => {
+    if (busquedaDirecta.trim().length < 2) { setResultadosDirecta([]); return }
+    const t = setTimeout(async () => {
+      const res = await buscarClientesAction(busquedaDirecta)
+      setResultadosDirecta(res)
+    }, 300)
+    return () => clearTimeout(t)
+  }, [busquedaDirecta])
+
   function seleccionarCliente(c: ClienteBusqueda) {
     updateField('cliente_nombre', c.nombre)
     updateField('cliente_telefono', c.telefono_normalizado)
     setBusquedaCliente('')
     setResultadosCliente([])
+  }
+
+  function crearDesdeCliente(c: ClienteBusqueda) {
+    const sedeCode = numeroSugerido.slice(0, 2) as 'TR' | 'CR' | 'SR'
+    setEditableData({
+      formato_version: '1',
+      sede: sedeCode,
+      numero_orden_sugerido: numeroSugerido,
+      asesor: asesorNombre,
+      cliente_nombre: c.nombre,
+      cliente_doc: c.cedula ? `CC ${c.cedula}` : null,
+      cliente_telefono: c.telefono_normalizado,
+      productos: [{ marca: '', descripcion: '', talla: null, cantidad: 1, precio_venta: 0 }],
+      total: 0,
+      abono: 0,
+      metodo_pago_abono: 'efectivo',
+      tipo_entrega: 'sede',
+      direccion: null,
+      notas: null,
+    })
+    setNumeroOrden(numeroSugerido)
+    setAdvertencias([])
+    setBusquedaDirecta('')
+    setResultadosDirecta([])
+    setPaso('preview')
   }
 
   function handleParsear() {
@@ -175,6 +211,35 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
             <Button onClick={handleParsear} disabled={texto.trim().length < 10}>
               Validar resumen →
             </Button>
+
+            {/* Alternativa: buscar cliente directamente */}
+            <div className="border-t border-gray-200 pt-4">
+              <p className="text-xs text-gray-500 mb-2 font-medium">O busca un cliente existente y llena los productos a mano:</p>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={busquedaDirecta}
+                  onChange={e => setBusquedaDirecta(e.target.value)}
+                  onBlur={() => setTimeout(() => setResultadosDirecta([]), 150)}
+                  placeholder="Nombre o celular del cliente..."
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                {resultadosDirecta.length > 0 && (
+                  <ul className="absolute z-20 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-48 overflow-auto">
+                    {resultadosDirecta.map(c => (
+                      <li
+                        key={c.id}
+                        onMouseDown={() => crearDesdeCliente(c)}
+                        className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm flex justify-between items-center"
+                      >
+                        <span className="font-medium text-gray-900">{c.nombre}</span>
+                        <span className="text-gray-400 text-xs">{c.telefono_normalizado}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}
