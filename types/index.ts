@@ -40,7 +40,7 @@ export type EstadoPedido =
   | 'entregado'
   | 'cancelado'
 
-export type MetodoPago = 'efectivo' | 'transferencia' | 'datafono' | 'addi' | 'bold' | 'sistecredito' | 'otro'
+export type MetodoPago = 'efectivo' | 'transferencia' | 'datafono' | 'addi' | 'bold' | 'sistecredito' | 'credito' | 'otro'
 
 export type PedidoItem = {
   id: string

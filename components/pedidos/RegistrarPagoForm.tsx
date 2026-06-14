@@ -8,6 +8,10 @@ import { formatCOP } from '@/lib/utils/format'
 const METODOS: { value: MetodoPago; label: string }[] = [
   { value: 'efectivo',      label: 'Efectivo' },
   { value: 'transferencia', label: 'Transferencia' },
+  { value: 'credito',       label: 'Crédito' },
+  { value: 'addi',          label: 'Addi' },
+  { value: 'bold',          label: 'Bold' },
+  { value: 'sistecredito',  label: 'Sistecredito' },
   { value: 'datafono',      label: 'Datáfono' },
   { value: 'otro',          label: 'Otro' },
 ]
