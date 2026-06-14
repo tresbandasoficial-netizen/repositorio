@@ -33,7 +33,6 @@ export default async function PedidosPage({
   if (!usuario) redirect('/login')
 
   const esAdmin = usuario.rol === 'admin'
-  const esVisor = usuario.rol === 'visor'
   const params = await searchParams
 
   const resultado = await getPedidos({
@@ -55,14 +54,12 @@ export default async function PedidosPage({
           <h1 className="text-xl font-bold text-gray-900">Pedidos</h1>
           <p className="text-sm text-gray-500 mt-0.5">Gestiona y rastrea todos los pedidos</p>
         </div>
-        {!esVisor && (
-          <Link
-            href="/pedidos/nuevo"
-            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-          >
-            + Nuevo pedido
-          </Link>
-        )}
+        <Link
+          href="/pedidos/nuevo"
+          className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+        >
+          + Nuevo pedido
+        </Link>
       </div>
 
       <PedidosList resultado={resultado} esAdmin={esAdmin} />
