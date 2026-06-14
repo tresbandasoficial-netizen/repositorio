@@ -139,8 +139,8 @@ export function EditarPedidoForm({
         <div className="space-y-3">
           {productos.map((p, i) => (
             <div key={i} className="border border-gray-200 rounded-lg p-3 space-y-2">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-2">
                   <label className="block text-xs text-gray-500 mb-0.5">Artículo</label>
                   <input type="text" value={[p.marca, p.descripcion].filter(Boolean).join(' ')}
                     onChange={e => { updateProducto(i, 'marca', ''); updateProducto(i, 'descripcion', e.target.value) }}
@@ -153,7 +153,7 @@ export function EditarPedidoForm({
                     className="w-full px-2.5 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
               </div>
-              <div>
+              <div className="max-w-[160px]">
                 <label className="block text-xs text-gray-500 mb-0.5">Precio</label>
                 <input type="number" min={0} value={p.precio_venta}
                   onChange={e => updateProducto(i, 'precio_venta', parseInt(e.target.value) || 0)}
