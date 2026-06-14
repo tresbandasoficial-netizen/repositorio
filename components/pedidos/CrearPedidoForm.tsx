@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect, useRef } from 'react'
 import { parsearPedido } from '@/lib/parser'
 import { ParsedPedido, MetodoPago } from '@/types'
 import { formatCOP } from '@/lib/utils/format'
 import { crearPedidoDesdeDataAction } from '@/app/actions/pedidos'
+import { buscarClientesAction, ClienteBusqueda } from '@/app/actions/clientes'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 
@@ -53,7 +54,26 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
   const [errorAccion, setErrorAccion] = useState<string | null>(null)
   const [siguienteNumero, setSiguienteNumero] = useState<string | null>(null)
   const [advertencias, setAdvertencias] = useState<string[]>([])
+  const [busquedaCliente, setBusquedaCliente] = useState('')
+  const [resultadosCliente, setResultadosCliente] = useState<ClienteBusqueda[]>([])
   const [isPending, startTransition] = useTransition()
+  const dropdownRef = useRef<HTMLUListElement>(null)
+
+  useEffect(() => {
+    if (busquedaCliente.trim().length < 2) { setResultadosCliente([]); return }
+    const t = setTimeout(async () => {
+      const res = await buscarClientesAction(busquedaCliente)
+      setResultadosCliente(res)
+    }, 300)
+    return () => clearTimeout(t)
+  }, [busquedaCliente])
+
+  function seleccionarCliente(c: ClienteBusqueda) {
+    updateField('cliente_nombre', c.nombre)
+    updateField('cliente_telefono', c.telefono_normalizado)
+    setBusquedaCliente('')
+    setResultadosCliente([])
+  }
 
   function handleParsear() {
     const result = parsearPedido(texto)
@@ -203,6 +223,34 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
               {/* Cliente */}
               <div>
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Cliente</p>
+
+                {/* Buscador de cliente existente */}
+                <div className="relative mb-3">
+                  <label className="block text-xs text-gray-500 mb-1">Buscar cliente existente</label>
+                  <input
+                    type="text"
+                    value={busquedaCliente}
+                    onChange={e => setBusquedaCliente(e.target.value)}
+                    onBlur={() => setTimeout(() => setResultadosCliente([]), 150)}
+                    placeholder="Nombre o celular..."
+                    className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  {resultadosCliente.length > 0 && (
+                    <ul ref={dropdownRef} className="absolute z-20 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-48 overflow-auto">
+                      {resultadosCliente.map(c => (
+                        <li
+                          key={c.id}
+                          onMouseDown={() => seleccionarCliente(c)}
+                          className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm flex justify-between items-center"
+                        >
+                          <span className="font-medium text-gray-900">{c.nombre}</span>
+                          <span className="text-gray-400 text-xs">{c.telefono_normalizado}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-2 gap-3">
                   <InputField
                     label="Nombre"

@@ -5,6 +5,25 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { normalizarTelefono } from '@/lib/utils/phone'
 
+export type ClienteBusqueda = {
+  id: string
+  nombre: string
+  telefono_normalizado: string
+  cedula: string | null
+}
+
+export async function buscarClientesAction(busqueda: string): Promise<ClienteBusqueda[]> {
+  if (busqueda.trim().length < 2) return []
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('clientes')
+    .select('id, nombre, telefono_normalizado, cedula')
+    .or(`nombre.ilike.%${busqueda}%,telefono_normalizado.ilike.%${busqueda}%`)
+    .order('nombre')
+    .limit(6)
+  return data ?? []
+}
+
 export type EditarClienteResult =
   | { ok: true }
   | { ok: false; error: string }
