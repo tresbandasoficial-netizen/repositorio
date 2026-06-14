@@ -356,6 +356,21 @@ function parsearLibre(texto: string): ParseResult {
   }
   if (!clienteNombre) advertencias.push('Nombre')
 
+  // ── Artículos: detección de líneas "[artículo] talla [X]" (un producto por línea) ──
+  // Ej: "top talla S", "Sudadera talla M 150.000", "Tenis talla 7"
+  const lineasConTalla: Array<{ descripcion: string; talla: string; precioEmbebido: number | null }> = []
+  for (const line of lines) {
+    if (line.includes(':')) continue
+    const m = line.match(/^(.+?)\s+talla\s+([^\s,]+)(?:\s+\$?([\d.,´']+))?$/i)
+    if (!m) continue
+    const desc = m[1].trim()
+    if (/^(nombre|celular|tel|cel|precio|abono|asesor|pedido|n[°o]|total|metodo|entrega|ciudad|barrio)/i.test(desc)) continue
+    if (/^(TR|CR|SR)\d+/i.test(desc)) continue
+    const talla = m[2].trim()
+    const precioEmbebido = m[3] ? (parseInt(m[3].replace(/[.,´']/g, ''), 10) || null) : null
+    lineasConTalla.push({ descripcion: desc, talla, precioEmbebido })
+  }
+
   // ── Artículos (etiquetados, links, o líneas huérfanas de descripción) ─────
   const articuloKeysNorm = ['articulo/link', 'articulo', 'codigo de producto', 'codigo', 'producto', 'prenda', 'ref', 'referencia', 'link', 'url']
   const todosArticulos: string[] = []
@@ -457,7 +472,16 @@ function parsearLibre(texto: string): ParseResult {
   }
 
   let productos: ParsedPedido['productos']
-  if (todosArticulos.length === 0) {
+  if (lineasConTalla.length > 0) {
+    // Formato "[artículo] talla [X]" — un producto por línea detectada
+    productos = lineasConTalla.map((item, i) => ({
+      marca: '',
+      descripcion: item.descripcion,
+      talla: item.talla,
+      cantidad: 1,
+      precio_venta: item.precioEmbebido ?? preciosNum[i] ?? preciosNum[preciosNum.length - 1] ?? 0,
+    }))
+  } else if (todosArticulos.length === 0) {
     // Sin artículos detectados: crear un slot vacío para que el usuario complete
     productos = [{ marca: '', descripcion: '', talla: todasTallas[0] ?? null, cantidad: 1, precio_venta: preciosNum[0] ?? 0 }]
   } else {
