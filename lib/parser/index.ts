@@ -293,7 +293,6 @@ function collectAll(lines: string[], ...claves: string[]): string[] {
 
 function parsearLibre(texto: string): ParseResult {
   const lines = texto.split('\n').map((l) => l.trim()).filter(Boolean)
-  const faltantes: string[] = []
 
   // ── Número de pedido (obligatorio — define la sede) ───────────────────────
   const numeroCampo = findRaw(lines, 'Número de pedido', 'N° Pedido', 'No de Pedido', 'No. Pedido', 'Pedido', 'Orden')
@@ -307,6 +306,8 @@ function parsearLibre(texto: string): ParseResult {
     return { ok: false, error: `El número de pedido "${numeroOrden}" debe empezar con TR (Bucaramanga), CR (Cúcuta) o SR (Santa Rosa).` }
   const sede = prefijo
 
+  const advertencias: string[] = []
+
   // ── Teléfono (etiquetado o patrón colombiano suelto) ─────────────────────
   let telefonoRaw = findRaw(lines, 'Celular', 'Teléfono', 'Tel', 'Cel', 'Whatsapp')
   if (!telefonoRaw) {
@@ -315,7 +316,12 @@ function parsearLibre(texto: string): ParseResult {
       if (/^(57)?3\d{9}$/.test(cleaned)) { telefonoRaw = cleaned.replace(/^57/, ''); break }
     }
   }
-  if (!telefonoRaw) faltantes.push('Celular')
+  let telefono = ''
+  if (telefonoRaw) {
+    telefono = normalizarTelefono(telefonoRaw) ?? telefonoRaw
+  } else {
+    advertencias.push('Celular')
+  }
 
   // ── Nombre (etiquetado o primera línea multi-palabra con mayúsculas) ──────
   let clienteNombre = findRaw(lines, 'Nombre', 'Cliente', 'Nombre del cliente')
@@ -348,7 +354,7 @@ function parsearLibre(texto: string): ParseResult {
       }
     }
   }
-  if (!clienteNombre) faltantes.push('Nombre')
+  if (!clienteNombre) advertencias.push('Nombre')
 
   // ── Artículos (etiquetados, links, o líneas huérfanas de descripción) ─────
   const articuloKeysNorm = ['articulo/link', 'articulo', 'codigo de producto', 'codigo', 'producto', 'prenda', 'ref', 'referencia', 'link', 'url']
@@ -381,19 +387,15 @@ function parsearLibre(texto: string): ParseResult {
       todosArticulos.push(line.trim()); break
     }
   }
-  if (todosArticulos.length === 0) faltantes.push('Artículo (o pega el link del producto)')
 
   // ── Talla ─────────────────────────────────────────────────────────────────
   const todasTallasRaw = collectAll(lines, 'Talla')
   const todasTallas = todasTallasRaw.flatMap(t => t.split(/\s*\/\s*/).map(s => s.trim()).filter(Boolean))
-  if (todasTallas.length === 0) faltantes.push('Talla')
 
   // ── Precios (etiquetados con alias comunes) ───────────────────────────────
   const todosPrecios = collectAll(lines, 'Precio', 'Valor', 'Costo', 'Valo', 'Val', 'Vlr', 'Precio venta', 'Precio de venta')
-  if (todosPrecios.length === 0) faltantes.push('Precio')
 
   const todosAbonos  = collectAll(lines, 'Abono', 'Anticipo', 'Adelanto', 'Cuota inicial', 'Separado')
-  const abonoRaw = todosAbonos[0] ?? null
 
   let asesorRaw = findRaw(lines, 'Asesor', 'Vendedor', 'Agente', 'Atendido por')
   // Si no hay campo etiquetado, buscar última línea corta sin ":" (ej. "JF", "luisa")
@@ -403,33 +405,23 @@ function parsearLibre(texto: string): ParseResult {
   }
   // Asesor es opcional — si no viene, se toma del usuario logueado en la acción
 
-  if (faltantes.length > 0)
-    return { ok: false, error: `Faltan los siguientes campos obligatorios: ${faltantes.join(', ')}.` }
-
-  // ── Validar teléfono ──────────────────────────────────────────────────────
-  const telefono = normalizarTelefono(telefonoRaw!)
-  if (!telefono) return { ok: false, error: `El celular "${telefonoRaw}" no es un número colombiano válido.` }
-
   // ── Precios individuales y total ─────────────────────────────────────────
   let preciosNum: number[] = []
   let totalExplicitoDePrecios: number | null = null
   for (const precioRaw of todosPrecios) {
     const { individuales, total: t } = parsearPreciosExpresion(precioRaw)
-    preciosNum.push(...individuales)
+    preciosNum.push(...individuales.filter(n => !isNaN(n) && n > 0))
     if (!totalExplicitoDePrecios && t) totalExplicitoDePrecios = t
   }
-  if (preciosNum.some(p => isNaN(p) || p <= 0))
-    return { ok: false, error: `Un precio no es válido. Escríbelo con puntos: ej. 350.000 o 1.050.000` }
   const totalExplicitoRaw = findRaw(lines, 'Total', 'Precio total', 'Valor total')
   const total = totalExplicitoRaw
-    ? parseInt(totalExplicitoRaw.replace(/\./g, '').replace(/[^\d]/g, ''), 10)
+    ? (parseInt(totalExplicitoRaw.replace(/\./g, '').replace(/[^\d]/g, ''), 10) || 0)
     : (totalExplicitoDePrecios ?? preciosNum.reduce((a, b) => a + b, 0))
 
   // ── Abono (suma de todos los abonos) ─────────────────────────────────────
   const abonosParsed = todosAbonos.map(a => parseMontoMetodo(a))
-  const abono = abonosParsed.reduce((s, p) => s + p.monto, 0)
+  const abono = Math.min(abonosParsed.reduce((s, p) => s + p.monto, 0), total)
   const metodoDesdeAbono = abonosParsed.find(p => p.monto > 0)?.metodo ?? 'efectivo'
-  if (abono > total) return { ok: false, error: `El abono (${abono.toLocaleString('es-CO')}) no puede superar el precio (${total.toLocaleString('es-CO')}).` }
 
   // Método de pago: campo explícito tiene prioridad sobre el detectado del abono
   const metodoCampo = findRaw(lines, 'Método de pago', 'Metodo pago', 'Pago')
@@ -464,26 +456,32 @@ function parsearLibre(texto: string): ParseResult {
     if (!todosNombres.includes(h)) todosNombres.push(h)
   }
 
-  const productos: ParsedPedido['productos'] = todosArticulos.map((art, i) => {
-    const precio  = preciosNum[i] ?? preciosNum[preciosNum.length - 1]
-    const talla   = todasTallas[i] ?? todasTallas[0] ?? null
-    const esLink  = /^https?:\/\//i.test(art)
+  let productos: ParsedPedido['productos']
+  if (todosArticulos.length === 0) {
+    // Sin artículos detectados: crear un slot vacío para que el usuario complete
+    productos = [{ marca: '', descripcion: '', talla: todasTallas[0] ?? null, cantidad: 1, precio_venta: preciosNum[0] ?? 0 }]
+  } else {
+    productos = todosArticulos.map((art, i) => {
+      const precio  = preciosNum[i] ?? preciosNum[preciosNum.length - 1] ?? 0
+      const talla   = todasTallas[i] ?? todasTallas[0] ?? null
+      const esLink  = /^https?:\/\//i.test(art)
 
-    let marca: string
-    let descripcion: string
+      let marca: string
+      let descripcion: string
 
-    if (esLink) {
-      marca = marcaDesdeUrl(art)
-      const nombre = todosNombres[i] ?? descDesdeUrl(art)
-      descripcion = nombre
-    } else {
-      const partes = art.split(/\s+/)
-      marca = partes[0]
-      descripcion = partes.slice(1).join(' ') || art
-    }
+      if (esLink) {
+        marca = marcaDesdeUrl(art)
+        const nombre = todosNombres[i] ?? descDesdeUrl(art)
+        descripcion = nombre
+      } else {
+        const partes = art.split(/\s+/)
+        marca = partes[0]
+        descripcion = partes.slice(1).join(' ') || art
+      }
 
-    return { marca, descripcion, talla, cantidad: 1, precio_venta: precio }
-  })
+      return { marca, descripcion, talla, cantidad: 1, precio_venta: precio }
+    })
+  }
 
   return {
     ok: true,
@@ -492,7 +490,7 @@ function parsearLibre(texto: string): ParseResult {
       sede,
       numero_orden_sugerido: numeroOrden,
       asesor: asesorRaw ?? undefined,
-      cliente_nombre: clienteNombre!,
+      cliente_nombre: clienteNombre ?? '',
       cliente_doc: clienteDoc,
       cliente_telefono: telefono,
       productos,
@@ -503,6 +501,7 @@ function parsearLibre(texto: string): ParseResult {
       direccion,
       notas,
     },
+    warnings: advertencias.length > 0 ? advertencias : undefined,
   }
 }
 

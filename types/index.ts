@@ -144,7 +144,7 @@ export type ParsedPedido = {
 }
 
 export type ParseResult =
-  | { ok: true; data: ParsedPedido }
+  | { ok: true; data: ParsedPedido; warnings?: string[] }
   | { ok: false; error: string }
 
 // Dashboard types

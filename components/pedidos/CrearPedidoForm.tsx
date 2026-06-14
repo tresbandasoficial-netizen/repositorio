@@ -52,6 +52,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
   const [numeroOrden, setNumeroOrden] = useState(numeroSugerido)
   const [errorAccion, setErrorAccion] = useState<string | null>(null)
   const [siguienteNumero, setSiguienteNumero] = useState<string | null>(null)
+  const [advertencias, setAdvertencias] = useState<string[]>([])
   const [isPending, startTransition] = useTransition()
 
   function handleParsear() {
@@ -62,6 +63,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
       return
     }
     setEditableData(result.data)
+    setAdvertencias(result.warnings ?? [])
     setErrorParser(null)
     if (result.data.numero_orden_sugerido) {
       setNumeroOrden(result.data.numero_orden_sugerido)
@@ -95,6 +97,20 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
     if (!editableData) return
     setErrorAccion(null)
     setSiguienteNumero(null)
+
+    if (!editableData.cliente_nombre.trim()) {
+      setErrorAccion('El nombre del cliente es obligatorio')
+      return
+    }
+    if (!editableData.cliente_telefono.trim()) {
+      setErrorAccion('El celular del cliente es obligatorio')
+      return
+    }
+    const articuloVacio = editableData.productos.find(p => !p.descripcion.trim())
+    if (articuloVacio) {
+      setErrorAccion('Todos los artículos deben tener nombre')
+      return
+    }
 
     startTransition(async () => {
       const result = await crearPedidoDesdeDataAction(editableData, numeroOrden)
@@ -156,6 +172,15 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
               </div>
             </CardHeader>
             <CardContent className="space-y-5">
+
+              {advertencias.length > 0 && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3 text-sm text-yellow-800">
+                  <p className="font-medium mb-1">Completa los campos faltantes antes de confirmar:</p>
+                  <ul className="list-disc list-inside space-y-0.5">
+                    {advertencias.map((w, i) => <li key={i}>{w}</li>)}
+                  </ul>
+                </div>
+              )}
 
               {/* Número de orden */}
               <div>
