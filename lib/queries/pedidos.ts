@@ -161,6 +161,19 @@ export async function getPedidoDetalle(id: string): Promise<PedidoDetalle | null
     .eq('id', pedidoData.cliente_id)
     .single()
 
+  // Si imagen_url no existe (migración pendiente), hacer fallback sin esa columna
+  let itemsData: any[] = []
+  if (itemsRes.error) {
+    const fallback = await supabase
+      .from('pedido_items')
+      .select('id, marca, descripcion, talla, cantidad, precio_venta')
+      .eq('pedido_id', id)
+      .order('id')
+    itemsData = (fallback.data ?? []).map(it => ({ ...it, imagen_url: null }))
+  } else {
+    itemsData = itemsRes.data ?? []
+  }
+
   const pagos = (pagosRes.data ?? []).map((p: any) => ({
     id: p.id,
     monto: p.monto,
@@ -182,7 +195,7 @@ export async function getPedidoDetalle(id: string): Promise<PedidoDetalle | null
   return {
     ...pedidoData,
     cliente_cedula: clienteData?.cedula ?? null,
-    items: itemsRes.data ?? [],
+    items: itemsData,
     pagos,
     historial,
   }

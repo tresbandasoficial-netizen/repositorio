@@ -14,22 +14,34 @@ export default async function EditarPedidoPage({
   const supabase = await createClient()
   const { id } = await params
 
-  const [{ data: pedido }, { data: items }] = await Promise.all([
-    supabase
-      .from('vista_pedidos_asesor')
-      .select('id, numero_orden, estado, notas, tipo_entrega, direccion_entrega, numero_guia, sede_id, sede_codigo, cliente_id, cliente_nombre, cliente_telefono')
-      .eq('id', id)
-      .single(),
-    supabase
-      .from('pedido_items')
-      .select('id, marca, descripcion, talla, cantidad, precio_venta, imagen_url')
-      .eq('pedido_id', id)
-      .order('id'),
-  ])
+  const { data: pedido } = await supabase
+    .from('vista_pedidos_asesor')
+    .select('id, numero_orden, estado, notas, tipo_entrega, direccion_entrega, numero_guia, sede_id, sede_codigo, cliente_id, cliente_nombre, cliente_telefono')
+    .eq('id', id)
+    .single()
 
   if (!pedido) notFound()
   if (!puedeAccederSede(sesion, pedido.sede_id)) notFound()
   if (pedido.estado === 'cancelado') notFound()
+
+  // Intentar con imagen_url; si la columna no existe, hacer fallback sin ella
+  let items: any[] = []
+  const itemsRes = await supabase
+    .from('pedido_items')
+    .select('id, marca, descripcion, talla, cantidad, precio_venta, imagen_url')
+    .eq('pedido_id', id)
+    .order('id')
+
+  if (itemsRes.error) {
+    const fallback = await supabase
+      .from('pedido_items')
+      .select('id, marca, descripcion, talla, cantidad, precio_venta')
+      .eq('pedido_id', id)
+      .order('id')
+    items = (fallback.data ?? []).map(it => ({ ...it, imagen_url: null }))
+  } else {
+    items = itemsRes.data ?? []
+  }
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
@@ -57,12 +69,12 @@ export default async function EditarPedidoPage({
             tipoEntrega={pedido.tipo_entrega as 'sede' | 'domicilio'}
             direccionEntrega={pedido.direccion_entrega}
             numeroGuia={(pedido as any).numero_guia ?? null}
-            productos={(items ?? []).map((it: any) => ({
-              marca:        it.marca,
-              descripcion:  it.descripcion,
+            productos={items.map((it: any) => ({
+              marca:        it.marca ?? '',
+              descripcion:  it.descripcion ?? '',
               talla:        it.talla ?? '',
-              cantidad:     it.cantidad,
-              precio_venta: it.precio_venta,
+              cantidad:     it.cantidad ?? 1,
+              precio_venta: it.precio_venta ?? 0,
               imagen_url:   it.imagen_url ?? null,
             }))}
           />
