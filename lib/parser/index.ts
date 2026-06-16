@@ -291,6 +291,13 @@ function collectAll(lines: string[], ...claves: string[]): string[] {
   return results
 }
 
+// Detecta líneas que parecen una dirección colombiana (Calle, Carrera, Av, etc.)
+function esDireccion(line: string): boolean {
+  if (/^(calle|carrera|cra|cl|avenida|av|autopista|transversal|trans|tv|diagonal|diag|dg)\b/i.test(line.trim())) return true
+  if (/#\s*\d+[a-zA-Z]?\s*-\s*\d+/.test(line)) return true
+  return false
+}
+
 function parsearLibre(texto: string): ParseResult {
   const lines = texto.split('\n').map((l) => l.trim()).filter(Boolean)
 
@@ -397,6 +404,7 @@ function parsearLibre(texto: string): ParseResult {
       if (phoneStr && line.replace(/\D/g, '') === phoneStr) continue
       if (nombreNc && nc(line) === nombreNc) continue         // ya tomado como nombre
       if (line.trim().split(/\s+/).length < 2) continue       // una sola palabra
+      if (esDireccion(line)) continue                         // dirección de entrega, no producto
       const lineNc = nc(line)
       if (camposOcupados.some(k => lineNc === k || lineNc.startsWith(k + ' '))) continue
       todosArticulos.push(line.trim()); break
@@ -463,7 +471,8 @@ function parsearLibre(texto: string): ParseResult {
     !l.includes(':') &&
     !/^https?:\/\//i.test(l) &&
     !/^(TR|CR|SR)\d+/i.test(l) &&
-    l.length > 10
+    l.length > 10 &&
+    !esDireccion(l)
   )
   // Etiquetados tienen prioridad; huérfanas rellenan los slots sin nombre
   const todosNombres = [...todosNombresEtiquetados]
