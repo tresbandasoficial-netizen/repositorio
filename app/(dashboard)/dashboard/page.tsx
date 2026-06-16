@@ -2,7 +2,9 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getMetricasAdmin, getMetricasAsesor, getMetricasPorSede, getMetricasPorAsesor, getUltimosPedidosAsesor } from '@/lib/queries/metricas'
-import { getEstadisticas, EstadisticaDia } from '@/lib/queries/estadisticas'
+import { getEstadisticas } from '@/lib/queries/estadisticas'
+import { PedidosAreaChart } from '@/components/dashboard/PedidosAreaChart'
+import { SedeDonutChart } from '@/components/dashboard/SedeDonutChart'
 import { EstadoBadge } from '@/components/pedidos/EstadoBadge'
 import { EstadoPedido } from '@/types'
 import { formatCOP } from '@/lib/utils/format'
@@ -84,162 +86,6 @@ function KpiCard({
   )
 }
 
-// ── Bar chart de pedidos por día ──────────────────────────────────────────────
-function BarChartPedidos({
-  datos,
-  totalPedidos,
-  totalVentas,
-  desde,
-  hasta,
-}: {
-  datos: EstadisticaDia[]
-  totalPedidos: number
-  totalVentas: number
-  desde: string
-  hasta: string
-}) {
-  // Llenar todos los días del rango con ceros donde no haya datos
-  const mapaFechas = new Map(datos.map(d => [d.fecha, d]))
-  const dias: Array<{ fecha: string; pedidos: number }> = []
-  const fechaInicio = new Date(desde + 'T12:00:00Z')
-  const fechaFin = new Date(hasta + 'T12:00:00Z')
-  for (const d = new Date(fechaInicio); d <= fechaFin; d.setDate(d.getDate() + 1)) {
-    const f = d.toISOString().slice(0, 10)
-    dias.push({ fecha: f, pedidos: mapaFechas.get(f)?.pedidos ?? 0 })
-  }
-
-  const maxPedidos = Math.max(1, ...dias.map(d => d.pedidos))
-  const n = dias.length
-
-  function labelFecha(fecha: string) {
-    const d = new Date(fecha + 'T12:00:00Z')
-    return d.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })
-  }
-
-  // Mostrar etiquetas cada ~10 días
-  const indicesEtiqueta = new Set([0, Math.floor(n / 3), Math.floor((2 * n) / 3), n - 1])
-
-  return (
-    <div className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100">
-      {/* Header */}
-      <div className="flex items-start justify-between mb-1">
-        <div>
-          <h2 className="text-sm font-bold text-gray-900">Pedidos — últimos 30 días</h2>
-          <p className="text-xs text-gray-400 mt-0.5">
-            {labelFecha(desde)} → {labelFecha(hasta)}
-          </p>
-        </div>
-        <div className="text-right">
-          <p className="text-2xl font-bold text-gray-900">{totalPedidos}</p>
-          <p className="text-xs text-gray-400">{formatCOP(totalVentas)}</p>
-        </div>
-      </div>
-
-      {/* Barras */}
-      <div className="mt-4 flex items-end gap-[2px]" style={{ height: '100px' }}>
-        {dias.map((d, i) => {
-          const pct = Math.round((d.pedidos / maxPedidos) * 100)
-          const esHoy = d.fecha === hasta
-          return (
-            <div
-              key={d.fecha}
-              className="flex-1 flex flex-col justify-end"
-              title={`${labelFecha(d.fecha)}: ${d.pedidos} pedidos`}
-            >
-              <div
-                className={`w-full rounded-t-sm transition-all ${
-                  esHoy ? 'bg-blue-600' : d.pedidos > 0 ? 'bg-blue-400' : 'bg-gray-100'
-                }`}
-                style={{ height: `${Math.max(pct > 0 ? 8 : 3, pct)}%` }}
-              />
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Eje X */}
-      <div className="flex mt-2 relative" style={{ height: '16px' }}>
-        {dias.map((d, i) => {
-          if (!indicesEtiqueta.has(i)) return null
-          const leftPct = (i / (n - 1)) * 100
-          return (
-            <span
-              key={d.fecha}
-              className="absolute text-[10px] text-gray-400 -translate-x-1/2"
-              style={{ left: `${leftPct}%` }}
-            >
-              {labelFecha(d.fecha)}
-            </span>
-          )
-        })}
-      </div>
-
-      <Link
-        href="/estadisticas"
-        className="mt-3 inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-semibold"
-      >
-        Ver estadísticas completas <ArrowUpRight size={11} />
-      </Link>
-    </div>
-  )
-}
-
-// ── Métodos de pago — barras horizontales ─────────────────────────────────────
-function MetodosPagoChart({
-  datos,
-  totalRecaudado,
-}: {
-  datos: Array<{ metodo: string; monto: number; porcentaje_monto: number; count: number }>
-  totalRecaudado: number
-}) {
-  const colores: Record<string, string> = {
-    efectivo:      'bg-emerald-500',
-    transferencia: 'bg-blue-500',
-    datafono:      'bg-violet-500',
-    addi:          'bg-pink-500',
-    bold:          'bg-orange-500',
-    sistecredito:  'bg-yellow-500',
-    credito:       'bg-red-400',
-    otro:          'bg-gray-400',
-  }
-
-  const top = datos.slice(0, 5)
-
-  return (
-    <div className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100">
-      <div className="flex items-start justify-between mb-4">
-        <div>
-          <h2 className="text-sm font-bold text-gray-900">Métodos de pago</h2>
-          <p className="text-xs text-gray-400 mt-0.5">Últimos 30 días</p>
-        </div>
-        <div className="text-right">
-          <p className="text-lg font-bold text-gray-900">{formatCOP(totalRecaudado)}</p>
-          <p className="text-xs text-gray-400">recaudado</p>
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        {top.map((m) => (
-          <div key={m.metodo}>
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-semibold text-gray-700 capitalize">{m.metodo}</span>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-400">{m.count} pagos</span>
-                <span className="text-xs font-bold text-gray-900">{m.porcentaje_monto}%</span>
-              </div>
-            </div>
-            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all ${colores[m.metodo] ?? 'bg-gray-400'}`}
-                style={{ width: `${m.porcentaje_monto}%` }}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
 
 // ── Tabla de sedes / asesores ─────────────────────────────────────────────────
 function TableCard({ title, children }: { title: string; children: React.ReactNode }) {
@@ -345,12 +191,12 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        {/* Gráficas de estadísticas */}
+        {/* Gráficas */}
         <div>
           <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 px-1">Estadísticas</p>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
             <div className="lg:col-span-2">
-              <BarChartPedidos
+              <PedidosAreaChart
                 datos={stats.por_dia}
                 totalPedidos={stats.total_pedidos}
                 totalVentas={stats.total_ventas}
@@ -358,9 +204,9 @@ export default async function DashboardPage() {
                 hasta={stats.hasta}
               />
             </div>
-            <MetodosPagoChart
-              datos={stats.por_metodo_pago}
-              totalRecaudado={stats.total_recaudado}
+            <SedeDonutChart
+              sedes={stats.por_sede}
+              totalPedidos={stats.total_pedidos}
             />
           </div>
         </div>
@@ -504,7 +350,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Gráfica */}
-      <BarChartPedidos
+      <PedidosAreaChart
         datos={stats.por_dia}
         totalPedidos={stats.total_pedidos}
         totalVentas={stats.total_ventas}
