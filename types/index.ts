@@ -50,6 +50,7 @@ export type PedidoItem = {
   talla: string | null
   cantidad: number
   precio_venta: number
+  imagen_url: string | null
 }
 
 export type Pago = {
@@ -134,6 +135,7 @@ export type ParsedPedido = {
     talla: string | null
     cantidad: number
     precio_venta: number
+    imagen_url?: string | null
   }>
   total: number
   abono: number

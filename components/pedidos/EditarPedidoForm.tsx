@@ -3,8 +3,9 @@
 import { useState, useTransition } from 'react'
 import { editarPedidoAction } from '@/app/actions/pedidos'
 import { formatCOP } from '@/lib/utils/format'
+import { ImagenProducto } from '@/components/pedidos/ImagenProducto'
 
-type Producto = { marca: string; descripcion: string; talla: string; cantidad: number; precio_venta: number }
+type Producto = { marca: string; descripcion: string; talla: string; cantidad: number; precio_venta: number; imagen_url?: string | null }
 
 interface Props {
   pedidoId: string
@@ -36,7 +37,7 @@ export function EditarPedidoForm({
   const [error, setError]           = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
-  function updateProducto(idx: number, field: keyof Producto, value: string | number) {
+  function updateProducto(idx: number, field: keyof Producto, value: string | number | null) {
     setProductos(prev => prev.map((p, i) => i === idx ? { ...p, [field]: value } : p))
   }
 
@@ -140,24 +141,32 @@ export function EditarPedidoForm({
           {productos.map((p, i) => (
             <div key={i} className="border border-gray-200 rounded-lg p-3 space-y-2">
               <div className="flex gap-2">
-                <div className="flex-1">
-                  <label className="block text-xs text-gray-500 mb-0.5">Artículo</label>
-                  <input type="text" value={[p.marca, p.descripcion].filter(Boolean).join(' ')}
-                    onChange={e => { updateProducto(i, 'marca', ''); updateProducto(i, 'descripcion', e.target.value) }}
-                    className="w-full px-2.5 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <ImagenProducto
+                  value={p.imagen_url ?? null}
+                  onChange={url => updateProducto(i, 'imagen_url', url ?? null)}
+                />
+                <div className="flex-1 space-y-2">
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label className="block text-xs text-gray-500 mb-0.5">Artículo</label>
+                      <input type="text" value={[p.marca, p.descripcion].filter(Boolean).join(' ')}
+                        onChange={e => { updateProducto(i, 'marca', ''); updateProducto(i, 'descripcion', e.target.value) }}
+                        className="w-full px-2.5 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    <div className="w-20">
+                      <label className="block text-xs text-gray-500 mb-0.5">Talla</label>
+                      <input type="text" value={p.talla}
+                        onChange={e => updateProducto(i, 'talla', e.target.value)}
+                        className="w-full px-2.5 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                  </div>
+                  <div className="max-w-[160px]">
+                    <label className="block text-xs text-gray-500 mb-0.5">Precio</label>
+                    <input type="number" min={0} value={p.precio_venta}
+                      onChange={e => updateProducto(i, 'precio_venta', parseInt(e.target.value) || 0)}
+                      className="w-full px-2.5 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
                 </div>
-                <div className="w-20">
-                  <label className="block text-xs text-gray-500 mb-0.5">Talla</label>
-                  <input type="text" value={p.talla}
-                    onChange={e => updateProducto(i, 'talla', e.target.value)}
-                    className="w-full px-2.5 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-              </div>
-              <div className="max-w-[160px]">
-                <label className="block text-xs text-gray-500 mb-0.5">Precio</label>
-                <input type="number" min={0} value={p.precio_venta}
-                  onChange={e => updateProducto(i, 'precio_venta', parseInt(e.target.value) || 0)}
-                  className="w-full px-2.5 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               {productos.length > 1 && (
                 <button type="button" onClick={() => quitarProducto(i)}

@@ -80,6 +80,7 @@ async function _crearPedidoConDatos(
     talla: p.talla ?? '',
     cantidad: p.cantidad,
     precio_venta: p.precio_venta,
+    imagen_url: (p as any).imagen_url ?? null,
   }))
   const total = datos.productos.reduce((s, p) => s + p.precio_venta * p.cantidad, 0)
 
@@ -230,7 +231,7 @@ export async function editarPedidoAction(
     cliente_nombre: string
     cliente_telefono: string
     cliente_id: string
-    productos: Array<{ marca: string; descripcion: string; talla: string; cantidad: number; precio_venta: number }>
+    productos: Array<{ marca: string; descripcion: string; talla: string; cantidad: number; precio_venta: number; imagen_url?: string | null }>
   }
 ): Promise<EditarPedidoResult> {
   const sesion = await getSesion()
@@ -299,6 +300,7 @@ export async function editarPedidoAction(
       talla:        p.talla.trim() || null,
       cantidad:     p.cantidad,
       precio_venta: p.precio_venta,
+      imagen_url:   (p as any).imagen_url ?? null,
     }))
   )
   if (itemsError) return { ok: false, error: `Error actualizando productos: ${itemsError.message}` }

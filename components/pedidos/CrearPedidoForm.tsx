@@ -8,6 +8,7 @@ import { crearPedidoDesdeDataAction } from '@/app/actions/pedidos'
 import { buscarClientesAction, ClienteBusqueda } from '@/app/actions/clientes'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
+import { ImagenProducto } from '@/components/pedidos/ImagenProducto'
 
 interface CrearPedidoFormProps {
   numeroSugerido: string
@@ -397,28 +398,36 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
                   {editableData.productos.map((p, i) => (
                     <div key={i} className="border border-gray-200 rounded-lg p-3 space-y-2">
                       <div className="flex gap-2">
-                        <div className="flex-1">
+                        <ImagenProducto
+                          value={p.imagen_url ?? null}
+                          onChange={url => updateProducto(i, 'imagen_url', url ?? '')}
+                        />
+                        <div className="flex-1 space-y-2">
+                          <div className="flex gap-2">
+                            <div className="flex-1">
+                              <InputField
+                                label="Artículo"
+                                value={[p.marca, p.descripcion].filter(Boolean).join(' ')}
+                                onChange={v => { updateProducto(i, 'marca', ''); updateProducto(i, 'descripcion', v) }}
+                              />
+                            </div>
+                            <div className="w-20">
+                              <InputField
+                                label="Talla"
+                                value={p.talla ?? ''}
+                                onChange={v => updateProducto(i, 'talla', v)}
+                              />
+                            </div>
+                          </div>
                           <InputField
-                            label="Artículo"
-                            value={[p.marca, p.descripcion].filter(Boolean).join(' ')}
-                            onChange={v => { updateProducto(i, 'marca', ''); updateProducto(i, 'descripcion', v) }}
-                          />
-                        </div>
-                        <div className="w-20">
-                          <InputField
-                            label="Talla"
-                            value={p.talla ?? ''}
-                            onChange={v => updateProducto(i, 'talla', v)}
+                            label="Precio"
+                            value={p.precio_venta}
+                            type="number"
+                            onChange={v => updateProducto(i, 'precio_venta', parseInt(v) || 0)}
+                            className="max-w-[160px]"
                           />
                         </div>
                       </div>
-                      <InputField
-                        label="Precio"
-                        value={p.precio_venta}
-                        type="number"
-                        onChange={v => updateProducto(i, 'precio_venta', parseInt(v) || 0)}
-                        className="max-w-[160px]"
-                      />
                       {editableData.productos.length > 1 && (
                         <button type="button"
                           onClick={() => setEditableData(prev => prev ? { ...prev, productos: prev.productos.filter((_, j) => j !== i) } : null)}

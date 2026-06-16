@@ -22,7 +22,7 @@ export default async function EditarPedidoPage({
       .single(),
     supabase
       .from('pedido_items')
-      .select('id, marca, descripcion, talla, cantidad, precio_venta')
+      .select('id, marca, descripcion, talla, cantidad, precio_venta, imagen_url')
       .eq('pedido_id', id)
       .order('id'),
   ])
@@ -63,6 +63,7 @@ export default async function EditarPedidoPage({
               talla:        it.talla ?? '',
               cantidad:     it.cantidad,
               precio_venta: it.precio_venta,
+              imagen_url:   it.imagen_url ?? null,
             }))}
           />
         </CardContent>

@@ -35,6 +35,7 @@ export type PedidoDetalle = PedidoRow & {
     talla: string | null
     cantidad: number
     precio_venta: number
+    imagen_url: string | null
   }>
   pagos: Array<{
     id: string
@@ -133,7 +134,7 @@ export async function getPedidoDetalle(id: string): Promise<PedidoDetalle | null
     supabase.from('vista_pedidos_asesor').select('*').eq('id', id).single(),
     supabase
       .from('pedido_items')
-      .select('id, marca, descripcion, talla, cantidad, precio_venta')
+      .select('id, marca, descripcion, talla, cantidad, precio_venta, imagen_url')
       .eq('pedido_id', id)
       .order('id'),
     supabase

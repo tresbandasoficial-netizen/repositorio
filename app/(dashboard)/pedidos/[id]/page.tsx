@@ -87,8 +87,11 @@ export default async function PedidoDetallePage({
               {/* Móvil */}
               <div className="md:hidden divide-y divide-gray-50">
                 {pedido.items.map((item) => (
-                  <div key={item.id} className="px-4 py-3 flex justify-between items-start gap-3">
-                    <div className="min-w-0">
+                  <div key={item.id} className="px-4 py-3 flex items-start gap-3">
+                    {item.imagen_url && (
+                      <img src={item.imagen_url} alt="Producto" className="w-12 h-12 object-cover rounded-lg border border-gray-200 flex-shrink-0" />
+                    )}
+                    <div className="min-w-0 flex-1">
                       <span className="font-medium text-gray-900">{item.marca}</span>
                       <span className="text-gray-500 ml-1 text-sm">{item.descripcion}</span>
                       <div className="text-xs text-gray-400 mt-0.5">
@@ -118,8 +121,15 @@ export default async function PedidoDetallePage({
                   {pedido.items.map((item) => (
                     <tr key={item.id}>
                       <td className="px-6 py-3">
-                        <span className="font-medium text-gray-900">{item.marca}</span>
-                        <span className="text-gray-500 ml-2">{item.descripcion}</span>
+                        <div className="flex items-center gap-3">
+                          {item.imagen_url && (
+                            <img src={item.imagen_url} alt="Producto" className="w-10 h-10 object-cover rounded-lg border border-gray-200 flex-shrink-0" />
+                          )}
+                          <div>
+                            <span className="font-medium text-gray-900">{item.marca}</span>
+                            <span className="text-gray-500 ml-2">{item.descripcion}</span>
+                          </div>
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-center text-gray-600">{item.talla ?? '—'}</td>
                       <td className="px-4 py-3 text-center text-gray-600">{item.cantidad}</td>
