@@ -97,7 +97,7 @@ export function PedidosAreaChart({ datos, totalPedidos, totalVentas, desde, hast
               fontSize: 12,
               padding: '8px 12px',
             }}
-            formatter={(v: number) => [`${v} pedidos`, '']}
+            formatter={(v) => [`${v ?? 0} pedidos`, '']}
             labelFormatter={(l) => l}
             cursor={{ stroke: '#3b82f6', strokeWidth: 1, strokeDasharray: '4 2' }}
           />

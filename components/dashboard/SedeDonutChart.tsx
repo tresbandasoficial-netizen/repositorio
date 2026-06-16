@@ -71,7 +71,7 @@ export function SedeDonutChart({ sedes, totalPedidos }: Props) {
                   fontSize: 12,
                   padding: '6px 10px',
                 }}
-                formatter={(v: number, _: string, props: any) => [`${v} pedidos (${props.payload.pct}%)`, props.payload.name]}
+                formatter={(v, _, props: any) => [`${v ?? 0} pedidos (${props.payload?.pct ?? 0}%)`, props.payload?.name ?? '']}
               />
             </PieChart>
           </ResponsiveContainer>
