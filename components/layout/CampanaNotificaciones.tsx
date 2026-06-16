@@ -97,7 +97,7 @@ export function CampanaNotificaciones({ usuarioId }: Props) {
     <div ref={panelRef} className="relative">
       <button
         onClick={handleAbrir}
-        className="relative flex items-center justify-center w-8 h-8 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+        className="relative flex items-center justify-center w-9 h-9 rounded-xl text-gray-500 hover:bg-gray-100 transition-colors"
         aria-label="Notificaciones"
       >
         <Bell size={16} />
@@ -109,7 +109,7 @@ export function CampanaNotificaciones({ usuarioId }: Props) {
       </button>
 
       {abierto && (
-        <div className="absolute left-full ml-2 top-0 w-80 bg-white rounded-xl shadow-xl border border-gray-200 z-50 overflow-hidden">
+        <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
             <span className="text-sm font-semibold text-gray-900">
               Notificaciones {count > 0 && <span className="text-red-500">({count})</span>}

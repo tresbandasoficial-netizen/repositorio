@@ -56,7 +56,7 @@ export default async function PedidosPage({
         </div>
         <Link
           href="/pedidos/nuevo"
-          className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm shadow-blue-200"
+          className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-4 py-2.5 rounded-2xl transition-colors shadow-md shadow-blue-200"
         >
           <Plus size={15} />
           Nuevo pedido

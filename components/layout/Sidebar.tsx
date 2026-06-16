@@ -5,7 +5,6 @@ import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils/cn'
 import { createClient } from '@/lib/supabase/client'
 import { Usuario } from '@/types'
-import { CampanaNotificaciones } from './CampanaNotificaciones'
 import {
   LayoutDashboard,
   Package,
@@ -50,63 +49,62 @@ export function Sidebar({ usuario, onClose }: SidebarProps) {
   const items = navItems.filter((item) => item.rol.includes(usuario.rol))
 
   return (
-    <aside className="w-60 shrink-0 flex flex-col bg-gray-950 min-h-screen">
+    <aside className="flex flex-col bg-white border-r border-gray-100 min-h-screen shadow-sm
+      w-56 md:w-[68px]">
+
       {/* Logo */}
-      <div className="px-5 py-5 border-b border-gray-800">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center shrink-0">
-            <span className="text-white font-black text-xs">TR</span>
-          </div>
-          <span className="text-white font-bold text-sm tracking-tight">TR Original</span>
+      <div className="flex items-center h-16 px-4 md:justify-center border-b border-gray-100 shrink-0">
+        <div className="w-9 h-9 rounded-2xl bg-blue-600 flex items-center justify-center shrink-0">
+          <span className="text-white font-black text-sm tracking-tight">TR</span>
         </div>
+        <span className="md:hidden ml-3 font-bold text-gray-900 text-sm">Tres Bandas</span>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5">
+      <nav className="flex-1 flex flex-col items-start md:items-center gap-1 px-3 md:px-2 py-4">
         {items.map((item) => {
           const Icon = item.icon
-          const active = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
+          const active =
+            pathname === item.href ||
+            (item.href !== '/dashboard' && pathname.startsWith(item.href))
           return (
             <Link
               key={item.href}
               href={item.href}
               onClick={onClose}
+              title={item.label}
               className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all',
+                'flex items-center gap-3 md:gap-0 md:justify-center w-full md:w-11 h-11 rounded-2xl transition-all text-sm font-medium px-3 md:px-0',
                 active
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/30'
-                  : 'text-gray-400 hover:bg-gray-800/60 hover:text-gray-100'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
+                  : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'
               )}
             >
-              <Icon size={16} className="shrink-0" />
-              {item.label}
+              <Icon size={18} className="shrink-0" />
+              <span className="md:hidden">{item.label}</span>
             </Link>
           )
         })}
       </nav>
 
       {/* Footer */}
-      <div className="px-3 pb-4 border-t border-gray-800 pt-4 space-y-1">
-        <div className="px-3 py-2 flex items-center justify-between mb-1">
-          <Link href="/perfil" onClick={onClose} className="min-w-0 group flex-1">
-            <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-full bg-gray-700 flex items-center justify-center shrink-0">
-                <span className="text-xs font-bold text-gray-300">{usuario.nombre.charAt(0).toUpperCase()}</span>
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs font-medium text-gray-300 truncate group-hover:text-white transition-colors">{usuario.nombre}</p>
-                <p className="text-xs text-gray-500 capitalize">{usuario.rol}</p>
-              </div>
-            </div>
-          </Link>
-          <CampanaNotificaciones usuarioId={usuario.id} />
+      <div className="flex flex-col items-start md:items-center gap-2 px-3 md:px-2 pb-5 pt-4 border-t border-gray-100">
+        <div className="flex items-center gap-3 md:gap-0 md:justify-center w-full">
+          <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+            <span className="text-sm font-bold text-blue-700">{usuario.nombre.charAt(0).toUpperCase()}</span>
+          </div>
+          <div className="md:hidden min-w-0">
+            <p className="text-xs font-semibold text-gray-800 truncate">{usuario.nombre}</p>
+            <p className="text-xs text-gray-400 capitalize">{usuario.rol}</p>
+          </div>
         </div>
         <button
           onClick={handleLogout}
-          className="w-full text-left flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-gray-500 hover:bg-gray-800/60 hover:text-gray-300 transition-all"
+          title="Cerrar sesión"
+          className="flex items-center gap-3 md:gap-0 md:justify-center w-full md:w-11 h-10 rounded-2xl text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors px-3 md:px-0 text-sm"
         >
-          <LogOut size={14} className="shrink-0" />
-          Cerrar sesión
+          <LogOut size={16} className="shrink-0" />
+          <span className="md:hidden">Cerrar sesión</span>
         </button>
       </div>
     </aside>
