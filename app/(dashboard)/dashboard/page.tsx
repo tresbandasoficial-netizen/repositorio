@@ -142,7 +142,7 @@ export default async function DashboardPage() {
     ])
 
     return (
-      <div className="p-5 md:p-6 space-y-5 max-w-7xl">
+      <div className="p-5 md:p-6 space-y-5">
 
         {/* Alerta crítica */}
         {(m.pedidos_en_alerta > 0 || m.pedidos_zombie > 0) && (
@@ -319,7 +319,7 @@ export default async function DashboardPage() {
   ])
 
   return (
-    <div className="p-5 md:p-6 space-y-5 max-w-3xl">
+    <div className="p-5 md:p-6 space-y-5 max-w-2xl">
 
       {m.pedidos_en_alerta > 0 && (
         <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-100 rounded-2xl">

@@ -47,7 +47,7 @@ export default async function EstadisticasPage({
   const maxPedidosDia = Math.max(1, ...stats.por_dia.map(d => d.pedidos))
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>

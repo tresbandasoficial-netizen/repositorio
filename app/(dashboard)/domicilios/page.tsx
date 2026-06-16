@@ -37,7 +37,7 @@ export default async function DomiciliosPage({
   const todasFechas = [...new Set([hoy, ...fechasDisponibles])]
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
+    <div className="p-6">
       <div className="mb-6">
         <h1 className="text-xl font-bold text-gray-900">Domicilios</h1>
         <p className="text-sm text-gray-500 mt-0.5">
