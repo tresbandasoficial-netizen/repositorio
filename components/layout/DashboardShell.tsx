@@ -14,11 +14,11 @@ export function DashboardShell({ usuario, children }: Props) {
   const [abierto, setAbierto] = useState(false)
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-slate-50">
       {/* Overlay móvil */}
       {abierto && (
         <div
-          className="fixed inset-0 bg-black/50 z-20 md:hidden"
+          className="fixed inset-0 bg-black/60 z-20 md:hidden backdrop-blur-sm"
           onClick={() => setAbierto(false)}
         />
       )}
@@ -37,15 +37,20 @@ export function DashboardShell({ usuario, children }: Props) {
       {/* Contenido principal */}
       <div className="flex-1 flex flex-col min-w-0 overflow-auto">
         {/* Barra superior móvil */}
-        <div className="md:hidden flex items-center gap-3 px-4 py-3 border-b border-gray-200 bg-white sticky top-0 z-10">
+        <div className="md:hidden flex items-center gap-3 px-4 py-3 border-b border-gray-200 bg-white sticky top-0 z-10 shadow-sm">
           <button
             onClick={() => setAbierto(true)}
-            className="p-1 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
+            className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
             aria-label="Abrir menú"
           >
             <Menu size={20} />
           </button>
-          <span className="font-bold text-gray-900 text-sm">TR Original</span>
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-lg bg-blue-600 flex items-center justify-center">
+              <span className="text-white font-black text-[10px]">TR</span>
+            </div>
+            <span className="font-bold text-gray-900 text-sm">TR Original</span>
+          </div>
         </div>
 
         <main className="flex-1">

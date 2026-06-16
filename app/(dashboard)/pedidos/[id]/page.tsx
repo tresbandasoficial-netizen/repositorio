@@ -29,45 +29,45 @@ export default async function PedidoDetallePage({
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto">
       {/* Cabecera */}
-      <div className="mb-4 md:mb-6 space-y-3">
-        <div className="flex items-center gap-3 flex-wrap">
-          <Link href="/pedidos" className="text-gray-400 hover:text-gray-600 text-sm">
+      <div className="mb-4 md:mb-6 space-y-4">
+        <div className="flex items-center gap-2 text-sm">
+          <Link href="/pedidos" className="text-gray-400 hover:text-gray-600 transition-colors">
             ← Pedidos
           </Link>
           <span className="text-gray-300">/</span>
-          <span className="font-mono font-bold text-gray-900 text-lg">{pedido.numero_orden}</span>
+          <span className="font-mono font-bold text-gray-900">{pedido.numero_orden}</span>
           <EstadoBadge estado={pedido.estado} enAlerta={pedido.en_alerta} />
         </div>
         <div className="flex gap-2 flex-wrap">
           <Link
             href={`/pedidos/${id}/pago`}
-            className="text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg font-medium transition-colors"
+            className="text-sm bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl font-semibold transition-colors shadow-sm shadow-blue-200"
           >
             + Registrar pago
           </Link>
           <Link
             href={`/pedidos/${id}/estado`}
-            className="text-sm bg-white border border-gray-300 hover:bg-gray-50 px-3 py-2 rounded-lg font-medium text-gray-700 transition-colors"
+            className="text-sm bg-white border border-gray-200 hover:bg-gray-50 px-3.5 py-2 rounded-xl font-medium text-gray-700 transition-colors"
           >
             Cambiar estado
           </Link>
           <Link
             href={`/pedidos/${id}/editar`}
-            className="text-sm bg-white border border-gray-300 hover:bg-gray-50 px-3 py-2 rounded-lg font-medium text-gray-700 transition-colors"
+            className="text-sm bg-white border border-gray-200 hover:bg-gray-50 px-3.5 py-2 rounded-xl font-medium text-gray-700 transition-colors"
           >
             Editar
           </Link>
           <Link
             href={`/pedidos/${id}/etiqueta`}
             target="_blank"
-            className="text-sm bg-white border border-gray-300 hover:bg-gray-50 px-3 py-2 rounded-lg font-medium text-gray-500 transition-colors"
+            className="text-sm bg-white border border-gray-200 hover:bg-gray-50 px-3.5 py-2 rounded-xl font-medium text-gray-500 transition-colors"
           >
             Etiqueta
           </Link>
           <Link
             href={`/pedidos/${id}/imprimir`}
             target="_blank"
-            className="hidden sm:inline-flex text-sm bg-white border border-gray-300 hover:bg-gray-50 px-3 py-2 rounded-lg font-medium text-gray-500 transition-colors"
+            className="hidden sm:inline-flex text-sm bg-white border border-gray-200 hover:bg-gray-50 px-3.5 py-2 rounded-xl font-medium text-gray-500 transition-colors"
           >
             Imprimir
           </Link>

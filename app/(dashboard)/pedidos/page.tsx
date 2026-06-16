@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getPedidos } from '@/lib/queries/pedidos'
 import { PedidosList } from '@/components/pedidos/PedidosList'
 import { EstadoPedido } from '@/types'
+import { Plus } from 'lucide-react'
 
 interface SearchParams {
   estado?: string
@@ -43,7 +44,6 @@ export default async function PedidosPage({
     sede:         params.sede,
     fecha_desde:  params.desde,
     fecha_hasta:  params.hasta,
-    // Asesores solo ven pedidos de su sede asignada
     ...(!esAdmin && usuario.sedes ? { sede: (usuario.sedes as any).codigo } : {}),
   })
 
@@ -51,14 +51,15 @@ export default async function PedidosPage({
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Pedidos</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Gestiona y rastrea todos los pedidos</p>
+          <h1 className="text-2xl font-bold text-gray-900">Pedidos</h1>
+          <p className="text-sm text-gray-400 mt-0.5">Gestiona y rastrea todos los pedidos</p>
         </div>
         <Link
           href="/pedidos/nuevo"
-          className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+          className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm shadow-blue-200"
         >
-          + Nuevo pedido
+          <Plus size={15} />
+          Nuevo pedido
         </Link>
       </div>
 
