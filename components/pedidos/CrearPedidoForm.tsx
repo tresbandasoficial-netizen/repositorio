@@ -216,7 +216,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
               <button
                 type="button"
                 onClick={() => setModoCrear('texto')}
-                className={`flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${
+                className={`flex-1 py-2 px-3 rounded-lg border text-sm font-medium active:scale-95 ${
                   modoCrear === 'texto'
                     ? 'bg-blue-600 border-blue-600 text-white'
                     : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400'
@@ -227,7 +227,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
               <button
                 type="button"
                 onClick={() => setModoCrear('buscar')}
-                className={`flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${
+                className={`flex-1 py-2 px-3 rounded-lg border text-sm font-medium active:scale-95 ${
                   modoCrear === 'buscar'
                     ? 'bg-blue-600 border-blue-600 text-white'
                     : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400'
@@ -488,7 +488,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
                           key={m.value}
                           type="button"
                           onClick={() => updateField('metodo_pago_abono', m.value)}
-                          className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
+                          className={`px-3 py-1.5 rounded-lg border text-sm font-medium active:scale-95 ${
                             editableData.metodo_pago_abono === m.value
                               ? 'bg-blue-600 border-blue-600 text-white'
                               : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400'

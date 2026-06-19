@@ -7,10 +7,29 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variants = {
-  primary: 'bg-blue-600 hover:bg-blue-700 text-white',
-  secondary: 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-300',
-  danger: 'bg-red-600 hover:bg-red-700 text-white',
-  ghost: 'hover:bg-gray-100 text-gray-600',
+  primary: [
+    'bg-blue-600 text-white shadow-sm',
+    'hover:bg-blue-700 hover:-translate-y-0.5 hover:shadow-md hover:shadow-blue-300/50',
+    'active:translate-y-0 active:shadow-sm active:bg-blue-800',
+  ].join(' '),
+
+  secondary: [
+    'bg-white text-gray-700 border border-gray-200 shadow-sm',
+    'hover:bg-gray-50 hover:-translate-y-0.5 hover:shadow-md hover:border-gray-300',
+    'active:translate-y-0 active:shadow-sm active:bg-gray-100',
+  ].join(' '),
+
+  danger: [
+    'bg-red-600 text-white shadow-sm',
+    'hover:bg-red-700 hover:-translate-y-0.5 hover:shadow-md hover:shadow-red-300/50',
+    'active:translate-y-0 active:shadow-sm active:bg-red-800',
+  ].join(' '),
+
+  ghost: [
+    'text-gray-600',
+    'hover:bg-gray-100 hover:text-gray-900 hover:-translate-y-0.5',
+    'active:translate-y-0 active:bg-gray-200',
+  ].join(' '),
 }
 
 const sizes = {
@@ -31,7 +50,9 @@ export function Button({
       {...props}
       disabled={disabled}
       className={cn(
-        'inline-flex items-center justify-center rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed',
+        'inline-flex items-center justify-center gap-1.5 rounded-lg font-medium',
+        'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1',
+        'disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none',
         variants[variant],
         sizes[size],
         className

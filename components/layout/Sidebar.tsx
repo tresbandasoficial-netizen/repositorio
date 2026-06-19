@@ -74,10 +74,11 @@ export function Sidebar({ usuario, onClose }: SidebarProps) {
               onClick={onClose}
               title={item.label}
               className={cn(
-                'flex items-center gap-3 md:gap-0 md:justify-center w-full md:w-11 h-11 rounded-2xl transition-all text-sm font-medium px-3 md:px-0',
+                'flex items-center gap-3 md:gap-0 md:justify-center w-full md:w-11 h-11 rounded-2xl text-sm font-medium px-3 md:px-0',
+                'transition-all duration-150 ease-out active:scale-95',
                 active
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
-                  : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-300/50'
+                  : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700 hover:-translate-y-0.5'
               )}
             >
               <Icon size={18} className="shrink-0" />

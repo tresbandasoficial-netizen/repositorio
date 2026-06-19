@@ -154,7 +154,7 @@ export function EditarPedidoForm(props: Props) {
             type="button"
             onClick={handleParsear}
             disabled={texto.trim().length < 10}
-            className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
+            className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 hover:-translate-y-0.5 hover:shadow-md hover:shadow-blue-300/50 active:translate-y-0 active:scale-95 disabled:opacity-50 disabled:transform-none text-white text-sm font-medium rounded-lg shadow-sm"
           >
             Validar resumen →
           </button>
@@ -228,7 +228,7 @@ export function EditarPedidoForm(props: Props) {
         <div className="flex gap-2 mb-3">
           {(['sede', 'domicilio'] as const).map(t => (
             <button key={t} type="button" onClick={() => updateField('tipo_entrega', t)}
-              className={`flex-1 py-2 px-3 rounded-lg border text-sm font-medium capitalize transition-colors ${
+              className={`flex-1 py-2 px-3 rounded-lg border text-sm font-medium capitalize active:scale-95 ${
                 parsed.tipo_entrega === t
                   ? 'bg-blue-600 border-blue-600 text-white'
                   : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400'
@@ -332,7 +332,7 @@ export function EditarPedidoForm(props: Props) {
 
       <div className="flex gap-3 pt-1">
         <button type="button" onClick={handleConfirmar} disabled={isPending}
-          className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors">
+          className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 hover:-translate-y-0.5 hover:shadow-md hover:shadow-blue-300/50 active:translate-y-0 active:scale-95 disabled:opacity-50 disabled:transform-none text-white text-sm font-medium rounded-lg shadow-sm">
           {isPending ? 'Guardando...' : 'Guardar cambios'}
         </button>
         <a href={`/pedidos/${pedidoId}`}

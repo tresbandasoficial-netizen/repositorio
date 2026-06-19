@@ -10,3 +10,18 @@ body {
   color: var(--foreground);
   font-family: system-ui, -apple-system, sans-serif;
 }
+
+/* ── Animaciones globales de botones ─────────────────────────────────────── */
+
+button:not(:disabled),
+a[role="button"]:not([aria-disabled="true"]) {
+  transition: transform 150ms cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 150ms ease-out,
+              background-color 150ms ease-out,
+              color 120ms ease-out,
+              border-color 120ms ease-out;
+}
+
+button:not(:disabled):active {
+  transform: scale(0.94);
+}
