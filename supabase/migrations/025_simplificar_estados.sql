@@ -67,7 +67,10 @@ end;
 $$;
 
 -- 5. Recrear vista con nuevos estados y umbrales de alerta
-create or replace view vista_pedidos_asesor as
+drop view if exists vista_zombies cascade;
+drop view if exists vista_pedidos_asesor cascade;
+
+create view vista_pedidos_asesor as
   select
     p.id,
     p.numero_orden,
@@ -117,6 +120,6 @@ create or replace view vista_pedidos_asesor as
   join clientes c on c.id = p.cliente_id
   join usuarios u on u.id = p.asesor_id;
 
-create or replace view vista_zombies as
+create view vista_zombies as
   select * from vista_pedidos_asesor
   where es_zombie = true;
