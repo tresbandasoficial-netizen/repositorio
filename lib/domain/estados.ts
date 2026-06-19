@@ -33,4 +33,4 @@ export function puedeTransicionar(
 }
 
 // Orden natural del flujo para mostrar en el stepper
-export const FLUJO_ESTADOS: EstadoPedido[] = ['comprado', 'usa', 'bucaramanga', 'santa_rosa', 'entregado']
+export const FLUJO_ESTADOS: EstadoPedido[] = ['pendiente', 'comprado', 'usa', 'bucaramanga', 'santa_rosa', 'entregado']
