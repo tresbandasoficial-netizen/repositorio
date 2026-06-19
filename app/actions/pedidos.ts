@@ -170,6 +170,39 @@ export async function cambiarEstadoAction(
   redirect(`/pedidos/${pedidoId}`)
 }
 
+// Igual que cambiarEstadoAction pero sin redirect (para cambio inline desde la lista)
+export async function cambiarEstadoInlineAction(
+  pedidoId: string,
+  estadoActual: EstadoPedido,
+  nuevoEstado: EstadoPedido
+): Promise<CambiarEstadoResult> {
+  const sesion = await getSesion()
+  const supabase = await createClient()
+
+  const { data: pedido } = await supabase
+    .from('vista_pedidos_asesor')
+    .select('sede_id')
+    .eq('id', pedidoId)
+    .single()
+
+  if (!pedido || !puedeAccederSede(sesion, pedido.sede_id)) {
+    return { ok: false, error: 'Sin acceso a este pedido' }
+  }
+
+  if (!puedeTransicionar(estadoActual, nuevoEstado, sesion.rol)) {
+    return { ok: false, error: `Transición inválida: ${estadoActual} → ${nuevoEstado}` }
+  }
+
+  const { error } = await supabase.rpc('cambiar_estado_pedido', {
+    p_pedido_id:    pedidoId,
+    p_nuevo_estado: nuevoEstado,
+    p_usuario_id:   sesion.id,
+  })
+
+  if (error) return { ok: false, error: error.message }
+  return { ok: true }
+}
+
 // ─── Registrar pago ───────────────────────────────────────────────────────────
 
 export type RegistrarPagoResult =

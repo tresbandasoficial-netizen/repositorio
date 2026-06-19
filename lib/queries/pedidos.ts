@@ -8,6 +8,7 @@ export type PedidoRow = {
   total: number
   total_pagado: number
   // en_alerta y es_zombie vienen calculados desde SQL (fuente de verdad)
+  primera_imagen: string | null
   en_alerta: boolean
   es_zombie: boolean
   tipo_entrega: 'domicilio' | 'sede'
