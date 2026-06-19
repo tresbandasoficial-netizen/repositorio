@@ -3,7 +3,10 @@
 -- Los estados avisado y en_sede se fusionan en bucaramanga.
 -- llego_usa se renombra a usa. bodega_colombia se renombra a bucaramanga.
 
--- 1. Migrar datos existentes
+-- 1. Borrar constraint viejo ANTES de migrar datos
+alter table pedidos drop constraint if exists pedidos_estado_check;
+
+-- 2. Migrar datos existentes
 update pedidos set estado = 'usa'         where estado = 'llego_usa';
 update pedidos set estado = 'bucaramanga' where estado in ('bodega_colombia', 'avisado', 'en_sede');
 
@@ -16,12 +19,11 @@ update historial_cambios set valor_anterior = 'bucaramanga'
 update historial_cambios set valor_nuevo = 'bucaramanga'
   where campo = 'estado' and valor_nuevo in ('bodega_colombia', 'avisado', 'en_sede');
 
--- 2. Actualizar constraint CHECK
-alter table pedidos drop constraint if exists pedidos_estado_check;
+-- 3. Agregar constraint nuevo
 alter table pedidos add constraint pedidos_estado_check
   check (estado in ('pendiente', 'comprado', 'usa', 'bucaramanga', 'santa_rosa', 'entregado', 'cancelado'));
 
--- 3. Recrear función cambiar_estado_pedido con nuevos estados
+-- 4. Recrear función cambiar_estado_pedido con nuevos estados
 create or replace function cambiar_estado_pedido(
   p_pedido_id  uuid,
   p_nuevo_estado text,
@@ -64,7 +66,7 @@ begin
 end;
 $$;
 
--- 4. Recrear vista con nuevos estados y umbrales de alerta
+-- 5. Recrear vista con nuevos estados y umbrales de alerta
 create or replace view vista_pedidos_asesor as
   select
     p.id,
