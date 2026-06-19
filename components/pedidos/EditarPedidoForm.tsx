@@ -23,10 +23,36 @@ interface Props {
   productos: Producto[]
 }
 
+function propsAParsed(p: Props): ParsedPedido {
+  const sede = p.sedeCodigo.slice(0, 2) as 'TR' | 'CR' | 'SR'
+  return {
+    formato_version: '1',
+    sede,
+    numero_orden_sugerido: p.numeroOrden,
+    cliente_nombre: p.clienteNombre,
+    cliente_doc: null,
+    cliente_telefono: p.clienteTelefono,
+    productos: p.productos.map(prod => ({
+      marca:        prod.marca,
+      descripcion:  prod.descripcion,
+      talla:        prod.talla || null,
+      cantidad:     prod.cantidad,
+      precio_venta: prod.precio_venta,
+      imagen_url:   prod.imagen_url ?? null,
+    })),
+    total: p.productos.reduce((s, prod) => s + prod.precio_venta * prod.cantidad, 0),
+    abono: 0,
+    metodo_pago_abono: 'efectivo',
+    tipo_entrega: p.tipoEntrega,
+    direccion: p.direccionEntrega ?? null,
+    notas: p.notas ?? null,
+  }
+}
+
 function reconstruirTexto(p: Props): string {
   const lineas: string[] = []
-  lineas.push(`Número de pedido: ${p.numeroOrden}`)
-  lineas.push(`Nombre: ${p.clienteNombre}`)
+  lineas.push(`Numero de pedido: ${p.numeroOrden}`)
+  lineas.push(`Cliente: ${p.clienteNombre}`)
   lineas.push(`Celular: ${p.clienteTelefono}`)
   for (const prod of p.productos) {
     const art = [prod.marca, prod.descripcion].filter(Boolean).join(' ').trim() || prod.descripcion
@@ -44,10 +70,10 @@ function reconstruirTexto(p: Props): string {
 export function EditarPedidoForm(props: Props) {
   const { pedidoId, sedeCodigo, clienteId } = props
 
-  const [paso, setPaso]           = useState<'pegar' | 'preview'>('pegar')
+  const [paso, setPaso]           = useState<'pegar' | 'preview'>('preview')
   const [texto, setTexto]         = useState(() => reconstruirTexto(props))
   const [errorParser, setErrorParser] = useState<string | null>(null)
-  const [parsed, setParsed]       = useState<ParsedPedido | null>(null)
+  const [parsed, setParsed]       = useState<ParsedPedido | null>(() => propsAParsed(props))
   const [numero, setNumero]       = useState(props.numeroOrden)
   const [error, setError]         = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -172,13 +198,13 @@ export function EditarPedidoForm(props: Props) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <p className="text-xs text-gray-500">Revisa y edita antes de guardar</p>
+        <p className="text-xs text-gray-500">Edita los campos y guarda los cambios</p>
         <button
           type="button"
-          onClick={() => { setPaso('pegar'); setParsed(null) }}
+          onClick={() => { setPaso('pegar'); }}
           className="text-xs text-gray-400 hover:text-gray-600"
         >
-          ← Volver al texto
+          Editar como texto
         </button>
       </div>
 
