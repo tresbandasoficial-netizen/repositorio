@@ -33,10 +33,9 @@ export type Cliente = {
 export type EstadoPedido =
   | 'pendiente'
   | 'comprado'
-  | 'llego_usa'
-  | 'bodega_colombia'
-  | 'avisado'
-  | 'en_sede'
+  | 'usa'
+  | 'bucaramanga'
+  | 'santa_rosa'
   | 'entregado'
   | 'cancelado'
 
@@ -181,25 +180,23 @@ export type MetricasSede = {
 }
 
 export const ESTADO_LABELS: Record<EstadoPedido, string> = {
-  pendiente: 'Pendiente',
-  comprado: 'Comprado',
-  llego_usa: 'Llegó a USA',
-  bodega_colombia: 'Bodega Colombia',
-  avisado: 'Avisado',
-  en_sede: 'En sede',
-  entregado: 'Entregado',
-  cancelado: 'Cancelado',
+  pendiente:   'Pendiente',
+  comprado:    'Comprado',
+  usa:         'En USA',
+  bucaramanga: 'Bucaramanga',
+  santa_rosa:  'Santa Rosa',
+  entregado:   'Entregado',
+  cancelado:   'Cancelado',
 }
 
 export const ESTADO_COLORES: Record<EstadoPedido, string> = {
-  pendiente: 'bg-yellow-100 text-yellow-800',
-  comprado: 'bg-blue-100 text-blue-800',
-  llego_usa: 'bg-purple-100 text-purple-800',
-  bodega_colombia: 'bg-indigo-100 text-indigo-800',
-  avisado: 'bg-cyan-100 text-cyan-800',
-  en_sede: 'bg-orange-100 text-orange-800',
-  entregado: 'bg-green-100 text-green-800',
-  cancelado: 'bg-gray-100 text-gray-600',
+  pendiente:   'bg-yellow-100 text-yellow-800',
+  comprado:    'bg-blue-100 text-blue-800',
+  usa:         'bg-purple-100 text-purple-800',
+  bucaramanga: 'bg-indigo-100 text-indigo-800',
+  santa_rosa:  'bg-orange-100 text-orange-800',
+  entregado:   'bg-green-100 text-green-800',
+  cancelado:   'bg-gray-100 text-gray-600',
 }
 
 export type Compra = {
@@ -234,16 +231,15 @@ export type CompraItem = {
 }
 
 // REFERENCIA DOCUMENTAL — los umbrales reales que generan alertas
-// están definidos en supabase/migrations/002_alertas_view.sql
+// están definidos en supabase/migrations/025_simplificar_estados.sql
 // (vista_pedidos_asesor, columna en_alerta).
 // NO usar estas constantes para calcular alertas en el frontend.
 export const UMBRAL_ALERTA_DIAS_DOC: Partial<Record<EstadoPedido, number>> = {
-  pendiente: 3,
-  comprado: 7,
-  llego_usa: 15,
-  bodega_colombia: 5,
-  avisado: 3,
-  en_sede: 2,
+  pendiente:   2,
+  comprado:    8,
+  usa:         6,
+  bucaramanga: 1,
+  santa_rosa:  1,
 }
 
 // REFERENCIA DOCUMENTAL — el umbral real de zombie está en la misma migración.

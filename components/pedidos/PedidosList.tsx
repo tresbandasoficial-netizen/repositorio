@@ -8,15 +8,14 @@ import { EstadoPedido, ESTADO_LABELS } from '@/types'
 import { Search, AlertTriangle, Download, ChevronLeft, ChevronRight } from 'lucide-react'
 
 const ESTADOS: Array<{ value: EstadoPedido | ''; label: string }> = [
-  { value: '', label: 'Todos los estados' },
-  { value: 'pendiente',        label: ESTADO_LABELS.pendiente },
-  { value: 'comprado',         label: ESTADO_LABELS.comprado },
-  { value: 'llego_usa',        label: ESTADO_LABELS.llego_usa },
-  { value: 'bodega_colombia',  label: ESTADO_LABELS.bodega_colombia },
-  { value: 'avisado',          label: ESTADO_LABELS.avisado },
-  { value: 'en_sede',          label: ESTADO_LABELS.en_sede },
-  { value: 'entregado',        label: ESTADO_LABELS.entregado },
-  { value: 'cancelado',        label: ESTADO_LABELS.cancelado },
+  { value: '',            label: 'Todos los estados' },
+  { value: 'pendiente',   label: ESTADO_LABELS.pendiente },
+  { value: 'comprado',    label: ESTADO_LABELS.comprado },
+  { value: 'usa',         label: ESTADO_LABELS.usa },
+  { value: 'bucaramanga', label: ESTADO_LABELS.bucaramanga },
+  { value: 'santa_rosa',  label: ESTADO_LABELS.santa_rosa },
+  { value: 'entregado',   label: ESTADO_LABELS.entregado },
+  { value: 'cancelado',   label: ESTADO_LABELS.cancelado },
 ]
 
 const SEDES = [

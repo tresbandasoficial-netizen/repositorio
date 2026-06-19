@@ -18,19 +18,18 @@ function getMotivoAlerta(p: {
   const diasCreacion  = diasDesde(p.fecha_creacion)
 
   if (
-    ['pendiente', 'comprado', 'llego_usa'].includes(p.estado) &&
+    ['pendiente', 'comprado', 'usa'].includes(p.estado) &&
     diasCreacion >= 15
   ) {
-    return `${diasCreacion} días sin llegar a bodega Colombia`
+    return `${diasCreacion} días sin llegar a Bucaramanga`
   }
 
   const umbrales: Partial<Record<EstadoPedido, number>> = {
-    pendiente:       2,
-    comprado:        8,
-    llego_usa:       6,
-    bodega_colombia: 1,
-    avisado:         3,
-    en_sede:         2,
+    pendiente:   2,
+    comprado:    8,
+    usa:         6,
+    bucaramanga: 1,
+    santa_rosa:  1,
   }
 
   const umbral = umbrales[p.estado]
@@ -150,8 +149,8 @@ export default async function AlertasPage() {
         <p><span className="font-medium text-gray-500">Umbrales:</span></p>
         <p>· Pendiente: más de 2 días sin cambio</p>
         <p>· Comprado: más de 8 días sin cambio</p>
-        <p>· Cualquier pedido: más de 15 días sin llegar a bodega Colombia</p>
-        <p>· Llegó a USA: más de 6 días · Bodega Colombia: más de 1 día · Avisado: más de 3 días · En sede: más de 2 días</p>
+        <p>· Cualquier pedido activo: más de 15 días sin llegar a Colombia</p>
+        <p>· En USA: más de 6 días · Bucaramanga o Santa Rosa: más de 1 día</p>
       </div>
     </div>
   )

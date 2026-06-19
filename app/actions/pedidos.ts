@@ -239,7 +239,7 @@ export async function editarPedidoAction(
 
   const { data: pedidoCheck } = await supabase
     .from('vista_pedidos_asesor')
-    .select('sede_id, estado, sede_codigo')
+    .select('sede_id, estado, sede_codigo, notas, tipo_entrega, direccion_entrega, numero_guia, numero_orden')
     .eq('id', pedidoId)
     .single()
 
@@ -304,6 +304,26 @@ export async function editarPedidoAction(
     }))
   )
   if (itemsError) return { ok: false, error: `Error actualizando productos: ${itemsError.message}` }
+
+  // Registrar cambios en historial
+  const previo = pedidoCheck as any
+  type CambioEntry = { tabla: string; registro_id: string; campo: string; valor_anterior: string | null; valor_nuevo: string | null; usuario_id: string }
+  const cambios: CambioEntry[] = []
+  const campos: Array<{ campo: string; anterior: string | null; nuevo: string | null }> = [
+    { campo: 'numero_orden',      anterior: previo.numero_orden,      nuevo: nuevoNumero },
+    { campo: 'notas',             anterior: previo.notas ?? null,     nuevo: data.notas.trim() || null },
+    { campo: 'tipo_entrega',      anterior: previo.tipo_entrega,      nuevo: data.tipo_entrega },
+    { campo: 'direccion_entrega', anterior: previo.direccion_entrega ?? null, nuevo: data.tipo_entrega === 'domicilio' ? data.direccion_entrega.trim() : null },
+    { campo: 'numero_guia',       anterior: previo.numero_guia ?? null, nuevo: data.numero_guia.trim() || null },
+  ]
+  for (const { campo, anterior, nuevo } of campos) {
+    if (anterior !== nuevo) {
+      cambios.push({ tabla: 'pedidos', registro_id: pedidoId, campo, valor_anterior: anterior, valor_nuevo: nuevo, usuario_id: sesion.id })
+    }
+  }
+  if (cambios.length > 0) {
+    await adminClient.from('historial_cambios').insert(cambios)
+  }
 
   redirect(`/pedidos/${pedidoId}`)
 }

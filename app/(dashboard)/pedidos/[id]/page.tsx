@@ -9,6 +9,17 @@ import { ESTADO_LABELS } from '@/types'
 import { getSesion, puedeAccederSede } from '@/lib/auth/acceso'
 import { CopiarResumen } from '@/components/pedidos/CopiarResumen'
 import { EliminarPedidoButton } from '@/components/pedidos/EliminarPedidoButton'
+import { SeguimientoBar } from '@/components/pedidos/SeguimientoBar'
+
+const CAMPO_LABELS: Record<string, string> = {
+  estado:            'Estado',
+  notas:             'Notas',
+  tipo_entrega:      'Entrega',
+  direccion_entrega: 'Dirección',
+  numero_guia:       'Guía de envío',
+  numero_orden:      'Número de pedido',
+  total:             'Total',
+}
 
 export default async function PedidoDetallePage({
   params,
@@ -44,12 +55,6 @@ export default async function PedidoDetallePage({
             className="text-sm bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl font-semibold transition-colors shadow-sm shadow-blue-200"
           >
             + Registrar pago
-          </Link>
-          <Link
-            href={`/pedidos/${id}/estado`}
-            className="text-sm bg-white border border-gray-200 hover:bg-gray-50 px-3.5 py-2 rounded-xl font-medium text-gray-700 transition-colors"
-          >
-            Cambiar estado
           </Link>
           <Link
             href={`/pedidos/${id}/editar`}
@@ -219,42 +224,70 @@ export default async function PedidoDetallePage({
           </Card>
 
           {/* Historial */}
-          {pedido.historial.length > 0 && (
-            <Card>
-              <CardHeader>
-                <h2 className="text-sm font-semibold text-gray-900">Historial de cambios</h2>
-              </CardHeader>
-              <CardContent className="p-0">
+          <Card>
+            <CardHeader>
+              <h2 className="text-sm font-semibold text-gray-900">Historial</h2>
+            </CardHeader>
+            <CardContent className="p-0">
+              {pedido.historial.length === 0 ? (
+                <p className="px-4 py-4 text-sm text-gray-400">Sin cambios registrados.</p>
+              ) : (
                 <ul className="divide-y divide-gray-50">
-                  {pedido.historial.map((h) => (
-                    <li key={h.id} className="px-6 py-3 text-sm">
-                      <span className="text-gray-500">{formatFechaHora(h.fecha)}</span>
-                      {' · '}
-                      <span className="text-gray-700 font-medium">{h.usuario_nombre}</span>
-                      {' cambió '}
-                      <span className="font-medium text-gray-900">{h.campo}</span>
-                      {h.valor_anterior && (
-                        <>
-                          {' de '}
-                          <span className="text-red-500">{ESTADO_LABELS[h.valor_anterior as keyof typeof ESTADO_LABELS] ?? h.valor_anterior}</span>
-                        </>
-                      )}
-                      {h.valor_nuevo && (
-                        <>
-                          {' a '}
-                          <span className="text-green-600">{ESTADO_LABELS[h.valor_nuevo as keyof typeof ESTADO_LABELS] ?? h.valor_nuevo}</span>
-                        </>
-                      )}
-                    </li>
-                  ))}
+                  {pedido.historial.map((h) => {
+                    const campoLabel = CAMPO_LABELS[h.campo] ?? h.campo
+                    const anteriorLabel = h.valor_anterior
+                      ? (ESTADO_LABELS[h.valor_anterior as keyof typeof ESTADO_LABELS] ?? h.valor_anterior)
+                      : null
+                    const nuevoLabel = h.valor_nuevo
+                      ? (ESTADO_LABELS[h.valor_nuevo as keyof typeof ESTADO_LABELS] ?? h.valor_nuevo)
+                      : null
+                    return (
+                      <li key={h.id} className="px-4 py-3 text-sm">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <span className="font-medium text-gray-800">{h.usuario_nombre}</span>
+                            <span className="text-gray-500"> cambió </span>
+                            <span className="font-medium text-gray-700">{campoLabel}</span>
+                            {anteriorLabel && (
+                              <>
+                                <span className="text-gray-400"> de </span>
+                                <span className="text-red-500 font-medium">{anteriorLabel}</span>
+                              </>
+                            )}
+                            {nuevoLabel && (
+                              <>
+                                <span className="text-gray-400"> a </span>
+                                <span className="text-green-600 font-medium">{nuevoLabel}</span>
+                              </>
+                            )}
+                          </div>
+                          <span className="text-xs text-gray-400 shrink-0">{formatFechaHora(h.fecha)}</span>
+                        </div>
+                      </li>
+                    )
+                  })}
                 </ul>
-              </CardContent>
-            </Card>
-          )}
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         {/* Columna lateral */}
         <div className="space-y-4">
+          {/* Seguimiento */}
+          <Card>
+            <CardHeader>
+              <h2 className="text-sm font-semibold text-gray-900">Seguimiento</h2>
+            </CardHeader>
+            <CardContent>
+              <SeguimientoBar
+                pedidoId={id}
+                estadoActual={pedido.estado}
+                rolUsuario={sesion.rol as 'asesor' | 'admin' | 'visor'}
+              />
+            </CardContent>
+          </Card>
+
           {/* Cliente */}
           <Card>
             <CardHeader>
