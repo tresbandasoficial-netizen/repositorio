@@ -31,13 +31,11 @@ function buildTexto(pedido: PedidoDetalle): string {
     ? `🏠 Domicilio: ${pedido.direccion_entrega}`
     : `🏪 Recogida en sede ${pedido.sede_nombre}`
 
-  const guia = pedido.numero_guia ? `\n📬 Guía de envío: ${pedido.numero_guia}` : ''
-
   const saldoLinea = saldo > 0
     ? `\n💳 Saldo pendiente: *${formatCOPPlain(saldo)}*`
     : '\n✅ Pedido totalmente pagado'
 
-  return `Hola ${pedido.cliente_nombre} 👋\n\nTu pedido *${pedido.numero_orden}* está en: *${estadoLabel}*\n\n📦 Productos:\n${itemsLineas}\n\n💰 Total: ${formatCOPPlain(pedido.total)}\n💵 Pagado: ${formatCOPPlain(pedido.total_pagado)}${saldoLinea}\n\n${entrega}${guia}\n\n¡Gracias por preferirnos! 🛍️`
+  return `Hola ${pedido.cliente_nombre} 👋\n\nTu pedido *${pedido.numero_orden}* está en: *${estadoLabel}*\n\n📦 Productos:\n${itemsLineas}\n\n💰 Total: ${formatCOPPlain(pedido.total)}\n💵 Pagado: ${formatCOPPlain(pedido.total_pagado)}${saldoLinea}\n\n${entrega}\n\n¡Gracias por preferirnos! 🛍️`
 }
 
 function buildConfirmacion(pedido: PedidoDetalle): string {

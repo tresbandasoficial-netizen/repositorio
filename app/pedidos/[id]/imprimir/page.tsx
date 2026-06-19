@@ -65,9 +65,6 @@ export default async function ImprimirPedidoPage({
                 {ESTADO_LABELS[pedido.estado]}
               </span>
             </p>
-            {pedido.numero_guia && (
-              <p className="text-xs text-gray-500 mt-1.5">Guía: <span className="font-mono text-gray-700">{pedido.numero_guia}</span></p>
-            )}
           </div>
         </div>
 

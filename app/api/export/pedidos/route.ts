@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from('vista_pedidos_asesor')
-    .select('numero_orden, estado, cliente_nombre, cliente_telefono, sede_codigo, asesor_nombre, total, total_pagado, tipo_entrega, direccion_entrega, numero_guia, fecha_creacion, en_alerta')
+    .select('numero_orden, estado, cliente_nombre, cliente_telefono, sede_codigo, asesor_nombre, total, total_pagado, tipo_entrega, direccion_entrega, fecha_creacion, en_alerta')
     .order('fecha_creacion', { ascending: false })
     .limit(5000)
 
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
 
   const headers = [
     'Orden', 'Estado', 'Alerta', 'Cliente', 'Teléfono', 'Sede', 'Asesor',
-    'Total', 'Pagado', 'Saldo', 'Entrega', 'Dirección', 'Guía', 'Fecha',
+    'Total', 'Pagado', 'Saldo', 'Entrega', 'Dirección', 'Fecha',
   ]
 
   const lines: string[] = [headers.join(',')]
@@ -84,7 +84,6 @@ export async function GET(request: NextRequest) {
       csvCell(saldo),
       csvCell(r.tipo_entrega === 'domicilio' ? 'Domicilio' : 'Sede'),
       csvCell(r.direccion_entrega),
-      csvCell((r as any).numero_guia),
       csvCell(r.fecha_creacion?.slice(0, 10)),
     ].join(','))
   }

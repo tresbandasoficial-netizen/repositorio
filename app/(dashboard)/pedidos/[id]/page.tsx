@@ -16,7 +16,6 @@ const CAMPO_LABELS: Record<string, string> = {
   notas:             'Notas',
   tipo_entrega:      'Entrega',
   direccion_entrega: 'Dirección',
-  numero_guia:       'Guía de envío',
   numero_orden:      'Número de pedido',
   total:             'Total',
 }
@@ -340,12 +339,6 @@ export default async function PedidoDetallePage({
                 <div>
                   <span className="text-gray-500 block">Dirección</span>
                   <span className="text-gray-700 text-xs">{pedido.direccion_entrega}</span>
-                </div>
-              )}
-              {pedido.numero_guia && (
-                <div>
-                  <span className="text-gray-500 block">Guía de envío</span>
-                  <span className="font-mono text-xs text-gray-800 break-all">{pedido.numero_guia}</span>
                 </div>
               )}
               <div className="flex justify-between">

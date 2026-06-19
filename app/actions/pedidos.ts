@@ -227,7 +227,6 @@ export async function editarPedidoAction(
     notas: string
     tipo_entrega: 'sede' | 'domicilio'
     direccion_entrega: string
-    numero_guia: string
     cliente_nombre: string
     cliente_telefono: string
     cliente_id: string
@@ -239,7 +238,7 @@ export async function editarPedidoAction(
 
   const { data: pedidoCheck } = await supabase
     .from('vista_pedidos_asesor')
-    .select('sede_id, estado, sede_codigo, notas, tipo_entrega, direccion_entrega, numero_guia, numero_orden')
+    .select('sede_id, estado, sede_codigo, notas, tipo_entrega, direccion_entrega, numero_orden')
     .eq('id', pedidoId)
     .single()
 
@@ -278,7 +277,6 @@ export async function editarPedidoAction(
       notas:             data.notas.trim() || null,
       tipo_entrega:      data.tipo_entrega,
       direccion_entrega: data.tipo_entrega === 'domicilio' ? data.direccion_entrega.trim() : null,
-      numero_guia:       data.numero_guia.trim() || null,
       total:             nuevoTotal,
     })
     .eq('id', pedidoId)
@@ -314,7 +312,6 @@ export async function editarPedidoAction(
     { campo: 'notas',             anterior: previo.notas ?? null,     nuevo: data.notas.trim() || null },
     { campo: 'tipo_entrega',      anterior: previo.tipo_entrega,      nuevo: data.tipo_entrega },
     { campo: 'direccion_entrega', anterior: previo.direccion_entrega ?? null, nuevo: data.tipo_entrega === 'domicilio' ? data.direccion_entrega.trim() : null },
-    { campo: 'numero_guia',       anterior: previo.numero_guia ?? null, nuevo: data.numero_guia.trim() || null },
   ]
   for (const { campo, anterior, nuevo } of campos) {
     if (anterior !== nuevo) {

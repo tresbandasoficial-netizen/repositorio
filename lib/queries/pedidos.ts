@@ -13,7 +13,6 @@ export type PedidoRow = {
   tipo_entrega: 'domicilio' | 'sede'
   direccion_entrega: string | null
   notas: string | null
-  numero_guia: string | null
   fecha_creacion: string
   fecha_actualizacion: string
   sede_codigo: string

@@ -20,7 +20,6 @@ interface Props {
   notas: string | null
   tipoEntrega: 'sede' | 'domicilio'
   direccionEntrega: string | null
-  numeroGuia: string | null
   productos: Producto[]
 }
 
@@ -50,7 +49,6 @@ export function EditarPedidoForm(props: Props) {
   const [errorParser, setErrorParser] = useState<string | null>(null)
   const [parsed, setParsed]       = useState<ParsedPedido | null>(null)
   const [numero, setNumero]       = useState(props.numeroOrden)
-  const [guia, setGuia]           = useState(props.numeroGuia ?? '')
   const [error, setError]         = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
@@ -111,7 +109,6 @@ export function EditarPedidoForm(props: Props) {
         notas:             parsed.notas ?? '',
         tipo_entrega:      parsed.tipo_entrega,
         direccion_entrega: parsed.direccion ?? '',
-        numero_guia:       guia,
         cliente_nombre:    parsed.cliente_nombre,
         cliente_telefono:  parsed.cliente_telefono,
         cliente_id:        clienteId,
@@ -304,16 +301,6 @@ export function EditarPedidoForm(props: Props) {
         <p className="text-sm font-semibold text-gray-900 mt-3">
           Total: {formatCOP(total)}
         </p>
-      </div>
-
-      {/* Número de guía */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-          Número de guía <span className="text-gray-400 font-normal">(opcional)</span>
-        </label>
-        <input type="text" value={guia} onChange={e => setGuia(e.target.value)}
-          placeholder="USPS, FedEx, DHL, Servientrega…"
-          className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
       </div>
 
       {/* Notas */}
