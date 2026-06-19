@@ -1,18 +1,11 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { uploadPedidoImage } from '@/lib/utils/uploadPedidoImage'
 
 interface Props {
   value: string | null
   onChange: (url: string | null) => void
-}
-
-const EXT_MAP: Record<string, string> = {
-  'image/jpeg': 'jpg',
-  'image/png':  'png',
-  'image/gif':  'gif',
-  'image/webp': 'webp',
 }
 
 export function ImagenProducto({ value, onChange }: Props) {
@@ -21,16 +14,9 @@ export function ImagenProducto({ value, onChange }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
 
   async function handleFile(file: File) {
-    if (!file.type.startsWith('image/')) return
     setUploading(true)
-    const supabase = createClient()
-    const ext  = EXT_MAP[file.type] ?? file.name.split('.').pop() ?? 'jpg'
-    const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
-    const { error } = await supabase.storage.from('pedido-items').upload(path, file)
-    if (!error) {
-      const { data } = supabase.storage.from('pedido-items').getPublicUrl(path)
-      onChange(data.publicUrl)
-    }
+    const url = await uploadPedidoImage(file)
+    if (url) onChange(url)
     setUploading(false)
   }
 
@@ -38,7 +24,11 @@ export function ImagenProducto({ value, onChange }: Props) {
     for (const item of Array.from(e.clipboardData.items)) {
       if (item.type.startsWith('image/')) {
         const file = item.getAsFile()
-        if (file) { handleFile(file); break }
+        if (file) {
+          e.stopPropagation() // evita que el form-level handler haga doble upload
+          handleFile(file)
+          break
+        }
       }
     }
   }
@@ -61,20 +51,8 @@ export function ImagenProducto({ value, onChange }: Props) {
       />
 
       {value ? (
-        <div className="relative w-20 h-20 group">
-          <img
-            src={value}
-            alt="Producto"
-            className="w-20 h-20 object-cover rounded-lg border border-gray-200"
-          />
-          {/* Click en la imagen actual también permite reemplazarla pegando */}
-          <div
-            tabIndex={0}
-            onPaste={handlePaste}
-            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') inputRef.current?.click() }}
-            className="absolute inset-0 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
-            aria-label="Imagen del producto — Ctrl+V para reemplazar"
-          />
+        <div className="relative w-20 h-20">
+          <img src={value} alt="Producto" className="w-20 h-20 object-cover rounded-lg border border-gray-200" />
           <button
             type="button"
             onClick={() => onChange(null)}
@@ -87,7 +65,7 @@ export function ImagenProducto({ value, onChange }: Props) {
         <div
           tabIndex={0}
           role="button"
-          aria-label="Agregar imagen — haz click para archivo, Ctrl+V para pegar, o arrastra aquí"
+          aria-label="Imagen del producto"
           onClick={() => inputRef.current?.click()}
           onPaste={handlePaste}
           onDragOver={e => { e.preventDefault(); setDragOver(true) }}
@@ -103,16 +81,12 @@ export function ImagenProducto({ value, onChange }: Props) {
           {uploading ? (
             <span className="text-[10px] text-center px-1">Subiendo…</span>
           ) : dragOver ? (
-            <>
-              <span className="text-xl">📥</span>
-              <span className="text-[10px] mt-0.5">Soltar</span>
-            </>
+            <><span className="text-xl">📥</span><span className="text-[10px] mt-0.5">Soltar</span></>
           ) : (
             <>
               <span className="text-xl">📷</span>
               <span className="text-[10px] mt-0.5 text-center leading-tight px-1">
-                Foto<br/>
-                <span className="text-gray-300">Ctrl+V</span>
+                Foto<br /><span className="text-gray-300">Ctrl+V</span>
               </span>
             </>
           )}

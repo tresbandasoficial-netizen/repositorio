@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect, useRef } from 'react'
 import { parsearPedido } from '@/lib/parser'
 import { ParsedPedido } from '@/types'
 import { editarPedidoAction } from '@/app/actions/pedidos'
 import { formatCOP } from '@/lib/utils/format'
 import { ImagenProducto } from '@/components/pedidos/ImagenProducto'
+import { uploadPedidoImage } from '@/lib/utils/uploadPedidoImage'
 
 type Producto = { marca: string; descripcion: string; talla: string; cantidad: number; precio_venta: number; imagen_url?: string | null }
 
@@ -52,6 +53,28 @@ export function EditarPedidoForm(props: Props) {
   const [guia, setGuia]           = useState(props.numeroGuia ?? '')
   const [error, setError]         = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+
+  // Paste global: al hacer click en una tarjeta de producto, esa se convierte en el destino
+  const activeProductIdxRef = useRef(0)
+  const updateProductoRef   = useRef(updateProducto)
+  useEffect(() => { updateProductoRef.current = updateProducto })
+
+  useEffect(() => {
+    if (paso !== 'preview') return
+    async function onPaste(e: ClipboardEvent) {
+      for (const item of Array.from(e.clipboardData?.items ?? [])) {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile()
+          if (!file) continue
+          const url = await uploadPedidoImage(file)
+          if (url) updateProductoRef.current(activeProductIdxRef.current, 'imagen_url', url)
+          break
+        }
+      }
+    }
+    document.addEventListener('paste', onPaste)
+    return () => document.removeEventListener('paste', onPaste)
+  }, [paso])
 
   function handleParsear() {
     const result = parsearPedido(texto)
@@ -230,7 +253,8 @@ export function EditarPedidoForm(props: Props) {
         <p className="text-sm font-medium text-gray-700 mb-2">Productos</p>
         <div className="space-y-3">
           {parsed.productos.map((p, i) => (
-            <div key={i} className="border border-gray-200 rounded-lg p-3 space-y-2">
+            <div key={i} className="border border-gray-200 rounded-lg p-3 space-y-2"
+              onMouseDown={() => { activeProductIdxRef.current = i }}>
               <div className="flex gap-2">
                 <ImagenProducto
                   value={(p as any).imagen_url ?? null}

@@ -9,6 +9,7 @@ import { buscarClientesAction, ClienteBusqueda } from '@/app/actions/clientes'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { ImagenProducto } from '@/components/pedidos/ImagenProducto'
+import { uploadPedidoImage } from '@/lib/utils/uploadPedidoImage'
 
 interface CrearPedidoFormProps {
   numeroSugerido: string
@@ -62,6 +63,28 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
   const [resultadosDirecta, setResultadosDirecta] = useState<ClienteBusqueda[]>([])
   const [isPending, startTransition] = useTransition()
   const dropdownRef = useRef<HTMLUListElement>(null)
+
+  // Paste global de imágenes: el click en una tarjeta de producto la marca como destino
+  const activeProductIdxRef = useRef(0)
+  const updateProductoRef   = useRef(updateProducto)
+  useEffect(() => { updateProductoRef.current = updateProducto })
+
+  useEffect(() => {
+    if (paso !== 'preview') return
+    async function onPaste(e: ClipboardEvent) {
+      for (const item of Array.from(e.clipboardData?.items ?? [])) {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile()
+          if (!file) continue
+          const url = await uploadPedidoImage(file)
+          if (url) updateProductoRef.current(activeProductIdxRef.current, 'imagen_url', url)
+          break
+        }
+      }
+    }
+    document.addEventListener('paste', onPaste)
+    return () => document.removeEventListener('paste', onPaste)
+  }, [paso])
 
   useEffect(() => {
     if (busquedaCliente.trim().length < 2) { setResultadosCliente([]); return }
@@ -396,7 +419,8 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Productos</p>
                 <div className="space-y-3">
                   {editableData.productos.map((p, i) => (
-                    <div key={i} className="border border-gray-200 rounded-lg p-3 space-y-2">
+                    <div key={i} className="border border-gray-200 rounded-lg p-3 space-y-2"
+                      onMouseDown={() => { activeProductIdxRef.current = i }}>
                       <div className="flex gap-2">
                         <ImagenProducto
                           value={p.imagen_url ?? null}
