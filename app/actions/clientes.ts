@@ -10,6 +10,7 @@ export type ClienteBusqueda = {
   nombre: string
   telefono_normalizado: string
   cedula: string | null
+  ultima_direccion: string | null
 }
 
 export async function buscarClientesAction(busqueda: string): Promise<ClienteBusqueda[]> {
@@ -21,7 +22,29 @@ export async function buscarClientesAction(busqueda: string): Promise<ClienteBus
     .or(`nombre.ilike.%${busqueda}%,telefono_normalizado.ilike.%${busqueda}%`)
     .order('nombre')
     .limit(6)
-  return data ?? []
+
+  if (!data || data.length === 0) return []
+
+  // Buscar última dirección de domicilio por cliente
+  const { data: pedidos } = await supabase
+    .from('pedidos')
+    .select('cliente_id, direccion_entrega, fecha_creacion')
+    .in('cliente_id', data.map(c => c.id))
+    .eq('tipo_entrega', 'domicilio')
+    .not('direccion_entrega', 'is', null)
+    .order('fecha_creacion', { ascending: false })
+
+  const ultimasDirecciones: Record<string, string> = {}
+  for (const p of pedidos ?? []) {
+    if (p.cliente_id && p.direccion_entrega && !ultimasDirecciones[p.cliente_id]) {
+      ultimasDirecciones[p.cliente_id] = p.direccion_entrega
+    }
+  }
+
+  return data.map(c => ({
+    ...c,
+    ultima_direccion: ultimasDirecciones[c.id] ?? null,
+  }))
 }
 
 export type EditarClienteResult =

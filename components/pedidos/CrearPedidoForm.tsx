@@ -61,6 +61,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
   const [resultadosCliente, setResultadosCliente] = useState<ClienteBusqueda[]>([])
   const [busquedaDirecta, setBusquedaDirecta] = useState('')
   const [resultadosDirecta, setResultadosDirecta] = useState<ClienteBusqueda[]>([])
+  const [ultimaDireccion, setUltimaDireccion] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const dropdownRef = useRef<HTMLUListElement>(null)
 
@@ -107,12 +108,14 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
   function seleccionarCliente(c: ClienteBusqueda) {
     updateField('cliente_nombre', c.nombre)
     updateField('cliente_telefono', c.telefono_normalizado)
+    setUltimaDireccion(c.ultima_direccion ?? null)
     setBusquedaCliente('')
     setResultadosCliente([])
   }
 
   function crearDesdeCliente(c: ClienteBusqueda) {
     const sedeCode = numeroSugerido.slice(0, 2) as 'TR' | 'CR' | 'SR'
+    setUltimaDireccion(c.ultima_direccion ?? null)
     setEditableData({
       formato_version: '1',
       sede: sedeCode,
@@ -286,6 +289,9 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
                         >
                           <p className="text-sm font-medium text-gray-900">{c.nombre}</p>
                           <p className="text-xs text-gray-400">{c.telefono_normalizado}</p>
+                          {c.ultima_direccion && (
+                            <p className="text-xs text-blue-500 truncate mt-0.5">📍 {c.ultima_direccion}</p>
+                          )}
                         </li>
                       ))}
                     </ul>
@@ -359,10 +365,15 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
                         <li
                           key={c.id}
                           onMouseDown={() => seleccionarCliente(c)}
-                          className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm flex justify-between items-center"
+                          className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm border-b border-gray-100 last:border-0"
                         >
-                          <span className="font-medium text-gray-900">{c.nombre}</span>
-                          <span className="text-gray-400 text-xs">{c.telefono_normalizado}</span>
+                          <div className="flex justify-between items-center">
+                            <span className="font-medium text-gray-900">{c.nombre}</span>
+                            <span className="text-gray-400 text-xs">{c.telefono_normalizado}</span>
+                          </div>
+                          {c.ultima_direccion && (
+                            <p className="text-xs text-blue-500 truncate mt-0.5">📍 {c.ultima_direccion}</p>
+                          )}
                         </li>
                       ))}
                     </ul>
@@ -406,11 +417,22 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
                   ))}
                 </div>
                 {editableData.tipo_entrega === 'domicilio' && (
-                  <InputField
-                    label="Dirección"
-                    value={editableData.direccion ?? ''}
-                    onChange={v => updateField('direccion', (v || null) as string | null)}
-                  />
+                  <div>
+                    {ultimaDireccion && !editableData.direccion && (
+                      <button
+                        type="button"
+                        onClick={() => updateField('direccion', ultimaDireccion)}
+                        className="mb-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
+                      >
+                        📍 Usar dirección anterior: <span className="font-normal">{ultimaDireccion}</span>
+                      </button>
+                    )}
+                    <InputField
+                      label="Dirección"
+                      value={editableData.direccion ?? ''}
+                      onChange={v => updateField('direccion', (v || null) as string | null)}
+                    />
+                  </div>
                 )}
               </div>
 
