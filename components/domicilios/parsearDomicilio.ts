@@ -239,64 +239,81 @@ export function parsearDomicilio(texto: string): DomicilioParsed {
     }
   }
 
-  // ── PASADA 2: nombre, artículo y notas ──────────────────────────────────
+  // ── PASADA 2: recolectar candidatos, luego resolver nombre vs artículo ──
+  // En vez de asignar por orden de aparición, colectamos todo y decidimos
+  // al final usando palabras clave de producto → funciona sin importar el orden.
+  const textCands:   string[] = []  // líneas sin dígitos → nombre o artículo
+  const artDigCands: string[] = []  // líneas con dígitos → artículo (ej. "Tenis talla 9")
+
   for (let i = 0; i < lines.length; i++) {
     if (usado.has(i)) continue
     const line = stripEmoji(lines[i])
     const ln   = nc(line)
 
-    // ── 2A. INDICACIONES DE ENTREGA → notas ────────────────────────────────
-    // Solo van a notas líneas con VERBOS o palabras de instrucción explícita.
-    // No incluimos sustantivos de lugar (torre, apto, piso, casa) porque
-    // aparecen en direcciones normales y causarían falsos positivos.
+    // 2A. Barrio pendiente — siempre primero
+    if (/^barrio\b/i.test(ln)) {
+      const barrio = line.replace(/^barrio\s*/i, '').trim()
+      if (barrio && direccion) direccion = `${direccion}, ${barrio}`
+      continue
+    }
+
+    // 2B. Indicaciones de entrega → notas
     if (/\b(dejar|entregar|llamar|llame|timbrar|preguntar|recibe|recibir|horario|porter[ií]a|portero|antes|despu[eé]s|preguntar por|tocar)\b/i.test(line)) {
       notas = notas ? `${notas} | ${line}` : line; continue
     }
 
-    // ── 2B. DESCARTAR SILENCIOSAMENTE (nunca a notas) ─────────────────────
-    // Cédulas que pasaron el filtro de pass 1 (p.ej. formatos raros)
+    // 2C. Descartar silenciosamente (cédulas, líneas solo numéricas)
     if (/^(c\.?c\.?|cedula|documento|nit)?\s*[\d.]{6,15}$/i.test(line.replace(/\s/g, ''))) continue
-    // Líneas puramente numéricas o casi numéricas sin valor reconocido
     if (/^\d[\d\s.,-]{4,}$/.test(line)) continue
 
-    // ── 2C. "BARRIO xxx" PENDIENTE — va ANTES del nombre para que
-    //        "Barrio prados del sur" no se confunda con el nombre del cliente
-    if (/^barrio\b/i.test(ln)) {
-      const barrio = line.replace(/^barrio\s*/i, '').trim()
-      if (barrio && direccion) direccion = `${direccion}, ${barrio}`
-      continue  // siempre descartar, nunca a notas
+    // 2D. Texto sin dígitos → candidato nombre / artículo
+    if (!/\d/.test(line) && line.length >= 4 && line.length <= 80) {
+      textCands.push(line); continue
     }
 
-    // ── 2D. NOMBRE ────────────────────────────────────────────────────────
-    if (!cliente_nombre && !/\d/.test(line) && line.length >= 4 && line.length <= 60) {
-      cliente_nombre = line; continue
-    }
-
-    // ── 2E. ARTÍCULO (antes de la detección de ciudad) ────────────────────
-    // Si tenemos nombre + (teléfono o dirección) pero no artículo,
-    // una línea de 2+ palabras sin dígitos es probablemente el artículo
-    if (!articulo && cliente_nombre && (cliente_telefono || direccion) &&
-        !/\d/.test(line) && line.split(/\s+/).length >= 2 &&
-        line.length >= 4 && line.length <= 80) {
-      articulo = line; continue
-    }
-
-    // ── 2F. CIUDAD / BARRIO CORTO ─────────────────────────────────────────
-    // Sin dígitos, ≤ 3 palabras → complementa dirección si existe, si no se descarta
-    // NUNCA va a notas (evita que "Bucaramanga" o similar ensucie las notas)
-    if (!/\d/.test(line) && line.length <= 35 && line.split(/\s+/).length <= 3) {
+    // 2E. Texto corto con dígitos (piso, apto, torre) → complementa dirección
+    if (line.length <= 30 && line.split(/\s+/).length <= 3) {
       if (direccion) direccion = `${direccion}, ${line}`
-      continue  // si no hay dirección, descartamos silenciosamente
+      continue
     }
 
-    // ── 2G. ARTÍCULO CON DÍGITOS (ej. "Tenis Nike 42") ───────────────────
-    if (!articulo && cliente_nombre && (cliente_telefono || direccion) &&
-        line.length >= 4 && line.length <= 80) {
-      articulo = line; continue
+    // 2F. Línea con dígitos de largo razonable → posible artículo (ej. "Tenis talla 9")
+    if (line.length >= 4 && line.length <= 80) {
+      artDigCands.push(line); continue
     }
 
-    // ── 2H. RESTO → notas (solo si parece una indicación real) ────────────
+    // 2G. Resto → notas
     if (line.length > 10) notas = notas ? `${notas} | ${line}` : line
+  }
+
+  // ── Resolver textCands → nombre vs artículo ───────────────────────────
+  // Una línea sin dígitos que contiene palabras de producto es artículo;
+  // la que no contiene ninguna es más probablemente el nombre del cliente.
+  const PROD_RE = /\b(tenis|zapato|zapatos|ropa|camisa|camiseta|pantalon|jean|jeans|saco|buzo|chaqueta|vestido|falda|bermuda|pantaloneta|medias|calcetin|par\s*de|bota|sandalia|chancla|gorra|bolso|bolsa|maleta|mochila|paquete|producto|talla|nike|adidas|puma|fila|jordan|converse|vans|reebok|gucci|zara|conjunto|blusa|polo|chaleco|sueter|sudadera|hoodie|uniforme|short|shorts|boxer|interior|sostén|bra|lycra|calza|calzas|calzado|deportivo|deportiva|ref\b|referencia\b|accesorio|cinturon|billetera|morral|riñonera|gafas|reloj|sombrero|cachucha|maletín|maletin)\b/i
+
+  const artProb:  string[] = []
+  const nameProb: string[] = []
+
+  for (const c of textCands) {
+    if (PROD_RE.test(c)) artProb.push(c)
+    else nameProb.push(c)
+  }
+
+  // Asignar nombre: primer candidato "sin keywords de producto"
+  if (!cliente_nombre && nameProb.length > 0) {
+    cliente_nombre = nameProb.shift()!
+  }
+
+  // Asignar artículo: primero los que claramente son producto,
+  // luego los que quedan de nameProb, luego los que tienen dígitos
+  const artPool = [...artProb, ...nameProb, ...artDigCands]
+  if (!articulo && artPool.length > 0) {
+    articulo = artPool.shift()!
+  }
+
+  // Sobrantes → notas
+  for (const r of artPool) {
+    notas = notas ? `${notas} | ${r}` : r
   }
 
   return {
