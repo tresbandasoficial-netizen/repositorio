@@ -106,7 +106,7 @@ async function _crearPedidoConDatos(
     return { ok: false, error: `Error creando pedido: ${errPedido.message}` }
   }
 
-  redirect(`/pedidos/${pedidoId}`)
+  return { ok: true as const, pedidoId }
 }
 
 export async function crearPedidoAction(

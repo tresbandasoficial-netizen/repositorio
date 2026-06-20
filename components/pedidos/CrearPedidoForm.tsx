@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { ImagenProducto } from '@/components/pedidos/ImagenProducto'
 import { uploadPedidoImage } from '@/lib/utils/uploadPedidoImage'
+import { PedidoSuccessOverlay } from '@/components/pedidos/PedidoSuccessOverlay'
 
 interface CrearPedidoFormProps {
   numeroSugerido: string
@@ -62,6 +63,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
   const [busquedaDirecta, setBusquedaDirecta] = useState('')
   const [resultadosDirecta, setResultadosDirecta] = useState<ClienteBusqueda[]>([])
   const [ultimaDireccion, setUltimaDireccion] = useState<string | null>(null)
+  const [pedidoCreado, setPedidoCreado] = useState<{ id: string; numero: string } | null>(null)
   const [isPending, startTransition] = useTransition()
   const dropdownRef = useRef<HTMLUListElement>(null)
 
@@ -207,12 +209,18 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
       if (!result.ok) {
         setErrorAccion(result.error)
         if (result.siguienteNumero) setSiguienteNumero(result.siguienteNumero)
+      } else {
+        setPedidoCreado({ id: result.pedidoId, numero: numeroOrden })
       }
     })
   }
 
   const total = editableData?.productos.reduce((s, p) => s + p.precio_venta * p.cantidad, 0) ?? 0
   const saldo = total - (editableData?.abono ?? 0)
+
+  if (pedidoCreado) {
+    return <PedidoSuccessOverlay pedidoId={pedidoCreado.id} numeroOrden={pedidoCreado.numero} />
+  }
 
   return (
     <div className="space-y-6 max-w-2xl">
