@@ -68,8 +68,14 @@ export function Sidebar({ usuario, onClose }: SidebarProps) {
 
       {/* Logo */}
       <div className="flex items-center h-16 px-4 border-b border-gray-100 shrink-0">
-        <div className="w-9 h-9 rounded-2xl bg-blue-600 flex items-center justify-center shrink-0">
-          <span className="text-white font-black text-sm tracking-tight">TR</span>
+        <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo-3b.jpg"
+            alt="3-B"
+            className="w-full h-full object-cover scale-110"
+            style={{ filter: 'invert(1)' }}
+          />
         </div>
         <span className="ml-3 font-bold text-gray-900 text-sm">Tres Bandas</span>
       </div>
