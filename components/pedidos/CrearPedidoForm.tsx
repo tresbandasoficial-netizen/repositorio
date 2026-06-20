@@ -5,7 +5,7 @@ import { parsearPedido } from '@/lib/parser'
 import { ParsedPedido, MetodoPago } from '@/types'
 import { formatCOP } from '@/lib/utils/format'
 import { crearPedidoDesdeDataAction } from '@/app/actions/pedidos'
-import { buscarClientesAction, ClienteBusqueda } from '@/app/actions/clientes'
+import { buscarClientesAction, buscarDireccionPorTelefonoAction, ClienteBusqueda } from '@/app/actions/clientes'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { ImagenProducto } from '@/components/pedidos/ImagenProducto'
@@ -153,6 +153,12 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
       setNumeroOrden(result.data.numero_orden_sugerido)
     } else if (!numeroOrden.startsWith(result.data.sede)) {
       setNumeroOrden(numeroSugerido)
+    }
+    // Buscar última dirección del cliente por teléfono
+    if (result.data.cliente_telefono) {
+      buscarDireccionPorTelefonoAction(result.data.cliente_telefono).then(dir => {
+        setUltimaDireccion(dir)
+      })
     }
     setPaso('preview')
   }
