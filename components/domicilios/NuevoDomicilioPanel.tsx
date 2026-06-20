@@ -27,13 +27,24 @@ const VACIO = {
 }
 
 export function NuevoDomicilioPanel({ fecha, onCreado }: Props) {
-  const [modo, setModo] = useState<'auto' | 'manual'>('auto')
+  const [modo, setModo] = useState<'auto' | 'buscar' | 'manual'>('auto')
   const [texto, setTexto] = useState('')
   const [form, setForm] = useState(VACIO)
   const [error, setError] = useState<string | null>(null)
   const [isPending, start] = useTransition()
+  const [busqueda, setBusqueda] = useState('')
+  const [resultadosBusqueda, setResultadosBusqueda] = useState<ClienteBusqueda[]>([])
   const [resultadosCliente, setResultadosCliente] = useState<ClienteBusqueda[]>([])
   const clienteRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (busqueda.trim().length < 2) { setResultadosBusqueda([]); return }
+    const t = setTimeout(async () => {
+      const res = await buscarClientesAction(busqueda)
+      setResultadosBusqueda(res)
+    }, 300)
+    return () => clearTimeout(t)
+  }, [busqueda])
 
   useEffect(() => {
     if (form.cliente_nombre.trim().length < 2) { setResultadosCliente([]); return }
@@ -43,6 +54,18 @@ export function NuevoDomicilioPanel({ fecha, onCreado }: Props) {
     }, 300)
     return () => clearTimeout(t)
   }, [form.cliente_nombre])
+
+  function seleccionarClienteBusqueda(c: ClienteBusqueda) {
+    setForm(f => ({
+      ...f,
+      cliente_nombre:   c.nombre,
+      cliente_telefono: c.telefono_normalizado,
+      direccion:        c.ultima_direccion ?? '',
+    }))
+    setBusqueda('')
+    setResultadosBusqueda([])
+    setModo('manual')
+  }
 
   function seleccionarCliente(c: ClienteBusqueda) {
     setForm(f => ({
@@ -115,21 +138,60 @@ export function NuevoDomicilioPanel({ fecha, onCreado }: Props) {
     <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
       {/* Tabs modo */}
       <div className="flex gap-2">
-        {(['auto', 'manual'] as const).map(m => (
+        {([
+          { key: 'auto',   label: 'Pegar texto' },
+          { key: 'buscar', label: '🔍 Buscar cliente' },
+          { key: 'manual', label: 'Manual' },
+        ] as const).map(({ key, label }) => (
           <button
-            key={m}
+            key={key}
             type="button"
-            onClick={() => setModo(m)}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
-              modo === m
+            onClick={() => setModo(key)}
+            className={`flex-1 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+              modo === key
                 ? 'bg-gray-900 text-white border-gray-900'
                 : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
             }`}
           >
-            {m === 'auto' ? 'Pegar texto' : 'Manual'}
+            {label}
           </button>
         ))}
       </div>
+
+      {/* Modo buscar cliente */}
+      {modo === 'buscar' && (
+        <div className="space-y-3">
+          <p className="text-xs text-gray-500">Busca el cliente y se llena la dirección automáticamente.</p>
+          <div className="relative">
+            <input
+              type="text"
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              onBlur={() => setTimeout(() => setResultadosBusqueda([]), 150)}
+              placeholder="Nombre o celular del cliente..."
+              autoFocus
+              className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+            />
+            {resultadosBusqueda.length > 0 && (
+              <ul className="absolute z-20 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-64 overflow-auto">
+                {resultadosBusqueda.map(c => (
+                  <li
+                    key={c.id}
+                    onMouseDown={() => seleccionarClienteBusqueda(c)}
+                    className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-0"
+                  >
+                    <p className="text-sm font-medium text-gray-900">{c.nombre}</p>
+                    <p className="text-xs text-gray-400">{c.telefono_normalizado}</p>
+                    {c.ultima_direccion && (
+                      <p className="text-xs text-blue-500 truncate mt-0.5">📍 {c.ultima_direccion}</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Modo auto */}
       {modo === 'auto' && (
