@@ -15,6 +15,7 @@ import {
   ShoppingBag,
   UserCog,
   LogOut,
+  Sparkles,
   LucideProps,
 } from 'lucide-react'
 
@@ -44,10 +45,11 @@ const navItems: { href: string; label: string; icon: NavIcon; rol: string[] }[] 
   { href: '/alertas',      label: 'Alertas',      icon: Bell,            rol: ['asesor', 'admin', 'visor'] },
   { href: '/clientes',     label: 'Clientes',     icon: Users,           rol: ['asesor', 'admin', 'visor'] },
   { href: '/domicilios',   label: 'Domicilios',   icon: MotoIcon,        rol: ['asesor', 'admin'] },
-  { href: '/estadisticas', label: 'Estadísticas', icon: BarChart2,       rol: ['admin'] },
-  { href: '/cartera',      label: 'Cartera',      icon: Wallet,          rol: ['admin'] },
-  { href: '/compras',      label: 'Compras',      icon: ShoppingBag,     rol: ['admin'] },
-  { href: '/usuarios',     label: 'Usuarios',     icon: UserCog,         rol: ['admin'] },
+  { href: '/estadisticas', label: 'Estadísticas', icon: BarChart2,   rol: ['admin'] },
+  { href: '/cartera',      label: 'Cartera',      icon: Wallet,      rol: ['admin'] },
+  { href: '/compras',      label: 'Compras',      icon: ShoppingBag, rol: ['admin'] },
+  { href: '/usuarios',     label: 'Usuarios',     icon: UserCog,     rol: ['admin'] },
+  { href: '/asistente',    label: 'Asistente IA', icon: Sparkles,    rol: ['asesor', 'admin'] },
 ]
 
 export function Sidebar({ usuario, onClose }: SidebarProps) {
