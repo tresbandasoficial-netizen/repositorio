@@ -70,6 +70,7 @@ export async function buscarDireccionPorTelefonoAction(telefono: string): Promis
   return pedido?.direccion_entrega ?? null
 }
 
+export type EditarClienteResult =
   | { ok: true }
   | { ok: false; error: string }
 
