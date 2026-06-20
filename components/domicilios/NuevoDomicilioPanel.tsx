@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect, useRef } from 'react'
 import { crearDomicilioAction } from '@/app/actions/domicilios'
 import { parsearDomicilio } from './parsearDomicilio'
+import { buscarClientesAction, buscarDireccionPorTelefonoAction, ClienteBusqueda } from '@/app/actions/clientes'
 
 const MENSAJERIA_LABELS = { exneider: 'Exneider', servigo: 'Servigo' }
 
@@ -31,6 +32,27 @@ export function NuevoDomicilioPanel({ fecha, onCreado }: Props) {
   const [form, setForm] = useState(VACIO)
   const [error, setError] = useState<string | null>(null)
   const [isPending, start] = useTransition()
+  const [resultadosCliente, setResultadosCliente] = useState<ClienteBusqueda[]>([])
+  const clienteRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (form.cliente_nombre.trim().length < 2) { setResultadosCliente([]); return }
+    const t = setTimeout(async () => {
+      const res = await buscarClientesAction(form.cliente_nombre)
+      setResultadosCliente(res)
+    }, 300)
+    return () => clearTimeout(t)
+  }, [form.cliente_nombre])
+
+  function seleccionarCliente(c: ClienteBusqueda) {
+    setForm(f => ({
+      ...f,
+      cliente_nombre:   c.nombre,
+      cliente_telefono: c.telefono_normalizado,
+      direccion:        c.ultima_direccion ?? f.direccion,
+    }))
+    setResultadosCliente([])
+  }
 
   function handleParsear() {
     const p = parsearDomicilio(texto)
@@ -47,6 +69,12 @@ export function NuevoDomicilioPanel({ fecha, onCreado }: Props) {
       numero_pedido:     p.numero_pedido,
       notas:             p.notas,
     })
+    // Si no hay dirección parseada, buscar la última del cliente por teléfono
+    if (!p.direccion && p.cliente_telefono) {
+      buscarDireccionPorTelefonoAction(p.cliente_telefono).then(dir => {
+        if (dir) setForm(f => ({ ...f, direccion: dir }))
+      })
+    }
     setModo('manual')
   }
 
@@ -128,15 +156,34 @@ export function NuevoDomicilioPanel({ fecha, onCreado }: Props) {
       {modo === 'manual' && (
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2">
+            <div className="col-span-2 relative" ref={clienteRef}>
               <label className="block text-xs text-gray-500 mb-1">Cliente *</label>
               <input
                 type="text"
                 value={form.cliente_nombre}
                 onChange={e => set('cliente_nombre', e.target.value)}
+                onBlur={() => setTimeout(() => setResultadosCliente([]), 150)}
                 placeholder="Nombre completo"
+                autoComplete="off"
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
               />
+              {resultadosCliente.length > 0 && (
+                <ul className="absolute z-20 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-52 overflow-auto">
+                  {resultadosCliente.map(c => (
+                    <li
+                      key={c.id}
+                      onMouseDown={() => seleccionarCliente(c)}
+                      className="px-3 py-2.5 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-0"
+                    >
+                      <p className="text-sm font-medium text-gray-900">{c.nombre}</p>
+                      <p className="text-xs text-gray-400">{c.telefono_normalizado}</p>
+                      {c.ultima_direccion && (
+                        <p className="text-xs text-blue-500 truncate mt-0.5">📍 {c.ultima_direccion}</p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">Celular</label>
