@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — Logo en Sidebar</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+    background: #e2e8ef;
+    min-height: 100vh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 40px 24px;
+    gap: 40px;
+    flex-wrap: wrap;
+  }
+
+  .col {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+  }
+  .label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    margin-bottom: 4px;
+  }
+  .recommended {
+    font-size: 11px;
+    font-weight: 800;
+    color: #16a34a;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    background: #f0fdf4;
+    border: 1.5px solid #86efac;
+    border-radius: 6px;
+    padding: 3px 10px;
+  }
+
+  /* ─── SIDEBAR BASE ─── */
+  .sidebar {
+    width: 208px;
+    min-height: 600px;
+    background: #fff;
+    border-radius: 20px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 8px 32px -8px rgba(0,0,0,.18);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .nav {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 12px;
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 42px;
+    border-radius: 14px;
+    padding: 0 12px;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: #94a3b8;
+    cursor: pointer;
+  }
+  .nav-item.active {
+    background: #2563eb;
+    color: #fff;
+    box-shadow: 0 4px 12px -2px rgba(37,99,235,.35);
+    font-weight: 600;
+  }
+  .nav-dot { width: 16px; height: 16px; border-radius: 4px; background: currentColor; opacity: .35; flex: none; }
+  .nav-item.active .nav-dot { opacity: 1; background: #fff; }
+
+  .footer {
+    padding: 12px;
+    border-top: 1px solid #f1f5f9;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .avatar {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: #eff6ff; color: #3b82f6;
+    font-size: 13px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+    flex: none;
+  }
+  .footer-name { font-size: 12px; font-weight: 700; color: #1e293b; }
+  .footer-role { font-size: 11px; color: #94a3b8; }
+
+  /* ─── OPCIÓN A: logo negro cuadrado redondeado + texto ─── */
+  .logo-a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 14px 14px;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .logo-a-img {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    overflow: hidden;
+    flex: none;
+    background: #000;
+  }
+  .logo-a-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    /* crop a bit to remove padding around 3-B */
+    transform: scale(1.15);
+  }
+  .logo-a-text {
+    font-size: 13.5px;
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: -.01em;
+  }
+
+  /* ─── OPCIÓN B: banda oscura con logo completo 07 ─── */
+  .logo-b {
+    background: #0f172a;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    border-bottom: none;
+    position: relative;
+    overflow: hidden;
+  }
+  .logo-b::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(37,99,235,.18) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .logo-b img {
+    width: 130px;
+    height: auto;
+    object-fit: contain;
+    /* show white logo on dark bg */
+    image-rendering: crisp-edges;
+  }
+
+  /* ─── OPCIÓN C: logo invertido (negro sobre blanco) ─── */
+  .logo-c {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 14px 14px;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .logo-c-img {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    overflow: hidden;
+    flex: none;
+    background: #fff;
+  }
+  .logo-c-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    transform: scale(1.15);
+    filter: invert(1);
+  }
+  .logo-c-text {
+    font-size: 13.5px;
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: -.01em;
+  }
+
+  /* ─── OPCIÓN D: wordmark negro sobre blanco, centrado ─── */
+  .logo-d {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px 16px;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .logo-d img {
+    height: 26px;
+    width: auto;
+    filter: invert(1);
+  }
+</style>
+</head>
+<body>
+
+<!-- OPCIÓN A: Ícono 3-B en cuadrado negro + texto -->
+<div class="col">
+  <div class="label">Opción A</div>
+  <p style="font-size:12px;color:#64748b;text-align:center;max-width:160px;">Ícono 3-B en cuadrado negro + "Tres Bandas"</p>
+  <div class="sidebar">
+    <div class="logo-a">
+      <div class="logo-a-img">
+        <img src="file:///tmp/logos_tb/LOGO TRES BANDAS JPG-08.jpg" alt="3-B">
+      </div>
+      <span class="logo-a-text">Tres Bandas</span>
+    </div>
+    <nav class="nav">
+      <div class="nav-item active"><div class="nav-dot"></div>Dashboard</div>
+      <div class="nav-item"><div class="nav-dot"></div>Pedidos</div>
+      <div class="nav-item"><div class="nav-dot"></div>Alertas</div>
+      <div class="nav-item"><div class="nav-dot"></div>Clientes</div>
+      <div class="nav-item"><div class="nav-dot"></div>Domicilios</div>
+      <div class="nav-item"><div class="nav-dot"></div>Estadísticas</div>
+    </nav>
+    <div class="footer">
+      <div class="avatar">JD</div>
+      <div>
+        <div class="footer-name">Juan Diego</div>
+        <div class="footer-role">admin</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- OPCIÓN B: Banda oscura con logo completo 07 -->
+<div class="col">
+  <div class="label">Opción B</div>
+  <p style="font-size:12px;color:#64748b;text-align:center;max-width:160px;">Header oscuro con logo completo "3-B TRES BANDAS"</p>
+  <div class="sidebar">
+    <div class="logo-b">
+      <img src="file:///tmp/logos_tb/LOGO TRES BANDAS JPG-07.jpg" alt="Tres Bandas">
+    </div>
+    <nav class="nav">
+      <div class="nav-item active"><div class="nav-dot"></div>Dashboard</div>
+      <div class="nav-item"><div class="nav-dot"></div>Pedidos</div>
+      <div class="nav-item"><div class="nav-dot"></div>Alertas</div>
+      <div class="nav-item"><div class="nav-dot"></div>Clientes</div>
+      <div class="nav-item"><div class="nav-dot"></div>Domicilios</div>
+      <div class="nav-item"><div class="nav-dot"></div>Estadísticas</div>
+    </nav>
+    <div class="footer">
+      <div class="avatar">JD</div>
+      <div>
+        <div class="footer-name">Juan Diego</div>
+        <div class="footer-role">admin</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- OPCIÓN C: Ícono invertido (negro sobre blanco) -->
+<div class="col">
+  <div class="label">Opción C</div>
+  <p style="font-size:12px;color:#64748b;text-align:center;max-width:160px;">Ícono 3-B invertido (negro sobre blanco)</p>
+  <div class="sidebar">
+    <div class="logo-c">
+      <div class="logo-c-img">
+        <img src="file:///tmp/logos_tb/LOGO TRES BANDAS JPG-08.jpg" alt="3-B">
+      </div>
+      <span class="logo-c-text">Tres Bandas</span>
+    </div>
+    <nav class="nav">
+      <div class="nav-item active"><div class="nav-dot"></div>Dashboard</div>
+      <div class="nav-item"><div class="nav-dot"></div>Pedidos</div>
+      <div class="nav-item"><div class="nav-dot"></div>Alertas</div>
+      <div class="nav-item"><div class="nav-dot"></div>Clientes</div>
+      <div class="nav-item"><div class="nav-dot"></div>Domicilios</div>
+      <div class="nav-item"><div class="nav-dot"></div>Estadísticas</div>
+    </nav>
+    <div class="footer">
+      <div class="avatar">JD</div>
+      <div>
+        <div class="footer-name">Juan Diego</div>
+        <div class="footer-role">admin</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- OPCIÓN D: Wordmark "TRES BANDAS" centrado -->
+<div class="col">
+  <div class="label">Opción D</div>
+  <p style="font-size:12px;color:#64748b;text-align:center;max-width:160px;">Solo wordmark "TRES BANDAS" en negro centrado</p>
+  <div class="sidebar">
+    <div class="logo-d">
+      <img src="file:///tmp/logos_tb/LOGO TRES BANDAS JPG-09.jpg" alt="Tres Bandas">
+    </div>
+    <nav class="nav">
+      <div class="nav-item active"><div class="nav-dot"></div>Dashboard</div>
+      <div class="nav-item"><div class="nav-dot"></div>Pedidos</div>
+      <div class="nav-item"><div class="nav-dot"></div>Alertas</div>
+      <div class="nav-item"><div class="nav-dot"></div>Clientes</div>
+      <div class="nav-item"><div class="nav-dot"></div>Domicilios</div>
+      <div class="nav-item"><div class="nav-dot"></div>Estadísticas</div>
+    </nav>
+    <div class="footer">
+      <div class="avatar">JD</div>
+      <div>
+        <div class="footer-name">Juan Diego</div>
+        <div class="footer-role">admin</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
