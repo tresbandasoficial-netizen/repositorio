@@ -117,7 +117,28 @@ export function parsearDomicilio(texto: string): DomicilioParsed {
         usado.add(i); continue
       }
       if (['observaciones', 'observacion', 'notas', 'nota', 'indicaciones', 'comentarios', 'comentario'].includes(key)) {
-        if (val) notas = notas ? `${notas} | ${val}` : val; usado.add(i); continue
+        if (val) {
+          // Detectar "El domicilio lo pagamos nosotros: $7.000" que genera la app
+          const domiNosotros = val.match(/el\s+domicilio\s+lo\s+pagamos\s+nosotros\s*:\s*\$?([\d.,]+)/i)
+          if (domiNosotros) {
+            valor_domicilio = parseValor(domiNosotros[1])
+            cobrar_al_cliente = false
+          }
+          // Detectar "domicilio lo paga el cliente: $X"
+          const domiCliente = val.match(/domicilio\s+lo\s+paga\s+(?:el\s+)?cliente\s*:\s*\$?([\d.,]+)/i)
+          if (domiCliente) {
+            valor_domicilio = parseValor(domiCliente[1])
+            cobrar_al_cliente = true
+          }
+          // Limpiar esos fragmentos técnicos de las notas reales
+          const notaLimpia = val
+            .replace(/\s*\|\s*el\s+domicilio\s+lo\s+pagamos\s+nosotros\s*:[^|]*/gi, '')
+            .replace(/\s*\|\s*domicilio\s+lo\s+paga\s+(?:el\s+)?cliente\s*:[^|]*/gi, '')
+            .replace(/^el\s+domicilio\s+lo\s+pagamos\s+nosotros\s*:[^|]*/gi, '')
+            .trim()
+          if (notaLimpia) notas = notas ? `${notas} | ${notaLimpia}` : notaLimpia
+        }
+        usado.add(i); continue
       }
       if (key.startsWith('pedido o articulo') || ['articulo', 'articulos', 'articulo enviado', 'pedido', 'producto', 'productos', 'item'].includes(key)) {
         if (val) {
@@ -129,7 +150,10 @@ export function parsearDomicilio(texto: string): DomicilioParsed {
         usado.add(i); continue
       }
       if (['valor a cobrar', 'valor', 'valor pedido', 'valor del pedido', 'precio', 'total', 'costo', 'vlr', 'vr'].includes(key)) {
-        if (valNum === 0 || /no\s+cobrar|nada|gratis/.test(valNc)) { metodo_pago = 'transferencia' }
+        if (valNum === 0 || /no\s+cobrar|nada|gratis/.test(valNc)) {
+          metodo_pago = 'transferencia'
+          cobrar_al_cliente = false
+        }
         else if (valNum <= 20000) { valor_domicilio = valNum }
         else { valor_pedido = valNum; metodo_pago = 'efectivo' }
         usado.add(i); continue
