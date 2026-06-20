@@ -11,19 +11,23 @@ interface SeguimientoBarProps {
   pedidoId: string
   estadoActual: EstadoPedido
   rolUsuario: 'asesor' | 'admin' | 'visor'
+  sedeCodigo: string
 }
 
-export function SeguimientoBar({ pedidoId, estadoActual, rolUsuario }: SeguimientoBarProps) {
+export function SeguimientoBar({ pedidoId, estadoActual, rolUsuario, sedeCodigo }: SeguimientoBarProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [loadingEstado, setLoadingEstado] = useState<EstadoPedido | null>(null)
 
+  const esSantaRosa = sedeCodigo === 'SR'
+  const flujo = esSantaRosa ? FLUJO_ESTADOS : FLUJO_ESTADOS.filter(e => e !== 'santa_rosa')
+
   const esTerminal = estadoActual === 'entregado' || estadoActual === 'cancelado'
   const esVisor = rolUsuario === 'visor'
 
-  const pasoActual = FLUJO_ESTADOS.indexOf(estadoActual)
+  const pasoActual = flujo.indexOf(estadoActual)
 
   async function handleCambiar(nuevoEstado: EstadoPedido) {
     if (esVisor || isPending) return
@@ -51,11 +55,11 @@ export function SeguimientoBar({ pedidoId, estadoActual, rolUsuario }: Seguimien
     <div className="space-y-3">
       {/* Stepper */}
       <div className="flex items-start gap-0">
-        {FLUJO_ESTADOS.map((estado, i) => {
+        {flujo.map((estado, i) => {
           const esActual = estado === estadoActual
           const esPasado = pasoActual > i
           const esFuturo = pasoActual < i
-          const esUltimo = i === FLUJO_ESTADOS.length - 1
+          const esUltimo = i === flujo.length - 1
 
           return (
             <div key={estado} className="flex-1 flex flex-col items-center gap-1.5 relative">

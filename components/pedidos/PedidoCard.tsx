@@ -12,14 +12,15 @@ import { TRANSICIONES } from '@/lib/domain/estados'
 import { cambiarEstadoInlineAction } from '@/app/actions/pedidos'
 import { cn } from '@/lib/utils/cn'
 
-function EstadoInline({ pedidoId, estadoActual }: { pedidoId: string; estadoActual: EstadoPedido }) {
+function EstadoInline({ pedidoId, estadoActual, sedeCodigo }: { pedidoId: string; estadoActual: EstadoPedido; sedeCodigo: string }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [estadoLocal, setEstadoLocal] = useState<EstadoPedido>(estadoActual)
   const ref = useRef<HTMLDivElement>(null)
 
-  const disponibles = TRANSICIONES[estadoLocal] ?? []
+  const esSantaRosa = sedeCodigo === 'SR'
+  const disponibles = (TRANSICIONES[estadoLocal] ?? []).filter(e => esSantaRosa || e !== 'santa_rosa')
   const esTerminal = disponibles.length === 0
 
   useEffect(() => {
@@ -117,7 +118,7 @@ export function PedidoCard({ pedido, esAdmin }: PedidoCardProps) {
             <span className="font-mono font-bold text-sm text-gray-900">{pedido.numero_orden}</span>
             {pedido.es_zombie && <span className="text-xs text-orange-500" title="Pedido zombie">🧟</span>}
           </div>
-          <EstadoInline pedidoId={pedido.id} estadoActual={pedido.estado} />
+          <EstadoInline pedidoId={pedido.id} estadoActual={pedido.estado} sedeCodigo={pedido.sede_codigo} />
         </div>
         <div className="flex items-end justify-between gap-2">
           <div className="min-w-0">
@@ -153,7 +154,7 @@ export function PedidoCard({ pedido, esAdmin }: PedidoCardProps) {
           <p className="text-xs text-gray-400">{formatearTelefono(pedido.cliente_telefono)}</p>
         </div>
         <div className="w-40 shrink-0">
-          <EstadoInline pedidoId={pedido.id} estadoActual={pedido.estado} />
+          <EstadoInline pedidoId={pedido.id} estadoActual={pedido.estado} sedeCodigo={pedido.sede_codigo} />
         </div>
         <div className="w-32 shrink-0 text-right">
           <p className="text-sm font-bold text-gray-900">{formatCOP(pedido.total)}</p>

@@ -283,6 +283,7 @@ export default async function PedidoDetallePage({
                 pedidoId={id}
                 estadoActual={pedido.estado}
                 rolUsuario={sesion.rol as 'asesor' | 'admin' | 'visor'}
+                sedeCodigo={pedido.sede_codigo}
               />
             </CardContent>
           </Card>
