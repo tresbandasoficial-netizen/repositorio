@@ -38,13 +38,6 @@ export default async function DomiciliosPage({
 
   return (
     <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-xl font-bold text-gray-900">Domicilios</h1>
-        <p className="text-sm text-gray-500 mt-0.5">
-          Registro diario de domicilios — Exneider y Servigo
-        </p>
-      </div>
-
       <DomiciliosCliente
         fecha={fecha}
         domicilios={domicilios}

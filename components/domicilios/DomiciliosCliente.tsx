@@ -46,6 +46,9 @@ export function DomiciliosCliente({ fecha, domicilios, cuadre, cuadreSemana, isA
 
   const pendientes = domicilios.filter(d => d.estado === 'pendiente').length
   const entregados = domicilios.filter(d => d.estado === 'entregado').length
+  const totalEfectivo = domicilios
+    .filter(d => d.metodo_pago === 'efectivo')
+    .reduce((sum, d) => sum + d.valor_pedido, 0)
 
   function abrirWhatsAppCuadre(mensajeria: 'exneider' | 'servigo') {
     const grupo = domicilios.filter(d => d.mensajeria === mensajeria)
@@ -89,43 +92,77 @@ export function DomiciliosCliente({ fecha, domicilios, cuadre, cuadreSemana, isA
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header con fecha */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-3">
-          <select
-            value={fecha}
-            onChange={e => handleFechaChange(e.target.value)}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-          >
-            <option value={new Date().toISOString().slice(0, 10)}>Hoy</option>
-            {fechasDisponibles
-              .filter(f => f !== new Date().toISOString().slice(0, 10))
-              .map(f => (
-                <option key={f} value={f}>{f}</option>
-              ))}
-          </select>
-          <div className="flex items-center gap-2 text-sm text-gray-500">
-            <span className="font-medium text-gray-900">{domicilios.length}</span> domicilios
-            {pendientes > 0 && <span className="text-orange-500">· {pendientes} pendientes</span>}
-            {entregados > 0 && <span className="text-green-600">· {entregados} entregados</span>}
+    <div className="space-y-4">
+
+      {/* Summary band */}
+      <div className="rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(135deg, #2563eb, #1e40af)' }}>
+        <div className="p-5 pb-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[12.5px] font-bold text-blue-200 uppercase tracking-wider">Domicilios · Recaudo efectivo</p>
+              <p className="text-4xl font-extrabold text-white tracking-tight leading-none mt-1">{formatCOP(totalEfectivo)}</p>
+              <p className="text-[12.5px] font-semibold text-blue-200 mt-1.5">
+                {domicilios.length} pedido{domicilios.length !== 1 ? 's' : ''} · {fecha}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setMostrarNuevo(v => !v)}
+              className="h-10 px-4 rounded-xl bg-white text-blue-800 font-extrabold text-sm flex items-center gap-1.5 shadow-lg flex-none"
+            >
+              {mostrarNuevo ? '✕ Cancelar' : '+ Nuevo'}
+            </button>
+          </div>
+
+          {/* Stats chips */}
+          <div className="flex gap-2.5 mt-4">
+            <div className="flex-1 rounded-xl p-2.5" style={{ background: 'rgba(255,255,255,0.12)' }}>
+              <p className="text-lg font-extrabold text-white leading-none">{pendientes}</p>
+              <p className="text-[11px] font-bold text-blue-200 mt-1">Pendientes</p>
+            </div>
+            <div className="flex-1 rounded-xl p-2.5" style={{ background: 'rgba(255,255,255,0.12)' }}>
+              <p className="text-lg font-extrabold text-white leading-none">0</p>
+              <p className="text-[11px] font-bold text-blue-200 mt-1">En camino</p>
+            </div>
+            <div className="flex-1 rounded-xl p-2.5" style={{ background: 'rgba(255,255,255,0.12)' }}>
+              <p className="text-lg font-extrabold text-white leading-none">{entregados}</p>
+              <p className="text-[11px] font-bold text-blue-200 mt-1">Entregados</p>
+            </div>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => setMostrarNuevo(v => !v)}
-          className="px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-700 transition-colors"
-        >
-          {mostrarNuevo ? '✕ Cancelar' : '+ Nuevo domicilio'}
-        </button>
       </div>
 
-      {/* Formulario nuevo */}
+      {/* Date selector */}
+      <div className="flex items-center gap-3">
+        <select
+          value={fecha}
+          onChange={e => handleFechaChange(e.target.value)}
+          className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+        >
+          {fechasDisponibles.map(f => (
+            <option key={f} value={f}>
+              {f === new Date().toISOString().slice(0, 10) ? `Hoy (${f})` : f}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Nuevo panel */}
       {mostrarNuevo && (
         <NuevoDomicilioPanel
           fecha={fecha}
           onCreado={() => { setMostrarNuevo(false); router.refresh() }}
         />
+      )}
+
+      {/* Yellow hint note */}
+      {domicilios.length > 0 && (
+        <div className="flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+          <span className="w-2 h-2 rounded-full bg-amber-400 flex-none" />
+          <p className="text-xs font-bold text-amber-800">
+            Los campos en gris ("Por confirmar") no aparecían en el chat — complétalos editando la tarjeta.
+          </p>
+        </div>
       )}
 
       {/* Cuadre */}
@@ -209,7 +246,6 @@ export function DomiciliosCliente({ fecha, domicilios, cuadre, cuadreSemana, isA
                 <p className="px-5 py-4 text-sm text-gray-400">Sin domicilios este día</p>
               )}
 
-              {/* Por asesor */}
               {cuadre.por_asesor.length > 1 && (
                 <div className="px-5 py-3 bg-gray-50">
                   <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2">Por asesor</p>
@@ -233,7 +269,6 @@ export function DomiciliosCliente({ fecha, domicilios, cuadre, cuadreSemana, isA
                 Semana del {cuadreSemana.desde} al {cuadreSemana.hasta}
               </p>
 
-              {/* Tabla por día */}
               <div className="px-5 py-3 overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -270,7 +305,6 @@ export function DomiciliosCliente({ fecha, domicilios, cuadre, cuadreSemana, isA
                 </table>
               </div>
 
-              {/* Totales por mensajería con WA semanal */}
               <div className="divide-y divide-gray-50 border-t border-gray-100">
                 {cuadreSemana.por_mensajeria.filter(m => m.total_domicilios > 0).map(m => (
                   <div key={m.mensajeria} className="px-5 py-3">
@@ -307,7 +341,6 @@ export function DomiciliosCliente({ fecha, domicilios, cuadre, cuadreSemana, isA
                   </div>
                 ))}
 
-                {/* Por asesor (semana) */}
                 {cuadreSemana.por_asesor.length > 1 && (
                   <div className="px-5 py-3 bg-gray-50">
                     <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2">Por asesor (semana)</p>

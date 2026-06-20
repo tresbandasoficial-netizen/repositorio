@@ -12,10 +12,20 @@ const WA_NUMEROS = {
   servigo:  '573232501670',
 }
 
-const MENSAJERIA_LABELS = { exneider: 'Exneider', servigo: 'Servigo' }
+const MENSAJERIA_LABELS: Record<string, string> = { exneider: 'Exneider', servigo: 'Servigo' }
 
 function formatCOP(v: number) {
   return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(v)
+}
+
+function getInitials(name: string) {
+  const parts = name.trim().split(/\s+/)
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
+  return name.slice(0, 2).toUpperCase()
+}
+
+function formatHora(iso: string) {
+  return new Intl.DateTimeFormat('es-CO', { hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(iso))
 }
 
 interface Props {
@@ -61,92 +71,95 @@ export function DomicilioCard({ domicilio: d, isAdmin }: Props) {
   }
 
   const entregado = d.estado === 'entregado'
+  const initials = getInitials(d.cliente_nombre)
+  const hora = d.creado_en ? formatHora(d.creado_en) : ''
+  const subtitle = [d.numero_pedido ? `#${d.numero_pedido}` : null, hora].filter(Boolean).join(' · ')
 
   return (
-    <div className={`bg-white rounded-xl border transition-colors ${entregado ? 'border-green-200 bg-green-50/30' : 'border-gray-200'}`}>
-      <div className="p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-semibold text-gray-900">{d.cliente_nombre}</span>
-              {d.numero_pedido && (
-                <span className="text-xs font-mono bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
-                  {d.numero_pedido}
-                </span>
-              )}
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                d.mensajeria === 'exneider'
-                  ? 'bg-blue-100 text-blue-700'
-                  : 'bg-purple-100 text-purple-700'
-              }`}>
-                {MENSAJERIA_LABELS[d.mensajeria]}
-              </span>
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                d.metodo_pago === 'transferencia'
-                  ? 'bg-cyan-100 text-cyan-700'
-                  : 'bg-amber-100 text-amber-700'
-              }`}>
-                {d.metodo_pago === 'transferencia' ? '🏦 Transferencia' : '💵 Efectivo'}
-              </span>
-            </div>
-            {d.cliente_telefono && (
-              <p className="text-sm text-gray-500 mt-0.5">{d.cliente_telefono}</p>
-            )}
-            <p className="text-sm text-gray-600 mt-1">{d.direccion}</p>
-            {d.articulo && (
-              <p className="text-sm text-gray-500 mt-0.5">📦 {d.articulo}</p>
-            )}
-            {d.notas && (
-              <p className="text-xs text-gray-400 mt-0.5 italic">{d.notas}</p>
-            )}
-          </div>
+    <div className="bg-white rounded-2xl overflow-hidden flex shadow-sm">
+      {/* Left color band */}
+      <div className={`w-1.5 flex-none ${entregado ? 'bg-green-600' : 'bg-amber-400'}`} />
 
-          <div className="text-right shrink-0">
-            {d.metodo_pago === 'efectivo' && d.valor_pedido > 0 && (
-              <p className="font-semibold text-gray-900">Cobra {formatCOP(d.valor_pedido)}</p>
-            )}
-            {d.metodo_pago === 'transferencia' && (
-              <p className="text-xs text-cyan-600 font-medium">Transferencia</p>
-            )}
-            {!d.cobrar_al_cliente ? (
-              <p className="text-xs text-amber-600 mt-0.5">
-                Domi {formatCOP(d.valor_domicilio)} nosotros
-              </p>
-            ) : d.valor_domicilio > 0 && (
-              <p className="text-xs text-gray-400 mt-0.5">
-                Domi {formatCOP(d.valor_domicilio)} cliente
-              </p>
-            )}
-            <p className="text-xs text-gray-400 mt-0.5">{d.asesor_nombre}</p>
+      {/* Content */}
+      <div className="flex-1 p-4 min-w-0">
+        {/* Top: avatar + name + badge */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-none font-extrabold text-sm ${
+              entregado ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'
+            }`}>
+              {initials}
+            </div>
+            <div className="min-w-0">
+              <p className="font-extrabold text-gray-900 text-base leading-tight truncate">{d.cliente_nombre}</p>
+              {subtitle && <p className="text-xs font-semibold text-gray-400 mt-0.5">{subtitle}</p>}
+            </div>
+          </div>
+          <div className={`inline-flex items-center gap-1.5 text-[11px] font-extrabold px-2.5 py-1 rounded-full flex-none ${
+            entregado ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'
+          }`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${entregado ? 'bg-green-600' : 'bg-amber-400'}`} />
+            {entregado ? 'Entregado' : 'Pendiente'}
           </div>
         </div>
 
-        {/* Acciones */}
+        {/* Info chips: WhatsApp + Mensajero */}
+        <div className="flex gap-2 mt-3">
+          <div className="flex-1 bg-gray-50 rounded-lg p-2">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">WhatsApp</p>
+            {d.cliente_telefono
+              ? <p className="text-xs font-bold text-gray-700 mt-0.5">{d.cliente_telefono}</p>
+              : <p className="text-xs font-bold text-gray-300 mt-0.5">Por confirmar</p>}
+          </div>
+          <div className="flex-1 bg-gray-50 rounded-lg p-2">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Mensajero</p>
+            <p className="text-xs font-bold text-gray-700 mt-0.5">{MENSAJERIA_LABELS[d.mensajeria] ?? d.mensajeria}</p>
+          </div>
+        </div>
+
+        {/* Bottom: article + value */}
+        <div className="flex items-end justify-between mt-3 pt-3 border-t border-gray-100 gap-2">
+          <p className="text-sm font-bold text-gray-600 leading-snug">
+            {d.articulo || d.direccion}
+          </p>
+          <div className="text-right flex-none">
+            {d.valor_pedido > 0
+              ? <>
+                  <p className={`text-lg font-extrabold leading-tight ${
+                    d.metodo_pago === 'transferencia' ? 'text-cyan-600' : 'text-gray-900'
+                  }`}>{formatCOP(d.valor_pedido)}</p>
+                  <p className="text-[11px] font-bold text-gray-400 mt-0.5">
+                    {d.metodo_pago === 'transferencia' ? 'Transferencia' : 'Cobra efectivo'}
+                  </p>
+                </>
+              : <>
+                  <p className="text-lg font-extrabold leading-tight text-gray-300">Por confirmar</p>
+                  <p className="text-[11px] font-bold text-gray-400 mt-0.5">Valor del pedido</p>
+                </>}
+          </div>
+        </div>
+
+        {/* Actions */}
         <div className="flex items-center gap-2 mt-3 flex-wrap">
-          {/* Estado */}
           <button
             type="button"
             onClick={toggleEstado}
             disabled={isPending}
             className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors ${
               entregado
-                ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200'
-                : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200'
+                ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+                : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
             }`}
           >
             {entregado ? '✓ Entregado' : 'Marcar entregado'}
           </button>
-
-          {/* WhatsApp */}
           <button
             type="button"
             onClick={abrirWhatsApp}
             className="text-xs px-3 py-1.5 rounded-lg bg-green-500 hover:bg-green-600 text-white font-medium transition-colors"
           >
-            WhatsApp {MENSAJERIA_LABELS[d.mensajeria]}
+            WA {MENSAJERIA_LABELS[d.mensajeria]}
           </button>
-
-          {/* Copiar mensaje */}
           <button
             type="button"
             onClick={() => copiar('msg')}
@@ -154,8 +167,6 @@ export function DomicilioCard({ domicilio: d, isAdmin }: Props) {
           >
             {copiado === 'msg' ? '✓ Copiado' : 'Pedir domicilio'}
           </button>
-
-          {/* Copiar Excel */}
           <button
             type="button"
             onClick={() => copiar('excel')}
@@ -163,8 +174,6 @@ export function DomicilioCard({ domicilio: d, isAdmin }: Props) {
           >
             {copiado === 'excel' ? '✓ Copiado' : 'Línea Excel'}
           </button>
-
-          {/* Editar */}
           <button
             type="button"
             onClick={() => setEditando(v => !v)}
@@ -172,8 +181,6 @@ export function DomicilioCard({ domicilio: d, isAdmin }: Props) {
           >
             {editando ? 'Cancelar' : 'Editar'}
           </button>
-
-          {/* Eliminar */}
           {isAdmin && (
             <button
               type="button"
