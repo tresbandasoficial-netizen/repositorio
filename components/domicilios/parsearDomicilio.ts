@@ -259,16 +259,17 @@ export function parsearDomicilio(texto: string): DomicilioParsed {
     // Líneas puramente numéricas o casi numéricas sin valor reconocido
     if (/^\d[\d\s.,-]{4,}$/.test(line)) continue
 
-    // ── 2C. NOMBRE ────────────────────────────────────────────────────────
-    if (!cliente_nombre && !/\d/.test(line) && line.length >= 4 && line.length <= 60) {
-      cliente_nombre = line; continue
-    }
-
-    // ── 2D. "BARRIO xxx" PENDIENTE ────────────────────────────────────────
+    // ── 2C. "BARRIO xxx" PENDIENTE — va ANTES del nombre para que
+    //        "Barrio prados del sur" no se confunda con el nombre del cliente
     if (/^barrio\b/i.test(ln)) {
       const barrio = line.replace(/^barrio\s*/i, '').trim()
       if (barrio && direccion) direccion = `${direccion}, ${barrio}`
       continue  // siempre descartar, nunca a notas
+    }
+
+    // ── 2D. NOMBRE ────────────────────────────────────────────────────────
+    if (!cliente_nombre && !/\d/.test(line) && line.length >= 4 && line.length <= 60) {
+      cliente_nombre = line; continue
     }
 
     // ── 2E. ARTÍCULO (antes de la detección de ciudad) ────────────────────
