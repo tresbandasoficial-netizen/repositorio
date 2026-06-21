@@ -6,11 +6,21 @@ import { ParsedPedido, MetodoPago } from '@/types'
 import { formatCOP } from '@/lib/utils/format'
 import { crearPedidoDesdeDataAction } from '@/app/actions/pedidos'
 import { buscarClientesAction, buscarDireccionPorTelefonoAction, ClienteBusqueda } from '@/app/actions/clientes'
+import { buscarPorCodigoAction } from '@/app/actions/articulos'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { ImagenProducto } from '@/components/pedidos/ImagenProducto'
 import { uploadPedidoImage } from '@/lib/utils/uploadPedidoImage'
 import { PedidoSuccessOverlay } from '@/components/pedidos/PedidoSuccessOverlay'
+
+type CatalogLink = {
+  articulo_id: string
+  codigo: string
+  marca: string
+  nombre: string
+  color: string | null
+  sexo: string | null
+}
 
 interface CrearPedidoFormProps {
   numeroSugerido: string
@@ -64,6 +74,8 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
   const [resultadosDirecta, setResultadosDirecta] = useState<ClienteBusqueda[]>([])
   const [ultimaDireccion, setUltimaDireccion] = useState<string | null>(null)
   const [pedidoCreado, setPedidoCreado] = useState<{ id: string; numero: string } | null>(null)
+  const [codigos, setCodigos] = useState<string[]>([''])           // código SKU por línea
+  const [catalogLinks, setCatalogLinks] = useState<(CatalogLink | null)[]>([null])
   const [isPending, startTransition] = useTransition()
   const dropdownRef = useRef<HTMLUListElement>(null)
 
@@ -134,6 +146,8 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
       direccion: null,
       notas: null,
     })
+    setCodigos([''])
+    setCatalogLinks([null])
     setNumeroOrden(numeroSugerido)
     setAdvertencias([])
     setBusquedaDirecta('')
@@ -149,6 +163,8 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
       return
     }
     setEditableData(result.data)
+    setCodigos(result.data.productos.map(() => ''))
+    setCatalogLinks(result.data.productos.map(() => null))
     setAdvertencias(result.warnings ?? [])
     setErrorParser(null)
     if (result.data.numero_orden_sugerido) {
@@ -175,7 +191,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
     setEditableData(prev => prev ? { ...prev, [field]: value } : null)
   }
 
-  function updateProducto(idx: number, field: string, value: string | number) {
+  function updateProducto(idx: number, field: string, value: string | number | null) {
     setEditableData(prev => {
       if (!prev) return null
       const productos = prev.productos.map((p, i) =>
@@ -183,6 +199,36 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
       )
       return { ...prev, productos }
     })
+  }
+
+  function setCodigo(idx: number, val: string) {
+    setCodigos(prev => prev.map((c, i) => i === idx ? val : c))
+  }
+
+  function clearCatalogLink(idx: number) {
+    setCatalogLinks(prev => prev.map((c, i) => i === idx ? null : c))
+    updateProducto(idx, 'articulo_id', null)
+  }
+
+  async function lookupCodigo(idx: number) {
+    const codigo = codigos[idx]?.trim()
+    if (!codigo) return
+    const art = await buscarPorCodigoAction(codigo)
+    if (!art) return
+    const link: CatalogLink = {
+      articulo_id: art.id,
+      codigo: art.codigo ?? codigo,
+      marca: art.marca,
+      nombre: art.nombre,
+      color: art.color,
+      sexo: art.sexo,
+    }
+    setCatalogLinks(prev => prev.map((c, i) => i === idx ? link : c))
+    // Pre-rellenar marca en el producto (la descripción la escribe el asesor)
+    if (!editableData?.productos[idx].marca) {
+      updateProducto(idx, 'marca', art.marca)
+    }
+    updateProducto(idx, 'articulo_id', art.id)
   }
 
   function handleConfirmar() {
@@ -454,52 +500,89 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
               <div>
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Productos</p>
                 <div className="space-y-3">
-                  {editableData.productos.map((p, i) => (
-                    <div key={i} className="border border-gray-200 rounded-lg p-3 space-y-2"
-                      onMouseDown={() => { activeProductIdxRef.current = i }}>
-                      <div className="flex gap-2">
-                        <ImagenProducto
-                          value={p.imagen_url ?? null}
-                          onChange={url => updateProducto(i, 'imagen_url', url ?? '')}
-                        />
-                        <div className="flex-1 space-y-2">
-                          <div className="flex gap-2">
-                            <div className="flex-1">
-                              <InputField
-                                label="Artículo"
-                                value={[p.marca, p.descripcion].filter(Boolean).join(' ')}
-                                onChange={v => { updateProducto(i, 'marca', ''); updateProducto(i, 'descripcion', v) }}
-                              />
-                            </div>
-                            <div className="w-20">
-                              <InputField
-                                label="Talla"
-                                value={p.talla ?? ''}
-                                onChange={v => updateProducto(i, 'talla', v)}
-                              />
-                            </div>
+                  {editableData.productos.map((p, i) => {
+                    const link = catalogLinks[i]
+                    return (
+                      <div key={i} className="border border-gray-200 rounded-lg p-3 space-y-2"
+                        onMouseDown={() => { activeProductIdxRef.current = i }}>
+
+                        {/* Código SKU — búsqueda en catálogo */}
+                        <div className="flex items-center gap-2">
+                          <div className="w-36">
+                            <label className="block text-xs text-gray-500 mb-0.5">Código SKU</label>
+                            <input
+                              type="text"
+                              value={codigos[i] ?? ''}
+                              onChange={e => setCodigo(i, e.target.value.toUpperCase())}
+                              onBlur={() => lookupCodigo(i)}
+                              placeholder="ej. VOMERO5-WB"
+                              className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
                           </div>
-                          <InputField
-                            label="Precio"
-                            value={p.precio_venta}
-                            type="number"
-                            onChange={v => updateProducto(i, 'precio_venta', parseInt(v) || 0)}
-                            className="max-w-[160px]"
-                          />
+                          {link && (
+                            <div className="flex-1 flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-2.5 py-1.5">
+                              <span className="text-xs text-blue-800 font-medium">
+                                ✓ {link.marca} {link.nombre}
+                                {link.color && <span className="text-blue-600"> · {link.color}</span>}
+                              </span>
+                              <button type="button" onClick={() => clearCatalogLink(i)}
+                                className="text-blue-400 hover:text-blue-700 ml-2 text-xs">✕</button>
+                            </div>
+                          )}
                         </div>
+
+                        <div className="flex gap-2">
+                          <ImagenProducto
+                            value={p.imagen_url ?? null}
+                            onChange={url => updateProducto(i, 'imagen_url', url ?? '')}
+                          />
+                          <div className="flex-1 space-y-2">
+                            <div className="flex gap-2">
+                              <div className="flex-1">
+                                <InputField
+                                  label="Descripción para el cliente"
+                                  value={[p.marca, p.descripcion].filter(Boolean).join(' ')}
+                                  onChange={v => { updateProducto(i, 'marca', ''); updateProducto(i, 'descripcion', v) }}
+                                />
+                              </div>
+                              <div className="w-20">
+                                <InputField
+                                  label="Talla"
+                                  value={p.talla ?? ''}
+                                  onChange={v => updateProducto(i, 'talla', v)}
+                                />
+                              </div>
+                            </div>
+                            <InputField
+                              label="Precio"
+                              value={p.precio_venta}
+                              type="number"
+                              onChange={v => updateProducto(i, 'precio_venta', parseInt(v) || 0)}
+                              className="max-w-[160px]"
+                            />
+                          </div>
+                        </div>
+                        {editableData.productos.length > 1 && (
+                          <button type="button"
+                            onClick={() => {
+                              setEditableData(prev => prev ? { ...prev, productos: prev.productos.filter((_, j) => j !== i) } : null)
+                              setCodigos(prev => prev.filter((_, j) => j !== i))
+                              setCatalogLinks(prev => prev.filter((_, j) => j !== i))
+                            }}
+                            className="text-xs text-red-500 hover:text-red-700">
+                            Quitar producto
+                          </button>
+                        )}
                       </div>
-                      {editableData.productos.length > 1 && (
-                        <button type="button"
-                          onClick={() => setEditableData(prev => prev ? { ...prev, productos: prev.productos.filter((_, j) => j !== i) } : null)}
-                          className="text-xs text-red-500 hover:text-red-700">
-                          Quitar producto
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
                 <button type="button"
-                  onClick={() => setEditableData(prev => prev ? { ...prev, productos: [...prev.productos, { marca: '', descripcion: '', talla: null, cantidad: 1, precio_venta: 0 }] } : null)}
+                  onClick={() => {
+                    setEditableData(prev => prev ? { ...prev, productos: [...prev.productos, { marca: '', descripcion: '', talla: null, cantidad: 1, precio_venta: 0 }] } : null)
+                    setCodigos(prev => [...prev, ''])
+                    setCatalogLinks(prev => [...prev, null])
+                  }}
                   className="mt-2 text-sm text-blue-600 hover:text-blue-800 font-medium">
                   + Agregar producto
                 </button>

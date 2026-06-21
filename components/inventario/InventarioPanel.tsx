@@ -7,7 +7,7 @@ import {
 } from '@/app/actions/articulos'
 import { Button } from '@/components/ui/Button'
 import { StockAgrupado } from '@/lib/queries/inventario'
-import { Articulo, CategoriaArticulo } from '@/types'
+import { Articulo, CategoriaArticulo, SexoArticulo } from '@/types'
 
 type Sede = { id: string; codigo: string; nombre: string }
 
@@ -23,23 +23,23 @@ export function InventarioPanel({
   const [q, setQ] = useState('')
 
   const filtradas = q.trim()
-    ? filas.filter(f => (f.marca + ' ' + f.nombre + ' ' + (f.talla ?? '')).toLowerCase().includes(q.toLowerCase()))
+    ? filas.filter(f =>
+        (f.marca + ' ' + f.nombre + ' ' + (f.talla ?? '')).toLowerCase().includes(q.toLowerCase())
+      )
     : filas
 
   return (
     <div className="space-y-4">
-      {/* Acciones */}
       <div className="flex flex-wrap gap-2">
         <Button onClick={() => setAccion('articulo')} variant="secondary">+ Nuevo artículo</Button>
         <Button onClick={() => setAccion('entrada')} variant="secondary">+ Entrada de stock</Button>
         <Button onClick={() => setAccion('transferencia')} variant="secondary">⇄ Transferir</Button>
       </div>
 
-      {accion === 'articulo' && <CrearArticulo onClose={() => setAccion('none')} />}
-      {accion === 'entrada' && <Entrada articulos={articulos} sedes={sedes} onClose={() => setAccion('none')} />}
+      {accion === 'articulo'      && <CrearArticulo onClose={() => setAccion('none')} />}
+      {accion === 'entrada'       && <Entrada articulos={articulos} sedes={sedes} onClose={() => setAccion('none')} />}
       {accion === 'transferencia' && <Transferencia articulos={articulos} sedes={sedes} onClose={() => setAccion('none')} />}
 
-      {/* Buscador */}
       <input
         type="text"
         value={q}
@@ -48,10 +48,11 @@ export function InventarioPanel({
         className="w-full max-w-sm rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
 
-      {/* Tabla de stock */}
       {filtradas.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
-          {filas.length === 0 ? 'Aún no hay artículos con stock. Crea un artículo y registra una entrada.' : 'Sin resultados'}
+          {filas.length === 0
+            ? 'Aún no hay artículos con stock. Crea un artículo y registra una entrada.'
+            : 'Sin resultados'}
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
@@ -59,6 +60,7 @@ export function InventarioPanel({
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
                 <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">Artículo</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Talla</th>
                 {columnasSedes.map(s => (
                   <th key={s} className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">{s}</th>
                 ))}
@@ -67,10 +69,12 @@ export function InventarioPanel({
             </thead>
             <tbody className="divide-y divide-gray-50">
               {filtradas.map(f => (
-                <tr key={f.articulo_id} className="hover:bg-gray-50 transition-colors">
+                <tr key={f.key} className="hover:bg-gray-50 transition-colors">
                   <td className="px-6 py-3">
                     <p className="font-medium text-gray-900">{f.marca} {f.nombre}</p>
-                    {f.talla && <p className="text-xs text-gray-400">Talla {f.talla}</p>}
+                  </td>
+                  <td className="px-4 py-3 text-gray-500 text-sm">
+                    {f.talla ?? '—'}
                   </td>
                   {columnasSedes.map(s => {
                     const v = f.porSede[s] ?? 0
@@ -109,9 +113,12 @@ const inputCls = 'w-full rounded-lg border border-gray-200 px-3 py-2 text-sm foc
 
 function CrearArticulo({ onClose }: { onClose: () => void }) {
   const router = useRouter()
+  const [codigo, setCodigo] = useState('')
   const [nombre, setNombre] = useState('')
   const [marca, setMarca] = useState('')
-  const [talla, setTalla] = useState('')
+  const [referencia, setReferencia] = useState('')
+  const [color, setColor] = useState('')
+  const [sexo, setSexo] = useState<SexoArticulo | ''>('')
   const [categoria, setCategoria] = useState<CategoriaArticulo | ''>('')
   const [error, setError] = useState('')
   const [pending, start] = useTransition()
@@ -120,18 +127,31 @@ function CrearArticulo({ onClose }: { onClose: () => void }) {
     if (!marca.trim() || !nombre.trim()) { setError('Marca y nombre son obligatorios'); return }
     setError('')
     start(async () => {
-      const r = await crearArticuloAction({ nombre, marca, talla, categoria })
+      const r = await crearArticuloAction({ codigo, nombre, marca, referencia, color, sexo, categoria, descripcion: '' })
       if (!r.ok) { setError(r.error); return }
       router.refresh(); onClose()
     })
   }
 
   return (
-    <Panel title="Nuevo artículo" onClose={onClose}>
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
-        <input className={inputCls} placeholder="Marca" value={marca} onChange={e => setMarca(e.target.value)} />
+    <Panel title="Nuevo artículo de catálogo" onClose={onClose}>
+      <p className="text-xs text-gray-400 mb-3">
+        El código SKU identifica el modelo (ej. "VOMERO5-WB"). La talla se registra al hacer la entrada de stock.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <input className={inputCls} placeholder="Código SKU (ej. VOMERO5-WB)" value={codigo} onChange={e => setCodigo(e.target.value.toUpperCase())} />
+        <input className={inputCls} placeholder="Marca (ej. Nike)" value={marca} onChange={e => setMarca(e.target.value)} />
         <input className={inputCls} placeholder="Nombre / modelo" value={nombre} onChange={e => setNombre(e.target.value)} />
-        <input className={inputCls} placeholder="Talla" value={talla} onChange={e => setTalla(e.target.value)} />
+        <input className={inputCls} placeholder="Referencia técnica (opcional)" value={referencia} onChange={e => setReferencia(e.target.value)} />
+        <input className={inputCls} placeholder="Color (ej. White/Black)" value={color} onChange={e => setColor(e.target.value)} />
+        <select className={inputCls} value={sexo} onChange={e => setSexo(e.target.value as SexoArticulo | '')}>
+          <option value="">Sexo…</option>
+          <option value="hombre">Hombre</option>
+          <option value="mujer">Mujer</option>
+          <option value="unisex">Unisex</option>
+          <option value="nino">Niño</option>
+          <option value="nina">Niña</option>
+        </select>
         <select className={inputCls} value={categoria} onChange={e => setCategoria(e.target.value as CategoriaArticulo | '')}>
           <option value="">Categoría…</option>
           <option value="tenis">Tenis</option>
@@ -151,7 +171,9 @@ function SelectArticulo({ articulos, value, onChange }: { articulos: Articulo[];
     <select className={inputCls} value={value} onChange={e => onChange(e.target.value)}>
       <option value="">Artículo…</option>
       {articulos.map(a => (
-        <option key={a.id} value={a.id}>{a.marca} {a.nombre}{a.talla ? ` · ${a.talla}` : ''}</option>
+        <option key={a.id} value={a.id}>
+          {a.marca} {a.nombre}{a.codigo ? ` [${a.codigo}]` : ''}{a.color ? ` · ${a.color}` : ''}
+        </option>
       ))}
     </select>
   )
@@ -161,6 +183,7 @@ function Entrada({ articulos, sedes, onClose }: { articulos: Articulo[]; sedes: 
   const router = useRouter()
   const tr = sedes.find(s => s.codigo === 'TR')
   const [articuloId, setArticuloId] = useState('')
+  const [talla, setTalla] = useState('')
   const [cantidad, setCantidad] = useState('')
   const [costo, setCosto] = useState('')
   const [sedeId, setSedeId] = useState<string>(tr?.id ?? '')
@@ -172,11 +195,15 @@ function Entrada({ articulos, sedes, onClose }: { articulos: Articulo[]; sedes: 
     const c = parseInt(cantidad.replace(/\D/g, ''), 10)
     const co = parseInt(costo.replace(/\D/g, ''), 10)
     if (!articuloId) { setError('Selecciona un artículo'); return }
+    if (!talla.trim()) { setError('La talla es obligatoria'); return }
     if (!c || c <= 0) { setError('Cantidad inválida'); return }
     if (isNaN(co) || co < 0) { setError('Costo inválido'); return }
     setError('')
     start(async () => {
-      const r = await registrarEntradaAction({ articulo_id: articuloId, cantidad: c, costo_unitario_cop: co, sede_id: sedeId || null, notas })
+      const r = await registrarEntradaAction({
+        articulo_id: articuloId, talla: talla.trim(), cantidad: c,
+        costo_unitario_cop: co, sede_id: sedeId || null, notas,
+      })
       if (!r.ok) { setError(r.error); return }
       router.refresh(); onClose()
     })
@@ -186,14 +213,17 @@ function Entrada({ articulos, sedes, onClose }: { articulos: Articulo[]; sedes: 
     <Panel title="Entrada de stock" onClose={onClose}>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <SelectArticulo articulos={articulos} value={articuloId} onChange={setArticuloId} />
+        <input className={inputCls} placeholder="Talla (ej. 9, M, 38)" value={talla} onChange={e => setTalla(e.target.value)} />
         <select className={inputCls} value={sedeId} onChange={e => setSedeId(e.target.value)}>
-          {sedes.map(s => <option key={s.id} value={s.id}>{s.nombre}{s.codigo === 'TR' ? ' (centro de distribución)' : ''}</option>)}
+          {sedes.map(s => (
+            <option key={s.id} value={s.id}>{s.nombre}{s.codigo === 'TR' ? ' (centro de distribución)' : ''}</option>
+          ))}
         </select>
         <input className={inputCls} inputMode="numeric" placeholder="Cantidad" value={cantidad} onChange={e => setCantidad(e.target.value)} />
         <input className={inputCls} inputMode="numeric" placeholder="Costo unitario (COP)" value={costo} onChange={e => setCosto(e.target.value)} />
         <input className={`${inputCls} sm:col-span-2`} placeholder="Notas (opcional)" value={notas} onChange={e => setNotas(e.target.value)} />
       </div>
-      <p className="text-xs text-gray-400 mt-2">El costo alimenta el promedio ponderado (CPP) usado para calcular utilidades.</p>
+      <p className="text-xs text-gray-400 mt-2">El costo alimenta el promedio ponderado (CPP) por talla.</p>
       {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
       <div className="mt-3"><Button onClick={submit} disabled={pending}>{pending ? 'Registrando…' : 'Registrar entrada'}</Button></div>
     </Panel>
@@ -204,6 +234,7 @@ function Transferencia({ articulos, sedes, onClose }: { articulos: Articulo[]; s
   const router = useRouter()
   const tr = sedes.find(s => s.codigo === 'TR')
   const [articuloId, setArticuloId] = useState('')
+  const [talla, setTalla] = useState('')
   const [origen, setOrigen] = useState<string>(tr?.id ?? '')
   const [destino, setDestino] = useState<string>('')
   const [cantidad, setCantidad] = useState('')
@@ -214,12 +245,16 @@ function Transferencia({ articulos, sedes, onClose }: { articulos: Articulo[]; s
   function submit() {
     const c = parseInt(cantidad.replace(/\D/g, ''), 10)
     if (!articuloId) { setError('Selecciona un artículo'); return }
+    if (!talla.trim()) { setError('La talla es obligatoria'); return }
     if (!origen || !destino) { setError('Selecciona sede de origen y destino'); return }
     if (origen === destino) { setError('El origen y el destino no pueden ser iguales'); return }
     if (!c || c <= 0) { setError('Cantidad inválida'); return }
     setError('')
     start(async () => {
-      const r = await transferirStockAction({ articulo_id: articuloId, sede_origen: origen, sede_destino: destino, cantidad: c, notas })
+      const r = await transferirStockAction({
+        articulo_id: articuloId, talla: talla.trim(),
+        sede_origen: origen, sede_destino: destino, cantidad: c, notas,
+      })
       if (!r.ok) { setError(r.error); return }
       router.refresh(); onClose()
     })
@@ -229,7 +264,9 @@ function Transferencia({ articulos, sedes, onClose }: { articulos: Articulo[]; s
     <Panel title="Transferir stock entre sedes" onClose={onClose}>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <SelectArticulo articulos={articulos} value={articuloId} onChange={setArticuloId} />
+        <input className={inputCls} placeholder="Talla (ej. 9, M, 38)" value={talla} onChange={e => setTalla(e.target.value)} />
         <input className={inputCls} inputMode="numeric" placeholder="Cantidad" value={cantidad} onChange={e => setCantidad(e.target.value)} />
+        <div />
         <select className={inputCls} value={origen} onChange={e => setOrigen(e.target.value)}>
           <option value="">Origen…</option>
           {sedes.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}

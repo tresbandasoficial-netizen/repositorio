@@ -17,6 +17,30 @@ export const nuevaLinea = (): Linea => ({
   precio_venta: 0,
 })
 
+// Fila aplanada para mostrar en el dropdown (una por cada talla disponible)
+type OpcionCatalogo = {
+  articulo_id: string
+  marca: string
+  nombre: string
+  color: string | null
+  talla: string | null
+  stock: number
+}
+
+function aplanarOpciones(articulos: ArticuloBusqueda[], sedeId: string | null): OpcionCatalogo[] {
+  const result: OpcionCatalogo[] = []
+  for (const a of articulos) {
+    if (a.tallaStock.length === 0) {
+      result.push({ articulo_id: a.id, marca: a.marca, nombre: a.nombre, color: a.color, talla: null, stock: 0 })
+    } else {
+      for (const ts of a.tallaStock) {
+        result.push({ articulo_id: a.id, marca: a.marca, nombre: a.nombre, color: a.color, talla: ts.talla, stock: ts.stock })
+      }
+    }
+  }
+  return result
+}
+
 export function LineaProducto({
   linea, sedeId, sedeCodigo, onChange, onRemove,
 }: {
@@ -27,28 +51,29 @@ export function LineaProducto({
   onRemove?: () => void
 }) {
   const [q, setQ] = useState('')
-  const [opciones, setOpciones] = useState<ArticuloBusqueda[]>([])
+  const [opciones, setOpciones] = useState<OpcionCatalogo[]>([])
   const [abierto, setAbierto] = useState(false)
 
   useEffect(() => {
     if (linea.articulo_id) return
     const t = setTimeout(async () => {
       if (q.trim().length < 2) { setOpciones([]); return }
-      setOpciones(await buscarArticulosAction(q, sedeId))
+      const articulos = await buscarArticulosAction(q, sedeId)
+      setOpciones(aplanarOpciones(articulos, sedeId))
       setAbierto(true)
     }, 250)
     return () => clearTimeout(t)
   }, [q, sedeId, linea.articulo_id])
 
-  function elegir(a: ArticuloBusqueda) {
+  function elegir(item: OpcionCatalogo) {
     onChange({
-      articulo_id: a.id,
-      marca: a.marca,
-      descripcion: a.nombre,
-      talla: a.talla ?? '',
-      stock: a.stock_sede,
+      articulo_id: item.articulo_id,
+      marca:       item.marca,
+      descripcion: item.nombre,
+      talla:       item.talla ?? '',
+      stock:       item.stock,
     })
-    setQ(`${a.marca} ${a.nombre}${a.talla ? ' · ' + a.talla : ''}`)
+    setQ(`${item.marca} ${item.nombre}${item.talla ? ' · ' + item.talla : ''}`)
     setAbierto(false)
   }
 
@@ -65,13 +90,20 @@ export function LineaProducto({
         />
         {abierto && opciones.length > 0 && !linea.articulo_id && (
           <div className="absolute z-10 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
-            {opciones.map(a => (
-              <button key={a.id} type="button" onClick={() => elegir(a)}
-                className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm border-b border-gray-50 last:border-0 flex justify-between">
-                <span><span className="font-medium text-gray-900">{a.marca} {a.nombre}</span>
-                  {a.talla && <span className="text-gray-400"> · {a.talla}</span>}</span>
-                <span className={`text-xs ${a.stock_sede > 0 ? 'text-green-600' : 'text-red-500'}`}>
-                  {a.stock_sede} en {sedeCodigo}
+            {opciones.map(item => (
+              <button
+                key={`${item.articulo_id}-${item.talla ?? ''}`}
+                type="button"
+                onClick={() => elegir(item)}
+                className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm border-b border-gray-50 last:border-0 flex justify-between"
+              >
+                <span>
+                  <span className="font-medium text-gray-900">{item.marca} {item.nombre}</span>
+                  {item.color && <span className="text-gray-400"> · {item.color}</span>}
+                  {item.talla && <span className="text-gray-400"> · T{item.talla}</span>}
+                </span>
+                <span className={`text-xs ml-2 ${item.stock > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                  {item.stock} en {sedeCodigo}
                 </span>
               </button>
             ))}

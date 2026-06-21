@@ -166,6 +166,7 @@ export type ParsedPedido = {
     cantidad: number
     precio_venta: number
     imagen_url?: string | null
+    articulo_id?: string | null   // enlace al catálogo (opcional)
   }>
   total: number
   abono: number
@@ -279,13 +280,28 @@ export const DIAS_ZOMBIE_DOC = 30
 // ─── Inventario / Artículos ──────────────────────────────────────────────────
 
 export type CategoriaArticulo = 'tenis' | 'ropa' | 'accesorio' | 'otro'
+export type SexoArticulo = 'hombre' | 'mujer' | 'unisex' | 'nino' | 'nina'
+
+export const SEXO_LABELS: Record<SexoArticulo, string> = {
+  hombre:  'Hombre',
+  mujer:   'Mujer',
+  unisex:  'Unisex',
+  nino:    'Niño',
+  nina:    'Niña',
+}
 
 export type Articulo = {
   id: string
-  nombre: string
+  codigo: string | null      // código SKU del modelo (mismo para todas las tallas)
+  nombre: string             // nombre para mostrar
   marca: string
-  talla: string | null
+  referencia: string | null  // código técnico del proveedor
+  color: string | null
+  sexo: SexoArticulo | null
+  talla: string | null       // obsoleto — solo en registros migrados de v027
   categoria: CategoriaArticulo | null
+  fotos: string[]
+  descripcion: string | null
   activo: boolean
   creado_en: string
 }
@@ -295,7 +311,8 @@ export type TipoMovimiento = 'entrada' | 'asignacion' | 'transferencia' | 'salid
 export type MovimientoInventario = {
   id: string
   articulo_id: string
-  sede_id: string | null   // null = inventario central
+  talla: string | null       // talla de este movimiento (null = sin talla específica)
+  sede_id: string | null     // null = inventario central
   delta: number
   tipo: TipoMovimiento
   compra_item_id: string | null
@@ -307,7 +324,7 @@ export type MovimientoInventario = {
   creado_en: string
 }
 
-// Fila de vista_stock_por_sede
+// Fila de vista_stock_por_sede (agrupa por articulo + talla + sede)
 export type StockSede = {
   articulo_id: string
   nombre: string

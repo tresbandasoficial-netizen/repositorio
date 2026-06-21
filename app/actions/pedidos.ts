@@ -75,12 +75,13 @@ async function _crearPedidoConDatos(
   }
 
   const items = datos.productos.map((p) => ({
-    marca: p.marca,
-    descripcion: p.descripcion,
-    talla: p.talla ?? '',
-    cantidad: p.cantidad,
+    articulo_id:  (p as any).articulo_id ?? null,
+    marca:        p.marca,
+    descripcion:  p.descripcion,
+    talla:        p.talla ?? '',
+    cantidad:     p.cantidad,
     precio_venta: p.precio_venta,
-    imagen_url: (p as any).imagen_url ?? null,
+    imagen_url:   (p as any).imagen_url ?? null,
   }))
   const total = datos.productos.reduce((s, p) => s + p.precio_venta * p.cantidad, 0)
 
