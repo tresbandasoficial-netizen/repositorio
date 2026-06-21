@@ -10,6 +10,7 @@ import { getSesion, puedeAccederSede } from '@/lib/auth/acceso'
 import { CopiarResumen } from '@/components/pedidos/CopiarResumen'
 import { EliminarPedidoButton } from '@/components/pedidos/EliminarPedidoButton'
 import { SeguimientoBar } from '@/components/pedidos/SeguimientoBar'
+import { EditarPagoInline } from '@/components/pedidos/EditarPagoInline'
 
 const CAMPO_LABELS: Record<string, string> = {
   estado:            'Estado',
@@ -175,7 +176,10 @@ export default async function PedidoDetallePage({
                           <p className="text-xs text-gray-400">{formatFecha(pago.fecha)} · {pago.asesor_nombre}</p>
                         </div>
                         <div className="text-right shrink-0">
-                          <p className="font-medium text-gray-900">{formatCOP(pago.monto)}</p>
+                          {esAdmin
+                            ? <EditarPagoInline pagoId={pago.id} monto={pago.monto} />
+                            : <p className="font-medium text-gray-900">{formatCOP(pago.monto)}</p>
+                          }
                           <Link href={`/pedidos/${id}/pago/${pago.id}/recibo`} target="_blank" className="text-xs text-gray-400">
                             recibo
                           </Link>
@@ -203,7 +207,12 @@ export default async function PedidoDetallePage({
                           <td className="px-6 py-3 text-gray-600">{formatFecha(pago.fecha)}</td>
                           <td className="px-4 py-3 text-gray-600 capitalize">{pago.metodo}</td>
                           <td className="px-4 py-3 text-gray-500 text-xs">{pago.asesor_nombre}</td>
-                          <td className="px-6 py-3 text-right font-medium text-gray-900">{formatCOP(pago.monto)}</td>
+                          <td className="px-6 py-3 text-right">
+                            {esAdmin
+                              ? <EditarPagoInline pagoId={pago.id} monto={pago.monto} />
+                              : <span className="font-medium text-gray-900">{formatCOP(pago.monto)}</span>
+                            }
+                          </td>
                           <td className="px-3 py-3 text-right">
                             <Link href={`/pedidos/${id}/pago/${pago.id}/recibo`} target="_blank" className="text-xs text-gray-400 hover:text-gray-600" title="Imprimir recibo">🖨</Link>
                           </td>

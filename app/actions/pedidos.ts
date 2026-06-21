@@ -347,6 +347,44 @@ export async function editarPedidoAction(
   redirect(`/pedidos/${pedidoId}`)
 }
 
+// ─── Editar pago (solo admin) ─────────────────────────────────────────────────
+
+export async function editarPagoAction(
+  pagoId: string,
+  nuevoMonto: number
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const sesion = await getSesion()
+  if (sesion.rol !== 'admin') return { ok: false, error: 'Solo los administradores pueden editar pagos' }
+
+  const adminClient = createAdminClient()
+
+  const { data: pago } = await adminClient
+    .from('pagos')
+    .select('monto')
+    .eq('id', pagoId)
+    .single()
+
+  if (!pago) return { ok: false, error: 'Pago no encontrado' }
+
+  const { error } = await adminClient
+    .from('pagos')
+    .update({ monto: nuevoMonto })
+    .eq('id', pagoId)
+
+  if (error) return { ok: false, error: error.message }
+
+  await adminClient.from('historial_cambios').insert({
+    tabla:          'pagos',
+    registro_id:    pagoId,
+    campo:          'monto',
+    valor_anterior: String(pago.monto),
+    valor_nuevo:    String(nuevoMonto),
+    usuario_id:     sesion.id,
+  })
+
+  return { ok: true }
+}
+
 // ─── Eliminar pedido ──────────────────────────────────────────────────────────
 
 export type EliminarPedidoResult =
