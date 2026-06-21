@@ -6,17 +6,10 @@ import { buscarClientesAction, ClienteBusqueda } from '@/app/actions/clientes'
 import { getPedidosFacturablesAction, crearFacturaAction, PedidoFacturable } from '@/app/actions/facturacion'
 import { Button } from '@/components/ui/Button'
 import { formatCOP, formatFecha } from '@/lib/utils/format'
-import { MetodoPago } from '@/types'
+import { MetodoPago, METODOS_PAGO, METODO_PAGO_LABELS } from '@/types'
 
-const METODOS: { value: MetodoPago; label: string }[] = [
-  { value: 'efectivo', label: 'Efectivo' },
-  { value: 'transferencia', label: 'Transferencia' },
-  { value: 'datafono', label: 'Datáfono' },
-  { value: 'addi', label: 'Addi' },
-  { value: 'bold', label: 'Bold' },
-  { value: 'sistecredito', label: 'Sistecrédito' },
-  { value: 'otro', label: 'Otro' },
-]
+const METODOS: { value: MetodoPago; label: string }[] =
+  METODOS_PAGO.map(v => ({ value: v, label: METODO_PAGO_LABELS[v] }))
 
 // +30 días por defecto
 function venceDefault() {

@@ -1,20 +1,12 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { MetodoPago } from '@/types'
+import { MetodoPago, METODOS_PAGO, METODO_PAGO_LABELS } from '@/types'
 import { registrarPagoAction } from '@/app/actions/pedidos'
 import { formatCOP } from '@/lib/utils/format'
 
-const METODOS: { value: MetodoPago; label: string }[] = [
-  { value: 'efectivo',      label: 'Efectivo' },
-  { value: 'transferencia', label: 'Transferencia' },
-  { value: 'credito',       label: 'Crédito' },
-  { value: 'addi',          label: 'Addi' },
-  { value: 'bold',          label: 'Bold' },
-  { value: 'sistecredito',  label: 'Sistecredito' },
-  { value: 'datafono',      label: 'Datáfono' },
-  { value: 'otro',          label: 'Otro' },
-]
+const METODOS: { value: MetodoPago; label: string }[] =
+  METODOS_PAGO.map(v => ({ value: v, label: METODO_PAGO_LABELS[v] }))
 
 function hoy(): string {
   return new Date().toISOString().slice(0, 10)

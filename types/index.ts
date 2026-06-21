@@ -39,7 +39,38 @@ export type EstadoPedido =
   | 'entregado'
   | 'cancelado'
 
-export type MetodoPago = 'efectivo' | 'transferencia' | 'datafono' | 'addi' | 'bold' | 'sistecredito' | 'credito' | 'otro'
+export type MetodoPago =
+  | 'efectivo'
+  | 'bancolombia'
+  | 'nequi'
+  | 'daviplata'
+  | 'transferencia'
+  | 'datafono'
+  | 'addi'
+  | 'bold'
+  | 'sistecredito'
+  | 'credito'
+  | 'otro'
+
+// Etiquetas y orden canónico de los métodos de pago (fuente única para selectores y cuadre).
+export const METODO_PAGO_LABELS: Record<MetodoPago, string> = {
+  efectivo:      'Efectivo',
+  bancolombia:   'Bancolombia',
+  nequi:         'Nequi',
+  daviplata:     'Daviplata',
+  transferencia: 'Transferencia (otra)',
+  datafono:      'Datáfono / Tarjeta',
+  addi:          'Addi',
+  bold:          'Bold',
+  sistecredito:  'Sistecrédito',
+  credito:       'Crédito',
+  otro:          'Otro',
+}
+
+export const METODOS_PAGO: MetodoPago[] = [
+  'efectivo', 'bancolombia', 'nequi', 'daviplata', 'transferencia',
+  'datafono', 'addi', 'bold', 'sistecredito', 'credito', 'otro',
+]
 
 export type PedidoItem = {
   id: string
