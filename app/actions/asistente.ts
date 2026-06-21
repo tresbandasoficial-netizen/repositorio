@@ -185,22 +185,45 @@ const TOOLS: Anthropic.Tool[] = [
 
 // ─── Server actions ───────────────────────────────────────────────────────────
 
+function textoDe(r: Anthropic.Message): string {
+  const bloque = r.content.find(b => b.type === 'text')
+  return bloque && bloque.type === 'text' ? bloque.text : ''
+}
+
+function mensajeError(e: any): string {
+  const msg = e?.error?.error?.message || e?.message || String(e)
+  if (/api[_\s-]?key|authentication|x-api-key/i.test(msg)) {
+    return '⚠️ La API Key de Claude no es válida o no está configurada. Verifica ANTHROPIC_API_KEY en Vercel.'
+  }
+  if (/credit|billing|quota|insufficient/i.test(msg)) {
+    return '⚠️ La cuenta de Claude no tiene créditos disponibles. Recarga saldo en console.anthropic.com.'
+  }
+  if (/model/i.test(msg)) {
+    return `⚠️ Problema con el modelo de Claude: ${msg}`
+  }
+  return `⚠️ No se pudo consultar a Claude: ${msg}`
+}
+
 export async function resumenAsistenteAction(): Promise<string> {
   const sesion = await getSesion()
   if (!sesion) return 'Sin acceso.'
   const pedidos = await getPedidosPendientes()
   if (!pedidos.length) return '¡No hay pedidos pendientes! Todo está al día. ✅'
   const hoy = new Intl.DateTimeFormat('es-CO', { dateStyle: 'full' }).format(new Date())
-  const r = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 700,
-    system: SYSTEM,
-    messages: [{
-      role: 'user',
-      content: `Hoy es ${hoy}.\n\nPedidos pendientes (${pedidos.length}):\n${formatearContexto(pedidos)}\n\nGenera un resumen ejecutivo: cuántos hay, el estado general, el saldo total por cobrar y qué requiere atención inmediata. Sé directo.`,
-    }],
-  })
-  return r.content[0].type === 'text' ? r.content[0].text : ''
+  try {
+    const r = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 700,
+      system: SYSTEM,
+      messages: [{
+        role: 'user',
+        content: `Hoy es ${hoy}.\n\nPedidos pendientes (${pedidos.length}):\n${formatearContexto(pedidos)}\n\nGenera un resumen ejecutivo: cuántos hay, el estado general, el saldo total por cobrar y qué requiere atención inmediata. Sé directo.`,
+      }],
+    })
+    return textoDe(r)
+  } catch (e) {
+    return mensajeError(e)
+  }
 }
 
 export async function alertasAsistenteAction(): Promise<string> {
@@ -209,16 +232,20 @@ export async function alertasAsistenteAction(): Promise<string> {
   const pedidos = await getPedidosPendientes()
   if (!pedidos.length) return 'Sin alertas activas.'
   const hoy = new Intl.DateTimeFormat('es-CO', { dateStyle: 'full' }).format(new Date())
-  const r = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 500,
-    system: SYSTEM,
-    messages: [{
-      role: 'user',
-      content: `Hoy es ${hoy}.\n\nPedidos pendientes:\n${formatearContexto(pedidos)}\n\nLista SOLO los casos urgentes: zombies, +7 días sin moverse, enviados +3 días sin confirmar entrega, en alerta. Máximo 6 casos. Por cada uno: número de orden, cliente, motivo de urgencia y qué hacer.`,
-    }],
-  })
-  return r.content[0].type === 'text' ? r.content[0].text : ''
+  try {
+    const r = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 500,
+      system: SYSTEM,
+      messages: [{
+        role: 'user',
+        content: `Hoy es ${hoy}.\n\nPedidos pendientes:\n${formatearContexto(pedidos)}\n\nLista SOLO los casos urgentes: zombies, +7 días sin moverse, enviados +3 días sin confirmar entrega, en alerta. Máximo 6 casos. Por cada uno: número de orden, cliente, motivo de urgencia y qué hacer.`,
+      }],
+    })
+    return textoDe(r)
+  } catch (e) {
+    return mensajeError(e)
+  }
 }
 
 export async function chatAsistenteAction(
@@ -240,49 +267,53 @@ export async function chatAsistenteAction(
     { role: 'user', content: pregunta },
   ]
 
-  const r = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 1000,
-    system: SYSTEM + '\n\nPuedes usar herramientas para cambiar estados, registrar pagos y agregar notas. Cuando el usuario pida hacer un cambio, usa la herramienta correspondiente.',
-    messages: mensajes,
-    tools: TOOLS,
-    tool_choice: { type: 'auto' },
-  })
-
-  if (r.stop_reason === 'tool_use') {
-    const toolResults: Anthropic.ToolResultBlockParam[] = []
-
-    for (const block of r.content) {
-      if (block.type !== 'tool_use') continue
-      const input = block.input as any
-      let resultado: string
-
-      if (block.name === 'cambiar_estado') {
-        resultado = await ejecutarCambiarEstado(input.numero_orden, input.nuevo_estado)
-      } else if (block.name === 'registrar_pago') {
-        resultado = await ejecutarRegistrarPago(input.numero_orden, input.monto, input.metodo, input.notas || '')
-      } else if (block.name === 'agregar_nota') {
-        resultado = await ejecutarAgregarNota(input.numero_orden, input.nota)
-      } else {
-        resultado = 'Herramienta desconocida.'
-      }
-
-      toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: resultado })
-    }
-
-    const r2 = await anthropic.messages.create({
+  try {
+    const r = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 600,
-      system: SYSTEM,
-      messages: [
-        ...mensajes,
-        { role: 'assistant', content: r.content },
-        { role: 'user', content: toolResults },
-      ],
+      max_tokens: 1000,
+      system: SYSTEM + '\n\nPuedes usar herramientas para cambiar estados, registrar pagos y agregar notas. Cuando el usuario pida hacer un cambio, usa la herramienta correspondiente.',
+      messages: mensajes,
+      tools: TOOLS,
+      tool_choice: { type: 'auto' },
     })
 
-    return r2.content.find(b => b.type === 'text')?.text ?? ''
-  }
+    if (r.stop_reason === 'tool_use') {
+      const toolResults: Anthropic.ToolResultBlockParam[] = []
 
-  return r.content.find(b => b.type === 'text')?.text ?? ''
+      for (const block of r.content) {
+        if (block.type !== 'tool_use') continue
+        const input = block.input as any
+        let resultado: string
+
+        if (block.name === 'cambiar_estado') {
+          resultado = await ejecutarCambiarEstado(input.numero_orden, input.nuevo_estado)
+        } else if (block.name === 'registrar_pago') {
+          resultado = await ejecutarRegistrarPago(input.numero_orden, input.monto, input.metodo, input.notas || '')
+        } else if (block.name === 'agregar_nota') {
+          resultado = await ejecutarAgregarNota(input.numero_orden, input.nota)
+        } else {
+          resultado = 'Herramienta desconocida.'
+        }
+
+        toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: resultado })
+      }
+
+      const r2 = await anthropic.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 600,
+        system: SYSTEM,
+        messages: [
+          ...mensajes,
+          { role: 'assistant', content: r.content },
+          { role: 'user', content: toolResults },
+        ],
+      })
+
+      return textoDe(r2)
+    }
+
+    return textoDe(r)
+  } catch (e) {
+    return mensajeError(e)
+  }
 }
