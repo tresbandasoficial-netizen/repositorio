@@ -209,14 +209,15 @@ export function NuevaFacturaForm({ sedes }: { sedes: SedeOpcion[] }) {
                     className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
                       seleccionados.has(p.id) ? 'border-blue-300 bg-blue-50' : 'border-gray-100 hover:bg-gray-50'
                     }`}>
-                    <input type="checkbox" checked={seleccionados.has(p.id)} onChange={() => toggle(p.id)} className="w-4 h-4 accent-blue-600" />
+                    <input type="checkbox" checked={seleccionados.has(p.id)} onChange={() => toggle(p.id)} className="w-4 h-4 accent-blue-600 self-start mt-1" />
                     <div className="flex-1">
                       <p className="font-mono text-sm text-gray-900">{p.numero_orden}</p>
                       <p className="text-xs text-gray-400">{formatFecha(p.fecha_creacion)}</p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-gray-900">{formatCOP(p.saldo)}</p>
-                      {p.abonado > 0 && <p className="text-xs text-gray-400">abonado {formatCOP(p.abonado)}</p>}
+                    <div className="text-right text-xs leading-relaxed">
+                      <p className="text-gray-500">Valor: <span className="font-medium text-gray-800">{formatCOP(p.total)}</span></p>
+                      <p className="text-gray-500">Abonado: <span className="font-medium text-green-600">{formatCOP(p.abonado)}</span></p>
+                      <p className="text-gray-900 font-bold text-sm">Falta: {formatCOP(p.saldo)}</p>
                     </div>
                   </label>
                 ))}
@@ -255,13 +256,19 @@ export function NuevaFacturaForm({ sedes }: { sedes: SedeOpcion[] }) {
                     className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Abono inicial (opcional)</label>
-                  <input type="text" inputMode="numeric" value={abono} onChange={e => setAbono(e.target.value)} placeholder="0"
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Registrar pago ahora (opcional)</label>
+                  <div className="flex gap-2">
+                    <input type="text" inputMode="numeric" value={abono} onChange={e => setAbono(e.target.value)} placeholder="0"
+                      className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <button type="button" onClick={() => setAbono(String(totalNeto))}
+                      className="rounded-lg bg-gray-100 text-gray-700 px-3 text-xs font-medium hover:bg-gray-200 whitespace-nowrap">
+                      Pagar todo
+                    </button>
+                  </div>
                 </div>
                 {abono && (
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Método del abono</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Método del pago</label>
                     <select value={metodo} onChange={e => setMetodo(e.target.value as MetodoPago)}
                       className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                       {METODOS_PAGO.map(m => <option key={m} value={m}>{METODO_PAGO_LABELS[m]}</option>)}
@@ -273,6 +280,14 @@ export function NuevaFacturaForm({ sedes }: { sedes: SedeOpcion[] }) {
                   <input type="text" value={notas} onChange={e => setNotas(e.target.value)}
                     className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
+              </div>
+
+              {/* Resumen del pago */}
+              <div className="flex items-center justify-between text-sm pt-1 border-t border-gray-100">
+                <span className="text-gray-500">Queda en cartera (saldo)</span>
+                <span className="font-semibold text-gray-900">
+                  {formatCOP(Math.max(0, totalNeto - (abono ? parseInt(abono.replace(/\D/g, ''), 10) || 0 : 0)))}
+                </span>
               </div>
             </div>
           )}
