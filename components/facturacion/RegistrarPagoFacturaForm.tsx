@@ -1,0 +1,94 @@
+'use client'
+
+import { useState, useTransition } from 'react'
+import { registrarPagoFacturaAction } from '@/app/actions/facturacion'
+import { Button } from '@/components/ui/Button'
+import { formatCOP } from '@/lib/utils/format'
+import { MetodoPago } from '@/types'
+
+const METODOS: { value: MetodoPago; label: string }[] = [
+  { value: 'efectivo', label: 'Efectivo' },
+  { value: 'transferencia', label: 'Transferencia' },
+  { value: 'datafono', label: 'Datáfono' },
+  { value: 'addi', label: 'Addi' },
+  { value: 'bold', label: 'Bold' },
+  { value: 'sistecredito', label: 'Sistecrédito' },
+  { value: 'otro', label: 'Otro' },
+]
+
+export function RegistrarPagoFacturaForm({ facturaId, saldo }: { facturaId: string; saldo: number }) {
+  const [monto, setMonto] = useState('')
+  const [metodo, setMetodo] = useState<MetodoPago>('efectivo')
+  const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10))
+  const [notas, setNotas] = useState('')
+  const [error, setError] = useState('')
+  const [pending, start] = useTransition()
+
+  function submit() {
+    const m = parseInt(monto.replace(/\D/g, ''), 10)
+    if (!m || m <= 0) { setError('Ingresa un monto válido'); return }
+    if (m > saldo) { setError(`El monto supera el saldo (${formatCOP(saldo)})`); return }
+    setError('')
+    start(async () => {
+      const r = await registrarPagoFacturaAction({ factura_id: facturaId, monto: m, metodo, fecha, notas })
+      if (!r.ok) setError(r.error)
+    })
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">Monto</label>
+          <input
+            type="text"
+            inputMode="numeric"
+            value={monto}
+            onChange={e => setMonto(e.target.value)}
+            placeholder={`Saldo: ${formatCOP(saldo)}`}
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">Método</label>
+          <select
+            value={metodo}
+            onChange={e => setMetodo(e.target.value as MetodoPago)}
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {METODOS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">Fecha</label>
+          <input
+            type="date"
+            value={fecha}
+            onChange={e => setFecha(e.target.value)}
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">Nota (opcional)</label>
+          <input
+            type="text"
+            value={notas}
+            onChange={e => setNotas(e.target.value)}
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+      </div>
+
+      {error && <p className="text-sm text-red-600">{error}</p>}
+
+      <div className="flex gap-2">
+        <Button onClick={submit} disabled={pending}>
+          {pending ? 'Registrando…' : 'Registrar abono'}
+        </Button>
+        <Button variant="secondary" onClick={() => setMonto(String(saldo))} disabled={pending}>
+          Pagar todo
+        </Button>
+      </div>
+    </div>
+  )
+}

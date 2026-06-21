@@ -6,6 +6,63 @@ import { createClient } from '@/lib/supabase/server'
 import { getSesion } from '@/lib/auth/acceso'
 import { MetodoPago } from '@/types'
 
+export type PedidoFacturable = {
+  id: string
+  numero_orden: string
+  total: number
+  abonado: number
+  saldo: number
+  fecha_creacion: string
+  sede_id: string
+  sede_codigo: string
+}
+
+// Pedidos entregados y sin factura de un cliente, dentro de la sede del usuario
+// (admin ve todas las sedes). Incluye abonos previos para mostrar la deuda neta.
+export async function getPedidosFacturablesAction(clienteId: string): Promise<PedidoFacturable[]> {
+  const sesion = await getSesion()
+  const supabase = await createClient()
+
+  let q = supabase
+    .from('pedidos')
+    .select('id, numero_orden, total, fecha_creacion, sede_id, sedes(codigo)')
+    .eq('cliente_id', clienteId)
+    .eq('estado', 'entregado')
+    .is('factura_id', null)
+    .order('fecha_creacion')
+
+  if (sesion.rol !== 'admin' && sesion.sede_id) q = q.eq('sede_id', sesion.sede_id)
+
+  const { data } = await q
+  const pedidos = ((data ?? []) as any[]).map(p => ({
+    id: p.id as string,
+    numero_orden: p.numero_orden as string,
+    total: p.total as number,
+    fecha_creacion: p.fecha_creacion as string,
+    sede_id: p.sede_id as string,
+    sede_codigo: (Array.isArray(p.sedes) ? p.sedes[0]?.codigo : p.sedes?.codigo) ?? '',
+  }))
+  if (pedidos.length === 0) return []
+
+  const ids = pedidos.map(p => p.id)
+  const { data: pagos } = await supabase.from('pagos').select('pedido_id, monto').in('pedido_id', ids)
+  const abonado = new Map<string, number>()
+  for (const pg of (pagos ?? []) as Array<{ pedido_id: string; monto: number }>) {
+    abonado.set(pg.pedido_id, (abonado.get(pg.pedido_id) ?? 0) + pg.monto)
+  }
+
+  return pedidos.map(p => ({
+    id: p.id,
+    numero_orden: p.numero_orden,
+    total: p.total,
+    abonado: abonado.get(p.id) ?? 0,
+    saldo: p.total - (abonado.get(p.id) ?? 0),
+    fecha_creacion: p.fecha_creacion,
+    sede_id: p.sede_id,
+    sede_codigo: p.sede_codigo,
+  }))
+}
+
 export type CrearFacturaInput = {
   cliente_id: string
   pedido_ids: string[]
