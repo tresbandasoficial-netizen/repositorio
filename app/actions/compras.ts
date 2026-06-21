@@ -101,7 +101,7 @@ export async function crearCompraAction(data: CrearCompraInput): Promise<CrearCo
     }
   }
 
-  redirect('/compras')
+  return { ok: true as const, compraId: compra.id }
 }
 
 export type AsignarItemResult =

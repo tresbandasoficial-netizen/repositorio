@@ -1,8 +1,10 @@
 'use server'
 
-import OpenAI from 'openai'
+import Anthropic from '@anthropic-ai/sdk'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 export type FacturaItemExtraido = {
   descripcion: string
@@ -14,12 +16,12 @@ export type FacturaItemExtraido = {
 
 export type FacturaExtraida = {
   proveedor: string
-  fecha: string         // YYYY-MM-DD
-  numero_factura: string  // número/código de la factura, vacío si no aparece
-  subtotal_usd: number   // subtotal antes de tax y shipping (después de descuentos), en la moneda de la factura
-  tax_usd: number        // total de impuestos, en la moneda de la factura
+  fecha: string
+  numero_factura: string
+  subtotal_usd: number
+  tax_usd: number
   shipping_usd: number
-  total_usd: number      // total final, en la moneda de la factura
+  total_usd: number
   items: FacturaItemExtraido[]
 }
 
@@ -50,14 +52,10 @@ Analiza esta factura y devuelve ÚNICAMENTE un objeto JSON con esta estructura e
 }
 
 Reglas:
-- CRÍTICO: cada talla diferente es un ítem SEPARADO, aunque sea el mismo producto. Si hay una Camiseta en talla S y otra en talla M, son DOS ítems distintos, nunca uno solo con cantidad 2
+- CRÍTICO: cada talla diferente es un ítem SEPARADO, aunque sea el mismo producto
 - Si hay 2 unidades del mismo producto en la MISMA talla, ese sí es un ítem con cantidad 2
-- Si no encuentras la marca por separado, intenta inferirla del nombre del producto
 - numero_factura: número, código o referencia de la factura. String vacío si no aparece
-- precio_usd de cada item: precio FINAL de ESA LÍNEA COMPLETA (todas las unidades de esa talla), después de descuentos, ANTES de tax y shipping
-- subtotal_usd: suma de todos los precios de productos antes de tax y shipping
-- tax_usd: monto total de impuestos/taxes (0 si no aparece)
-- shipping_usd: costo de envío total (0 si no aparece)
+- precio_usd de cada item: precio FINAL de ESA LÍNEA COMPLETA, después de descuentos, ANTES de tax y shipping
 - total_usd: total final incluyendo todo
 - Devuelve SOLO el JSON, sin texto adicional`
 
@@ -84,21 +82,16 @@ Analiza esta factura y devuelve ÚNICAMENTE un objeto JSON con esta estructura e
 }
 
 Reglas:
-- CRÍTICO: cada talla diferente es un ítem SEPARADO, aunque sea el mismo producto. Si hay una Camiseta en talla S y otra en talla M, son DOS ítems distintos, nunca uno solo con cantidad 2
+- CRÍTICO: cada talla diferente es un ítem SEPARADO
 - Si hay 2 unidades del mismo producto en la MISMA talla, ese sí es un ítem con cantidad 2
-- Si no encuentras la marca, deja string vacío
-- numero_factura: número o código de la factura. String vacío si no aparece
-- IMPORTANTE — los precios pueden venir en varios formatos, interprétalos todos como pesos colombianos y extrae siempre un número entero (redondea centavos):
+- IMPORTANTE — los precios pueden venir en varios formatos, interprétalos todos como pesos colombianos y extrae siempre un número entero:
   · "$449.925,00" → 449925  (punto=miles, coma=decimal)
-  · "$1.200.000" → 1200000  (punto=miles, sin decimal)
-  · "$97.462,50" → 97463    (redondea ,50)
-  · "97462.5" → 97463       (punto=decimal en contexto numérico)
-  · "449925" → 449925       (número plano)
-  · "$ 120.000" → 120000    (con espacio después del $)
+  · "$1.200.000" → 1200000
+  · "$ 120.000" → 120000
   · "COP 350,000" → 350000  (coma=miles estilo inglés)
-- precio_usd de cada item: el precio TOTAL de esa línea para todas las unidades de ese producto/talla, exactamente como aparece en la factura (en pesos colombianos, número entero)
+- precio_usd de cada item: el precio TOTAL de esa línea en pesos colombianos (número entero)
 - total_usd: total final de la factura en pesos colombianos (número entero)
-- subtotal_usd, tax_usd, shipping_usd: ponlos en 0 (no aplican)
+- subtotal_usd, tax_usd, shipping_usd: ponlos en 0
 - Devuelve SOLO el JSON, sin texto adicional`
 
 export async function parsearFacturaAction(
@@ -117,57 +110,36 @@ export async function parsearFacturaAction(
     .single()
   if (usuario?.rol !== 'admin') redirect('/dashboard')
 
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) return { ok: false, error: 'OPENAI_API_KEY no configurada' }
+  if (!process.env.ANTHROPIC_API_KEY) return { ok: false, error: 'ANTHROPIC_API_KEY no configurada' }
 
-  const client = new OpenAI({ apiKey })
+  const prompt = tipo === 'colombia' ? PROMPT_COP : PROMPT_USD
+
+  const contentBlocks: Anthropic.MessageParam['content'] = []
+
+  if (mediaType === 'application/pdf') {
+    contentBlocks.push({
+      type: 'document',
+      source: { type: 'base64', media_type: 'application/pdf', data: base64 },
+    } as any)
+  } else {
+    contentBlocks.push({
+      type: 'image',
+      source: { type: 'base64', media_type: mediaType, data: base64 },
+    })
+  }
+
+  contentBlocks.push({ type: 'text', text: prompt })
 
   let text: string
   try {
-    if (mediaType === 'application/pdf') {
-      // Para PDFs usamos el endpoint de files + responses
-      const blob = Buffer.from(base64, 'base64')
-      const file = new File([blob], 'factura.pdf', { type: 'application/pdf' })
-
-      const uploaded = await client.files.create({ file, purpose: 'user_data' })
-
-      const response = await client.responses.create({
-        model: 'gpt-4o',
-        input: [
-          {
-            role: 'user',
-            content: [
-              { type: 'input_file', file_id: uploaded.id },
-              { type: 'input_text', text: tipo === 'colombia' ? PROMPT_COP : PROMPT_USD },
-            ],
-          },
-        ],
-      })
-
-      text = response.output_text ?? ''
-      await client.files.delete(uploaded.id).catch(() => {})
-    } else {
-      // Para imágenes usamos vision directamente
-      const response = await client.chat.completions.create({
-        model: 'gpt-4o',
-        max_tokens: 2048,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'image_url',
-                image_url: { url: `data:${mediaType};base64,${base64}` },
-              },
-              { type: 'text', text: tipo === 'colombia' ? PROMPT_COP : PROMPT_USD },
-            ],
-          },
-        ],
-      })
-      text = response.choices[0]?.message?.content ?? ''
-    }
+    const r = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 2048,
+      messages: [{ role: 'user', content: contentBlocks }],
+    })
+    text = r.content[0].type === 'text' ? r.content[0].text : ''
   } catch (e: any) {
-    return { ok: false, error: `Error llamando a OpenAI: ${e.message}` }
+    return { ok: false, error: `Error llamando a Claude: ${e.message}` }
   }
 
   try {

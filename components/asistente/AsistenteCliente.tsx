@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useTransition } from 'react'
 import { resumenAsistenteAction, alertasAsistenteAction, chatAsistenteAction, MensajeChat } from '@/app/actions/asistente'
+import { FacturaTab } from './FacturaTab'
 
 function Markdown({ texto }: { texto: string }) {
   const html = texto
@@ -30,7 +31,7 @@ function BotIcon() {
 }
 
 export function AsistenteCliente() {
-  const [tab, setTab] = useState<'resumen' | 'alertas' | 'chat'>('resumen')
+  const [tab, setTab] = useState<'resumen' | 'alertas' | 'chat' | 'factura'>('resumen')
   const [resumen, setResumen] = useState('')
   const [alertas, setAlertas] = useState('')
   const [historial, setHistorial] = useState<MensajeChat[]>([])
@@ -75,6 +76,7 @@ export function AsistenteCliente() {
     { key: 'resumen',  label: '📊 Resumen' },
     { key: 'alertas', label: '⚠️ Alertas' },
     { key: 'chat',    label: '💬 Chat' },
+    { key: 'factura', label: '📄 Factura' },
   ] as const
 
   return (
@@ -160,6 +162,20 @@ export function AsistenteCliente() {
                 <Markdown texto={alertas} />
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── FACTURA ── */}
+      {tab === 'factura' && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100"
+            style={{ background: 'linear-gradient(135deg,#16a34a,#15803d)' }}>
+            <p className="text-xs font-bold text-green-200 uppercase tracking-wider">Asistente IA</p>
+            <p className="text-white font-bold text-lg mt-0.5">Subir factura de proveedor</p>
+          </div>
+          <div className="p-5">
+            <FacturaTab />
           </div>
         </div>
       )}

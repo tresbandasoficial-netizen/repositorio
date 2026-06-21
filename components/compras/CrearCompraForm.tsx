@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { crearCompraAction, CrearCompraInput, CompraItemInput } from '@/app/actions/compras'
 import { parsearFacturaAction, FacturaExtraida } from '@/app/actions/parsear-factura'
 import { Button } from '@/components/ui/Button'
@@ -64,6 +65,7 @@ export function CrearCompraForm() {
   const [isParsing, startParsing] = useTransition()
   const [isSaving, startSaving] = useTransition()
   const fileRef = useRef<HTMLInputElement>(null)
+  const router = useRouter()
 
   // TRM calculada automáticamente
   const trmCalculada =
@@ -187,6 +189,7 @@ export function CrearCompraForm() {
     startSaving(async () => {
       const result = await crearCompraAction(payload)
       if (!result.ok) setError(result.error)
+      else router.push('/compras')
     })
   }
 
