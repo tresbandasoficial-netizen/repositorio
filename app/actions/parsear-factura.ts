@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/server'
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 export type FacturaItemExtraido = {
+  codigo: string      // código SKU del producto si aparece en la factura, sino string vacío
   descripcion: string
   marca: string
   talla: string
@@ -42,6 +43,7 @@ Analiza esta factura y devuelve ÚNICAMENTE un objeto JSON con esta estructura e
   "total_usd": 119.00,
   "items": [
     {
+      "codigo": "SKU o código de referencia del producto si aparece en la factura, sino string vacío",
       "descripcion": "descripción del producto",
       "marca": "marca (Nike, Adidas, etc.)",
       "talla": "talla si aparece, sino string vacío",
@@ -54,6 +56,7 @@ Analiza esta factura y devuelve ÚNICAMENTE un objeto JSON con esta estructura e
 Reglas:
 - CRÍTICO: cada talla diferente es un ítem SEPARADO, aunque sea el mismo producto
 - Si hay 2 unidades del mismo producto en la MISMA talla, ese sí es un ítem con cantidad 2
+- codigo: código SKU, referencia o número de modelo del producto (ej. "DV3337-100", "FZ5827"). String vacío si no aparece
 - numero_factura: número, código o referencia de la factura. String vacío si no aparece
 - precio_usd de cada item: precio FINAL de ESA LÍNEA COMPLETA, después de descuentos, ANTES de tax y shipping
 - total_usd: total final incluyendo todo
@@ -72,6 +75,7 @@ Analiza esta factura y devuelve ÚNICAMENTE un objeto JSON con esta estructura e
   "total_usd": 350000,
   "items": [
     {
+      "codigo": "SKU o código de referencia del producto si aparece en la factura, sino string vacío",
       "descripcion": "descripción del producto",
       "marca": "marca si aparece, sino string vacío",
       "talla": "talla si aparece, sino string vacío",
@@ -84,6 +88,7 @@ Analiza esta factura y devuelve ÚNICAMENTE un objeto JSON con esta estructura e
 Reglas:
 - CRÍTICO: cada talla diferente es un ítem SEPARADO
 - Si hay 2 unidades del mismo producto en la MISMA talla, ese sí es un ítem con cantidad 2
+- codigo: código SKU, referencia o número de modelo del producto si aparece. String vacío si no aparece
 - IMPORTANTE — los precios pueden venir en varios formatos, interprétalos todos como pesos colombianos y extrae siempre un número entero:
   · "$449.925,00" → 449925  (punto=miles, coma=decimal)
   · "$1.200.000" → 1200000

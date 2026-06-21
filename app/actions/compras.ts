@@ -20,6 +20,7 @@ async function verificarAdmin() {
 }
 
 export type CompraItemInput = {
+  codigo?: string               // código SKU extraído de la factura
   descripcion: string
   marca: string
   talla: string
@@ -92,14 +93,15 @@ export async function crearCompraAction(data: CrearCompraInput): Promise<CrearCo
     const { data: itemCreado, error: errItem } = await adminClient
       .from('compra_items')
       .insert({
-        compra_id: compra.id,
-        descripcion: item.descripcion.trim(),
-        marca: item.marca.trim() || null,
-        talla: item.talla.trim() || null,
-        cantidad: item.cantidad,
+        compra_id:          compra.id,
+        codigo:             item.codigo?.trim() || null,
+        descripcion:        item.descripcion.trim(),
+        marca:              item.marca.trim() || null,
+        talla:              item.talla.trim() || null,
+        cantidad:           item.cantidad,
         costo_unitario_cop: item.costo_unitario_cop,
-        destino: item.destino,
-        articulo_id: articuloId,
+        destino:            item.destino,
+        articulo_id:        articuloId,
       })
       .select('id')
       .single()
@@ -113,11 +115,12 @@ export async function crearCompraAction(data: CrearCompraInput): Promise<CrearCo
     if (item.destino === 'sin_asignar' && articuloId) {
       const { error: errInv } = await adminClient.rpc('registrar_entrada_inventario', {
         p_articulo_id:    articuloId,
+        p_talla:          item.talla.trim() || null,
         p_cantidad:       item.cantidad,
         p_costo_unitario: item.costo_unitario_cop,
         p_usuario_id:     userId,
         p_compra_item_id: itemCreado.id,
-        p_sede_id:        null,   // null → Bucaramanga por defecto
+        p_sede_id:        null,
         p_notas:          `Compra ${numeroFactura ?? ''} — ${data.proveedor}`.trim(),
       })
       if (errInv) {
@@ -187,7 +190,75 @@ export async function asignarItemAction(
 
   if (error) return { ok: false, error: error.message }
 
+  // Auto-vincular artículo del catálogo si aún no está vinculado
+  if (destino === 'pedido') {
+    await _resolverArticuloCompraItem(itemId, pedidoId, pedidoItemIndice, adminClient)
+  }
+
   return { ok: true }
+}
+
+async function _resolverArticuloCompraItem(
+  itemId: string,
+  pedidoId: string | null,
+  pedidoItemIndice: number | null,
+  adminClient: ReturnType<typeof import('@/lib/supabase/admin').createAdminClient>
+) {
+  const { data: item } = await adminClient
+    .from('compra_items')
+    .select('articulo_id, codigo, descripcion, marca, talla')
+    .eq('id', itemId)
+    .single()
+
+  if (!item || item.articulo_id) return  // ya está vinculado
+
+  let articuloId: string | null = null
+
+  // Prioridad 1: heredar articulo_id del pedido_item si se conoce el índice
+  if (pedidoId && pedidoItemIndice !== null) {
+    const { data: pedidoItems } = await adminClient
+      .from('pedido_items')
+      .select('id, articulo_id')
+      .eq('pedido_id', pedidoId)
+      .order('id')
+
+    const pedidoItem = pedidoItems?.[pedidoItemIndice - 1]
+    if (pedidoItem?.articulo_id) {
+      articuloId = pedidoItem.articulo_id
+    }
+  }
+
+  // Prioridad 2: buscar por código SKU en el catálogo
+  if (!articuloId && item.codigo) {
+    const { data: existente } = await adminClient
+      .from('articulos')
+      .select('id')
+      .ilike('codigo', item.codigo.trim())
+      .maybeSingle()
+
+    if (existente) {
+      articuloId = existente.id
+    } else {
+      // Crear el artículo automáticamente con los datos de la factura
+      const { data: nuevo } = await adminClient
+        .from('articulos')
+        .insert({
+          codigo:  item.codigo.trim(),
+          nombre:  item.descripcion.trim(),
+          marca:   item.marca?.trim() || 'Sin marca',
+        })
+        .select('id')
+        .single()
+      articuloId = nuevo?.id ?? null
+    }
+  }
+
+  if (articuloId) {
+    await adminClient
+      .from('compra_items')
+      .update({ articulo_id: articuloId })
+      .eq('id', itemId)
+  }
 }
 
 export type EliminarCompraResult =

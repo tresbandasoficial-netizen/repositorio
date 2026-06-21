@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useTransition, useRef } from 'react'
+import { useState, useTransition, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { crearCompraAction, CrearCompraInput, CompraItemInput } from '@/app/actions/compras'
 import { parsearFacturaAction, FacturaExtraida } from '@/app/actions/parsear-factura'
+import { buscarPorCodigoAction } from '@/app/actions/articulos'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { formatCOP } from '@/lib/utils/format'
@@ -11,13 +12,17 @@ import { formatCOP } from '@/lib/utils/format'
 type Paso = 'subir' | 'revisar' | 'guardando'
 
 type ItemForm = {
+  codigo: string
   descripcion: string
   marca: string
   talla: string
   cantidad: string
-  precio_usd?: number | null   // precio original de la factura, para calcular COP
+  precio_usd?: number | null
   costo_unitario_cop: string
   destino: 'pedido' | 'contoda' | 'sin_asignar'
+  // estado del lookup de catálogo
+  articuloId?: string | null
+  articuloEncontrado?: boolean   // true=encontrado, false=nuevo, undefined=sin buscar
 }
 
 function facturaToItems(items: FacturaExtraida['items'], moneda: 'USD' | 'COP'): ItemForm[] {
@@ -31,6 +36,7 @@ function facturaToItems(items: FacturaExtraida['items'], moneda: 'USD' | 'COP'):
       : ''
     for (let n = 0; n < cantidad; n++) {
       result.push({
+        codigo: i.codigo ?? '',
         descripcion: i.descripcion,
         marca: i.marca,
         talla: i.talla,
@@ -94,7 +100,7 @@ export function CrearCompraForm() {
   function agregarItem() {
     setItems((prev) => [
       ...prev,
-      { descripcion: '', marca: '', talla: '', cantidad: '1', precio_usd: null, costo_unitario_cop: '', destino: 'sin_asignar' },
+      { codigo: '', descripcion: '', marca: '', talla: '', cantidad: '1', precio_usd: null, costo_unitario_cop: '', destino: 'sin_asignar' },
     ])
   }
 
@@ -104,6 +110,28 @@ export function CrearCompraForm() {
 
   function actualizarItem(idx: number, campo: keyof ItemForm, valor: string) {
     setItems((prev) => prev.map((item, i) => (i === idx ? { ...item, [campo]: valor } : item)))
+  }
+
+  async function buscarPorCodigo(idx: number, codigo: string) {
+    const cod = codigo.trim()
+    if (!cod) {
+      setItems(prev => prev.map((item, i) => i === idx ? { ...item, articuloId: null, articuloEncontrado: undefined } : item))
+      return
+    }
+    const articulo = await buscarPorCodigoAction(cod)
+    setItems(prev => prev.map((item, i) => {
+      if (i !== idx) return item
+      if (articulo) {
+        return {
+          ...item,
+          articuloId: articulo.id,
+          articuloEncontrado: true,
+          descripcion: articulo.nombre,
+          marca: articulo.marca,
+        }
+      }
+      return { ...item, articuloId: null, articuloEncontrado: false }
+    }))
   }
 
   function handleArchivo(e: React.ChangeEvent<HTMLInputElement>) {
@@ -166,12 +194,14 @@ export function CrearCompraForm() {
     }
 
     const itemsValidos: CompraItemInput[] = items.map((item) => ({
-      descripcion: item.descripcion.trim(),
-      marca: item.marca.trim(),
-      talla: item.talla.trim(),
-      cantidad: parseInt(item.cantidad, 10),
+      codigo:             item.codigo.trim() || undefined,
+      descripcion:        item.descripcion.trim(),
+      marca:              item.marca.trim(),
+      talla:              item.talla.trim(),
+      cantidad:           parseInt(item.cantidad, 10),
       costo_unitario_cop: parseInt(item.costo_unitario_cop.replace(/\D/g, ''), 10) || 0,
-      destino: item.destino,
+      destino:            item.destino,
+      articulo_id:        item.articuloId ?? null,
     }))
 
     const payload: CrearCompraInput = {
@@ -263,7 +293,7 @@ export function CrearCompraForm() {
               También puedes{' '}
               <button
                 type="button"
-                onClick={() => { setItems([{ descripcion: '', marca: '', talla: '', cantidad: '1', costo_unitario_cop: '', destino: 'sin_asignar' }]); setPaso('revisar') }}
+                onClick={() => { setItems([{ codigo: '', descripcion: '', marca: '', talla: '', cantidad: '1', costo_unitario_cop: '', destino: 'sin_asignar' }]); setPaso('revisar') }}
                 className="underline hover:text-gray-600"
               >
                 ingresar los datos manualmente
@@ -506,6 +536,45 @@ export function CrearCompraForm() {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
+                {/* Código SKU con lookup al catálogo */}
+                <div className="col-span-2">
+                  <label className="block text-xs text-gray-500 mb-1">Código del artículo (SKU)</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={item.codigo}
+                      onChange={(e) => actualizarItem(idx, 'codigo', e.target.value)}
+                      onBlur={(e) => buscarPorCodigo(idx, e.target.value)}
+                      placeholder="Ej: DV3337-100 — opcional"
+                      className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 bg-white font-mono ${
+                        item.articuloEncontrado === true  ? 'border-green-400 focus:ring-green-400' :
+                        item.articuloEncontrado === false ? 'border-amber-400 focus:ring-amber-400' :
+                        'border-gray-300 focus:ring-blue-500'
+                      }`}
+                    />
+                    {item.articuloEncontrado === true && (
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+                        ✓ En catálogo
+                      </span>
+                    )}
+                    {item.articuloEncontrado === false && (
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
+                        Artículo nuevo
+                      </span>
+                    )}
+                  </div>
+                  {item.articuloEncontrado === true && (
+                    <p className="text-xs text-green-600 mt-0.5">
+                      {item.marca} {item.descripcion} — datos cargados del catálogo
+                    </p>
+                  )}
+                  {item.articuloEncontrado === false && (
+                    <p className="text-xs text-amber-600 mt-0.5">
+                      Artículo nuevo — se creará en el catálogo al asignar el pedido
+                    </p>
+                  )}
+                </div>
+
                 <div className="col-span-2">
                   <label className="block text-xs text-gray-500 mb-1">Descripción *</label>
                   <input
