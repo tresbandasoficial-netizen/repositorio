@@ -244,3 +244,126 @@ export const UMBRAL_ALERTA_DIAS_DOC: Partial<Record<EstadoPedido, number>> = {
 
 // REFERENCIA DOCUMENTAL — el umbral real de zombie está en la misma migración.
 export const DIAS_ZOMBIE_DOC = 30
+
+// ─── Inventario / Artículos ──────────────────────────────────────────────────
+
+export type CategoriaArticulo = 'tenis' | 'ropa' | 'accesorio' | 'otro'
+
+export type Articulo = {
+  id: string
+  nombre: string
+  marca: string
+  talla: string | null
+  categoria: CategoriaArticulo | null
+  activo: boolean
+  creado_en: string
+}
+
+export type TipoMovimiento = 'entrada' | 'asignacion' | 'transferencia' | 'salida' | 'ajuste'
+
+export type MovimientoInventario = {
+  id: string
+  articulo_id: string
+  sede_id: string | null   // null = inventario central
+  delta: number
+  tipo: TipoMovimiento
+  compra_item_id: string | null
+  pedido_id: string | null
+  transferencia_id: string | null
+  costo_unitario_cop: number | null
+  usuario_id: string
+  notas: string | null
+  creado_en: string
+}
+
+// Fila de vista_stock_por_sede
+export type StockSede = {
+  articulo_id: string
+  nombre: string
+  marca: string
+  talla: string | null
+  categoria: CategoriaArticulo | null
+  sede_id: string | null   // null = central
+  stock: number
+}
+
+// ─── Facturación ──────────────────────────────────────────────────────────────
+
+export type EstadoFactura = 'pendiente' | 'pagada' | 'vencida' | 'anulada'
+
+export type Factura = {
+  id: string
+  numero_factura: string
+  cliente_id: string
+  sede_id: string
+  asesor_id: string
+  fecha_factura: string
+  fecha_vencimiento: string
+  total: number
+  estado: EstadoFactura
+  notas: string | null
+  creado_en: string
+  actualizado_en: string
+}
+
+// Fila de vista_facturas (con saldo calculado)
+export type FacturaRow = {
+  id: string
+  numero_factura: string
+  cliente_id: string
+  cliente_nombre: string
+  cliente_telefono: string
+  sede_id: string
+  sede_codigo: string
+  sede_nombre: string
+  asesor_id: string
+  asesor_nombre: string
+  fecha_factura: string
+  fecha_vencimiento: string
+  total: number
+  total_abonado: number
+  saldo: number
+  dias_atraso: number
+  estado: EstadoFactura
+  notas: string | null
+  creado_en: string
+}
+
+export type PagoFactura = {
+  id: string
+  factura_id: string
+  monto: number
+  metodo: MetodoPago
+  fecha: string
+  asesor_id: string
+  notas: string | null
+  creado_en: string
+  asesor?: Pick<Usuario, 'nombre'>
+}
+
+export const ESTADO_FACTURA_LABELS: Record<EstadoFactura, string> = {
+  pendiente: 'Pendiente',
+  pagada:    'Pagada',
+  vencida:   'Vencida',
+  anulada:   'Anulada',
+}
+
+export const ESTADO_FACTURA_COLORES: Record<EstadoFactura, string> = {
+  pendiente: 'bg-yellow-100 text-yellow-800',
+  pagada:    'bg-green-100 text-green-800',
+  vencida:   'bg-red-100 text-red-800',
+  anulada:   'bg-gray-100 text-gray-600',
+}
+
+// Utilidad (CPP) por pedido / factura — solo visible para admin
+export type UtilidadPedido = {
+  pedido_id: string
+  numero_orden: string
+  tipo: 'encargo' | 'venta_inmediata'
+  sede_id: string
+  cliente_id: string
+  fecha_creacion: string
+  ingreso: number
+  costo: number
+  utilidad: number
+}
