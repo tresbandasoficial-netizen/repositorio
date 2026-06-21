@@ -69,6 +69,7 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
     .select('*')
     .gte('fecha', filtros.desde)
     .lte('fecha', filtros.hasta)
+    .neq('metodo', 'credito')   // crédito = fiado, no es dinero recaudado
     .limit(10000)
 
   // RLS lógica: el asesor solo ve su sede.

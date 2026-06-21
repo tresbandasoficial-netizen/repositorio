@@ -111,7 +111,9 @@ export function NuevaFacturaForm({ sedes }: { sedes: SedeOpcion[] }) {
   function crear() {
     if (!cliente) return
     if (!hayAlgo) { setError('Agrega al menos un pedido o un producto'); return }
-    const ab = abono ? parseInt(abono.replace(/\D/g, ''), 10) : 0
+    // Crédito = se lo lleva fiado: no entra dinero, todo queda en cartera.
+    const esCredito = metodo === 'credito'
+    const ab = esCredito ? 0 : (abono ? parseInt(abono.replace(/\D/g, ''), 10) : 0)
     if (ab > totalNeto) { setError('El pago no puede superar el total'); return }
     setError('')
     start(async () => {
@@ -251,23 +253,25 @@ export function NuevaFacturaForm({ sedes }: { sedes: SedeOpcion[] }) {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Registrar pago (opcional)</label>
-                  <div className="flex gap-2">
-                    <input type="text" inputMode="numeric" value={abono} onChange={e => setAbono(e.target.value)} placeholder="0"
-                      className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    <button type="button" onClick={() => setAbono(String(totalNeto))}
-                      className="rounded-lg bg-gray-100 text-gray-700 px-3 text-xs font-medium hover:bg-gray-200 whitespace-nowrap">
-                      Pagó todo
-                    </button>
-                  </div>
-                </div>
-                <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">Método de pago</label>
                   <select value={metodo} onChange={e => setMetodo(e.target.value as MetodoPago)}
                     className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                     {METODOS_PAGO.map(m => <option key={m} value={m}>{METODO_PAGO_LABELS[m]}</option>)}
                   </select>
                 </div>
+                {metodo !== 'credito' && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Monto recibido (opcional)</label>
+                    <div className="flex gap-2">
+                      <input type="text" inputMode="numeric" value={abono} onChange={e => setAbono(e.target.value)} placeholder="0"
+                        className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      <button type="button" onClick={() => setAbono(String(totalNeto))}
+                        className="rounded-lg bg-gray-100 text-gray-700 px-3 text-xs font-medium hover:bg-gray-200 whitespace-nowrap">
+                        Pagó todo
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">Fecha de vencimiento</label>
                   <input type="date" value={vence} onChange={e => setVence(e.target.value)}
@@ -280,14 +284,17 @@ export function NuevaFacturaForm({ sedes }: { sedes: SedeOpcion[] }) {
                 </div>
               </div>
 
+              {metodo === 'credito' && (
+                <p className="text-xs text-amber-600">🕓 A crédito: el cliente queda debiendo el total. No entra dinero ahora; queda en cartera.</p>
+              )}
+
               {/* Resumen */}
               <div className="flex items-center justify-between text-sm pt-2 border-t border-gray-100">
                 <span className="text-gray-500">Queda en cartera (saldo)</span>
                 <span className="font-bold text-gray-900">
-                  {formatCOP(Math.max(0, totalNeto - (abono ? parseInt(abono.replace(/\D/g, ''), 10) || 0 : 0)))}
+                  {formatCOP(metodo === 'credito' ? totalNeto : Math.max(0, totalNeto - (abono ? parseInt(abono.replace(/\D/g, ''), 10) || 0 : 0)))}
                 </span>
               </div>
-              <p className="text-xs text-gray-400 -mt-2">Si no registras pago (o registras parcial), el saldo queda en cartera.</p>
             </div>
           )}
         </>
