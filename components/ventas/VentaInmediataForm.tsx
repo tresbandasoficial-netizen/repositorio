@@ -22,8 +22,14 @@ const nuevaLinea = (): Linea => ({
   precio_venta: 0,
 })
 
-export function VentaInmediataForm({ sedeId, sedeCodigo }: { sedeId: string; sedeCodigo: string }) {
+type SedeOpcion = { id: string; codigo: string; nombre: string }
+
+export function VentaInmediataForm({ sedes }: { sedes: SedeOpcion[] }) {
   const router = useRouter()
+
+  // Sede de venta (el admin elige; el asesor tiene una sola)
+  const [sedeId, setSedeId] = useState(sedes[0]?.id ?? '')
+  const sedeCodigo = sedes.find(s => s.id === sedeId)?.codigo ?? ''
 
   // Cliente
   const [busqueda, setBusqueda] = useState('')
@@ -84,6 +90,7 @@ export function VentaInmediataForm({ sedeId, sedeCodigo }: { sedeId: string; sed
 
     start(async () => {
       const r = await registrarVentaInmediataAction({
+        sede_id: sedeId,
         cliente_nombre: nombre,
         cliente_telefono: telefono,
         cliente_cedula: cedula,
@@ -101,6 +108,21 @@ export function VentaInmediataForm({ sedeId, sedeCodigo }: { sedeId: string; sed
 
   return (
     <div className="space-y-5">
+      {/* Sede (solo si hay más de una opción, p.ej. admin) */}
+      {sedes.length > 1 && (
+        <div className="bg-white rounded-xl border border-gray-100 p-5">
+          <label className="block text-sm font-semibold text-gray-900 mb-2">Sede de venta</label>
+          <select
+            value={sedeId}
+            onChange={e => setSedeId(e.target.value)}
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {sedes.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+          </select>
+          <p className="text-xs text-gray-400 mt-1">El inventario se descuenta de esta sede.</p>
+        </div>
+      )}
+
       {/* Cliente */}
       <div className="bg-white rounded-xl border border-gray-100 p-5">
         <label className="block text-sm font-semibold text-gray-900 mb-2">Cliente</label>

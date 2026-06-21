@@ -16,6 +16,7 @@ export type ItemVenta = {
 }
 
 export type VentaInmediataInput = {
+  sede_id: string          // sede desde la que se vende (el admin la elige; el asesor usa la suya)
   cliente_nombre: string
   cliente_telefono: string
   cliente_cedula: string
@@ -30,25 +31,31 @@ export type VentaResult =
   | { ok: false; error: string }
 
 // Venta inmediata: crea un pedido ya ENTREGADO, descuenta inventario de la sede
-// del asesor (automático, CPP) y registra el pago. El asesor no toca lotes.
+// indicada (automático, CPP) y registra el pago. El asesor no toca lotes.
 export async function registrarVentaInmediataAction(data: VentaInmediataInput): Promise<VentaResult> {
   const sesion = await getSesion()
   const supabase = await createClient()
 
-  if (!sesion.sede_id) return { ok: false, error: 'Tu usuario no tiene una sede asignada' }
   if (data.items.length === 0) return { ok: false, error: 'Debe haber al menos un producto' }
   if (!data.cliente_nombre.trim()) return { ok: false, error: 'El nombre del cliente es obligatorio' }
+
+  // Sede de la venta: el asesor está atado a la suya; el admin puede elegir cualquiera.
+  const sedeId = sesion.rol === 'admin' ? data.sede_id : sesion.sede_id
+  if (!sedeId) return { ok: false, error: 'Debes seleccionar una sede para la venta' }
+  if (sesion.rol !== 'admin' && data.sede_id && data.sede_id !== sesion.sede_id) {
+    return { ok: false, error: 'No puedes vender desde otra sede' }
+  }
 
   for (const it of data.items) {
     if (it.cantidad <= 0) return { ok: false, error: 'La cantidad debe ser mayor a cero' }
     if (it.precio_venta < 0) return { ok: false, error: 'El precio no puede ser negativo' }
   }
 
-  // Sede del asesor (para numero_orden y descuento de stock).
+  // Sede (para numero_orden y descuento de stock).
   const { data: sede } = await supabase
     .from('sedes')
     .select('id, codigo')
-    .eq('id', sesion.sede_id)
+    .eq('id', sedeId)
     .single()
   if (!sede) return { ok: false, error: 'Sede no encontrada' }
 
