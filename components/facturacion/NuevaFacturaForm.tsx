@@ -147,13 +147,14 @@ export function NuevaFacturaForm({ sedes }: { sedes: SedeOpcion[] }) {
         </div>
       )}
 
-      {/* Atajo por número de pedido */}
+      {/* Opción 1: es un pedido → buscar por número */}
       {!cliente && (
         <div className="bg-blue-50 rounded-xl border border-blue-100 p-5">
-          <label className="block text-sm font-semibold text-gray-900 mb-2">Facturar por número de pedido</label>
+          <label className="block text-sm font-semibold text-gray-900 mb-1">¿Es un pedido?</label>
+          <p className="text-xs text-gray-500 mb-2">Búscalo por su número y lo facturamos.</p>
           <div className="flex gap-2">
             <input type="text" value={numPedido} onChange={e => setNumPedido(e.target.value.toUpperCase())}
-              onKeyDown={e => e.key === 'Enter' && buscarPorPedido()} placeholder="Ej: TR1234"
+              onKeyDown={e => e.key === 'Enter' && buscarPorPedido()} placeholder="N° de pedido (ej: TR1234)"
               className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             <Button onClick={buscarPorPedido} disabled={buscandoPedido || !numPedido.trim()}>
               {buscandoPedido ? 'Buscando…' : 'Buscar'}
@@ -162,11 +163,12 @@ export function NuevaFacturaForm({ sedes }: { sedes: SedeOpcion[] }) {
         </div>
       )}
 
-      {/* Cliente */}
+      {/* Opción 2: no es pedido → buscar cliente y agregar artículos */}
       <div className="bg-white rounded-xl border border-gray-100 p-5">
-        <label className="block text-sm font-semibold text-gray-900 mb-2">
-          {cliente ? 'Cliente' : '…o busca por cliente'}
+        <label className="block text-sm font-semibold text-gray-900 mb-1">
+          {cliente ? 'Cliente' : '¿No es un pedido?'}
         </label>
+        {!cliente && <p className="text-xs text-gray-500 mb-2">Busca el cliente y luego agrégale artículos del inventario.</p>}
         {cliente ? (
           <div className="flex items-center justify-between">
             <div>
