@@ -40,36 +40,61 @@ export type EstadoPedido =
   | 'cancelado'
 
 export type MetodoPago =
+  // Métodos activos
   | 'efectivo'
+  | 'nequi_johan'
+  | 'nequi_marisol'
+  | 'nequi_luisa'
+  | 'bancolombia_ronaldo'
+  | 'bancolombia_johan'
+  | 'bancolombia_carlos'
+  | 'bancolombia_cristian'
+  | 'bancolombia_huber'
+  | 'davivienda'
+  | 'addi'
+  | 'bold'
+  | 'sistecredito'
+  | 'credito'
+  // Históricos (registros anteriores)
   | 'bancolombia'
   | 'nequi'
   | 'daviplata'
   | 'transferencia'
   | 'datafono'
-  | 'addi'
-  | 'bold'
-  | 'sistecredito'
-  | 'credito'
   | 'otro'
 
 // Etiquetas y orden canónico de los métodos de pago (fuente única para selectores y cuadre).
 export const METODO_PAGO_LABELS: Record<MetodoPago, string> = {
-  efectivo:      'Efectivo',
-  bancolombia:   'Bancolombia',
-  nequi:         'Nequi',
-  daviplata:     'Daviplata',
-  transferencia: 'Transferencia (otra)',
-  datafono:      'Datáfono / Tarjeta',
-  addi:          'Addi',
-  bold:          'Bold',
-  sistecredito:  'Sistecrédito',
-  credito:       'Crédito',
-  otro:          'Otro',
+  efectivo:              'Efectivo',
+  nequi_johan:           'Nequi Johan',
+  nequi_marisol:         'Nequi Marisol',
+  nequi_luisa:           'Nequi Luisa Santa Rosa',
+  bancolombia_ronaldo:   'Bancolombia Ronaldo',
+  bancolombia_johan:     'Bancolombia Johan',
+  bancolombia_carlos:    'Bancolombia Carlos',
+  bancolombia_cristian:  'Bancolombia Cristian',
+  bancolombia_huber:     'Bancolombia Huber',
+  davivienda:            'Davivienda',
+  addi:                  'Addi',
+  bold:                  'Bold',
+  sistecredito:          'Sistecrédito',
+  credito:               'Crédito',
+  // Históricos
+  bancolombia:           'Bancolombia (antiguo)',
+  nequi:                 'Nequi (antiguo)',
+  daviplata:             'Daviplata',
+  transferencia:         'Transferencia',
+  datafono:              'Datáfono',
+  otro:                  'Otro',
 }
 
+// Métodos activos que aparecen en los selectores de la app.
 export const METODOS_PAGO: MetodoPago[] = [
-  'efectivo', 'bancolombia', 'nequi', 'daviplata', 'transferencia',
-  'datafono', 'addi', 'bold', 'sistecredito', 'credito', 'otro',
+  'efectivo',
+  'nequi_johan', 'nequi_marisol', 'nequi_luisa',
+  'bancolombia_ronaldo', 'bancolombia_johan', 'bancolombia_carlos',
+  'bancolombia_cristian', 'bancolombia_huber',
+  'davivienda', 'addi', 'bold', 'sistecredito', 'credito',
 ]
 
 export type PedidoItem = {
