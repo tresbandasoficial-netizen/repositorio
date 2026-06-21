@@ -159,6 +159,14 @@ export async function cambiarEstadoAction(
     }
   }
 
+  // Regla: no se puede entregar sin factura (salvo venta inmediata).
+  if (nuevoEstado === 'entregado') {
+    const { data: ped } = await supabase.from('pedidos').select('factura_id, tipo').eq('id', pedidoId).single()
+    if (ped && !ped.factura_id && ped.tipo !== 'venta_inmediata') {
+      return { ok: false, error: 'Debes facturar el pedido antes de entregarlo.' }
+    }
+  }
+
   const { error } = await supabase.rpc('cambiar_estado_pedido', {
     p_pedido_id:    pedidoId,
     p_nuevo_estado: nuevoEstado,
@@ -191,6 +199,14 @@ export async function cambiarEstadoInlineAction(
 
   if (!puedeTransicionar(estadoActual, nuevoEstado, sesion.rol)) {
     return { ok: false, error: `Transición inválida: ${estadoActual} → ${nuevoEstado}` }
+  }
+
+  // Regla: no se puede entregar sin factura (salvo venta inmediata).
+  if (nuevoEstado === 'entregado') {
+    const { data: ped } = await supabase.from('pedidos').select('factura_id, tipo').eq('id', pedidoId).single()
+    if (ped && !ped.factura_id && ped.tipo !== 'venta_inmediata') {
+      return { ok: false, error: 'Debes facturar el pedido antes de entregarlo.' }
+    }
   }
 
   const { error } = await supabase.rpc('cambiar_estado_pedido', {
