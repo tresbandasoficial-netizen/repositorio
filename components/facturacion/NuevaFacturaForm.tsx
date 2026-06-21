@@ -42,6 +42,21 @@ export function NuevaFacturaForm({ sedes }: { sedes: SedeOpcion[] }) {
   const [numPedido, setNumPedido] = useState('')
   const [buscandoPedido, setBuscandoPedido] = useState(false)
 
+  // Cliente nuevo
+  const [mostrarNuevo, setMostrarNuevo] = useState(false)
+  const [nNombre, setNNombre] = useState('')
+  const [nTelefono, setNTelefono] = useState('')
+  const [nCedula, setNCedula] = useState('')
+
+  function usarClienteNuevo() {
+    if (!nNombre.trim()) { setError('Escribe el nombre del cliente'); return }
+    if (!nTelefono.trim()) { setError('Escribe el teléfono del cliente'); return }
+    setError('')
+    setCliente({ id: '__nuevo__', nombre: nNombre.trim(), telefono_normalizado: nTelefono.trim(), cedula: nCedula.trim() || null, ultima_direccion: null })
+    setPedidos([])
+    setSeleccionados(new Set())
+  }
+
   // Config factura
   const [vence, setVence] = useState(venceDefault())
   const [abono, setAbono] = useState('')
@@ -86,6 +101,7 @@ export function NuevaFacturaForm({ sedes }: { sedes: SedeOpcion[] }) {
 
   function reset() {
     setCliente(null); setPedidos([]); setSeleccionados(new Set()); setLineas([]); setBusqueda('')
+    setMostrarNuevo(false); setNNombre(''); setNTelefono(''); setNCedula('')
   }
 
   // Pedidos visibles = los de la sede seleccionada
@@ -117,8 +133,10 @@ export function NuevaFacturaForm({ sedes }: { sedes: SedeOpcion[] }) {
     if (ab > totalNeto) { setError('El pago no puede superar el total'); return }
     setError('')
     start(async () => {
+      const esNuevo = cliente.id === '__nuevo__'
       const r = await crearFacturaUnificadaAction({
-        cliente_id: cliente.id,
+        cliente_id: esNuevo ? null : cliente.id,
+        cliente_nuevo: esNuevo ? { nombre: cliente.nombre, telefono: cliente.telefono_normalizado, cedula: cliente.cedula ?? '' } : null,
         sede_id: sedeId,
         pedido_ids: pedidosElegidos.map(p => p.id),
         productos_nuevos: lineasValidas.map(({ articulo_id, marca, descripcion, talla, cantidad, precio_venta }) => ({
@@ -177,6 +195,21 @@ export function NuevaFacturaForm({ sedes }: { sedes: SedeOpcion[] }) {
             </div>
             <Button variant="ghost" onClick={reset}>Cambiar</Button>
           </div>
+        ) : mostrarNuevo ? (
+          <div className="space-y-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <input type="text" value={nNombre} onChange={e => setNNombre(e.target.value)} placeholder="Nombre"
+                className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <input type="text" value={nTelefono} onChange={e => setNTelefono(e.target.value)} placeholder="Teléfono"
+                className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <input type="text" value={nCedula} onChange={e => setNCedula(e.target.value)} placeholder="Cédula (opcional)"
+                className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={usarClienteNuevo}>Continuar</Button>
+              <Button variant="ghost" onClick={() => setMostrarNuevo(false)}>Cancelar</Button>
+            </div>
+          </div>
         ) : (
           <div className="relative">
             <input type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)}
@@ -193,6 +226,10 @@ export function NuevaFacturaForm({ sedes }: { sedes: SedeOpcion[] }) {
                 ))}
               </div>
             )}
+            <button type="button" onClick={() => { setMostrarNuevo(true); setError('') }}
+              className="text-sm text-blue-600 hover:underline mt-2">
+              + El cliente es nuevo (agregar datos)
+            </button>
           </div>
         )}
       </div>

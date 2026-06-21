@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getSesion } from '@/lib/auth/acceso'
 import { getSiguienteNumeroOrden } from '@/lib/queries/pedidos'
 import { ItemVenta } from '@/app/actions/ventas'
+import { normalizarTelefono } from '@/lib/utils/phone'
 import { MetodoPago } from '@/types'
 
 export type PedidoFacturable = {
@@ -181,7 +182,8 @@ export async function crearFacturaAction(data: CrearFacturaInput): Promise<Crear
 // ─── Factura unificada: pedidos existentes + productos nuevos del inventario ───
 
 export type CrearFacturaUnificadaInput = {
-  cliente_id: string
+  cliente_id: string | null
+  cliente_nuevo?: { nombre: string; telefono: string; cedula: string } | null
   sede_id: string
   pedido_ids: string[]              // pedidos existentes del cliente a incluir
   productos_nuevos: ItemVenta[]     // productos sacados del inventario, se venden ahora
@@ -208,6 +210,28 @@ export async function crearFacturaUnificadaAction(
     return { ok: false, error: 'No puedes facturar en otra sede' }
   }
 
+  // Resolver cliente: existente o crear uno nuevo.
+  let clienteId = data.cliente_id
+  if (!clienteId && data.cliente_nuevo) {
+    if (!data.cliente_nuevo.nombre.trim()) return { ok: false, error: 'El nombre del cliente es obligatorio' }
+    const tel = normalizarTelefono(data.cliente_nuevo.telefono)
+    if (!tel) return { ok: false, error: 'Teléfono del cliente inválido' }
+
+    const { data: existente } = await supabase
+      .from('clientes').select('id').eq('telefono_normalizado', tel).maybeSingle()
+    if (existente) {
+      clienteId = existente.id
+    } else {
+      const { data: nuevo, error: errCli } = await supabase
+        .from('clientes')
+        .insert({ telefono_normalizado: tel, nombre: data.cliente_nuevo.nombre.trim(), cedula: data.cliente_nuevo.cedula.trim() || null })
+        .select('id').single()
+      if (errCli || !nuevo) return { ok: false, error: `Error creando cliente: ${errCli?.message}` }
+      clienteId = nuevo.id
+    }
+  }
+  if (!clienteId) return { ok: false, error: 'Selecciona o crea un cliente' }
+
   const pedidoIds = [...data.pedido_ids]
 
   // 1. Si hay productos nuevos, se crea una venta (entregada) que entra a la factura.
@@ -226,7 +250,7 @@ export async function crearFacturaUnificadaAction(
       p_numero_orden: numeroOrden,
       p_sede_id:      sedeId,
       p_asesor_id:    sesion.id,
-      p_cliente_id:   data.cliente_id,
+      p_cliente_id:   clienteId,
       p_total:        totalNuevos,
       p_items:        data.productos_nuevos.map(it => ({
         articulo_id: it.articulo_id,
@@ -246,7 +270,7 @@ export async function crearFacturaUnificadaAction(
 
   // 2. Crear la factura agrupando todo.
   const { data: facturaId, error } = await supabase.rpc('crear_factura', {
-    p_cliente_id:        data.cliente_id,
+    p_cliente_id:        clienteId,
     p_sede_id:           sedeId,
     p_asesor_id:         sesion.id,
     p_fecha_vencimiento: data.fecha_vencimiento,
