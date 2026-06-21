@@ -3,7 +3,7 @@
 import { useState, useEffect, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { buscarClientesAction, ClienteBusqueda } from '@/app/actions/clientes'
-import { getPedidosFacturablesAction, crearFacturaAction, PedidoFacturable } from '@/app/actions/facturacion'
+import { getPedidosFacturablesAction, crearFacturaAction, buscarPedidoFacturableAction, PedidoFacturable } from '@/app/actions/facturacion'
 import { Button } from '@/components/ui/Button'
 import { formatCOP, formatFecha } from '@/lib/utils/format'
 import { MetodoPago, METODOS_PAGO, METODO_PAGO_LABELS } from '@/types'
@@ -43,15 +43,38 @@ export function NuevaFacturaForm() {
     return () => clearTimeout(t)
   }, [busqueda, cliente])
 
-  async function elegirCliente(c: ClienteBusqueda) {
+  async function elegirCliente(c: ClienteBusqueda, preseleccion?: string) {
     setCliente(c)
     setResultados([])
     setBusqueda(c.nombre)
     setCargando(true)
     const ped = await getPedidosFacturablesAction(c.id)
     setPedidos(ped)
-    setSeleccionados(new Set())
+    setSeleccionados(preseleccion ? new Set([preseleccion]) : new Set())
     setCargando(false)
+  }
+
+  // Búsqueda directa por número de pedido
+  const [numPedido, setNumPedido] = useState('')
+  const [buscandoPedido, setBuscandoPedido] = useState(false)
+
+  async function buscarPorPedido() {
+    if (!numPedido.trim()) return
+    setBuscandoPedido(true)
+    setError('')
+    const r = await buscarPedidoFacturableAction(numPedido)
+    setBuscandoPedido(false)
+    if (!r.ok) { setError(r.error); return }
+    await elegirCliente(
+      {
+        id: r.data.cliente_id,
+        nombre: r.data.cliente_nombre,
+        telefono_normalizado: r.data.cliente_telefono,
+        cedula: null,
+        ultima_direccion: null,
+      },
+      r.data.pedido_id,
+    )
   }
 
   function reset() {
@@ -103,9 +126,32 @@ export function NuevaFacturaForm() {
 
   return (
     <div className="space-y-5">
+      {/* Atajo: buscar por número de pedido */}
+      {!cliente && (
+        <div className="bg-blue-50 rounded-xl border border-blue-100 p-5">
+          <label className="block text-sm font-semibold text-gray-900 mb-2">Facturar por número de pedido</label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={numPedido}
+              onChange={e => setNumPedido(e.target.value.toUpperCase())}
+              onKeyDown={e => e.key === 'Enter' && buscarPorPedido()}
+              placeholder="Ej: TR1234"
+              className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <Button onClick={buscarPorPedido} disabled={buscandoPedido || !numPedido.trim()}>
+              {buscandoPedido ? 'Buscando…' : 'Buscar'}
+            </Button>
+          </div>
+          <p className="text-xs text-gray-400 mt-2">El pedido debe estar entregado y sin facturar.</p>
+        </div>
+      )}
+
       {/* Cliente */}
       <div className="bg-white rounded-xl border border-gray-100 p-5">
-        <label className="block text-sm font-semibold text-gray-900 mb-2">Cliente</label>
+        <label className="block text-sm font-semibold text-gray-900 mb-2">
+          {cliente ? 'Cliente' : '…o busca por cliente'}
+        </label>
         {cliente ? (
           <div className="flex items-center justify-between">
             <div>

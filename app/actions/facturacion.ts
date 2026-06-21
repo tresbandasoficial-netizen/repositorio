@@ -63,6 +63,52 @@ export async function getPedidosFacturablesAction(clienteId: string): Promise<Pe
   }))
 }
 
+export type PedidoEncontrado = {
+  cliente_id: string
+  cliente_nombre: string
+  cliente_telefono: string
+  pedido_id: string
+}
+
+// Busca un pedido por su número de orden para facturarlo directamente.
+export async function buscarPedidoFacturableAction(
+  numeroOrden: string
+): Promise<{ ok: true; data: PedidoEncontrado } | { ok: false; error: string }> {
+  const sesion = await getSesion()
+  const supabase = await createClient()
+
+  const num = numeroOrden.trim().toUpperCase()
+  if (!num) return { ok: false, error: 'Escribe un número de pedido' }
+
+  const { data } = await supabase
+    .from('pedidos')
+    .select('id, cliente_id, sede_id, estado, factura_id, clientes(nombre, telefono_normalizado)')
+    .eq('numero_orden', num)
+    .maybeSingle()
+
+  if (!data) return { ok: false, error: `No se encontró el pedido ${num}` }
+  if (sesion.rol !== 'admin' && data.sede_id !== sesion.sede_id) {
+    return { ok: false, error: `El pedido ${num} es de otra sede` }
+  }
+  if (data.estado !== 'entregado') {
+    return { ok: false, error: `El pedido ${num} aún no está entregado, no se puede facturar` }
+  }
+  if (data.factura_id) {
+    return { ok: false, error: `El pedido ${num} ya está facturado` }
+  }
+
+  const cli: any = Array.isArray(data.clientes) ? data.clientes[0] : data.clientes
+  return {
+    ok: true,
+    data: {
+      cliente_id: data.cliente_id,
+      cliente_nombre: cli?.nombre ?? '',
+      cliente_telefono: cli?.telefono_normalizado ?? '',
+      pedido_id: data.id,
+    },
+  }
+}
+
 export type CrearFacturaInput = {
   cliente_id: string
   pedido_ids: string[]
