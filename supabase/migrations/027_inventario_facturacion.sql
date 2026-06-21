@@ -9,12 +9,15 @@
 --   * pagos_factura          → abonos posteriores a la emisión de la factura
 --
 -- Reglas de negocio:
---   * Compra sin pedido_id  → entrada al inventario central (sede_id NULL)
+--   * Bucaramanga (TR) es la sede principal y CENTRO DE DISTRIBUCIÓN.
+--   * Compra sin pedido_id  → entrada al inventario de Bucaramanga por defecto
 --   * Compra con pedido_id  → va directo al pedido, NO entra al inventario general
---   * Venta inmediata       → salida automática del inventario (FIFO innecesario: CPP)
+--   * Venta inmediata       → salida automática del inventario de la sede del asesor (CPP)
 --   * Encargo               → NO descuenta inventario
 --   * Transferencias        → -origen / +destino, atómicas, las hace el admin
+--   * Una sede puede vender stock que llegó a otra sede, previa transferencia.
 --
+-- El asesor nunca selecciona lotes ni movimientos: todo es automático.
 -- Todo lo nuevo respeta el modelo multi-sede existente (auth_es_admin / auth_sede_id).
 
 -- ════════════════════════════════════════════════════════════════════════════
@@ -282,14 +285,16 @@ begin
 end;
 $$;
 
--- 6.2 Registrar entrada de inventario desde una compra (central por defecto).
+-- 6.2 Registrar entrada de inventario desde una compra.
+--     Si no se indica sede, el stock entra a BUCARAMANGA (TR) por defecto:
+--     es la sede principal y centro de distribución.
 create or replace function registrar_entrada_inventario(
   p_articulo_id    uuid,
   p_cantidad       integer,
   p_costo_unitario integer,
   p_usuario_id     uuid,
   p_compra_item_id uuid default null,
-  p_sede_id        uuid default null,   -- NULL = central
+  p_sede_id        uuid default null,   -- NULL = Bucaramanga por defecto
   p_notas          text default null
 )
 returns uuid
@@ -297,18 +302,22 @@ language plpgsql
 security definer
 as $$
 declare
-  v_id uuid;
+  v_id   uuid;
+  v_sede uuid;
 begin
   if p_cantidad <= 0 then
     raise exception 'La cantidad debe ser mayor a cero';
   end if;
+
+  -- Por defecto el inventario llega a Bucaramanga (centro de distribución).
+  v_sede := coalesce(p_sede_id, (select id from sedes where codigo = 'TR' limit 1));
 
   insert into movimientos_inventario (
     articulo_id, sede_id, delta, tipo,
     compra_item_id, costo_unitario_cop, usuario_id, notas
   )
   values (
-    p_articulo_id, p_sede_id, p_cantidad, 'entrada',
+    p_articulo_id, v_sede, p_cantidad, 'entrada',
     p_compra_item_id, p_costo_unitario, p_usuario_id, p_notas
   )
   returning id into v_id;

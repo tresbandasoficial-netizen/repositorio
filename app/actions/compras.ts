@@ -26,6 +26,7 @@ export type CompraItemInput = {
   cantidad: number
   costo_unitario_cop: number
   destino: 'pedido' | 'contoda' | 'sin_asignar'
+  articulo_id?: string | null   // vínculo opcional al catálogo (para inventario)
 }
 
 export type CrearCompraInput = {
@@ -86,18 +87,42 @@ export async function crearCompraAction(data: CrearCompraInput): Promise<CrearCo
   }
 
   for (const item of data.items) {
-    const { error: errItem } = await adminClient.from('compra_items').insert({
-      compra_id: compra.id,
-      descripcion: item.descripcion.trim(),
-      marca: item.marca.trim() || null,
-      talla: item.talla.trim() || null,
-      cantidad: item.cantidad,
-      costo_unitario_cop: item.costo_unitario_cop,
-      destino: item.destino,
-    })
+    const articuloId = item.articulo_id || null
 
-    if (errItem) {
-      return { ok: false, error: `Error creando item: ${errItem.message}` }
+    const { data: itemCreado, error: errItem } = await adminClient
+      .from('compra_items')
+      .insert({
+        compra_id: compra.id,
+        descripcion: item.descripcion.trim(),
+        marca: item.marca.trim() || null,
+        talla: item.talla.trim() || null,
+        cantidad: item.cantidad,
+        costo_unitario_cop: item.costo_unitario_cop,
+        destino: item.destino,
+        articulo_id: articuloId,
+      })
+      .select('id')
+      .single()
+
+    if (errItem || !itemCreado) {
+      return { ok: false, error: `Error creando item: ${errItem?.message}` }
+    }
+
+    // Regla de inventario: si el ítem NO está asignado a un pedido y tiene
+    // artículo de catálogo, entra al stock de Bucaramanga (centro de distribución).
+    if (item.destino === 'sin_asignar' && articuloId) {
+      const { error: errInv } = await adminClient.rpc('registrar_entrada_inventario', {
+        p_articulo_id:    articuloId,
+        p_cantidad:       item.cantidad,
+        p_costo_unitario: item.costo_unitario_cop,
+        p_usuario_id:     userId,
+        p_compra_item_id: itemCreado.id,
+        p_sede_id:        null,   // null → Bucaramanga por defecto
+        p_notas:          `Compra ${numeroFactura ?? ''} — ${data.proveedor}`.trim(),
+      })
+      if (errInv) {
+        return { ok: false, error: `Error registrando inventario: ${errInv.message}` }
+      }
     }
   }
 
