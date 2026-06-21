@@ -4,6 +4,8 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getSesion } from '@/lib/auth/acceso'
+import { getSiguienteNumeroOrden } from '@/lib/queries/pedidos'
+import { ItemVenta } from '@/app/actions/ventas'
 import { MetodoPago } from '@/types'
 
 export type PedidoFacturable = {
@@ -27,7 +29,7 @@ export async function getPedidosFacturablesAction(clienteId: string): Promise<Pe
     .from('pedidos')
     .select('id, numero_orden, total, fecha_creacion, sede_id, sedes(codigo)')
     .eq('cliente_id', clienteId)
-    .eq('estado', 'entregado')
+    .neq('estado', 'cancelado')
     .is('factura_id', null)
     .order('fecha_creacion')
 
@@ -90,8 +92,8 @@ export async function buscarPedidoFacturableAction(
   if (sesion.rol !== 'admin' && data.sede_id !== sesion.sede_id) {
     return { ok: false, error: `El pedido ${num} es de otra sede` }
   }
-  if (data.estado !== 'entregado') {
-    return { ok: false, error: `El pedido ${num} aún no está entregado, no se puede facturar` }
+  if (data.estado === 'cancelado') {
+    return { ok: false, error: `El pedido ${num} está cancelado, no se puede facturar` }
   }
   if (data.factura_id) {
     return { ok: false, error: `El pedido ${num} ya está facturado` }
@@ -152,8 +154,8 @@ export async function crearFacturaAction(data: CrearFacturaInput): Promise<Crear
   if (pedidos.some(p => p.cliente_id !== data.cliente_id)) {
     return { ok: false, error: 'Todos los pedidos deben ser del mismo cliente' }
   }
-  if (pedidos.some(p => p.estado !== 'entregado')) {
-    return { ok: false, error: 'Solo se pueden facturar pedidos entregados' }
+  if (pedidos.some(p => p.estado === 'cancelado')) {
+    return { ok: false, error: 'No se puede facturar un pedido cancelado' }
   }
   if (pedidos.some(p => p.factura_id)) {
     return { ok: false, error: 'Algún pedido ya está facturado' }
@@ -165,6 +167,90 @@ export async function crearFacturaAction(data: CrearFacturaInput): Promise<Crear
     p_asesor_id:         sesion.id,
     p_fecha_vencimiento: data.fecha_vencimiento,
     p_pedido_ids:        data.pedido_ids,
+    p_notas:             data.notas.trim() || null,
+    p_abono_inicial:     data.abono_inicial || 0,
+    p_metodo_abono:      data.metodo_abono || null,
+  })
+
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/facturacion')
+  return { ok: true as const, facturaId }
+}
+
+// ─── Factura unificada: pedidos existentes + productos nuevos del inventario ───
+
+export type CrearFacturaUnificadaInput = {
+  cliente_id: string
+  sede_id: string
+  pedido_ids: string[]              // pedidos existentes del cliente a incluir
+  productos_nuevos: ItemVenta[]     // productos sacados del inventario, se venden ahora
+  fecha_vencimiento: string
+  abono_inicial: number
+  metodo_abono: MetodoPago
+  notas: string
+}
+
+export async function crearFacturaUnificadaAction(
+  data: CrearFacturaUnificadaInput
+): Promise<CrearFacturaResult> {
+  const sesion = await getSesion()
+  const supabase = await createClient()
+
+  if (data.pedido_ids.length === 0 && data.productos_nuevos.length === 0) {
+    return { ok: false, error: 'Agrega al menos un pedido o un producto' }
+  }
+  if (!data.fecha_vencimiento) return { ok: false, error: 'La fecha de vencimiento es obligatoria' }
+
+  const sedeId = sesion.rol === 'admin' ? data.sede_id : sesion.sede_id
+  if (!sedeId) return { ok: false, error: 'Selecciona una sede' }
+  if (sesion.rol !== 'admin' && data.sede_id && data.sede_id !== sesion.sede_id) {
+    return { ok: false, error: 'No puedes facturar en otra sede' }
+  }
+
+  const pedidoIds = [...data.pedido_ids]
+
+  // 1. Si hay productos nuevos, se crea una venta (entregada) que entra a la factura.
+  if (data.productos_nuevos.length > 0) {
+    for (const it of data.productos_nuevos) {
+      if (it.cantidad <= 0) return { ok: false, error: 'Cantidad inválida en un producto' }
+      if (it.precio_venta < 0) return { ok: false, error: 'Precio inválido en un producto' }
+    }
+    const { data: sede } = await supabase.from('sedes').select('codigo').eq('id', sedeId).single()
+    if (!sede) return { ok: false, error: 'Sede no encontrada' }
+
+    const numeroOrden = await getSiguienteNumeroOrden(sede.codigo)
+    const totalNuevos = data.productos_nuevos.reduce((s, it) => s + it.precio_venta * it.cantidad, 0)
+
+    const { data: ventaPedidoId, error: errVenta } = await supabase.rpc('registrar_venta_inmediata', {
+      p_numero_orden: numeroOrden,
+      p_sede_id:      sedeId,
+      p_asesor_id:    sesion.id,
+      p_cliente_id:   data.cliente_id,
+      p_total:        totalNuevos,
+      p_items:        data.productos_nuevos.map(it => ({
+        articulo_id: it.articulo_id,
+        marca: it.marca.trim(),
+        descripcion: it.descripcion.trim(),
+        talla: it.talla.trim(),
+        cantidad: it.cantidad,
+        precio_venta: it.precio_venta,
+      })),
+      p_abono:       0,   // el pago se registra a nivel de factura
+      p_metodo_pago: 'efectivo',
+      p_notas:       'Productos agregados al facturar',
+    })
+    if (errVenta) return { ok: false, error: `Error creando la venta: ${errVenta.message}` }
+    pedidoIds.push(ventaPedidoId)
+  }
+
+  // 2. Crear la factura agrupando todo.
+  const { data: facturaId, error } = await supabase.rpc('crear_factura', {
+    p_cliente_id:        data.cliente_id,
+    p_sede_id:           sedeId,
+    p_asesor_id:         sesion.id,
+    p_fecha_vencimiento: data.fecha_vencimiento,
+    p_pedido_ids:        pedidoIds,
     p_notas:             data.notas.trim() || null,
     p_abono_inicial:     data.abono_inicial || 0,
     p_metodo_abono:      data.metodo_abono || null,
