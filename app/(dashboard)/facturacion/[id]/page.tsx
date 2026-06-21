@@ -23,7 +23,7 @@ export default async function FacturaDetallePage({
     <div className="p-6 max-w-3xl mx-auto">
       <Link href="/facturacion" className="text-sm text-gray-500 hover:text-gray-700">← Facturación</Link>
 
-      <div className="flex items-start justify-between mt-3 mb-6">
+      <div className="flex items-start justify-between mt-3 mb-4">
         <div>
           <h1 className="text-xl font-bold text-gray-900 font-mono">{factura.numero_factura}</h1>
           <p className="text-sm text-gray-500 mt-0.5">
@@ -31,6 +31,13 @@ export default async function FacturaDetallePage({
           </p>
         </div>
         <Badge className={ESTADO_FACTURA_COLORES[factura.estado]}>{ESTADO_FACTURA_LABELS[factura.estado]}</Badge>
+      </div>
+
+      <div className="mb-6">
+        <Link href={`/facturacion/${factura.id}/recibo`}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 text-white px-4 py-2 text-sm font-medium hover:bg-gray-800">
+          🧾 Generar imagen para el cliente
+        </Link>
       </div>
 
       {/* Datos */}

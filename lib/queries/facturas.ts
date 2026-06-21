@@ -90,6 +90,47 @@ export async function getFacturaDetalle(id: string): Promise<FacturaDetalle | nu
   }
 }
 
+// Datos para el recibo/imagen de la factura.
+export type ReciboFactura = {
+  factura: FacturaRow
+  sede_direccion: string | null
+  items: Array<{ marca: string; descripcion: string; talla: string | null; cantidad: number; precio_venta: number }>
+  abonos: Array<{ monto: number; metodo: string; fecha: string }>
+}
+
+export async function getFacturaRecibo(id: string): Promise<ReciboFactura | null> {
+  const supabase = await createClient()
+  const sesion = await getSesion()
+
+  const { data: factura, error } = await supabase.from('vista_facturas').select('*').eq('id', id).single()
+  if (error || !factura) return null
+  if (sesion.rol !== 'admin' && factura.sede_id !== sesion.sede_id) return null
+
+  const [pedidosRes, abonosRes, sedeRes] = await Promise.all([
+    supabase.from('pedidos').select('id').eq('factura_id', id),
+    supabase.from('pagos_factura').select('monto, metodo, fecha').eq('factura_id', id).order('fecha'),
+    supabase.from('sedes').select('direccion').eq('id', factura.sede_id).single(),
+  ])
+
+  const pedidoIds = (pedidosRes.data ?? []).map((p: { id: string }) => p.id)
+  let items: ReciboFactura['items'] = []
+  if (pedidoIds.length > 0) {
+    const { data: itemsData } = await supabase
+      .from('pedido_items')
+      .select('marca, descripcion, talla, cantidad, precio_venta')
+      .in('pedido_id', pedidoIds)
+      .order('id')
+    items = (itemsData ?? []) as ReciboFactura['items']
+  }
+
+  return {
+    factura: factura as FacturaRow,
+    sede_direccion: sedeRes.data?.direccion ?? null,
+    items,
+    abonos: (abonosRes.data ?? []) as ReciboFactura['abonos'],
+  }
+}
+
 // Cuentas por cobrar: morosos + resumen por sede.
 export async function getMorosos(): Promise<FacturaRow[]> {
   const supabase = await createClient()
