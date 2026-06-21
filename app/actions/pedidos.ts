@@ -280,7 +280,7 @@ export async function editarPedidoAction(
     cliente_nombre: string
     cliente_telefono: string
     cliente_id: string
-    productos: Array<{ marca: string; descripcion: string; talla: string; cantidad: number; precio_venta: number; imagen_url?: string | null }>
+    productos: Array<{ articulo_id?: string | null; marca: string; descripcion: string; talla: string; cantidad: number; precio_venta: number; imagen_url?: string | null }>
   }
 ): Promise<EditarPedidoResult> {
   const sesion = await getSesion()
@@ -288,7 +288,7 @@ export async function editarPedidoAction(
 
   const { data: pedidoCheck } = await supabase
     .from('vista_pedidos_asesor')
-    .select('sede_id, estado, sede_codigo, notas, tipo_entrega, direccion_entrega, numero_orden')
+    .select('sede_id, estado, sede_codigo')
     .eq('id', pedidoId)
     .single()
 
@@ -308,7 +308,7 @@ export async function editarPedidoAction(
   if (!data.cliente_nombre.trim()) return { ok: false, error: 'El nombre del cliente es obligatorio' }
   if (data.productos.length === 0) return { ok: false, error: 'Debe haber al menos un producto' }
 
-  // Actualizar cliente
+  // Actualizar cliente (operación independiente — no afecta los items del pedido)
   const telefonoNormalizado = normalizarTelefono(data.cliente_telefono)
   if (!telefonoNormalizado) return { ok: false, error: 'Teléfono inválido' }
   await supabase
@@ -316,60 +316,32 @@ export async function editarPedidoAction(
     .update({ nombre: data.cliente_nombre.trim(), telefono_normalizado: telefonoNormalizado })
     .eq('id', data.cliente_id)
 
-  // Calcular nuevo total
   const nuevoTotal = data.productos.reduce((s, p) => s + p.precio_venta * p.cantidad, 0)
 
-  // Actualizar pedido
-  const { error: updateError } = await supabase
-    .from('pedidos')
-    .update({
-      numero_orden:      nuevoNumero,
-      notas:             data.notas.trim() || null,
-      tipo_entrega:      data.tipo_entrega,
-      direccion_entrega: data.tipo_entrega === 'domicilio' ? data.direccion_entrega.trim() : null,
-      total:             nuevoTotal,
-    })
-    .eq('id', pedidoId)
-
-  if (updateError) {
-    if (updateError.code === '23505') return { ok: false, error: `El número "${nuevoNumero}" ya está en uso.` }
-    return { ok: false, error: updateError.message }
-  }
-
-  // Reemplazar items (delete + insert) — se usa adminClient porque RLS no tiene policy DELETE
-  const adminClient = createAdminClient()
-  const { error: deleteError } = await adminClient.from('pedido_items').delete().eq('pedido_id', pedidoId)
-  if (deleteError) return { ok: false, error: `Error eliminando productos anteriores: ${deleteError.message}` }
-  const { error: itemsError } = await adminClient.from('pedido_items').insert(
-    data.productos.map(p => ({
-      pedido_id:    pedidoId,
+  // Actualizar pedido + reemplazar items en una sola transacción atómica.
+  // Si el insert de items falla, el delete ya efectuado se revierte automáticamente.
+  const { error } = await supabase.rpc('editar_pedido', {
+    p_pedido_id:         pedidoId,
+    p_numero_orden:      nuevoNumero,
+    p_notas:             data.notas.trim() || null,
+    p_tipo_entrega:      data.tipo_entrega,
+    p_direccion_entrega: data.tipo_entrega === 'domicilio' ? data.direccion_entrega.trim() : null,
+    p_total:             nuevoTotal,
+    p_usuario_id:        sesion.id,
+    p_items:             data.productos.map(p => ({
+      articulo_id:  p.articulo_id ?? null,
       marca:        p.marca.trim(),
       descripcion:  p.descripcion.trim(),
-      talla:        p.talla.trim() || null,
+      talla:        p.talla.trim(),
       cantidad:     p.cantidad,
       precio_venta: p.precio_venta,
-      imagen_url:   (p as any).imagen_url ?? null,
-    }))
-  )
-  if (itemsError) return { ok: false, error: `Error actualizando productos: ${itemsError.message}` }
+      imagen_url:   p.imagen_url ?? null,
+    })),
+  })
 
-  // Registrar cambios en historial
-  const previo = pedidoCheck as any
-  type CambioEntry = { tabla: string; registro_id: string; campo: string; valor_anterior: string | null; valor_nuevo: string | null; usuario_id: string }
-  const cambios: CambioEntry[] = []
-  const campos: Array<{ campo: string; anterior: string | null; nuevo: string | null }> = [
-    { campo: 'numero_orden',      anterior: previo.numero_orden,      nuevo: nuevoNumero },
-    { campo: 'notas',             anterior: previo.notas ?? null,     nuevo: data.notas.trim() || null },
-    { campo: 'tipo_entrega',      anterior: previo.tipo_entrega,      nuevo: data.tipo_entrega },
-    { campo: 'direccion_entrega', anterior: previo.direccion_entrega ?? null, nuevo: data.tipo_entrega === 'domicilio' ? data.direccion_entrega.trim() : null },
-  ]
-  for (const { campo, anterior, nuevo } of campos) {
-    if (anterior !== nuevo) {
-      cambios.push({ tabla: 'pedidos', registro_id: pedidoId, campo, valor_anterior: anterior, valor_nuevo: nuevo, usuario_id: sesion.id })
-    }
-  }
-  if (cambios.length > 0) {
-    await adminClient.from('historial_cambios').insert(cambios)
+  if (error) {
+    if (error.code === '23505') return { ok: false, error: `El número "${nuevoNumero}" ya está en uso.` }
+    return { ok: false, error: error.message }
   }
 
   redirect(`/pedidos/${pedidoId}`)
