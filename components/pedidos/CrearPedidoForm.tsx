@@ -40,7 +40,7 @@ function InputField({ label, value, onChange, type = 'text', className = '' }: {
       <label className="block text-xs text-gray-500 mb-0.5">{label}</label>
       <input
         type={type}
-        value={value}
+        value={type === 'number' && value === 0 ? '' : value}
         onChange={e => onChange(e.target.value)}
         className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
       />

@@ -303,7 +303,7 @@ export function EditarPedidoForm(props: Props) {
                   <div className="max-w-[160px]">
                     <label className="block text-xs text-gray-500 mb-0.5">Precio</label>
                     <input type="number" min={0}
-                      value={p.precio_venta}
+                      value={p.precio_venta === 0 ? '' : p.precio_venta}
                       onChange={e => updateProducto(i, 'precio_venta', parseInt(e.target.value) || 0)}
                       className="w-full px-2.5 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
