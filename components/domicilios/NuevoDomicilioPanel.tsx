@@ -5,7 +5,13 @@ import { crearDomicilioAction } from '@/app/actions/domicilios'
 import { parsearDomicilio } from './parsearDomicilio'
 import { buscarClientesAction, buscarDireccionPorTelefonoAction, ClienteBusqueda } from '@/app/actions/clientes'
 
-const MENSAJERIA_LABELS = { exneider: 'Exneider', servigo: 'Servigo' }
+import { TipoCobroDomicilio, TipoMensajeria } from '@/types'
+
+const MENSAJERIA_LABELS: Record<string, string> = {
+  exneider:    'Exneider',
+  movilenvios: 'Movilenvíos',
+  otro:        'Otra',
+}
 
 interface Props {
   fecha: string
@@ -13,17 +19,18 @@ interface Props {
 }
 
 const VACIO = {
-  cliente_nombre: '',
+  cliente_nombre:   '',
   cliente_telefono: '',
-  direccion: '',
-  mensajeria: '' as 'exneider' | 'servigo' | '',
-  valor_pedido: '',
-  valor_domicilio: '',
+  direccion:        '',
+  mensajeria:       '' as TipoMensajeria | '',
+  valor_pedido:     '',
+  valor_domicilio:  '',
+  tipo_cobro:       'mensajero' as TipoCobroDomicilio,
   cobrar_al_cliente: true,
-  metodo_pago: 'efectivo' as 'efectivo' | 'transferencia',
-  articulo: '',
-  numero_pedido: '',
-  notas: '',
+  metodo_pago:      'efectivo' as 'efectivo' | 'transferencia',
+  articulo:         '',
+  numero_pedido:    '',
+  notas:            '',
 }
 
 export function NuevoDomicilioPanel({ fecha, onCreado }: Props) {
@@ -83,11 +90,12 @@ export function NuevoDomicilioPanel({ fecha, onCreado }: Props) {
       cliente_nombre:    p.cliente_nombre,
       cliente_telefono:  p.cliente_telefono,
       direccion:         p.direccion,
-      mensajeria:        p.mensajeria,
+      mensajeria:        p.mensajeria as any,
       valor_pedido:      p.valor_pedido ? String(p.valor_pedido) : '',
       valor_domicilio:   p.valor_domicilio ? String(p.valor_domicilio) : '',
-      cobrar_al_cliente: p.cobrar_al_cliente,
-      metodo_pago:       p.metodo_pago,
+      tipo_cobro:        'mensajero',
+      cobrar_al_cliente: true,
+      metodo_pago:       'efectivo',
       articulo:          p.articulo,
       numero_pedido:     p.numero_pedido,
       notas:             p.notas,
@@ -117,11 +125,13 @@ export function NuevoDomicilioPanel({ fecha, onCreado }: Props) {
         cliente_nombre:    form.cliente_nombre,
         cliente_telefono:  form.cliente_telefono,
         direccion:         form.direccion,
-        mensajeria:        form.mensajeria as 'exneider' | 'servigo',
+        mensajeria:        form.mensajeria as TipoMensajeria,
         valor_pedido:      parseInt(form.valor_pedido.replace(/\D/g, ''), 10) || 0,
         valor_domicilio:   parseInt(form.valor_domicilio.replace(/\D/g, ''), 10) || 0,
-        cobrar_al_cliente: form.cobrar_al_cliente,
-        metodo_pago:       form.metodo_pago,
+        tipo_cobro:        form.tipo_cobro,
+        cobrar_al_cliente: form.tipo_cobro !== 'regalado',
+        metodo_pago:       form.tipo_cobro === 'tb_cobra' ? 'transferencia' : 'efectivo',
+        cuenta_id:         null,
         articulo:          form.articulo,
         numero_pedido:     form.numero_pedido,
         notas:             form.notas,
@@ -292,8 +302,8 @@ export function NuevoDomicilioPanel({ fecha, onCreado }: Props) {
           {/* Mensajería */}
           <div>
             <label className="block text-xs text-gray-500 mb-1">Mensajería *</label>
-            <div className="flex gap-2">
-              {(['exneider', 'servigo'] as const).map(m => (
+            <div className="flex gap-2 flex-wrap">
+              {(['exneider', 'movilenvios', 'otro'] as const).map(m => (
                 <button
                   key={m}
                   type="button"
@@ -310,32 +320,37 @@ export function NuevoDomicilioPanel({ fecha, onCreado }: Props) {
             </div>
           </div>
 
-          {/* Método de pago */}
+          {/* Escenario financiero */}
           <div>
-            <label className="block text-xs text-gray-500 mb-1">El cliente paga el pedido por</label>
-            <div className="flex gap-2">
-              {(['efectivo', 'transferencia'] as const).map(mp => (
+            <label className="block text-xs text-gray-500 mb-1">¿Cómo se maneja el pago?</label>
+            <div className="space-y-2">
+              {([
+                { key: 'mensajero', label: 'El cliente paga al mensajero', desc: 'El mensajero cobra producto y domicilio en efectivo' },
+                { key: 'regalado',  label: 'Tres Bandas asume el domicilio', desc: 'El cliente solo paga el producto; TB paga el flete' },
+                { key: 'tb_cobra',  label: 'El cliente paga todo a TB', desc: 'Cliente transfiere producto+domicilio a TB; luego TB paga al mensajero' },
+              ] as const).map(op => (
                 <button
-                  key={mp}
+                  key={op.key}
                   type="button"
-                  onClick={() => set('metodo_pago', mp)}
-                  className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                    form.metodo_pago === mp
-                      ? 'bg-gray-900 text-white border-gray-900'
-                      : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                  onClick={() => set('tipo_cobro', op.key)}
+                  className={`w-full text-left px-3 py-2.5 rounded-lg border text-sm transition-colors ${
+                    form.tipo_cobro === op.key
+                      ? 'bg-blue-50 border-blue-500 text-blue-900'
+                      : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
                   }`}
                 >
-                  {mp === 'efectivo' ? '💵 Efectivo' : '🏦 Transferencia'}
+                  <span className="font-medium">{op.label}</span>
+                  <span className="block text-xs text-gray-400 mt-0.5">{op.desc}</span>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Valor del pedido (solo efectivo: la mensajería lo recoge) */}
-          {form.metodo_pago === 'efectivo' && (
+          {/* Valor del pedido */}
+          {form.tipo_cobro !== 'tb_cobra' && (
             <div>
               <label className="block text-xs text-gray-500 mb-1">
-                Valor del pedido (lo recoge la mensajería en efectivo)
+                Valor del pedido {form.tipo_cobro === 'mensajero' ? '(lo recoge el mensajero)' : '(cobrado por TB)'}
               </label>
               <input
                 type="text"
@@ -348,52 +363,33 @@ export function NuevoDomicilioPanel({ fecha, onCreado }: Props) {
             </div>
           )}
 
-          {/* Domicilio: quién lo paga */}
+          {/* Valor del domicilio */}
           <div>
-            <label className="block text-xs text-gray-500 mb-1">El domicilio lo paga</label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => set('cobrar_al_cliente', true)}
-                className={`flex-1 py-2 rounded-lg text-sm border transition-colors ${
-                  form.cobrar_al_cliente
-                    ? 'bg-gray-900 text-white border-gray-900'
-                    : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
-                }`}
-              >
-                El cliente
-              </button>
-              <button
-                type="button"
-                onClick={() => set('cobrar_al_cliente', false)}
-                className={`flex-1 py-2 rounded-lg text-sm border transition-colors ${
-                  !form.cobrar_al_cliente
-                    ? 'bg-gray-900 text-white border-gray-900'
-                    : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
-                }`}
-              >
-                Nosotros
-              </button>
-            </div>
+            <label className="block text-xs text-gray-500 mb-1">
+              Valor del domicilio
+              {form.tipo_cobro === 'regalado' && ' (lo paga TB — se registra como gasto)'}
+              {form.tipo_cobro === 'mensajero' && ' (lo cobra el mensajero al cliente)'}
+              {form.tipo_cobro === 'tb_cobra' && ' (TB cobra y luego paga al mensajero)'}
+            </label>
             <input
               type="text"
               inputMode="numeric"
               value={form.valor_domicilio}
               onChange={e => set('valor_domicilio', e.target.value.replace(/\D/g, ''))}
-              placeholder={form.cobrar_al_cliente
-                ? 'Valor del domicilio (opcional, lo cobra la mensajería)'
-                : 'Valor del domicilio que pagamos nosotros'}
-              className={`mt-2 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 ${
-                form.cobrar_al_cliente
-                  ? 'border-gray-300 focus:ring-gray-900'
-                  : 'border-amber-300 bg-amber-50 focus:ring-amber-400'
+              placeholder="12000"
+              className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 ${
+                form.tipo_cobro === 'regalado'
+                  ? 'border-amber-300 bg-amber-50 focus:ring-amber-400'
+                  : form.tipo_cobro === 'tb_cobra'
+                  ? 'border-blue-300 bg-blue-50 focus:ring-blue-400'
+                  : 'border-gray-300 focus:ring-gray-900'
               }`}
             />
-            <p className="text-xs text-gray-400 mt-1">
-              {form.cobrar_al_cliente
-                ? 'El cliente se lo paga a la mensajería — no entra a nuestro cuadre'
-                : 'Este valor se lo debemos a la mensajería — entra al cuadre'}
-            </p>
+            {form.tipo_cobro === 'tb_cobra' && (
+              <p className="text-xs text-blue-600 mt-1">
+                Se registrará automáticamente como deuda pendiente con {MENSAJERIA_LABELS[form.mensajeria || 'exneider']}
+              </p>
+            )}
           </div>
 
           {/* Notas */}

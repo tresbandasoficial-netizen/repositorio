@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getSesion } from '@/lib/auth/acceso'
-import { MetodoPago, METODOS_PAGO } from '@/types'
+import { MetodoPago, METODO_PAGO_LABELS } from '@/types'
 
 export type OrigenPago = 'venta' | 'abono' | 'cartera'
 
@@ -19,13 +19,15 @@ export type PagoUnificado = {
 }
 
 export type CuadreFiltros = {
-  desde: string          // YYYY-MM-DD
-  hasta: string          // YYYY-MM-DD
-  sede?: string          // sede_codigo; vacío = consolidado (todas)
+  desde: string
+  hasta: string
+  sede?: string
   asesor_id?: string
 }
 
-export type FilaMetodo = {
+// Agrupa por "cuenta" (combina efectivo+sede para diferenciar cajas)
+export type FilaCuenta = {
+  label: string   // 'Caja Bucaramanga' | 'Nequi Johan' | etc.
   metodo: MetodoPago
   venta: number
   abono: number
@@ -50,7 +52,7 @@ export type FilaSede = {
 
 export type Cuadre = {
   filtros: CuadreFiltros
-  porMetodo: FilaMetodo[]
+  porCuenta: FilaCuenta[]
   porAsesor: FilaAsesor[]
   porSede: FilaSede[]
   totalVenta: number
@@ -58,6 +60,19 @@ export type Cuadre = {
   totalCartera: number
   totalGeneral: number
   registros: number
+}
+
+const CAJA_LABELS: Record<string, string> = {
+  TR: 'Caja Bucaramanga',
+  CR: 'Caja Cúcuta',
+  SR: 'Caja Santa Rosa',
+}
+
+function getCuentaLabel(r: PagoUnificado): string {
+  if (r.metodo === 'efectivo') {
+    return CAJA_LABELS[r.sede_codigo] ?? `Caja ${r.sede_nombre}`
+  }
+  return METODO_PAGO_LABELS[r.metodo] ?? r.metodo
 }
 
 export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
@@ -69,10 +84,9 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
     .select('*')
     .gte('fecha', filtros.desde)
     .lte('fecha', filtros.hasta)
-    .neq('metodo', 'credito')   // crédito = fiado, no es dinero recaudado
+    .neq('metodo', 'credito')
     .limit(10000)
 
-  // RLS lógica: el asesor solo ve su sede.
   if (sesion.rol !== 'admin' && sesion.sede_id) {
     query = query.eq('sede_id', sesion.sede_id)
   } else if (filtros.sede) {
@@ -86,41 +100,39 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
 
   const rows = (data ?? []) as PagoUnificado[]
 
-  // Agrupar por método
-  const metodoMap = new Map<MetodoPago, FilaMetodo>()
-  for (const m of METODOS_PAGO) metodoMap.set(m, { metodo: m, venta: 0, abono: 0, cartera: 0, total: 0 })
-
+  const cuentaMap = new Map<string, FilaCuenta>()
   const asesorMap = new Map<string, FilaAsesor>()
-  const sedeMap = new Map<string, FilaSede>()
+  const sedeMap   = new Map<string, FilaSede>()
   let totalVenta = 0, totalAbono = 0, totalCartera = 0
 
   for (const r of rows) {
-    const fm = metodoMap.get(r.metodo) ?? { metodo: r.metodo, venta: 0, abono: 0, cartera: 0, total: 0 }
-    fm[r.origen] += r.monto
-    fm.total += r.monto
-    metodoMap.set(r.metodo, fm)
+    const key   = getCuentaLabel(r)
+    let fc = cuentaMap.get(key) ?? { label: key, metodo: r.metodo, venta: 0, abono: 0, cartera: 0, total: 0 }
+    fc[r.origen] += r.monto
+    fc.total     += r.monto
+    cuentaMap.set(key, fc)
 
     let fa = asesorMap.get(r.asesor_id)
     if (!fa) { fa = { asesor_id: r.asesor_id, asesor_nombre: r.asesor_nombre, venta: 0, abono: 0, cartera: 0, total: 0 }; asesorMap.set(r.asesor_id, fa) }
     fa[r.origen] += r.monto
-    fa.total += r.monto
+    fa.total     += r.monto
 
     let fs = sedeMap.get(r.sede_codigo)
     if (!fs) { fs = { sede_codigo: r.sede_codigo, sede_nombre: r.sede_nombre, total: 0 }; sedeMap.set(r.sede_codigo, fs) }
     fs.total += r.monto
 
-    if (r.origen === 'venta') totalVenta += r.monto
-    else if (r.origen === 'abono') totalAbono += r.monto
-    else totalCartera += r.monto
+    if (r.origen === 'venta')         totalVenta   += r.monto
+    else if (r.origen === 'abono')    totalAbono   += r.monto
+    else                              totalCartera  += r.monto
   }
 
-  const porMetodo = [...metodoMap.values()].filter(f => f.total > 0)
+  const porCuenta = [...cuentaMap.values()].sort((a, b) => b.total - a.total)
   const porAsesor = [...asesorMap.values()].sort((a, b) => b.total - a.total)
-  const porSede = [...sedeMap.values()].sort((a, b) => b.total - a.total)
+  const porSede   = [...sedeMap.values()].sort((a, b) => b.total - a.total)
 
   return {
     filtros,
-    porMetodo,
+    porCuenta,
     porAsesor,
     porSede,
     totalVenta,

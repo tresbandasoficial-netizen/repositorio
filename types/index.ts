@@ -360,6 +360,104 @@ export type StockSede = {
   stock: number
 }
 
+// ─── Cuentas financieras ─────────────────────────────────────────────────────
+
+export type TipoCuenta = 'bancolombia' | 'nequi' | 'daviplata' | 'efectivo' | 'addi' | 'sistecredito' | 'bold' | 'credito' | 'otro'
+
+export type Cuenta = {
+  id: string
+  nombre: string
+  tipo: TipoCuenta
+  metodo_pago: string | null
+  sede_id: string | null
+  activa: boolean
+  orden: number
+  creado_en: string
+  sede?: Pick<Sede, 'codigo' | 'nombre'>
+}
+
+// ─── Gastos ──────────────────────────────────────────────────────────────────
+
+export type CategoriaGasto =
+  | 'compras_mercancia'
+  | 'domicilios'
+  | 'publicidad'
+  | 'nomina'
+  | 'arriendo'
+  | 'servicios'
+  | 'transporte'
+  | 'papeleria'
+  | 'otros'
+
+export const CATEGORIA_GASTO_LABELS: Record<CategoriaGasto, string> = {
+  compras_mercancia: 'Compras de mercancía',
+  domicilios:        'Domicilios',
+  publicidad:        'Publicidad',
+  nomina:            'Nómina',
+  arriendo:          'Arriendo',
+  servicios:         'Servicios',
+  transporte:        'Transporte',
+  papeleria:         'Papelería',
+  otros:             'Otros',
+}
+
+export const CATEGORIAS_GASTO: CategoriaGasto[] = [
+  'compras_mercancia','domicilios','publicidad','nomina',
+  'arriendo','servicios','transporte','papeleria','otros',
+]
+
+export type Gasto = {
+  id: string
+  fecha: string
+  valor: number
+  categoria: CategoriaGasto
+  sede_id: string
+  cuenta_id: string | null
+  responsable_id: string
+  observacion: string | null
+  origen: 'manual' | 'compra' | 'domicilio' | null
+  origen_id: string | null
+  creado_en: string
+  sede?: Pick<Sede, 'codigo' | 'nombre'>
+  cuenta?: Pick<Cuenta, 'nombre' | 'tipo'>
+  responsable?: Pick<Usuario, 'nombre'>
+}
+
+// ─── Mensajerías ─────────────────────────────────────────────────────────────
+
+export type TipoMensajeria = 'exneider' | 'movilenvios' | 'otro'
+
+export const MENSAJERIA_LABELS: Record<TipoMensajeria, string> = {
+  exneider:    'Exneider',
+  movilenvios: 'Movilenvíos',
+  otro:        'Otra mensajería',
+}
+
+export type PagoMensajeria = {
+  id: string
+  mensajeria: TipoMensajeria
+  tipo: 'deuda' | 'pago'
+  monto: number
+  fecha: string
+  domicilio_id: string | null
+  cuenta_id: string | null
+  notas: string | null
+  responsable_id: string
+  creado_en: string
+  cuenta?: Pick<Cuenta, 'nombre'>
+  responsable?: Pick<Usuario, 'nombre'>
+}
+
+// ─── Domicilios (tipo de cobro) ───────────────────────────────────────────────
+
+export type TipoCobroDomicilio = 'regalado' | 'mensajero' | 'tb_cobra'
+
+export const TIPO_COBRO_LABELS: Record<TipoCobroDomicilio, string> = {
+  regalado:  'Tres Bandas asume el domicilio',
+  mensajero: 'El cliente paga al mensajero',
+  tb_cobra:  'El cliente paga a Tres Bandas',
+}
+
 // ─── Facturación ──────────────────────────────────────────────────────────────
 
 export type EstadoFactura = 'pendiente' | 'pagada' | 'vencida' | 'anulada'

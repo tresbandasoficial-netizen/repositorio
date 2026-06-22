@@ -33,13 +33,13 @@ export async function GET(request: NextRequest) {
   lines.push(`Cuadre de caja,${desde} a ${hasta}${sede ? ',Sede:,' + sede : ',Sede:,Consolidado'}`)
   lines.push('')
 
-  // Por método
-  lines.push('POR MÉTODO DE PAGO')
-  lines.push(['Método', 'Ventas', 'Abonos', 'Cartera', 'Total'].join(','))
-  for (const m of cuadre.porMetodo) {
+  // Por cuenta
+  lines.push('POR CUENTA')
+  lines.push(['Cuenta', 'Ventas', 'Abonos', 'Cartera', 'Total'].join(','))
+  for (const c of cuadre.porCuenta) {
     lines.push([
-      csvCell(METODO_PAGO_LABELS[m.metodo as MetodoPago] ?? m.metodo),
-      fmt(m.venta), fmt(m.abono), fmt(m.cartera), fmt(m.total),
+      csvCell(c.label),
+      fmt(c.venta), fmt(c.abono), fmt(c.cartera), fmt(c.total),
     ].join(','))
   }
   lines.push(['Total', fmt(cuadre.totalVenta), fmt(cuadre.totalAbono), fmt(cuadre.totalCartera), fmt(cuadre.totalGeneral)].join(','))
