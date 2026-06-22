@@ -13,6 +13,7 @@ export type ItemVenta = {
   talla: string
   cantidad: number
   precio_venta: number
+  codigo?: string
   color?: string
   sexo?: string
   categoria?: string
@@ -97,7 +98,7 @@ export async function registrarVentaInmediataAction(data: VentaInmediataInput): 
     data.items.map(async it => {
       const articuloId = it.articulo_id ?? await guardarArticulo(supabase, {
         nombre: it.descripcion, marca: it.marca,
-        color: it.color, sexo: it.sexo, categoria: it.categoria,
+        codigo: it.codigo, color: it.color, sexo: it.sexo, categoria: it.categoria,
       })
       return {
         articulo_id: articuloId,

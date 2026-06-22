@@ -16,7 +16,7 @@ async function resolverArticulos(supabase: SupabaseClient, items: ItemVenta[]): 
     if (it.articulo_id) return it
     const articuloId = await guardarArticulo(supabase, {
       nombre: it.descripcion, marca: it.marca,
-      color: it.color, sexo: it.sexo, categoria: it.categoria,
+      codigo: it.codigo, color: it.color, sexo: it.sexo, categoria: it.categoria,
     })
     return { ...it, articulo_id: articuloId }
   }))

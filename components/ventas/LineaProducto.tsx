@@ -10,6 +10,7 @@ let _k = 0
 export const nuevaLinea = (): Linea => ({
   key: _k++,
   articulo_id: null,
+  codigo: '',
   marca: '',
   descripcion: '',
   talla: '',
@@ -62,8 +63,13 @@ export function LineaProducto({
     const t = setTimeout(async () => {
       if (q.trim().length < 2) { setOpciones([]); return }
       const articulos = await buscarArticulosAction(q, sedeId)
-      setOpciones(aplanarOpciones(articulos, sedeId))
+      const ops = aplanarOpciones(articulos, sedeId)
+      setOpciones(ops)
       setAbierto(true)
+      // Si no hay resultados, pre-llenar el campo código con lo buscado
+      if (ops.length === 0 && !linea.codigo) {
+        onChange({ codigo: q.trim() })
+      }
     }, 250)
     return () => clearTimeout(t)
   }, [q, sedeId, linea.articulo_id])
@@ -119,19 +125,22 @@ export function LineaProducto({
       )}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <input type="text" value={linea.codigo || ''} onChange={e => onChange({ codigo: e.target.value })} placeholder="Código (ej: JR1012)"
+          className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono" />
         <input type="text" value={linea.marca} onChange={e => onChange({ marca: e.target.value })} placeholder="Marca"
           className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
         <input type="text" value={linea.descripcion} onChange={e => onChange({ descripcion: e.target.value })} placeholder="Descripción"
           className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
         <input type="text" value={linea.talla} onChange={e => onChange({ talla: e.target.value })} placeholder="Talla"
           className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        <div className="flex gap-1">
-          <input type="number" min={1} value={linea.cantidad} onChange={e => onChange({ cantidad: Math.max(1, parseInt(e.target.value) || 1) })}
-            className="w-14 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          {onRemove && (
-            <button type="button" onClick={onRemove} className="text-red-400 hover:text-red-600 px-1" title="Quitar">✕</button>
-          )}
-        </div>
+      </div>
+      <div className="flex gap-2 items-center">
+        <div className="flex-1" />
+        <input type="number" min={1} value={linea.cantidad} onChange={e => onChange({ cantidad: Math.max(1, parseInt(e.target.value) || 1) })}
+          className="w-20 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Cant." />
+        {onRemove && (
+          <button type="button" onClick={onRemove} className="text-red-400 hover:text-red-600 px-1" title="Quitar">✕</button>
+        )}
       </div>
 
       {/* Color, Sexo, Categoría */}
