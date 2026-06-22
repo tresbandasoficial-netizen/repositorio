@@ -113,8 +113,7 @@ export function parsearDomicilio(texto: string): DomicilioParsed {
       }
       if (key === 'mensajeria' || key === 'mensajería') {
         if (valNc.includes('exneider')) mensajeria = 'exneider'
-        else if (valNc.includes('movilenvios') || valNc.includes('movienvios')) mensajeria = 'movilenvios'
-        else if (valNc.includes('servigo')) mensajeria = 'otro'
+        else if (valNc.includes('servigo') || valNc.includes('movilenvios') || valNc.includes('movienvios')) mensajeria = 'movilenvios'
         usado.add(i); continue
       }
       if (['observaciones', 'observacion', 'notas', 'nota', 'indicaciones', 'comentarios', 'comentario'].includes(key)) {
@@ -208,11 +207,11 @@ export function parsearDomicilio(texto: string): DomicilioParsed {
 
     // ── 1G. MENSAJERÍA ────────────────────────────────────────────────────
     if (/^exneider\s*$/i.test(ln)) { mensajeria = 'exneider'; usado.add(i); continue }
-    if (/^movilenvios\s*$/i.test(ln) || /^movienvios\s*$/i.test(ln)) { mensajeria = 'movilenvios'; usado.add(i); continue }
-    if (/^servigo\s*$/i.test(ln) || /^otro\s*$/i.test(ln))  { mensajeria = 'otro';  usado.add(i); continue }
+    if (/^servigo\s*$/i.test(ln) || /^movilenvios\s*$/i.test(ln) || /^movienvios\s*$/i.test(ln)) { mensajeria = 'movilenvios'; usado.add(i); continue }
+    if (/^otro\s*$/i.test(ln))  { mensajeria = 'otro';  usado.add(i); continue }
     if (/exneider/.test(ln) && line.length < 30) { mensajeria = 'exneider'; usado.add(i); continue }
-    if (/movilenvios|movienvios/.test(ln) && line.length < 30) { mensajeria = 'movilenvios'; usado.add(i); continue }
-    if ((/servigo|otro/.test(ln)) && line.length < 30) { mensajeria = 'otro'; usado.add(i); continue }
+    if (/servigo|movilenvios|movienvios/.test(ln) && line.length < 30) { mensajeria = 'movilenvios'; usado.add(i); continue }
+    if (/otro/.test(ln) && line.length < 30) { mensajeria = 'otro'; usado.add(i); continue }
 
     // ── 1H. PAGO ──────────────────────────────────────────────────────────
     if (/no\s+cobrar|sin\s+cobro|gratis|ya\s+pag[oó]|ya\s+cancelo/.test(ln)) {
@@ -404,7 +403,7 @@ export function buildMensajeMensajeria(d: {
     !d.cobrar_al_cliente ? `El domicilio lo pagamos nosotros: ${fmt(d.valor_domicilio)}` : null,
   ].filter(Boolean).join(' | ')
 
-  const mensajeriaLabel = d.mensajeria === 'exneider' ? 'Exneider' : d.mensajeria === 'movilenvios' ? 'Movilenvíos' : 'Otra'
+  const mensajeriaLabel = d.mensajeria === 'exneider' ? 'Exneider' : d.mensajeria === 'movilenvios' ? 'Servigo' : 'Otra'
 
   return [
     `Mensajería: ${mensajeriaLabel}`,

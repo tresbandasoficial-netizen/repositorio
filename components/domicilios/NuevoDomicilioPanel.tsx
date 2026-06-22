@@ -9,7 +9,7 @@ import { TipoCobroDomicilio, TipoMensajeria } from '@/types'
 
 const MENSAJERIA_LABELS: Record<string, string> = {
   exneider:    'Exneider',
-  movilenvios: 'Movilenvíos',
+  movilenvios: 'Servigo',
   otro:        'Otra',
 }
 
