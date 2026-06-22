@@ -15,11 +15,9 @@ type SedeOpcion = { id: string; codigo: string; nombre: string }
 export function VentaInmediataForm({ sedes }: { sedes: SedeOpcion[] }) {
   const router = useRouter()
 
-  // Sede de venta (el admin elige; el asesor tiene una sola)
   const [sedeId, setSedeId] = useState(sedes[0]?.id ?? '')
   const sedeCodigo = sedes.find(s => s.id === sedeId)?.codigo ?? ''
 
-  // Cliente
   const [busqueda, setBusqueda] = useState('')
   const [resultados, setResultados] = useState<ClienteBusqueda[]>([])
   const [cliente, setCliente] = useState<ClienteBusqueda | null>(null)
@@ -27,10 +25,8 @@ export function VentaInmediataForm({ sedes }: { sedes: SedeOpcion[] }) {
   const [telefono, setTelefono] = useState('')
   const [cedula, setCedula] = useState('')
 
-  // Items
   const [lineas, setLineas] = useState<Linea[]>([nuevaLinea()])
 
-  // Pago
   const [abono, setAbono] = useState('')
   const [cuentaId, setCuentaId] = useState<string | null>(null)
   const [cuentas, setCuentas] = useState<Cuenta[]>([])
@@ -101,7 +97,6 @@ export function VentaInmediataForm({ sedes }: { sedes: SedeOpcion[] }) {
 
   return (
     <div className="space-y-5">
-      {/* Sede (solo si hay más de una opción, p.ej. admin) */}
       {sedes.length > 1 && (
         <div className="bg-white rounded-xl border border-gray-100 p-5">
           <label className="block text-sm font-semibold text-gray-900 mb-2">Sede de venta</label>
@@ -116,7 +111,6 @@ export function VentaInmediataForm({ sedes }: { sedes: SedeOpcion[] }) {
         </div>
       )}
 
-      {/* Cliente */}
       <div className="bg-white rounded-xl border border-gray-100 p-5">
         <label className="block text-sm font-semibold text-gray-900 mb-2">Cliente</label>
         {!cliente && (
@@ -156,7 +150,6 @@ export function VentaInmediataForm({ sedes }: { sedes: SedeOpcion[] }) {
         )}
       </div>
 
-      {/* Productos */}
       <div className="bg-white rounded-xl border border-gray-100 p-5">
         <label className="block text-sm font-semibold text-gray-900 mb-3">Productos</label>
         <div className="space-y-3">
@@ -177,7 +170,6 @@ export function VentaInmediataForm({ sedes }: { sedes: SedeOpcion[] }) {
         </button>
       </div>
 
-      {/* Pago */}
       <div className="bg-white rounded-xl border border-gray-100 p-5 space-y-3">
         <div className="flex items-center justify-between pb-2 border-b border-gray-100">
           <span className="text-sm text-gray-500">Total</span>
@@ -231,4 +223,3 @@ export function VentaInmediataForm({ sedes }: { sedes: SedeOpcion[] }) {
     </div>
   )
 }
-

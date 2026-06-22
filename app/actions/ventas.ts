@@ -15,13 +15,13 @@ export type ItemVenta = {
 }
 
 export type VentaInmediataInput = {
-  sede_id: string          // sede desde la que se vende (el admin la elige; el asesor usa la suya)
+  sede_id: string
   cliente_nombre: string
   cliente_telefono: string
   cliente_cedula: string
   items: ItemVenta[]
   abono: number
-  cuenta_id: string | null // cuenta donde llega el dinero
+  cuenta_id: string | null
   notas: string
 }
 
@@ -29,8 +29,6 @@ export type VentaResult =
   | { ok: true; pedidoId: string }
   | { ok: false; error: string }
 
-// Venta inmediata: crea un pedido ya ENTREGADO, descuenta inventario de la sede
-// indicada (automático, CPP) y registra el pago. El asesor no toca lotes.
 export async function registrarVentaInmediataAction(data: VentaInmediataInput): Promise<VentaResult> {
   const sesion = await getSesion()
   const supabase = await createClient()
@@ -38,7 +36,6 @@ export async function registrarVentaInmediataAction(data: VentaInmediataInput): 
   if (data.items.length === 0) return { ok: false, error: 'Debe haber al menos un producto' }
   if (!data.cliente_nombre.trim()) return { ok: false, error: 'El nombre del cliente es obligatorio' }
 
-  // Sede de la venta: el asesor está atado a la suya; el admin puede elegir cualquiera.
   const sedeId = sesion.rol === 'admin' ? data.sede_id : sesion.sede_id
   if (!sedeId) return { ok: false, error: 'Debes seleccionar una sede para la venta' }
   if (sesion.rol !== 'admin' && data.sede_id && data.sede_id !== sesion.sede_id) {
@@ -50,7 +47,6 @@ export async function registrarVentaInmediataAction(data: VentaInmediataInput): 
     if (it.precio_venta < 0) return { ok: false, error: 'El precio no puede ser negativo' }
   }
 
-  // Sede (para numero_orden y descuento de stock).
   const { data: sede } = await supabase
     .from('sedes')
     .select('id, codigo')
@@ -58,7 +54,6 @@ export async function registrarVentaInmediataAction(data: VentaInmediataInput): 
     .single()
   if (!sede) return { ok: false, error: 'Sede no encontrada' }
 
-  // Cliente: buscar por teléfono o crear.
   const telefono = normalizarTelefono(data.cliente_telefono)
   if (!telefono) return { ok: false, error: 'Teléfono del cliente inválido' }
 
