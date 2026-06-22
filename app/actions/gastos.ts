@@ -86,3 +86,63 @@ export async function eliminarGastoAction(id: string): Promise<EliminarGastoResu
   revalidatePath('/flujo-caja')
   return { ok: true }
 }
+
+// ─── Reportes financieros ───────────────────────────────────────────────────
+
+export type SaldoCuenta = {
+  id: string
+  nombre: string
+  tipo: 'banco' | 'efectivo' | 'billetera'
+  sede_codigo: string | null
+  total_ingresos: number
+  total_egresos: number
+  saldo_neto: number
+}
+
+export async function getSaldosCuentasAction(): Promise<SaldoCuenta[]> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('saldos_cuentas')
+    .select('*')
+    .order('nombre')
+  return (data ?? []) as SaldoCuenta[]
+}
+
+export type FlujoDia = {
+  fecha: string
+  cuenta_id: string
+  cuenta_nombre: string
+  tipo: 'banco' | 'efectivo' | 'billetera'
+  ingresos_hoy: number
+  egresos_hoy: number
+  neto_hoy: number
+}
+
+export async function getFlujoDiaAction(): Promise<FlujoDia[]> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('flujo_caja_diario')
+    .select('*')
+    .order('cuenta_nombre')
+  return (data ?? []) as FlujoDia[]
+}
+
+export type VentaDia = {
+  fecha: string
+  sede_id: string
+  sede_codigo: string
+  sede_nombre: string
+  num_facturas: number
+  total_facturado: number
+  total_recaudado: number
+  saldo_pendiente: number
+}
+
+export async function getVentasDiaAction(): Promise<VentaDia[]> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('ventas_diarias_sede')
+    .select('*')
+    .order('sede_codigo')
+  return (data ?? []) as VentaDia[]
+}

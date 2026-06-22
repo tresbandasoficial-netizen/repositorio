@@ -6,6 +6,9 @@ import { getEstadisticas } from '@/lib/queries/estadisticas'
 import { PedidosAreaChart } from '@/components/dashboard/PedidosAreaChart'
 import { SedeDonutChart } from '@/components/dashboard/SedeDonutChart'
 import { EstadoBadge } from '@/components/pedidos/EstadoBadge'
+import { SaldosCuentasWidget } from '@/components/dashboard/SaldosCuentasWidget'
+import { FlujoDiaWidget } from '@/components/dashboard/FlujoDiaWidget'
+import { VentasDiaWidget } from '@/components/dashboard/VentasDiaWidget'
 import { EstadoPedido } from '@/types'
 import { formatCOP } from '@/lib/utils/format'
 import {
@@ -188,6 +191,16 @@ export default async function DashboardPage() {
             <KpiCard label="Cartera total"   valor={formatCOP(m.cartera_saldo)} sub={`${m.cartera_clientes} clientes`} icon={CreditCard} iconColor="text-orange-600" iconBg="bg-orange-50" alerta={m.cartera_saldo > 0} />
             <KpiCard label="En alerta"       valor={m.pedidos_en_alerta}         icon={AlertTriangle} iconColor="text-red-500"     iconBg="bg-red-50"     alerta={m.pedidos_en_alerta > 0} />
             <KpiCard label="Zombis"          valor={m.pedidos_zombie}             icon={Skull}         iconColor="text-orange-500"  iconBg="bg-orange-50"  alerta={m.pedidos_zombie > 0} />
+          </div>
+        </div>
+
+        {/* Fase 3: Finanzas, Saldos y Ventas */}
+        <div>
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 px-1">Finanzas</p>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <SaldosCuentasWidget />
+            <FlujoDiaWidget />
+            <VentasDiaWidget />
           </div>
         </div>
 
