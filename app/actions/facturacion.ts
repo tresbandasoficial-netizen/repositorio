@@ -8,6 +8,19 @@ import { getSiguienteNumeroOrden } from '@/lib/queries/pedidos'
 import { ItemVenta } from '@/app/actions/ventas'
 import { normalizarTelefono } from '@/lib/utils/phone'
 import { MetodoPago } from '@/types'
+import { guardarArticulo } from '@/lib/queries/articulos'
+import { SupabaseClient } from '@supabase/supabase-js'
+
+async function resolverArticulos(supabase: SupabaseClient, items: ItemVenta[]): Promise<ItemVenta[]> {
+  return Promise.all(items.map(async it => {
+    if (it.articulo_id) return it
+    const articuloId = await guardarArticulo(supabase, {
+      nombre: it.descripcion, marca: it.marca,
+      color: it.color, sexo: it.sexo, categoria: it.categoria,
+    })
+    return { ...it, articulo_id: articuloId }
+  }))
+}
 
 export type PedidoFacturable = {
   id: string
@@ -236,8 +249,13 @@ export async function crearFacturaUnificadaAction(
 
   // 1. Si hay productos nuevos Y hay pedidos previos, se crea una venta (entregada) que entra a la factura.
   // Si solo hay productos nuevos (sin pedidos previos), NO crear número de pedido, solo factura.
-  if (data.productos_nuevos.length > 0 && data.pedido_ids.length > 0) {
-    for (const it of data.productos_nuevos) {
+  // Guardar en catálogo todos los productos escritos a mano antes de cualquier RPC
+  const productosResueltos = data.productos_nuevos.length > 0
+    ? await resolverArticulos(supabase, data.productos_nuevos)
+    : []
+
+  if (productosResueltos.length > 0 && data.pedido_ids.length > 0) {
+    for (const it of productosResueltos) {
       if (it.cantidad <= 0) return { ok: false, error: 'Cantidad inválida en un producto' }
       if (it.precio_venta < 0) return { ok: false, error: 'Precio inválido en un producto' }
     }
@@ -245,7 +263,7 @@ export async function crearFacturaUnificadaAction(
     if (!sede) return { ok: false, error: 'Sede no encontrada' }
 
     const numeroOrden = await getSiguienteNumeroOrden(sede.codigo)
-    const totalNuevos = data.productos_nuevos.reduce((s, it) => s + it.precio_venta * it.cantidad, 0)
+    const totalNuevos = productosResueltos.reduce((s, it) => s + it.precio_venta * it.cantidad, 0)
 
     const { data: ventaPedidoId, error: errVenta } = await supabase.rpc('registrar_venta_inmediata', {
       p_numero_orden: numeroOrden,
@@ -253,7 +271,7 @@ export async function crearFacturaUnificadaAction(
       p_asesor_id:    sesion.id,
       p_cliente_id:   clienteId,
       p_total:        totalNuevos,
-      p_items:        data.productos_nuevos.map(it => ({
+      p_items:        productosResueltos.map(it => ({
         articulo_id: it.articulo_id,
         marca: it.marca.trim(),
         descripcion: it.descripcion.trim(),
@@ -264,19 +282,17 @@ export async function crearFacturaUnificadaAction(
         sexo: it.sexo,
         categoria: it.categoria,
       })),
-      p_abono:       0,   // el pago se registra a nivel de factura
+      p_abono:       0,
       p_cuenta_id:   null,
       p_notas:       'Productos agregados al facturar',
     })
     if (errVenta) return { ok: false, error: `Error creando la venta: ${errVenta.message}` }
     pedidoIds.push(ventaPedidoId)
-  } else if (data.productos_nuevos.length > 0 && data.pedido_ids.length === 0) {
-    // Solo venta del local (sin pedidos previos): guardar productos en la factura sin número de pedido
-    for (const it of data.productos_nuevos) {
+  } else if (productosResueltos.length > 0 && data.pedido_ids.length === 0) {
+    for (const it of productosResueltos) {
       if (it.cantidad <= 0) return { ok: false, error: 'Cantidad inválida en un producto' }
       if (it.precio_venta < 0) return { ok: false, error: 'Precio inválido en un producto' }
     }
-    // Los productos se guardarán directamente en la factura via un insert después
   }
 
   // 2. Crear la factura
@@ -290,7 +306,7 @@ export async function crearFacturaUnificadaAction(
       p_sede_id:           sedeId,
       p_asesor_id:         sesion.id,
       p_fecha_vencimiento: data.fecha_vencimiento,
-      p_productos:         data.productos_nuevos.map(it => ({
+      p_productos:         productosResueltos.map(it => ({
         articulo_id: it.articulo_id,
         marca: it.marca.trim(),
         descripcion: it.descripcion.trim(),

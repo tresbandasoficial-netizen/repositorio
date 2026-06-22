@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getSesion } from '@/lib/auth/acceso'
 import { getSiguienteNumeroOrden } from '@/lib/queries/pedidos'
 import { normalizarTelefono } from '@/lib/utils/phone'
+import { guardarArticulo } from '@/lib/queries/articulos'
 
 export type ItemVenta = {
   articulo_id: string | null
@@ -91,17 +92,26 @@ export async function registrarVentaInmediataAction(data: VentaInmediataInput): 
 
   const numeroOrden = await getSiguienteNumeroOrden(sede.codigo)
 
-  const items = data.items.map(it => ({
-    articulo_id: it.articulo_id,
-    marca: it.marca.trim(),
-    descripcion: it.descripcion.trim(),
-    talla: it.talla.trim(),
-    cantidad: it.cantidad,
-    precio_venta: it.precio_venta,
-    color: it.color || null,
-    sexo: it.sexo || null,
-    categoria: it.categoria || null,
-  }))
+  // Guardar en catálogo los productos escritos a mano (sin articulo_id)
+  const itemsResueltos = await Promise.all(
+    data.items.map(async it => {
+      const articuloId = it.articulo_id ?? await guardarArticulo(supabase, {
+        nombre: it.descripcion, marca: it.marca,
+        color: it.color, sexo: it.sexo, categoria: it.categoria,
+      })
+      return {
+        articulo_id: articuloId,
+        marca: it.marca.trim(),
+        descripcion: it.descripcion.trim(),
+        talla: it.talla.trim(),
+        cantidad: it.cantidad,
+        precio_venta: it.precio_venta,
+        color: it.color || null,
+        sexo: it.sexo || null,
+        categoria: it.categoria || null,
+      }
+    })
+  )
 
   const { data: pedidoId, error } = await supabase.rpc('registrar_venta_inmediata', {
     p_numero_orden: numeroOrden,
@@ -109,7 +119,7 @@ export async function registrarVentaInmediataAction(data: VentaInmediataInput): 
     p_asesor_id:    sesion.id,
     p_cliente_id:   clienteId,
     p_total:        total,
-    p_items:        items,
+    p_items:        itemsResueltos,
     p_abono:        data.abono,
     p_cuenta_id:    data.cuenta_id,
     p_notas:        data.notas.trim() || null,
