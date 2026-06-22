@@ -132,6 +132,8 @@ export type CrearFacturaInput = {
   notas: string
   abono_inicial: number
   cuenta_id: string | null
+  envio?: number
+  descuento?: number
 }
 
 export type CrearFacturaResult =
@@ -184,6 +186,8 @@ export async function crearFacturaAction(data: CrearFacturaInput): Promise<Crear
     p_notas:             data.notas.trim() || null,
     p_abono_inicial:     data.abono_inicial || 0,
     p_cuenta_id:         data.cuenta_id || null,
+    p_envio:             data.envio || 0,
+    p_descuento:         data.descuento || 0,
   })
 
   if (error) return { ok: false, error: error.message }
@@ -203,6 +207,8 @@ export type CrearFacturaUnificadaInput = {
   fecha_vencimiento: string
   abono_inicial: number
   cuenta_id: string | null
+  envio: number
+  descuento: number
   notas: string
 }
 
@@ -321,6 +327,8 @@ export async function crearFacturaUnificadaAction(
       })),
       p_abono_inicial:     data.abono_inicial || 0,
       p_cuenta_id:         data.cuenta_id || null,
+      p_envio:             data.envio || 0,
+      p_descuento:         data.descuento || 0,
       p_notas:             data.notas.trim() || null,
     })
     facturaId = fId
@@ -336,6 +344,8 @@ export async function crearFacturaUnificadaAction(
       p_notas:             data.notas.trim() || null,
       p_abono_inicial:     data.abono_inicial || 0,
       p_cuenta_id:         data.cuenta_id || null,
+      p_envio:             data.envio || 0,
+      p_descuento:         data.descuento || 0,
     })
     facturaId = fId
     error = err

@@ -121,6 +121,24 @@ export function ReciboFacturaView({ data }: { data: ReciboFactura }) {
 
         {/* Totales */}
         <div className="border-t border-gray-200 pt-3 space-y-1">
+          {(factura.envio > 0 || factura.descuento > 0) && (
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">Subtotal</span>
+              <span className="text-gray-800">{formatCOP(factura.subtotal)}</span>
+            </div>
+          )}
+          {factura.envio > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">Envío</span>
+              <span className="text-gray-800">{formatCOP(factura.envio)}</span>
+            </div>
+          )}
+          {factura.descuento > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">Descuento</span>
+              <span className="text-gray-800">-{formatCOP(factura.descuento)}</span>
+            </div>
+          )}
           <div className="flex justify-between text-sm">
             <span className="text-gray-500">Total</span>
             <span className="font-bold text-gray-900">{formatCOP(factura.total)}</span>

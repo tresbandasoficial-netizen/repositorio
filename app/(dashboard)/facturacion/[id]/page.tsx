@@ -52,6 +52,13 @@ export default async function FacturaDetallePage({
         <div className="bg-white rounded-xl border border-gray-100 p-4">
           <p className="text-xs text-gray-500 uppercase">Total</p>
           <p className="text-base font-bold text-gray-900 mt-1">{formatCOP(factura.total)}</p>
+          {(factura.envio > 0 || factura.descuento > 0) && (
+            <p className="text-xs text-gray-400 mt-1">
+              Subtotal {formatCOP(factura.subtotal)}
+              {factura.envio > 0 && ` · Envío ${formatCOP(factura.envio)}`}
+              {factura.descuento > 0 && ` · Desc. -${formatCOP(factura.descuento)}`}
+            </p>
+          )}
         </div>
         <div className="bg-white rounded-xl border border-gray-100 p-4">
           <p className="text-xs text-gray-500 uppercase">Abonado</p>

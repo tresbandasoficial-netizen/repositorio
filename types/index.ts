@@ -490,6 +490,9 @@ export type FacturaRow = {
   fecha_factura: string
   fecha_vencimiento: string
   total: number
+  envio: number
+  descuento: number
+  subtotal: number
   total_abonado: number
   saldo: number
   dias_atraso: number
