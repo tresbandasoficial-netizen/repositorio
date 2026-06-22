@@ -102,14 +102,15 @@ export async function registrarVentaInmediataAction(data: VentaInmediataInput): 
       })
       return {
         articulo_id: articuloId,
-        marca: it.marca.trim(),
+        codigo:      it.codigo?.trim() || null,
+        marca:       it.marca.trim(),
         descripcion: it.descripcion.trim(),
-        talla: it.talla.trim(),
-        cantidad: it.cantidad,
+        talla:       it.talla.trim(),
+        cantidad:    it.cantidad,
         precio_venta: it.precio_venta,
-        color: it.color || null,
-        sexo: it.sexo || null,
-        categoria: it.categoria || null,
+        color:       it.color || null,
+        sexo:        it.sexo || null,
+        categoria:   it.categoria || null,
       }
     })
   )
