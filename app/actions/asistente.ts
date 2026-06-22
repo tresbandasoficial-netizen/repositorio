@@ -177,7 +177,7 @@ async function ejecutarCrearFactura(numeroOrden: string, diasVencimiento: number
     fecha_vencimiento,
     notas:             '',
     abono_inicial:     0,
-    metodo_abono:      'efectivo',
+    cuenta_id:         null,
   })
 
   if (!result.ok) return `Error al crear factura: ${result.error}`

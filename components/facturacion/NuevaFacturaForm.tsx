@@ -6,9 +6,10 @@ import { buscarClientesAction, ClienteBusqueda } from '@/app/actions/clientes'
 import {
   getPedidosFacturablesAction, crearFacturaUnificadaAction, buscarPedidoFacturableAction, PedidoFacturable,
 } from '@/app/actions/facturacion'
+import { getCuentasAction } from '@/app/actions/cuentas'
 import { Button } from '@/components/ui/Button'
 import { formatCOP, formatFecha } from '@/lib/utils/format'
-import { MetodoPago, METODOS_PAGO, METODO_PAGO_LABELS } from '@/types'
+import { Cuenta } from '@/types'
 import { Linea, nuevaLinea, LineaProducto } from '@/components/ventas/LineaProducto'
 
 type SedeOpcion = { id: string; codigo: string; nombre: string }
@@ -60,11 +61,17 @@ export function NuevaFacturaForm({ sedes }: { sedes: SedeOpcion[] }) {
   // Config factura
   const [vence, setVence] = useState(venceDefault())
   const [abono, setAbono] = useState('')
-  const [metodo, setMetodo] = useState<MetodoPago>('efectivo')
+  const [cuentaId, setCuentaId] = useState<string | null>(null)
+  const [cuentas, setCuentas] = useState<Cuenta[]>([])
+  const [credito, setCredito] = useState(false)
   const [notas, setNotas] = useState('')
 
   const [error, setError] = useState('')
   const [pending, start] = useTransition()
+
+  useEffect(() => {
+    getCuentasAction().then(setCuentas).catch(console.error)
+  }, [])
 
   useEffect(() => {
     if (cliente) return
@@ -128,8 +135,7 @@ export function NuevaFacturaForm({ sedes }: { sedes: SedeOpcion[] }) {
     if (!cliente) return
     if (!hayAlgo) { setError('Agrega al menos un pedido o un producto'); return }
     // Crédito = se lo lleva fiado: no entra dinero, todo queda en cartera.
-    const esCredito = metodo === 'credito'
-    const ab = esCredito ? 0 : (abono ? parseInt(abono.replace(/\D/g, ''), 10) : 0)
+    const ab = credito ? 0 : (abono ? parseInt(abono.replace(/\D/g, ''), 10) : 0)
     if (ab > totalNeto) { setError('El pago no puede superar el total'); return }
     setError('')
     start(async () => {
@@ -144,7 +150,7 @@ export function NuevaFacturaForm({ sedes }: { sedes: SedeOpcion[] }) {
         })),
         fecha_vencimiento: vence,
         abono_inicial: ab,
-        metodo_abono: metodo,
+        cuenta_id: credito ? null : cuentaId,
         notas,
       })
       if (!r.ok) { setError(r.error); return }
@@ -290,26 +296,38 @@ export function NuevaFacturaForm({ sedes }: { sedes: SedeOpcion[] }) {
                 <span className="text-sm text-gray-500">Total a facturar</span>
                 <span className="text-lg font-bold text-gray-900">{formatCOP(totalNeto)}</span>
               </div>
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input type="checkbox" checked={credito} onChange={e => setCredito(e.target.checked)} className="w-4 h-4 accent-blue-600" />
+                A crédito (no recibe dinero ahora; todo queda en cartera)
+              </label>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Método de pago</label>
-                  <select value={metodo} onChange={e => setMetodo(e.target.value as MetodoPago)}
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    {METODOS_PAGO.map(m => <option key={m} value={m}>{METODO_PAGO_LABELS[m]}</option>)}
-                  </select>
-                </div>
-                {metodo !== 'credito' && (
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Monto recibido (opcional)</label>
-                    <div className="flex gap-2">
-                      <input type="text" inputMode="numeric" value={abono} onChange={e => setAbono(e.target.value)} placeholder="0"
-                        className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                      <button type="button" onClick={() => setAbono(String(totalNeto))}
-                        className="rounded-lg bg-gray-100 text-gray-700 px-3 text-xs font-medium hover:bg-gray-200 whitespace-nowrap">
-                        Pagó todo
-                      </button>
+                {!credito && (
+                  <>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Monto recibido (opcional)</label>
+                      <div className="flex gap-2">
+                        <input type="text" inputMode="numeric" value={abono} onChange={e => setAbono(e.target.value)} placeholder="0"
+                          className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        <button type="button" onClick={() => setAbono(String(totalNeto))}
+                          className="rounded-lg bg-gray-100 text-gray-700 px-3 text-xs font-medium hover:bg-gray-200 whitespace-nowrap">
+                          Pagó todo
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                    {cuentas.length > 0 && (
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">
+                          Cuenta destino <span className="text-gray-400 font-normal">(dónde llega el dinero)</span>
+                        </label>
+                        <select value={cuentaId || ''} onChange={e => setCuentaId(e.target.value || null)}
+                          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                          <option value="">Sin especificar</option>
+                          {cuentas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                        </select>
+                      </div>
+                    )}
+                  </>
                 )}
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">Fecha de vencimiento</label>
@@ -323,7 +341,7 @@ export function NuevaFacturaForm({ sedes }: { sedes: SedeOpcion[] }) {
                 </div>
               </div>
 
-              {metodo === 'credito' && (
+              {credito && (
                 <p className="text-xs text-amber-600">🕓 A crédito: el cliente queda debiendo el total. No entra dinero ahora; queda en cartera.</p>
               )}
 
@@ -331,7 +349,7 @@ export function NuevaFacturaForm({ sedes }: { sedes: SedeOpcion[] }) {
               <div className="flex items-center justify-between text-sm pt-2 border-t border-gray-100">
                 <span className="text-gray-500">Queda en cartera (saldo)</span>
                 <span className="font-bold text-gray-900">
-                  {formatCOP(metodo === 'credito' ? totalNeto : Math.max(0, totalNeto - (abono ? parseInt(abono.replace(/\D/g, ''), 10) || 0 : 0)))}
+                  {formatCOP(credito ? totalNeto : Math.max(0, totalNeto - (abono ? parseInt(abono.replace(/\D/g, ''), 10) || 0 : 0)))}
                 </span>
               </div>
             </div>
