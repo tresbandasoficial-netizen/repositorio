@@ -154,11 +154,11 @@ export function LineaProducto({
         <div>
           <label className="block text-xs text-gray-500 mb-1">Categoría</label>
           <div className="flex gap-1">
-            {['tenis', 'ropa', 'accesorio', 'otro'].map(c => (
+            {['ropa', 'tenis', 'accesorios'].map(c => (
               <button key={c} type="button" onClick={() => onChange({ categoria: c })}
                 className={`flex-1 text-xs py-1.5 rounded border font-medium transition-colors ${
                   linea.categoria === c ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
-                }`}>{c.charAt(0).toUpperCase() + c.slice(1)}</button>
+                }`}>{c === 'accesorios' ? 'Accesorios' : c.charAt(0).toUpperCase() + c.slice(1)}</button>
             ))}
           </div>
         </div>

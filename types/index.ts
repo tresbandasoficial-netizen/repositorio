@@ -304,15 +304,13 @@ export const DIAS_ZOMBIE_DOC = 30
 
 // ─── Inventario / Artículos ──────────────────────────────────────────────────
 
-export type CategoriaArticulo = 'tenis' | 'ropa' | 'accesorio' | 'otro'
-export type SexoArticulo = 'hombre' | 'mujer' | 'unisex' | 'nino' | 'nina'
+export type CategoriaArticulo = 'ropa' | 'tenis' | 'accesorios'
+export type SexoArticulo = 'hombre' | 'mujer' | 'nino'
 
 export const SEXO_LABELS: Record<SexoArticulo, string> = {
-  hombre:  'Hombre',
-  mujer:   'Mujer',
-  unisex:  'Unisex',
-  nino:    'Niño',
-  nina:    'Niña',
+  hombre: 'Hombre',
+  mujer:  'Mujer',
+  nino:   'Niño',
 }
 
 export type Articulo = {

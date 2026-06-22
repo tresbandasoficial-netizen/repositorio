@@ -148,16 +148,13 @@ function CrearArticulo({ onClose }: { onClose: () => void }) {
           <option value="">Sexo…</option>
           <option value="hombre">Hombre</option>
           <option value="mujer">Mujer</option>
-          <option value="unisex">Unisex</option>
           <option value="nino">Niño</option>
-          <option value="nina">Niña</option>
         </select>
         <select className={inputCls} value={categoria} onChange={e => setCategoria(e.target.value as CategoriaArticulo | '')}>
           <option value="">Categoría…</option>
-          <option value="tenis">Tenis</option>
           <option value="ropa">Ropa</option>
-          <option value="accesorio">Accesorio</option>
-          <option value="otro">Otro</option>
+          <option value="tenis">Tenis</option>
+          <option value="accesorios">Accesorios</option>
         </select>
       </div>
       {error && <p className="text-sm text-red-600 mt-2">{error}</p>}

@@ -18,7 +18,7 @@ alter table articulos
   add column if not exists codigo      text,
   add column if not exists referencia  text,
   add column if not exists color       text,
-  add column if not exists sexo        text check (sexo in ('hombre', 'mujer', 'unisex', 'nino')),
+  add column if not exists sexo        text check (sexo in ('hombre', 'mujer', 'nino')),
   add column if not exists fotos       text[] not null default '{}',
   add column if not exists descripcion text;
 
