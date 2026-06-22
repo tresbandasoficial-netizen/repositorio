@@ -43,6 +43,10 @@ export async function guardarArticulo(
     else       q = q.is('sexo', null)
 
     const { data: existente } = await q.maybeSingle()
+    if (existente && codigo) {
+      // Persistir el código en el artículo si aún no lo tiene
+      await supabase.from('articulos').update({ codigo }).eq('id', existente.id).is('codigo', null)
+    }
     return existente?.id ?? null
   }
 

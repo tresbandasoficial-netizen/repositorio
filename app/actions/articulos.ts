@@ -215,7 +215,41 @@ export async function buscarArticulosAction(q: string, sedeId: string | null): P
     .or(`nombre.ilike.%${t}%,marca.ilike.%${t}%,codigo.ilike.%${t}%,referencia.ilike.%${t}%,color.ilike.%${t}%`)
     .limit(15)
 
-  const lista = (articulos ?? []) as Array<{ id: string; codigo: string | null; nombre: string; marca: string; color: string | null; sexo: string | null }>
+  let lista = (articulos ?? []) as Array<{ id: string; codigo: string | null; nombre: string; marca: string; color: string | null; sexo: string | null }>
+
+  // Fallback: buscar en pedido_items.codigo para artículos guardados sin código
+  if (lista.length === 0) {
+    const { data: items } = await supabase
+      .from('pedido_items')
+      .select('articulo_id, codigo')
+      .ilike('codigo', `%${t}%`)
+      .not('articulo_id', 'is', null)
+      .limit(15)
+
+    const articuloIds = [...new Set((items ?? []).map((i: { articulo_id: string; codigo: string | null }) => i.articulo_id).filter(Boolean))]
+    const codigoPorArticulo = new Map((items ?? []).map((i: { articulo_id: string; codigo: string | null }) => [i.articulo_id, i.codigo]))
+
+    if (articuloIds.length > 0) {
+      const { data: porItems } = await supabase
+        .from('articulos')
+        .select('id, codigo, nombre, marca, color, sexo')
+        .in('id', articuloIds)
+        .eq('activo', true)
+
+      // Rellenar codigo desde pedido_items si el artículo no lo tiene, y persistirlo
+      const encontrados = (porItems ?? []) as typeof lista
+      for (const a of encontrados) {
+        if (!a.codigo && codigoPorArticulo.get(a.id)) {
+          const codigoHistorico = codigoPorArticulo.get(a.id)!
+          a.codigo = codigoHistorico
+          // Actualizar en DB para que futuras búsquedas funcionen directo
+          supabase.from('articulos').update({ codigo: codigoHistorico }).eq('id', a.id).is('codigo', null).then(() => {})
+        }
+      }
+      lista = encontrados
+    }
+  }
+
   if (lista.length === 0) return []
 
   const ids = lista.map(a => a.id)
