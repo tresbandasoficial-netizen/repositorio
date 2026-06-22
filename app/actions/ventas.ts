@@ -98,6 +98,9 @@ export async function registrarVentaInmediataAction(data: VentaInmediataInput): 
     talla: it.talla.trim(),
     cantidad: it.cantidad,
     precio_venta: it.precio_venta,
+    color: it.color || null,
+    sexo: it.sexo || null,
+    categoria: it.categoria || null,
   }))
 
   const { data: pedidoId, error } = await supabase.rpc('registrar_venta_inmediata', {
