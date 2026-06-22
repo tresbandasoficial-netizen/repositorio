@@ -34,5 +34,5 @@ alter table pagos_factura
   alter column cuenta_id set not null;
 
 -- 5. Crear índices para queries frecuentes de cuadre
-create index idx_pagos_cuenta on pagos (cuenta_id);
-create index idx_pagos_factura_cuenta on pagos_factura (cuenta_id);
+create index if not exists idx_pagos_cuenta on pagos (cuenta_id);
+create index if not exists idx_pagos_factura_cuenta on pagos_factura (cuenta_id);
