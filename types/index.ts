@@ -366,18 +366,17 @@ export type StockSede = {
 
 // ─── Cuentas financieras ─────────────────────────────────────────────────────
 
-export type TipoCuenta = 'bancolombia' | 'nequi' | 'daviplata' | 'efectivo' | 'addi' | 'sistecredito' | 'bold' | 'credito' | 'otro'
+export type TipoCuenta = 'banco' | 'efectivo' | 'billetera'
 
 export type Cuenta = {
   id: string
   nombre: string
   tipo: TipoCuenta
-  metodo_pago: string | null
   sede_id: string | null
-  activa: boolean
-  orden: number
+  estado: 'activa' | 'inactiva'
+  notas: string | null
   creado_en: string
-  sede?: Pick<Sede, 'codigo' | 'nombre'>
+  actualizado_en: string
 }
 
 // ─── Gastos ──────────────────────────────────────────────────────────────────

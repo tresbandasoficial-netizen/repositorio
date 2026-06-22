@@ -383,6 +383,7 @@ export type PagoFacturaInput = {
   factura_id: string
   monto: number
   metodo: MetodoPago
+  cuenta_id: string
   fecha: string
   notas: string
 }
@@ -394,6 +395,7 @@ export async function registrarPagoFacturaAction(data: PagoFacturaInput): Promis
   const supabase = await createClient()
 
   if (data.monto <= 0) return { ok: false, error: 'El monto debe ser mayor a cero' }
+  if (!data.cuenta_id) return { ok: false, error: 'Selecciona una cuenta destino' }
 
   // Verificar acceso a la factura por sede.
   const { data: factura } = await supabase
@@ -412,6 +414,7 @@ export async function registrarPagoFacturaAction(data: PagoFacturaInput): Promis
     p_metodo:     data.metodo,
     p_fecha:      data.fecha,
     p_asesor_id:  sesion.id,
+    p_cuenta_id:  data.cuenta_id,
     p_notas:      data.notas.trim() || null,
   })
 
