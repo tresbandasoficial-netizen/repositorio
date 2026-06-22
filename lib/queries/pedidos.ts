@@ -27,6 +27,8 @@ export type PedidoRow = {
 }
 
 export type PedidoDetalle = PedidoRow & {
+  factura_id: string | null
+  tipo: string | null
   cliente_cedula: string | null
   items: Array<{
     id: string
@@ -127,7 +129,7 @@ export async function getPedidos(filtros?: {
 export async function getPedidoDetalle(id: string): Promise<PedidoDetalle | null> {
   const supabase = await createClient()
 
-  const [pedidoRes, itemsRes, pagosRes, historialRes] = await Promise.all([
+  const [pedidoRes, itemsRes, pagosRes, historialRes, pedidoExtraRes] = await Promise.all([
     supabase.from('vista_pedidos_asesor').select('*').eq('id', id).single(),
     supabase
       .from('pedido_items')
@@ -145,6 +147,7 @@ export async function getPedidoDetalle(id: string): Promise<PedidoDetalle | null
       .eq('tabla', 'pedidos')
       .eq('registro_id', id)
       .order('fecha', { ascending: true }),
+    supabase.from('pedidos').select('factura_id, tipo').eq('id', id).single(),
   ])
 
   if (pedidoRes.error || !pedidoRes.data) return null
@@ -191,6 +194,8 @@ export async function getPedidoDetalle(id: string): Promise<PedidoDetalle | null
 
   return {
     ...pedidoData,
+    factura_id: pedidoExtraRes.data?.factura_id ?? null,
+    tipo: pedidoExtraRes.data?.tipo ?? null,
     cliente_cedula: clienteData?.cedula ?? null,
     items: itemsData,
     pagos,

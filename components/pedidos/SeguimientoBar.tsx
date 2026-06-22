@@ -12,9 +12,10 @@ interface SeguimientoBarProps {
   estadoActual: EstadoPedido
   rolUsuario: 'asesor' | 'admin' | 'visor'
   sedeCodigo: string
+  tieneFactura: boolean
 }
 
-export function SeguimientoBar({ pedidoId, estadoActual, rolUsuario, sedeCodigo }: SeguimientoBarProps) {
+export function SeguimientoBar({ pedidoId, estadoActual, rolUsuario, sedeCodigo, tieneFactura }: SeguimientoBarProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -73,18 +74,25 @@ export function SeguimientoBar({ pedidoId, estadoActual, rolUsuario, sedeCodigo 
               )}
 
               {/* Círculo / icono */}
-              <button
-                onClick={() => !esTerminal && !esVisor && !esPasado && !esActual && handleCambiar(estado)}
-                disabled={esVisor || esTerminal || esPasado || esActual || isPending}
-                title={esFuturo && !esTerminal ? `Mover a ${ESTADO_LABELS[estado]}` : undefined}
-                className={`relative z-10 w-7 h-7 rounded-full flex items-center justify-center transition-all
-                  ${esPasado ? 'bg-blue-500 text-white' : ''}
-                  ${esActual ? 'bg-blue-600 text-white ring-4 ring-blue-100' : ''}
-                  ${esFuturo && !esVisor && !esTerminal ? 'bg-white border-2 border-gray-200 text-gray-300 hover:border-blue-400 hover:text-blue-400 cursor-pointer' : ''}
-                  ${esFuturo && (esVisor || esTerminal) ? 'bg-white border-2 border-gray-200 text-gray-300 cursor-default' : ''}
-                  disabled:cursor-default
-                `}
-              >
+              {(() => {
+                const bloqueadoSinFactura = esFuturo && estado === 'entregado' && !tieneFactura
+                const deshabilitado = esVisor || esTerminal || esPasado || esActual || isPending || bloqueadoSinFactura
+                const title = bloqueadoSinFactura
+                  ? 'Factura el pedido antes de marcarlo como entregado'
+                  : esFuturo && !esTerminal ? `Mover a ${ESTADO_LABELS[estado]}` : undefined
+                return (
+                <button
+                  onClick={() => !deshabilitado && handleCambiar(estado)}
+                  disabled={deshabilitado}
+                  title={title}
+                  className={`relative z-10 w-7 h-7 rounded-full flex items-center justify-center transition-all
+                    ${esPasado ? 'bg-blue-500 text-white' : ''}
+                    ${esActual ? 'bg-blue-600 text-white ring-4 ring-blue-100' : ''}
+                    ${esFuturo && !deshabilitado ? 'bg-white border-2 border-gray-200 text-gray-300 hover:border-blue-400 hover:text-blue-400 cursor-pointer' : ''}
+                    ${esFuturo && deshabilitado ? 'bg-white border-2 border-gray-200 text-gray-300 cursor-not-allowed opacity-50' : ''}
+                    disabled:cursor-not-allowed
+                  `}
+                >
                 {loadingEstado === estado ? (
                   <Loader2 size={14} className="animate-spin" />
                 ) : esPasado ? (
@@ -94,7 +102,9 @@ export function SeguimientoBar({ pedidoId, estadoActual, rolUsuario, sedeCodigo 
                 ) : (
                   <Circle size={14} />
                 )}
-              </button>
+                </button>
+                )
+              })()}
 
               {/* Label */}
               <span className={`text-center text-[10px] leading-tight font-medium
