@@ -234,8 +234,9 @@ export async function crearFacturaUnificadaAction(
 
   const pedidoIds = [...data.pedido_ids]
 
-  // 1. Si hay productos nuevos, se crea una venta (entregada) que entra a la factura.
-  if (data.productos_nuevos.length > 0) {
+  // 1. Si hay productos nuevos Y hay pedidos previos, se crea una venta (entregada) que entra a la factura.
+  // Si solo hay productos nuevos (sin pedidos previos), NO crear número de pedido, solo factura.
+  if (data.productos_nuevos.length > 0 && data.pedido_ids.length > 0) {
     for (const it of data.productos_nuevos) {
       if (it.cantidad <= 0) return { ok: false, error: 'Cantidad inválida en un producto' }
       if (it.precio_venta < 0) return { ok: false, error: 'Precio inválido en un producto' }
@@ -259,26 +260,68 @@ export async function crearFacturaUnificadaAction(
         talla: it.talla.trim(),
         cantidad: it.cantidad,
         precio_venta: it.precio_venta,
+        color: it.color,
+        sexo: it.sexo,
+        categoria: it.categoria,
       })),
       p_abono:       0,   // el pago se registra a nivel de factura
-      p_metodo_pago: 'efectivo',
+      p_cuenta_id:   null,
       p_notas:       'Productos agregados al facturar',
     })
     if (errVenta) return { ok: false, error: `Error creando la venta: ${errVenta.message}` }
     pedidoIds.push(ventaPedidoId)
+  } else if (data.productos_nuevos.length > 0 && data.pedido_ids.length === 0) {
+    // Solo venta del local (sin pedidos previos): guardar productos en la factura sin número de pedido
+    for (const it of data.productos_nuevos) {
+      if (it.cantidad <= 0) return { ok: false, error: 'Cantidad inválida en un producto' }
+      if (it.precio_venta < 0) return { ok: false, error: 'Precio inválido en un producto' }
+    }
+    // Los productos se guardarán directamente en la factura via un insert después
   }
 
-  // 2. Crear la factura agrupando todo.
-  const { data: facturaId, error } = await supabase.rpc('crear_factura', {
-    p_cliente_id:        clienteId,
-    p_sede_id:           sedeId,
-    p_asesor_id:         sesion.id,
-    p_fecha_vencimiento: data.fecha_vencimiento,
-    p_pedido_ids:        pedidoIds,
-    p_notas:             data.notas.trim() || null,
-    p_abono_inicial:     data.abono_inicial || 0,
-    p_metodo_abono:      data.metodo_abono || null,
-  })
+  // 2. Crear la factura
+  let facturaId: string
+  let error: any
+
+  if (pedidoIds.length === 0) {
+    // Venta del local sin pedidos previos
+    const { data: fId, error: err } = await supabase.rpc('crear_factura_venta_local', {
+      p_cliente_id:        clienteId,
+      p_sede_id:           sedeId,
+      p_asesor_id:         sesion.id,
+      p_fecha_vencimiento: data.fecha_vencimiento,
+      p_productos:         data.productos_nuevos.map(it => ({
+        articulo_id: it.articulo_id,
+        marca: it.marca.trim(),
+        descripcion: it.descripcion.trim(),
+        talla: it.talla.trim(),
+        cantidad: it.cantidad,
+        precio_venta: it.precio_venta,
+        color: it.color,
+        sexo: it.sexo,
+        categoria: it.categoria,
+      })),
+      p_abono_inicial:     data.abono_inicial || 0,
+      p_metodo_abono:      data.metodo_abono || null,
+      p_notas:             data.notas.trim() || null,
+    })
+    facturaId = fId
+    error = err
+  } else {
+    // Factura con pedidos previos (y posiblemente productos nuevos)
+    const { data: fId, error: err } = await supabase.rpc('crear_factura', {
+      p_cliente_id:        clienteId,
+      p_sede_id:           sedeId,
+      p_asesor_id:         sesion.id,
+      p_fecha_vencimiento: data.fecha_vencimiento,
+      p_pedido_ids:        pedidoIds,
+      p_notas:             data.notas.trim() || null,
+      p_abono_inicial:     data.abono_inicial || 0,
+      p_metodo_abono:      data.metodo_abono || null,
+    })
+    facturaId = fId
+    error = err
+  }
 
   if (error) return { ok: false, error: error.message }
 
