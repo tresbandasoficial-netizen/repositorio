@@ -32,9 +32,16 @@ export async function getFacturas(filtros?: {
 export type FacturaDetalle = FacturaRow & {
   pedidos: Array<{
     id: string
-    numero_orden: string
+    numero_orden: string | null
     total: number
     fecha_creacion: string
+    items: Array<{
+      marca: string
+      descripcion: string
+      talla: string | null
+      cantidad: number
+      precio_venta: number
+    }>
   }>
   abonos: Array<{
     id: string
@@ -57,14 +64,13 @@ export async function getFacturaDetalle(id: string): Promise<FacturaDetalle | nu
 
   if (error || !factura) return null
 
-  // Verificar acceso por sede (defensa además del page-level).
   const sesion = await getSesion()
   if (sesion.rol !== 'admin' && factura.sede_id !== sesion.sede_id) return null
 
   const [pedidosRes, abonosRes] = await Promise.all([
     supabase
       .from('pedidos')
-      .select('id, numero_orden, total, fecha_creacion')
+      .select('id, numero_orden, total, fecha_creacion, pedido_items(marca, descripcion, talla, cantidad, precio_venta)')
       .eq('factura_id', id)
       .order('fecha_creacion'),
     supabase
@@ -83,9 +89,17 @@ export async function getFacturaDetalle(id: string): Promise<FacturaDetalle | nu
     asesor_nombre: a.usuarios?.nombre ?? '',
   }))
 
+  const pedidos = (pedidosRes.data ?? []).map((p: any) => ({
+    id: p.id,
+    numero_orden: p.numero_orden,
+    total: p.total,
+    fecha_creacion: p.fecha_creacion,
+    items: (p.pedido_items ?? []),
+  }))
+
   return {
     ...(factura as FacturaRow),
-    pedidos: (pedidosRes.data ?? []) as FacturaDetalle['pedidos'],
+    pedidos,
     abonos,
   }
 }

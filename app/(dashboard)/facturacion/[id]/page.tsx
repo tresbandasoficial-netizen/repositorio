@@ -43,7 +43,7 @@ export default async function FacturaDetallePage({
           clienteNombre={factura.cliente_nombre}
           clienteTelefono={factura.cliente_telefono}
           numeroFactura={factura.numero_factura}
-          numerosOrden={factura.pedidos.map(p => p.numero_orden)}
+          numerosOrden={factura.pedidos.map(p => p.numero_orden).filter((n): n is string => n !== null)}
         />
       </div>
 
@@ -73,15 +73,43 @@ export default async function FacturaDetallePage({
       {/* Pedidos incluidos */}
       <div className="bg-white rounded-xl border border-gray-100 mb-6 overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-100">
-          <p className="text-sm font-semibold text-gray-900">Pedidos incluidos ({factura.pedidos.length})</p>
+          <p className="text-sm font-semibold text-gray-900">
+            {factura.pedidos.every(p => !p.numero_orden) ? 'Productos vendidos' : `Pedidos incluidos (${factura.pedidos.length})`}
+          </p>
         </div>
         <div className="divide-y divide-gray-50">
           {factura.pedidos.map(p => (
-            <div key={p.id} className="px-5 py-3 flex items-center justify-between">
-              <Link href={`/pedidos/${p.id}`} className="font-mono text-sm text-blue-600 hover:underline">
-                {p.numero_orden}
-              </Link>
-              <span className="text-sm font-medium text-gray-700">{formatCOP(p.total)}</span>
+            <div key={p.id} className="px-5 py-4">
+              {/* Encabezado del pedido (solo si tiene número de orden) */}
+              {p.numero_orden && (
+                <div className="flex items-center justify-between mb-2">
+                  <Link href={`/pedidos/${p.id}`} className="font-mono text-sm text-blue-600 hover:underline">
+                    {p.numero_orden}
+                  </Link>
+                  <span className="text-sm font-medium text-gray-700">{formatCOP(p.total)}</span>
+                </div>
+              )}
+              {/* Productos del pedido */}
+              {p.items.length > 0 && (
+                <div className="space-y-1">
+                  {p.items.map((item, i) => (
+                    <div key={i} className="flex items-center justify-between text-sm">
+                      <div className="text-gray-700">
+                        <span className="font-medium">{item.marca} {item.descripcion}</span>
+                        {item.talla && <span className="text-gray-400 ml-1">· T{item.talla}</span>}
+                        {item.cantidad > 1 && <span className="text-gray-400 ml-1">× {item.cantidad}</span>}
+                      </div>
+                      <span className="text-gray-600 ml-4 flex-none">{formatCOP(item.precio_venta * item.cantidad)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* Total si no tiene número de orden */}
+              {!p.numero_orden && (
+                <div className="flex justify-end mt-2 pt-2 border-t border-gray-50">
+                  <span className="text-sm font-semibold text-gray-900">{formatCOP(p.total)}</span>
+                </div>
+              )}
             </div>
           ))}
         </div>
