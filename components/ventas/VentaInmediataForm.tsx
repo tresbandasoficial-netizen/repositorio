@@ -83,8 +83,8 @@ export function VentaInmediataForm({ sedes }: { sedes: SedeOpcion[] }) {
         cliente_nombre: nombre,
         cliente_telefono: telefono,
         cliente_cedula: cedula,
-        items: items.map(({ articulo_id, marca, descripcion, talla, cantidad, precio_venta }) => ({
-          articulo_id, marca, descripcion, talla, cantidad, precio_venta,
+        items: items.map(({ articulo_id, marca, descripcion, talla, cantidad, precio_venta, color, sexo, categoria }) => ({
+          articulo_id, marca, descripcion, talla, cantidad, precio_venta, color, sexo, categoria,
         })),
         abono: abonoNum,
         cuenta_id: cuentaId,

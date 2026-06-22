@@ -15,6 +15,9 @@ export const nuevaLinea = (): Linea => ({
   talla: '',
   cantidad: 1,
   precio_venta: 0,
+  color: '',
+  sexo: '',
+  categoria: '',
 })
 
 // Fila aplanada para mostrar en el dropdown (una por cada talla disponible)
@@ -133,16 +136,16 @@ export function LineaProducto({
 
       {/* Color, Sexo, Categoría */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-        <input type="text" value={(linea as any).color || ''} onChange={e => onChange({ ...(linea as any), color: e.target.value })} placeholder="Color (ej: Negro, Azul)"
+        <input type="text" value={linea.color || ''} onChange={e => onChange({ color: e.target.value })} placeholder="Color (ej: Negro, Azul)"
           className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
 
         <div>
           <label className="block text-xs text-gray-500 mb-1">Sexo</label>
           <div className="flex gap-1">
             {['hombre', 'mujer', 'unisex', 'nino', 'nina'].map(s => (
-              <button key={s} type="button" onClick={() => onChange({ ...(linea as any), sexo: s })}
+              <button key={s} type="button" onClick={() => onChange({ sexo: s })}
                 className={`flex-1 text-xs py-1.5 rounded border font-medium transition-colors ${
-                  (linea as any).sexo === s ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                  linea.sexo === s ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
                 }`}>{s === 'nino' ? 'Niño' : s === 'nina' ? 'Niña' : s.charAt(0).toUpperCase() + s.slice(1)}</button>
             ))}
           </div>
@@ -152,9 +155,9 @@ export function LineaProducto({
           <label className="block text-xs text-gray-500 mb-1">Categoría</label>
           <div className="flex gap-1">
             {['tenis', 'ropa', 'accesorio', 'otro'].map(c => (
-              <button key={c} type="button" onClick={() => onChange({ ...(linea as any), categoria: c })}
+              <button key={c} type="button" onClick={() => onChange({ categoria: c })}
                 className={`flex-1 text-xs py-1.5 rounded border font-medium transition-colors ${
-                  (linea as any).categoria === c ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                  linea.categoria === c ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
                 }`}>{c.charAt(0).toUpperCase() + c.slice(1)}</button>
             ))}
           </div>

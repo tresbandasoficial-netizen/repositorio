@@ -12,6 +12,9 @@ export type ItemVenta = {
   talla: string
   cantidad: number
   precio_venta: number
+  color?: string
+  sexo?: string
+  categoria?: string
 }
 
 export type VentaInmediataInput = {
