@@ -86,6 +86,28 @@ export type PedidoEncontrado = {
   pedido_id: string
 }
 
+export type ItemPedido = {
+  pedido_id: string
+  codigo: string | null
+  marca: string
+  descripcion: string
+  talla: string | null
+  cantidad: number
+  precio_venta: number
+}
+
+// Ítems de varios pedidos, para mostrar el detalle al armar la factura.
+export async function getItemsPedidosAction(pedidoIds: string[]): Promise<ItemPedido[]> {
+  if (pedidoIds.length === 0) return []
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('pedido_items')
+    .select('pedido_id, codigo, marca, descripcion, talla, cantidad, precio_venta')
+    .in('pedido_id', pedidoIds)
+    .order('id')
+  return (data ?? []) as ItemPedido[]
+}
+
 // Busca un pedido por su número de orden para facturarlo directamente.
 export async function buscarPedidoFacturableAction(
   numeroOrden: string
