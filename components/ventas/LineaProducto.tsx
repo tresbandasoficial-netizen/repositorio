@@ -142,7 +142,7 @@ export function LineaProducto({
         <div>
           <label className="block text-xs text-gray-500 mb-1">Sexo</label>
           <div className="flex gap-1">
-            {['hombre', 'mujer', 'unisex', 'nino'].map(s => (
+            {['hombre', 'mujer', 'nino'].map(s => (
               <button key={s} type="button" onClick={() => onChange({ sexo: s })}
                 className={`flex-1 text-xs py-1.5 rounded border font-medium transition-colors ${
                   linea.sexo === s ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
