@@ -228,7 +228,7 @@ export type RegistrarPagoResult =
 
 export async function registrarPagoAction(
   pedidoId: string,
-  data: { monto: number; metodo: MetodoPago; fecha: string; notas: string }
+  data: { monto: number; metodo: MetodoPago; fecha: string; notas: string; cuenta_id?: string | null }
 ): Promise<RegistrarPagoResult> {
   const sesion = await getSesion()
   const supabase = await createClient()
@@ -250,12 +250,13 @@ export async function registrarPagoAction(
   }
 
   const { error } = await supabase.from('pagos').insert({
-    pedido_id: pedidoId,
-    monto:     data.monto,
-    metodo:    data.metodo,
-    fecha:     data.fecha,
-    notas:     data.notas || null,
-    asesor_id: sesion.id,
+    pedido_id:  pedidoId,
+    monto:      data.monto,
+    metodo:     data.metodo,
+    fecha:      data.fecha,
+    notas:      data.notas || null,
+    asesor_id:  sesion.id,
+    cuenta_id:  data.cuenta_id || null,
   })
 
   if (error) return { ok: false, error: error.message }
