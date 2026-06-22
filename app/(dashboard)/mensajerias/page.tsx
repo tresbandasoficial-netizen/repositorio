@@ -10,7 +10,7 @@ import { getCuentasAction } from '@/app/actions/cuentas'
 import { MENSAJERIA_LABELS, TipoMensajeria } from '@/types'
 import { MensajeriasClientPage } from '@/components/mensajerias/MensajeriasClientPage'
 
-const MENSAJERIAS: TipoMensajeria[] = ['exneider', 'movilenvios', 'otro']
+const MENSAJERIAS: TipoMensajeria[] = ['exneider', 'servigo', 'otro']
 
 export default async function MensajeriasPage({
   searchParams,

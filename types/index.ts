@@ -423,12 +423,12 @@ export type Gasto = {
 
 // ─── Mensajerías ─────────────────────────────────────────────────────────────
 
-export type TipoMensajeria = 'exneider' | 'movilenvios' | 'otro'
+export type TipoMensajeria = 'exneider' | 'servigo' | 'otro'
 
 export const MENSAJERIA_LABELS: Record<TipoMensajeria, string> = {
-  exneider:    'Exneider',
-  movilenvios: 'Servigo',
-  otro:        'Otra mensajería',
+  exneider: 'Exneider',
+  servigo:  'Servigo',
+  otro:     'Otra mensajería',
 }
 
 export type PagoMensajeria = {
