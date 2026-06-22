@@ -4,7 +4,6 @@ import { createClient } from '@/lib/supabase/server'
 import { getSesion } from '@/lib/auth/acceso'
 import { getSiguienteNumeroOrden } from '@/lib/queries/pedidos'
 import { normalizarTelefono } from '@/lib/utils/phone'
-import { MetodoPago } from '@/types'
 
 export type ItemVenta = {
   articulo_id: string | null
@@ -22,7 +21,7 @@ export type VentaInmediataInput = {
   cliente_cedula: string
   items: ItemVenta[]
   abono: number
-  metodo_pago: MetodoPago
+  cuenta_id: string | null // cuenta donde llega el dinero
   notas: string
 }
 
@@ -111,7 +110,7 @@ export async function registrarVentaInmediataAction(data: VentaInmediataInput): 
     p_total:        total,
     p_items:        items,
     p_abono:        data.abono,
-    p_metodo_pago:  data.metodo_pago,
+    p_cuenta_id:    data.cuenta_id,
     p_notas:        data.notas.trim() || null,
   })
 
