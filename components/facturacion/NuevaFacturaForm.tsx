@@ -139,8 +139,8 @@ export function NuevaFacturaForm({ sedes }: { sedes: SedeOpcion[] }) {
         cliente_nuevo: esNuevo ? { nombre: cliente.nombre, telefono: cliente.telefono_normalizado, cedula: cliente.cedula ?? '' } : null,
         sede_id: sedeId,
         pedido_ids: pedidosElegidos.map(p => p.id),
-        productos_nuevos: lineasValidas.map(({ articulo_id, marca, descripcion, talla, cantidad, precio_venta, color, sexo, categoria }) => ({
-          articulo_id, marca, descripcion, talla, cantidad, precio_venta, color, sexo, categoria,
+        productos_nuevos: lineasValidas.map(({ articulo_id, codigo, marca, descripcion, talla, cantidad, precio_venta, color, sexo, categoria }) => ({
+          articulo_id, codigo, marca, descripcion, talla, cantidad, precio_venta, color, sexo, categoria,
         })),
         fecha_vencimiento: vence,
         abono_inicial: ab,
