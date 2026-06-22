@@ -2,9 +2,10 @@
 
 import { useState, useTransition, useEffect, useRef } from 'react'
 import { parsearPedido } from '@/lib/parser'
-import { ParsedPedido, MetodoPago } from '@/types'
+import { ParsedPedido, Cuenta } from '@/types'
 import { formatCOP } from '@/lib/utils/format'
 import { crearPedidoDesdeDataAction } from '@/app/actions/pedidos'
+import { getCuentasAction } from '@/app/actions/cuentas'
 import { buscarClientesAction, buscarDireccionPorTelefonoAction, ClienteBusqueda } from '@/app/actions/clientes'
 import { buscarPorCodigoAction, buscarArticulosAction, ArticuloBusqueda } from '@/app/actions/articulos'
 import { Button } from '@/components/ui/Button'
@@ -28,15 +29,6 @@ interface CrearPedidoFormProps {
 }
 
 type Paso = 'pegar' | 'preview' | 'error_parser'
-
-const METODOS: { value: MetodoPago; label: string }[] = [
-  { value: 'efectivo',      label: 'Efectivo' },
-  { value: 'transferencia', label: 'Transferencia' },
-  { value: 'credito',       label: 'Crédito' },
-  { value: 'addi',          label: 'Addi' },
-  { value: 'bold',          label: 'Bold' },
-  { value: 'sistecredito',  label: 'Sistecredito' },
-]
 
 function InputField({ label, value, onChange, type = 'text', className = '' }: {
   label: string
@@ -78,9 +70,13 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
   const [catalogLinks, setCatalogLinks] = useState<(CatalogLink | null)[]>([null])
   const [artSuggs, setArtSuggs] = useState<CatalogLink[][]>([[]])
   const [suggAbierto, setSuggAbierto] = useState<boolean[]>([false])
+  const [cuentas, setCuentas] = useState<Cuenta[]>([])
+  const [cuentaId, setCuentaId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const dropdownRef = useRef<HTMLUListElement>(null)
   const searchTimeoutsRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map())
+
+  useEffect(() => { getCuentasAction().then(setCuentas).catch(console.error) }, [])
 
   // Paste global de imágenes: el click en una tarjeta de producto la marca como destino
   const activeProductIdxRef = useRef(0)
@@ -141,10 +137,10 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
       cliente_nombre: c.nombre,
       cliente_doc: c.cedula ? `CC ${c.cedula}` : null,
       cliente_telefono: c.telefono_normalizado,
-      productos: [{ marca: '', descripcion: '', talla: null, cantidad: 1, precio_venta: 0 }],
+      productos: [{ marca: '', descripcion: '', talla: null, cantidad: 1, precio_venta: 0, codigo: '', color: '', sexo: '', categoria: '' }],
       total: 0,
       abono: 0,
-      metodo_pago_abono: 'efectivo',
+      metodo_pago_abono: 'cuenta',
       tipo_entrega: 'sede',
       direccion: null,
       notas: null,
@@ -210,6 +206,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
 
   function setCodigo(idx: number, val: string) {
     setCodigos(prev => prev.map((c, i) => i === idx ? val : c))
+    updateProducto(idx, 'codigo', val)
     const prev = searchTimeoutsRef.current.get(idx)
     if (prev) clearTimeout(prev)
     if (val.trim().length < 2) {
@@ -234,6 +231,9 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
     setArtSuggs(s => s.map((x, i) => i === idx ? [] : x))
     setSuggAbierto(s => s.map((o, i) => i === idx ? false : o))
     updateProducto(idx, 'articulo_id', link.articulo_id)
+    updateProducto(idx, 'codigo', link.codigo || '')
+    if (link.color) updateProducto(idx, 'color', link.color)
+    if (link.sexo) updateProducto(idx, 'sexo', link.sexo)
     if (!editableData?.productos[idx].marca) updateProducto(idx, 'marca', link.marca)
   }
 
@@ -261,6 +261,9 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
       updateProducto(idx, 'marca', art.marca)
     }
     updateProducto(idx, 'articulo_id', art.id)
+    updateProducto(idx, 'codigo', art.codigo ?? codigo)
+    if (art.color) updateProducto(idx, 'color', art.color)
+    if (art.sexo) updateProducto(idx, 'sexo', art.sexo)
   }
 
   function handleConfirmar() {
@@ -282,8 +285,13 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
       return
     }
 
+    // El abono se registra contra una cuenta destino (formato facturación)
+    const datos: ParsedPedido = editableData.abono > 0
+      ? { ...editableData, metodo_pago_abono: 'cuenta' }
+      : editableData
+
     startTransition(async () => {
-      const result = await crearPedidoDesdeDataAction(editableData, numeroOrden)
+      const result = await crearPedidoDesdeDataAction(datos, numeroOrden, cuentaId)
       if (!result.ok) {
         setErrorAccion(result.error)
         if (result.siguienteNumero) setSiguienteNumero(result.siguienteNumero)
@@ -586,8 +594,8 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
                               <div className="flex-1">
                                 <InputField
                                   label="Descripción para el cliente"
-                                  value={[p.marca, p.descripcion].filter(Boolean).join(' ')}
-                                  onChange={v => { updateProducto(i, 'marca', ''); updateProducto(i, 'descripcion', v) }}
+                                  value={p.descripcion}
+                                  onChange={v => updateProducto(i, 'descripcion', v)}
                                 />
                               </div>
                               <div className="w-20">
@@ -598,13 +606,65 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
                                 />
                               </div>
                             </div>
-                            <InputField
-                              label="Precio"
-                              value={p.precio_venta}
-                              type="number"
-                              onChange={v => updateProducto(i, 'precio_venta', parseInt(v) || 0)}
-                              className="max-w-[160px]"
+                            <div className="flex gap-2">
+                              <div className="flex-1">
+                                <InputField
+                                  label="Marca"
+                                  value={p.marca}
+                                  onChange={v => updateProducto(i, 'marca', v)}
+                                />
+                              </div>
+                              <div className="w-[160px]">
+                                <InputField
+                                  label="Precio"
+                                  value={p.precio_venta}
+                                  type="number"
+                                  onChange={v => updateProducto(i, 'precio_venta', parseInt(v) || 0)}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Atributos del catálogo (color, sexo, categoría) para guardar el artículo */}
+                        <div className="flex flex-wrap gap-2 items-end pt-1">
+                          <div className="w-28">
+                            <label className="block text-xs text-gray-500 mb-0.5">Color</label>
+                            <input
+                              type="text"
+                              value={p.color ?? ''}
+                              onChange={e => updateProducto(i, 'color', e.target.value)}
+                              placeholder="Color"
+                              className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                             />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-0.5">Sexo</label>
+                            <div className="flex gap-1">
+                              {(['hombre', 'mujer', 'nino'] as const).map(s => (
+                                <button key={s} type="button"
+                                  onClick={() => updateProducto(i, 'sexo', p.sexo === s ? '' : s)}
+                                  className={`text-xs px-2 py-1.5 rounded border font-medium transition-colors ${
+                                    p.sexo === s ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-gray-300 text-gray-600 hover:border-gray-400'
+                                  }`}>
+                                  {s === 'nino' ? 'Niño' : s.charAt(0).toUpperCase() + s.slice(1)}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-0.5">Categoría</label>
+                            <div className="flex gap-1">
+                              {(['ropa', 'tenis', 'accesorios'] as const).map(c => (
+                                <button key={c} type="button"
+                                  onClick={() => updateProducto(i, 'categoria', p.categoria === c ? '' : c)}
+                                  className={`text-xs px-2 py-1.5 rounded border font-medium transition-colors ${
+                                    p.categoria === c ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-gray-300 text-gray-600 hover:border-gray-400'
+                                  }`}>
+                                  {c.charAt(0).toUpperCase() + c.slice(1)}
+                                </button>
+                              ))}
+                            </div>
                           </div>
                         </div>
                         {editableData.productos.length > 1 && (
@@ -626,7 +686,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
                 </div>
                 <button type="button"
                   onClick={() => {
-                    setEditableData(prev => prev ? { ...prev, productos: [...prev.productos, { marca: '', descripcion: '', talla: null, cantidad: 1, precio_venta: 0 }] } : null)
+                    setEditableData(prev => prev ? { ...prev, productos: [...prev.productos, { marca: '', descripcion: '', talla: null, cantidad: 1, precio_venta: 0, codigo: '', color: '', sexo: '', categoria: '' }] } : null)
                     setCodigos(prev => [...prev, ''])
                     setCatalogLinks(prev => [...prev, null])
                     setArtSuggs(prev => [...prev, []])
@@ -648,25 +708,21 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
                     onChange={v => updateField('abono', parseInt(v) || 0)}
                     className="max-w-[180px]"
                   />
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1.5">Método de pago</label>
-                    <div className="flex flex-wrap gap-2">
-                      {METODOS.map(m => (
-                        <button
-                          key={m.value}
-                          type="button"
-                          onClick={() => updateField('metodo_pago_abono', m.value)}
-                          className={`px-3 py-1.5 rounded-lg border text-sm font-medium active:scale-95 ${
-                            editableData.metodo_pago_abono === m.value
-                              ? 'bg-blue-600 border-blue-600 text-white'
-                              : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400'
-                          }`}
-                        >
-                          {m.label}
-                        </button>
-                      ))}
+                  {editableData.abono > 0 && cuentas.length > 0 && (
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1.5">
+                        Cuenta destino <span className="text-gray-400 font-normal">(dónde llega el dinero)</span>
+                      </label>
+                      <select
+                        value={cuentaId ?? ''}
+                        onChange={e => setCuentaId(e.target.value || null)}
+                        className="w-full max-w-xs border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Sin especificar</option>
+                        {cuentas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                      </select>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
 
@@ -678,7 +734,9 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
                 </div>
                 {editableData.abono > 0 && (
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Abono ({editableData.metodo_pago_abono})</span>
+                    <span className="text-gray-600">
+                      Abono{cuentaId ? ` (${cuentas.find(c => c.id === cuentaId)?.nombre})` : ''}
+                    </span>
                     <span className="text-green-700">− {formatCOP(editableData.abono)}</span>
                   </div>
                 )}

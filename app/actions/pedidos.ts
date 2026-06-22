@@ -9,6 +9,7 @@ import { getSiguienteNumeroOrden } from '@/lib/queries/pedidos'
 import { puedeTransicionar } from '@/lib/domain/estados'
 import { EstadoPedido, MetodoPago, ParsedPedido } from '@/types'
 import { getSesion, puedeAccederSede } from '@/lib/auth/acceso'
+import { guardarArticulo } from '@/lib/queries/articulos'
 
 export type CrearPedidoResult =
   | { ok: true; pedidoId: string }
@@ -17,7 +18,8 @@ export type CrearPedidoResult =
 // Lógica compartida: crea el pedido desde datos ya parseados/editados
 async function _crearPedidoConDatos(
   datos: ParsedPedido,
-  numeroOrdenManual: string
+  numeroOrdenManual: string,
+  cuentaId?: string | null
 ): Promise<CrearPedidoResult> {
   const supabase = await createClient()
 
@@ -74,14 +76,35 @@ async function _crearPedidoConDatos(
     clienteId = nuevoCliente.id
   }
 
-  const items = datos.productos.map((p) => ({
-    articulo_id:  (p as any).articulo_id ?? null,
-    marca:        p.marca,
-    descripcion:  p.descripcion,
-    talla:        p.talla ?? '',
-    cantidad:     p.cantidad,
-    precio_venta: p.precio_venta,
-    imagen_url:   (p as any).imagen_url ?? null,
+  // Resolver/crear cada artículo en el catálogo (la "cédula" del producto es el código).
+  // Si el producto no está vinculado a un artículo pero tiene marca+nombre, se crea/busca
+  // en `articulos` para que quede guardado y sea buscable después por su código.
+  const items = await Promise.all(datos.productos.map(async (p) => {
+    const codigo = p.codigo?.trim() || null
+    let articuloId = p.articulo_id ?? null
+    if (!articuloId && p.descripcion.trim() && p.marca.trim()) {
+      articuloId = await guardarArticulo(supabase, {
+        nombre:    p.descripcion,
+        marca:     p.marca,
+        codigo,
+        color:     p.color ?? null,
+        sexo:      p.sexo ?? null,
+        categoria: p.categoria ?? null,
+      })
+    } else if (articuloId && codigo) {
+      // Asegurar que el artículo vinculado tenga el código si aún no lo tiene
+      await supabase.from('articulos').update({ codigo }).eq('id', articuloId).is('codigo', null)
+    }
+    return {
+      articulo_id:  articuloId,
+      codigo,
+      marca:        p.marca,
+      descripcion:  p.descripcion,
+      talla:        p.talla ?? '',
+      cantidad:     p.cantidad,
+      precio_venta: p.precio_venta,
+      imagen_url:   (p as any).imagen_url ?? null,
+    }
   }))
   const total = datos.productos.reduce((s, p) => s + p.precio_venta * p.cantidad, 0)
 
@@ -97,6 +120,7 @@ async function _crearPedidoConDatos(
     p_items:            items,
     p_abono:            datos.abono,
     p_metodo_pago:      datos.metodo_pago_abono,
+    p_cuenta_id:        cuentaId ?? null,
   })
 
   if (errPedido) {
@@ -121,9 +145,10 @@ export async function crearPedidoAction(
 
 export async function crearPedidoDesdeDataAction(
   datos: ParsedPedido,
-  numeroOrdenManual: string
+  numeroOrdenManual: string,
+  cuentaId?: string | null
 ): Promise<CrearPedidoResult> {
-  return _crearPedidoConDatos(datos, numeroOrdenManual)
+  return _crearPedidoConDatos(datos, numeroOrdenManual, cuentaId)
 }
 
 // ─── Cambiar estado ───────────────────────────────────────────────────────────

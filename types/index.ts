@@ -55,6 +55,7 @@ export type MetodoPago =
   | 'bold'
   | 'sistecredito'
   | 'credito'
+  | 'cuenta'
   // Históricos (registros anteriores)
   | 'bancolombia'
   | 'nequi'
@@ -79,6 +80,7 @@ export const METODO_PAGO_LABELS: Record<MetodoPago, string> = {
   bold:                  'Bold',
   sistecredito:          'Sistecrédito',
   credito:               'Crédito',
+  cuenta:                'Cuenta',
   // Históricos
   bancolombia:           'Bancolombia (antiguo)',
   nequi:                 'Nequi (antiguo)',
@@ -192,6 +194,10 @@ export type ParsedPedido = {
     precio_venta: number
     imagen_url?: string | null
     articulo_id?: string | null   // enlace al catálogo (opcional)
+    codigo?: string | null        // código del artículo (cédula del producto)
+    color?: string | null
+    sexo?: string | null
+    categoria?: string | null
   }>
   total: number
   abono: number
