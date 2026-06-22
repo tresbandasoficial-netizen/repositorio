@@ -6,7 +6,7 @@ import { ParsedPedido, MetodoPago } from '@/types'
 import { formatCOP } from '@/lib/utils/format'
 import { crearPedidoDesdeDataAction } from '@/app/actions/pedidos'
 import { buscarClientesAction, buscarDireccionPorTelefonoAction, ClienteBusqueda } from '@/app/actions/clientes'
-import { buscarPorCodigoAction } from '@/app/actions/articulos'
+import { buscarPorCodigoAction, buscarArticulosAction, ArticuloBusqueda } from '@/app/actions/articulos'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { ImagenProducto } from '@/components/pedidos/ImagenProducto'
@@ -74,10 +74,13 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
   const [resultadosDirecta, setResultadosDirecta] = useState<ClienteBusqueda[]>([])
   const [ultimaDireccion, setUltimaDireccion] = useState<string | null>(null)
   const [pedidoCreado, setPedidoCreado] = useState<{ id: string; numero: string } | null>(null)
-  const [codigos, setCodigos] = useState<string[]>([''])           // código SKU por línea
+  const [codigos, setCodigos] = useState<string[]>([''])
   const [catalogLinks, setCatalogLinks] = useState<(CatalogLink | null)[]>([null])
+  const [artSuggs, setArtSuggs] = useState<CatalogLink[][]>([[]])
+  const [suggAbierto, setSuggAbierto] = useState<boolean[]>([false])
   const [isPending, startTransition] = useTransition()
   const dropdownRef = useRef<HTMLUListElement>(null)
+  const searchTimeoutsRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map())
 
   // Paste global de imágenes: el click en una tarjeta de producto la marca como destino
   const activeProductIdxRef = useRef(0)
@@ -148,6 +151,8 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
     })
     setCodigos([''])
     setCatalogLinks([null])
+    setArtSuggs([[]])
+    setSuggAbierto([false])
     setNumeroOrden(numeroSugerido)
     setAdvertencias([])
     setBusquedaDirecta('')
@@ -165,6 +170,8 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
     setEditableData(result.data)
     setCodigos(result.data.productos.map(() => ''))
     setCatalogLinks(result.data.productos.map(() => null))
+    setArtSuggs(result.data.productos.map(() => []))
+    setSuggAbierto(result.data.productos.map(() => false))
     setAdvertencias(result.warnings ?? [])
     setErrorParser(null)
     if (result.data.numero_orden_sugerido) {
@@ -203,6 +210,31 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
 
   function setCodigo(idx: number, val: string) {
     setCodigos(prev => prev.map((c, i) => i === idx ? val : c))
+    const prev = searchTimeoutsRef.current.get(idx)
+    if (prev) clearTimeout(prev)
+    if (val.trim().length < 2) {
+      setArtSuggs(s => s.map((x, i) => i === idx ? [] : x))
+      return
+    }
+    const t = setTimeout(async () => {
+      const res = await buscarArticulosAction(val.trim(), null)
+      const links = res.map((a: ArticuloBusqueda) => ({
+        articulo_id: a.id, codigo: a.codigo ?? '', marca: a.marca,
+        nombre: a.nombre, color: a.color, sexo: a.sexo,
+      }))
+      setArtSuggs(s => s.map((x, i) => i === idx ? links : x))
+      setSuggAbierto(s => s.map((o, i) => i === idx ? links.length > 0 : o))
+    }, 250)
+    searchTimeoutsRef.current.set(idx, t)
+  }
+
+  function elegirArticulo(idx: number, link: CatalogLink) {
+    setCatalogLinks(prev => prev.map((c, i) => i === idx ? link : c))
+    setCodigos(prev => prev.map((c, i) => i === idx ? (link.codigo || '') : c))
+    setArtSuggs(s => s.map((x, i) => i === idx ? [] : x))
+    setSuggAbierto(s => s.map((o, i) => i === idx ? false : o))
+    updateProducto(idx, 'articulo_id', link.articulo_id)
+    if (!editableData?.productos[idx].marca) updateProducto(idx, 'marca', link.marca)
   }
 
   function clearCatalogLink(idx: number) {
@@ -506,18 +538,31 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
                       <div key={i} className="border border-gray-200 rounded-lg p-3 space-y-2"
                         onMouseDown={() => { activeProductIdxRef.current = i }}>
 
-                        {/* Código SKU — búsqueda en catálogo */}
+                        {/* Código SKU — autocomplete */}
                         <div className="flex items-center gap-2">
-                          <div className="w-36">
-                            <label className="block text-xs text-gray-500 mb-0.5">Código SKU</label>
+                          <div className="relative w-48">
+                            <label className="block text-xs text-gray-500 mb-0.5">Código / buscar artículo</label>
                             <input
                               type="text"
                               value={codigos[i] ?? ''}
                               onChange={e => setCodigo(i, e.target.value.toUpperCase())}
-                              onBlur={() => lookupCodigo(i)}
-                              placeholder="ej. VOMERO5-WB"
+                              onBlur={() => { setTimeout(() => setSuggAbierto(s => s.map((o, j) => j === i ? false : o)), 150); lookupCodigo(i) }}
+                              placeholder="ej. JR1012"
                               className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
                             />
+                            {suggAbierto[i] && artSuggs[i]?.length > 0 && (
+                              <ul className="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden max-h-48 overflow-y-auto">
+                                {artSuggs[i].map(art => (
+                                  <li key={art.articulo_id}
+                                    onMouseDown={() => elegirArticulo(i, art)}
+                                    className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-xs border-b border-gray-50 last:border-0">
+                                    {art.codigo && <span className="font-mono text-gray-400 mr-1">{art.codigo}</span>}
+                                    <span className="font-medium text-gray-900">{art.marca} {art.nombre}</span>
+                                    {art.color && <span className="text-gray-400"> · {art.color}</span>}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
                           </div>
                           {link && (
                             <div className="flex-1 flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-2.5 py-1.5">
@@ -568,6 +613,8 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
                               setEditableData(prev => prev ? { ...prev, productos: prev.productos.filter((_, j) => j !== i) } : null)
                               setCodigos(prev => prev.filter((_, j) => j !== i))
                               setCatalogLinks(prev => prev.filter((_, j) => j !== i))
+                              setArtSuggs(prev => prev.filter((_, j) => j !== i))
+                              setSuggAbierto(prev => prev.filter((_, j) => j !== i))
                             }}
                             className="text-xs text-red-500 hover:text-red-700">
                             Quitar producto
@@ -582,6 +629,8 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
                     setEditableData(prev => prev ? { ...prev, productos: [...prev.productos, { marca: '', descripcion: '', talla: null, cantidad: 1, precio_venta: 0 }] } : null)
                     setCodigos(prev => [...prev, ''])
                     setCatalogLinks(prev => [...prev, null])
+                    setArtSuggs(prev => [...prev, []])
+                    setSuggAbierto(prev => [...prev, false])
                   }}
                   className="mt-2 text-sm text-blue-600 hover:text-blue-800 font-medium">
                   + Agregar producto
