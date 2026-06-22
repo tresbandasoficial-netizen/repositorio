@@ -124,61 +124,62 @@ export function LineaProducto({
         <p className="text-xs text-amber-600">⚠ Sin stock en {sedeCodigo}. Dejará el inventario en negativo (deberás reponerlo).</p>
       )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        <input type="text" value={linea.codigo || ''} onChange={e => onChange({ codigo: e.target.value })} placeholder="Código (ej: JR1012)"
-          className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono" />
-        <input type="text" value={linea.marca} onChange={e => onChange({ marca: e.target.value })} placeholder="Marca"
-          className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        <input type="text" value={linea.descripcion} onChange={e => onChange({ descripcion: e.target.value })} placeholder="Descripción"
-          className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        <input type="text" value={linea.talla} onChange={e => onChange({ talla: e.target.value })} placeholder="Talla"
+      {/* Fila 1: Código · Nombre */}
+      <div className="grid grid-cols-[1fr_2fr] gap-2">
+        <input type="text" value={linea.codigo || ''} onChange={e => onChange({ codigo: e.target.value })}
+          placeholder="Código" aria-label="Código"
+          className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <input type="text" value={linea.descripcion} onChange={e => onChange({ descripcion: e.target.value })}
+          placeholder="Nombre del producto" aria-label="Nombre del producto"
           className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
       </div>
-      <div className="flex gap-2 items-center">
-        <div className="flex-1" />
-        <input type="number" min={1} value={linea.cantidad} onChange={e => onChange({ cantidad: Math.max(1, parseInt(e.target.value) || 1) })}
-          className="w-20 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Cant." />
-        {onRemove && (
-          <button type="button" onClick={onRemove} className="text-red-400 hover:text-red-600 px-1" title="Quitar">✕</button>
-        )}
+
+      {/* Fila 2: Marca · Talla · Cant · X */}
+      <div className="grid grid-cols-[2fr_1fr_auto_auto] gap-2 items-center">
+        <input type="text" value={linea.marca} onChange={e => onChange({ marca: e.target.value })}
+          placeholder="Marca" aria-label="Marca"
+          className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <input type="text" value={linea.talla} onChange={e => onChange({ talla: e.target.value })}
+          placeholder="Talla" aria-label="Talla"
+          className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <input type="number" min={1} value={linea.cantidad}
+          onChange={e => onChange({ cantidad: Math.max(1, parseInt(e.target.value) || 1) })}
+          aria-label="Cantidad"
+          className="w-16 rounded-lg border border-gray-200 px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        {onRemove
+          ? <button type="button" onClick={onRemove} className="text-red-400 hover:text-red-600 px-1" title="Quitar">✕</button>
+          : <div className="w-6" />}
       </div>
 
-      {/* Color, Sexo, Categoría */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-        <input type="text" value={linea.color || ''} onChange={e => onChange({ color: e.target.value })} placeholder="Color (ej: Negro, Azul)"
+      {/* Fila 3: Color · Sexo · Categoría */}
+      <div className="grid grid-cols-[1fr_auto_auto] gap-2 items-start">
+        <input type="text" value={linea.color || ''} onChange={e => onChange({ color: e.target.value })}
+          placeholder="Color" aria-label="Color"
           className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">Sexo</label>
-          <div className="flex gap-1">
-            {['hombre', 'mujer', 'nino'].map(s => (
-              <button key={s} type="button" onClick={() => onChange({ sexo: s })}
-                className={`flex-1 text-xs py-1.5 rounded border font-medium transition-colors ${
-                  linea.sexo === s ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
-                }`}>{s === 'nino' ? 'Niño' : s.charAt(0).toUpperCase() + s.slice(1)}</button>
-            ))}
-          </div>
+        <div className="flex gap-1">
+          {(['hombre', 'mujer', 'nino'] as const).map(s => (
+            <button key={s} type="button" onClick={() => onChange({ sexo: linea.sexo === s ? '' : s })}
+              className={`text-xs px-2 py-1.5 rounded border font-medium transition-colors whitespace-nowrap ${
+                linea.sexo === s ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+              }`}>{s === 'nino' ? 'Niño' : s.charAt(0).toUpperCase() + s.slice(1)}</button>
+          ))}
         </div>
-
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">Categoría</label>
-          <div className="flex gap-1">
-            {['ropa', 'tenis', 'accesorios'].map(c => (
-              <button key={c} type="button" onClick={() => onChange({ categoria: c })}
-                className={`flex-1 text-xs py-1.5 rounded border font-medium transition-colors ${
-                  linea.categoria === c ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
-                }`}>{c === 'accesorios' ? 'Accesorios' : c.charAt(0).toUpperCase() + c.slice(1)}</button>
-            ))}
-          </div>
+        <div className="flex gap-1">
+          {(['ropa', 'tenis', 'accesorios'] as const).map(c => (
+            <button key={c} type="button" onClick={() => onChange({ categoria: linea.categoria === c ? '' : c })}
+              className={`text-xs px-2 py-1.5 rounded border font-medium transition-colors whitespace-nowrap ${
+                linea.categoria === c ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+              }`}>{c === 'accesorios' ? 'Accesorios' : c.charAt(0).toUpperCase() + c.slice(1)}</button>
+          ))}
         </div>
       </div>
-      <div>
-        <input type="text" inputMode="numeric"
-          value={linea.precio_venta ? String(linea.precio_venta) : ''}
-          onChange={e => onChange({ precio_venta: parseInt(e.target.value.replace(/\D/g, '')) || 0 })}
-          placeholder="Precio de venta"
-          className="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-      </div>
+
+      {/* Fila 4: Precio */}
+      <input type="text" inputMode="numeric"
+        value={linea.precio_venta ? String(linea.precio_venta) : ''}
+        onChange={e => onChange({ precio_venta: parseInt(e.target.value.replace(/\D/g, '')) || 0 })}
+        placeholder="Precio de venta"
+        className="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
     </div>
   )
 }
