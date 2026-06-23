@@ -1,16 +1,14 @@
 import { redirect } from 'next/navigation'
 import { getSesion } from '@/lib/auth/acceso'
-import { formatCOP } from '@/lib/utils/format'
 import {
-  getResumenMensajeriasAction,
-  getDomiciliosPendientesMensajeriaAction,
-  getHistorialPagosMensajeriaAction,
+  getCuadresMensajeriasAction,
+  getRecaudosPendientesAction,
+  getDomiciliosTBPendientesAction,
+  getLiquidacionesHistorialAction,
 } from '@/app/actions/mensajerias'
 import { getCuentasAction } from '@/app/actions/cuentas'
-import { MENSAJERIA_LABELS, TipoMensajeria } from '@/types'
+import { TipoMensajeria } from '@/types'
 import { MensajeriasClientPage } from '@/components/mensajerias/MensajeriasClientPage'
-
-const MENSAJERIAS: TipoMensajeria[] = ['exneider', 'servigo']
 
 export default async function MensajeriasPage({
   searchParams,
@@ -23,24 +21,20 @@ export default async function MensajeriasPage({
   const sp = await searchParams
   const activaMensajeria = (sp.mensajeria as TipoMensajeria) || 'exneider'
 
-  const [resumenes, pendientes, historial, cuentas] = await Promise.all([
-    getResumenMensajeriasAction(),
-    getDomiciliosPendientesMensajeriaAction(activaMensajeria),
-    getHistorialPagosMensajeriaAction(activaMensajeria),
+  const [cuadres, recaudos, domiciliosTB, liquidaciones, cuentas] = await Promise.all([
+    getCuadresMensajeriasAction(),
+    getRecaudosPendientesAction(activaMensajeria),
+    getDomiciliosTBPendientesAction(activaMensajeria),
+    getLiquidacionesHistorialAction(activaMensajeria),
     getCuentasAction(),
   ])
 
-  // Completar mensajerías sin datos
-  const resumenesCompletos = MENSAJERIAS.map(m => {
-    const r = resumenes.find(x => x.mensajeria === m)
-    return r ?? { mensajeria: m, total_deuda: 0, total_pagado: 0, saldo_pendiente: 0 }
-  })
-
   return (
     <MensajeriasClientPage
-      resumenes={resumenesCompletos}
-      pendientes={pendientes}
-      historial={historial}
+      cuadres={cuadres}
+      recaudos={recaudos}
+      domiciliosTB={domiciliosTB}
+      liquidaciones={liquidaciones}
       cuentas={cuentas}
       activaMensajeria={activaMensajeria}
     />
