@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect, useRef } from 'react'
 import { parsearPedido } from '@/lib/parser'
-import { ParsedPedido, MetodoPago } from '@/types'
+import { ParsedPedido, MetodoPago, Cuenta, TipoCuenta } from '@/types'
 import { formatCOP } from '@/lib/utils/format'
 import { crearPedidoDesdeDataAction } from '@/app/actions/pedidos'
 import { buscarClientesAction, buscarDireccionPorTelefonoAction, ClienteBusqueda } from '@/app/actions/clientes'
@@ -40,16 +40,17 @@ interface CrearPedidoFormProps {
   numeroSugerido: string
   asesorNombre: string
   sedeId: string | null
+  cuentas: Cuenta[]
 }
 
-const METODOS: { value: MetodoPago; label: string }[] = [
-  { value: 'efectivo',      label: 'Efectivo' },
-  { value: 'transferencia', label: 'Transferencia' },
-  { value: 'credito',       label: 'Crédito' },
-  { value: 'addi',          label: 'Addi' },
-  { value: 'bold',          label: 'Bold' },
-  { value: 'sistecredito',  label: 'Sistecredito' },
-]
+function metodoDeCuenta(tipo: TipoCuenta): MetodoPago {
+  if (['bancolombia', 'nequi', 'daviplata'].includes(tipo)) return 'transferencia'
+  if (tipo === 'addi') return 'addi'
+  if (tipo === 'sistecredito') return 'sistecredito'
+  if (tipo === 'bold') return 'bold'
+  if (tipo === 'credito') return 'credito'
+  return 'efectivo'
+}
 
 function emptyData(sede: 'TR' | 'CR' | 'SR', numeroSugerido: string, asesorNombre: string): ParsedPedido {
   return {
@@ -64,13 +65,14 @@ function emptyData(sede: 'TR' | 'CR' | 'SR', numeroSugerido: string, asesorNombr
     total: 0,
     abono: 0,
     metodo_pago_abono: 'efectivo',
+    cuenta_id_abono: null,
     tipo_entrega: 'sede',
     direccion: null,
     notas: null,
   }
 }
 
-export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearPedidoFormProps) {
+export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, cuentas }: CrearPedidoFormProps) {
   const sedeCode = numeroSugerido.slice(0, 2) as 'TR' | 'CR' | 'SR'
 
   const [form, setForm]               = useState<ParsedPedido>(() => emptyData(sedeCode, numeroSugerido, asesorNombre))
@@ -258,6 +260,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
     if (!form.cliente_nombre.trim()) { setErrorAccion('El nombre del cliente es obligatorio'); return }
     if (!form.cliente_telefono.trim()) { setErrorAccion('El celular del cliente es obligatorio'); return }
     if (form.productos.find(p => !p.descripcion.trim())) { setErrorAccion('Todos los artículos deben tener nombre'); return }
+    if (form.abono > 0 && !(form as any).cuenta_id_abono) { setErrorAccion('Selecciona la cuenta donde se recibió el abono'); return }
 
     startTransition(async () => {
       const result = await crearPedidoDesdeDataAction(form, numeroOrden)
@@ -558,20 +561,25 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
               className="max-w-[180px] border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
-            <label className="block text-xs text-gray-500 mb-2">Método de pago</label>
-            <div className="flex flex-wrap gap-2">
-              {METODOS.map(m => (
-                <button key={m.value} type="button"
-                  onClick={() => updateField('metodo_pago_abono', m.value)}
-                  className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
-                    form.metodo_pago_abono === m.value
-                      ? 'bg-blue-600 border-blue-600 text-white'
-                      : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400'
-                  }`}>
-                  {m.label}
-                </button>
+            <label className="block text-xs text-gray-500 mb-1">Cuenta de pago</label>
+            <select
+              value={(form as any).cuenta_id_abono ?? ''}
+              onChange={e => {
+                const cuentaId = e.target.value || null
+                const cuenta = cuentas.find(c => c.id === cuentaId)
+                setForm(f => ({
+                  ...f,
+                  cuenta_id_abono: cuentaId,
+                  metodo_pago_abono: cuenta ? metodoDeCuenta(cuenta.tipo) : 'efectivo',
+                }))
+              }}
+              className="w-full max-w-xs border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">— Seleccionar cuenta —</option>
+              {cuentas.map(c => (
+                <option key={c.id} value={c.id}>{c.nombre}</option>
               ))}
-            </div>
+            </select>
           </div>
 
           <div className="border-t border-gray-100 pt-3 space-y-1 text-sm">

@@ -199,6 +199,7 @@ export type ParsedPedido = {
   total: number
   abono: number
   metodo_pago_abono: MetodoPago
+  cuenta_id_abono?: string | null
   tipo_entrega: 'domicilio' | 'sede'
   direccion: string | null
   notas: string | null

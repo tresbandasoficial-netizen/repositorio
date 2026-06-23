@@ -9,11 +9,10 @@ export default async function NuevoPedidoPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: usuario } = await supabase
-    .from('usuarios')
-    .select('nombre, sede_id, sedes(codigo)')
-    .eq('id', user.id)
-    .single()
+  const [{ data: usuario }, { data: cuentas }] = await Promise.all([
+    supabase.from('usuarios').select('nombre, sede_id, sedes(codigo)').eq('id', user.id).single(),
+    supabase.from('cuentas').select('id, nombre, tipo, orden').eq('activa', true).order('orden'),
+  ])
 
   if (!usuario) redirect('/login')
 
@@ -31,10 +30,11 @@ export default async function NuevoPedidoPage() {
       </div>
 
       <CrearPedidoForm
-    numeroSugerido={numeroSugerido}
-    asesorNombre={(usuario as any).nombre ?? ''}
-    sedeId={usuario.sede_id ?? null}
-  />
+        numeroSugerido={numeroSugerido}
+        asesorNombre={(usuario as any).nombre ?? ''}
+        sedeId={usuario.sede_id ?? null}
+        cuentas={(cuentas ?? []) as any}
+      />
     </div>
   )
 }

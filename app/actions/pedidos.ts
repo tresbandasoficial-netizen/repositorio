@@ -100,6 +100,7 @@ async function _crearPedidoConDatos(
     p_items:            items,
     p_abono:            datos.abono,
     p_metodo_pago:      datos.metodo_pago_abono,
+    p_cuenta_id:        (datos as any).cuenta_id_abono ?? null,
   })
 
   if (errPedido) {
