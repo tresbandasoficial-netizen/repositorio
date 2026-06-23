@@ -9,8 +9,13 @@ import { buildMensajeMensajeria, buildLineaExcel } from './parsearDomicilio'
 const inputCls = 'w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
 
 const WA_NUMEROS: Record<string, string> = {
-  exneider: '573166579773',
-  servigo:  '573232501670',
+  exneider:    '573166579773',
+  movilenvios: '573232501670',
+}
+
+const MENSAJERIA_LABELS: Record<string, string> = {
+  exneider:    'Exneider',
+  movilenvios: 'Movilenvíos',
 }
 
 interface Props {
@@ -36,7 +41,7 @@ export function DomicilioDesdeFacturaPanel({
 
   const [form, setForm] = useState({
     direccion:         '',
-    mensajeria:        '' as 'exneider' | 'servigo' | '',
+    mensajeria:        '' as 'exneider' | 'movilenvios' | '',
     cobrar_al_cliente: true,
     metodo_pago:       'efectivo' as 'efectivo' | 'transferencia',
     valor_pedido:      '',
@@ -100,7 +105,7 @@ export function DomicilioDesdeFacturaPanel({
     const hoy = new Date().toISOString().slice(0, 10)
     const dataDomi = {
       fecha:             hoy,
-      mensajeria:        form.mensajeria as 'exneider' | 'servigo',
+      mensajeria:        form.mensajeria as 'exneider' | 'movilenvios',
       cliente_nombre:    clienteNombre,
       cliente_telefono:  clienteTelefono || null,
       direccion:         form.direccion,
@@ -146,7 +151,7 @@ export function DomicilioDesdeFacturaPanel({
               onClick={abrirWhatsApp}
               className="text-xs px-3 py-1.5 rounded-lg bg-green-500 hover:bg-green-600 text-white font-medium transition-colors"
             >
-              WA {form.mensajeria.charAt(0).toUpperCase() + form.mensajeria.slice(1)}
+              WA {MENSAJERIA_LABELS[form.mensajeria] ?? form.mensajeria}
             </button>
           )}
           <button
@@ -203,14 +208,14 @@ export function DomicilioDesdeFacturaPanel({
       <div>
         <label className="block text-xs text-gray-500 mb-1.5">Mensajería *</label>
         <div className="flex gap-2">
-          {(['exneider', 'servigo'] as const).map(m => (
+          {(['exneider', 'movilenvios'] as const).map(m => (
             <button key={m} type="button" onClick={() => campo('mensajeria', m)}
-              className={`flex-1 py-2 rounded-lg border text-sm font-medium capitalize transition-colors ${
+              className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${
                 form.mensajeria === m
                   ? 'bg-blue-600 border-blue-600 text-white'
                   : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400'
               }`}>
-              {m.charAt(0).toUpperCase() + m.slice(1)}
+              {MENSAJERIA_LABELS[m]}
             </button>
           ))}
         </div>

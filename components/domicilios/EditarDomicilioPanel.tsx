@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { editarDomicilioAction } from '@/app/actions/domicilios'
 import type { DomicilioRow } from '@/lib/queries/domicilios'
 
-const MENSAJERIA_LABELS = { exneider: 'Exneider', servigo: 'Servigo' }
+const MENSAJERIA_LABELS: Record<string, string> = { exneider: 'Exneider', movilenvios: 'Movilenvíos', otro: 'Otra' }
 
 interface Props {
   domicilio: DomicilioRow
@@ -18,7 +18,7 @@ export function EditarDomicilioPanel({ domicilio: d, onGuardado, onCancelar }: P
     cliente_nombre:    d.cliente_nombre,
     cliente_telefono:  d.cliente_telefono ?? '',
     direccion:         d.direccion,
-    mensajeria:        d.mensajeria as 'exneider' | 'servigo',
+    mensajeria:        (d.mensajeria === 'servigo' ? 'movilenvios' : d.mensajeria) as 'exneider' | 'movilenvios' | 'otro',
     metodo_pago:       d.metodo_pago,
     valor_pedido:      d.valor_pedido ? String(d.valor_pedido) : '',
     cobrar_al_cliente: d.cobrar_al_cliente,
@@ -128,7 +128,7 @@ export function EditarDomicilioPanel({ domicilio: d, onGuardado, onCancelar }: P
       <div>
         <label className="block text-xs text-gray-500 mb-1">Mensajería *</label>
         <div className="flex gap-2">
-          {(['exneider', 'servigo'] as const).map(m => (
+          {(['exneider', 'movilenvios', 'otro'] as const).map(m => (
             <button key={m} type="button" onClick={() => set('mensajeria', m)}
               className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
                 form.mensajeria === m ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
