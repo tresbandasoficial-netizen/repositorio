@@ -82,6 +82,9 @@ async function _crearPedidoConDatos(
     cantidad:     p.cantidad,
     precio_venta: p.precio_venta,
     imagen_url:   (p as any).imagen_url ?? null,
+    color:        (p as any).color ?? null,
+    sexo:         (p as any).sexo ?? null,
+    categoria:    (p as any).categoria ?? null,
   }))
   const total = datos.productos.reduce((s, p) => s + p.precio_venta * p.cantidad, 0)
 

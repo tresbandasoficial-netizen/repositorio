@@ -191,7 +191,10 @@ export type ParsedPedido = {
     cantidad: number
     precio_venta: number
     imagen_url?: string | null
-    articulo_id?: string | null   // enlace al catálogo (opcional)
+    articulo_id?: string | null
+    color?: string | null
+    sexo?: 'hombre' | 'mujer' | 'nino' | null
+    categoria?: 'ropa' | 'tenis' | 'accesorios' | null
   }>
   total: number
   abono: number
