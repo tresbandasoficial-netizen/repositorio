@@ -109,14 +109,33 @@ export async function getClienteDetalle(id: string): Promise<ClienteDetalle | nu
 
   if (error || !cliente) return null
 
-  const { data: pedidos } = await supabase
-    .from('vista_pedidos_asesor')
-    .select('id, numero_orden, estado, total, total_pagado, fecha_creacion, sede_nombre, asesor_nombre')
+  const { data: pedidosRaw } = await supabase
+    .from('pedidos')
+    .select(`
+      id, numero_orden, estado, total, fecha_creacion,
+      sede:sedes(nombre),
+      asesor:usuarios(nombre),
+      pagos(monto),
+      facturas:factura_id(pagos_factura(monto))
+    `)
     .eq('cliente_id', id)
+    .neq('estado', 'cancelado')
     .order('fecha_creacion', { ascending: false })
 
-  return {
-    ...cliente,
-    pedidos: (pedidos ?? []) as ClienteDetalle['pedidos'],
-  }
+  const pedidos = (pedidosRaw ?? []).map((p: any) => {
+    const pagado_directo = (p.pagos ?? []).reduce((s: number, pg: any) => s + pg.monto, 0)
+    const pagado_factura = (p.facturas?.pagos_factura ?? []).reduce((s: number, pf: any) => s + pf.monto, 0)
+    return {
+      id:             p.id,
+      numero_orden:   p.numero_orden,
+      estado:         p.estado,
+      total:          p.total,
+      total_pagado:   pagado_directo + pagado_factura,
+      fecha_creacion: p.fecha_creacion,
+      sede_nombre:    p.sede?.nombre ?? '',
+      asesor_nombre:  p.asesor?.nombre ?? '',
+    }
+  })
+
+  return { ...cliente, pedidos }
 }
