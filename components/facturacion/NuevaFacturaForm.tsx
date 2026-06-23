@@ -9,7 +9,7 @@ import {
 } from '@/app/actions/facturacion'
 import { getCuentasAction } from '@/app/actions/cuentas'
 import { formatCOP, formatFecha } from '@/lib/utils/format'
-import { MetodoPago } from '@/types'
+import { MetodoPago, PagoFacturaInput } from '@/types'
 import type { Cuenta } from '@/types'
 import { Linea, nuevaLinea, LineaProducto } from '@/components/ventas/LineaProducto'
 
@@ -66,10 +66,9 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
 
   // Config factura
   const [vence, setVence] = useState(venceDefault())
-  const [abono, setAbono] = useState('')
+  const [abonos, setAbonos] = useState<PagoFacturaInput[]>([])
   const [esCredito, setEsCredito] = useState(false)
   const [cuentas, setCuentas] = useState<Cuenta[]>([])
-  const [cuentaId, setCuentaId] = useState('')
   const [envio, setEnvio] = useState('')
   const [descuento, setDescuento] = useState('')
   const [mensajeria, setMensajeria] = useState('')
@@ -81,7 +80,6 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
   useEffect(() => {
     getCuentasAction().then(lista => {
       setCuentas(lista)
-      if (lista.length > 0) setCuentaId(lista[0].id)
     })
   }, [])
 
@@ -149,17 +147,31 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
   const totalNeto       = Math.max(0, subtotal + envioNum - descuentoNum)
   const hayAlgo         = pedidosElegidos.length > 0 || lineasValidas.length > 0
 
-  const abonoNum        = esCredito ? 0 : (abono ? parseInt(abono.replace(/\D/g, ''), 10) || 0 : 0)
+  const abonoNum        = esCredito ? 0 : abonos.reduce((sum, a) => sum + a.monto, 0)
   const saldoPendiente  = Math.max(0, totalNeto - abonoNum)
 
-  const cuentaSel = cuentas.find(c => c.id === cuentaId)
-  const metodo: MetodoPago = esCredito ? 'credito' : ((cuentaSel?.metodo_pago as MetodoPago) || 'efectivo')
+  function agregarAbono() {
+    setAbonos([...abonos, {monto: 0, metodo: 'efectivo', cuenta_id: null}])
+  }
+
+  function eliminarAbono(idx: number) {
+    setAbonos(abonos.filter((_, i) => i !== idx))
+  }
+
+  function actualizarAbono(idx: number, patch: Partial<PagoFacturaInput>) {
+    const nuevos = [...abonos]
+    nuevos[idx] = {...nuevos[idx], ...patch}
+    setAbonos(nuevos)
+  }
 
   function crear() {
     if (!cliente) { setError('Selecciona un cliente'); return }
     if (!hayAlgo) { setError('Agrega al menos un pedido o un producto'); return }
     if (abonoNum > totalNeto) { setError('El pago no puede superar el total'); return }
-    if (!esCredito && abonoNum > 0 && !cuentaId) { setError('Selecciona la cuenta destino'); return }
+    // Validar que cada abono no-efectivo tenga cuenta
+    if (!esCredito && abonos.some(a => a.monto > 0 && a.metodo !== 'efectivo' && !a.cuenta_id)) {
+      setError('Selecciona la cuenta para cada método de pago'); return
+    }
     setError('')
 
     const notasFinal = mensajeria.trim()
@@ -177,7 +189,7 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
           articulo_id, marca, descripcion, talla, cantidad, precio_venta, color, sexo, categoria,
         })),
         fecha_vencimiento: vence,
-        abonos: abonoNum > 0 && !esCredito ? [{monto: abonoNum, metodo, cuenta_id: cuentaId || null}] : [],
+        abonos: esCredito ? [] : abonos.filter(a => a.monto > 0),
         envio: envioNum,
         descuento: descuentoNum,
         notas: notasFinal,
@@ -444,29 +456,102 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
               <p className="text-sm font-bold text-gray-900">Información de pago</p>
 
               <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                <input type="checkbox" checked={esCredito} onChange={e => { setEsCredito(e.target.checked); if (e.target.checked) setAbono('') }}
+                <input type="checkbox" checked={esCredito} onChange={e => { setEsCredito(e.target.checked); if (e.target.checked) setAbonos([]) }}
                   className="w-4 h-4 accent-blue-600" />
                 A crédito (no recibe dinero ahora)
               </label>
 
               {!esCredito && (
                 <>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">Monto recibido (opcional)</label>
-                    <div className="flex gap-2">
-                      <input type="text" inputMode="numeric" value={abono} onChange={e => setAbono(e.target.value.replace(/\D/g, ''))}
-                        placeholder="0" className={inputCls} />
-                      <button type="button" onClick={() => setAbono(String(totalNeto))}
-                        className="rounded-lg bg-gray-100 text-gray-700 px-3 text-xs font-medium hover:bg-gray-200 whitespace-nowrap">Pagó todo</button>
-                    </div>
+                  {/* Múltiples abonos */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-medium text-gray-700">Abonos (opcional)</label>
+                    {abonos.length === 0 ? (
+                      <p className="text-xs text-gray-400 italic">Sin abonos (a crédito)</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {abonos.map((abono, idx) => (
+                          <div key={idx} className="flex gap-2 items-end">
+                            {/* Monto */}
+                            <div className="flex-1">
+                              <label className="block text-xs text-gray-500 mb-1">Monto</label>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={abono.monto || ''}
+                                onChange={e => actualizarAbono(idx, {monto: parseInt(e.target.value.replace(/\D/g, ''), 10) || 0})}
+                                placeholder="0"
+                                className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              />
+                            </div>
+                            {/* Método/Cuenta */}
+                            <div className="flex-1">
+                              <label className="block text-xs text-gray-500 mb-1">Método</label>
+                              <select
+                                value={abono.cuenta_id || ''}
+                                onChange={e => {
+                                  const cuenta = cuentas.find(c => c.id === e.target.value)
+                                  if (cuenta) {
+                                    actualizarAbono(idx, {
+                                      cuenta_id: cuenta.id,
+                                      metodo: cuenta.metodo_pago as MetodoPago
+                                    })
+                                  } else if (e.target.value === '') {
+                                    actualizarAbono(idx, {
+                                      cuenta_id: null,
+                                      metodo: 'efectivo'
+                                    })
+                                  }
+                                }}
+                                className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              >
+                                <option value="">Efectivo</option>
+                                {cuentas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                              </select>
+                            </div>
+                            {/* Eliminar */}
+                            <button
+                              type="button"
+                              onClick={() => eliminarAbono(idx)}
+                              className="text-red-500 hover:text-red-700 px-2 py-1.5 text-sm"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={agregarAbono}
+                      className="text-sm text-blue-600 hover:text-blue-700 font-medium mt-2"
+                    >
+                      + Agregar abono
+                    </button>
+                    {abonoNum > totalNeto && (
+                      <p className="text-xs text-red-600 mt-1">
+                        La suma ({formatCOP(abonoNum)}) no puede exceder el total ({formatCOP(totalNeto)})
+                      </p>
+                    )}
                   </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">Cuenta destino (dónde llega)</label>
-                    <select value={cuentaId} onChange={e => setCuentaId(e.target.value)} className={inputCls}>
-                      {cuentas.length === 0 && <option value="">Cargando…</option>}
-                      {cuentas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                    </select>
-                  </div>
+
+                  {/* Botón "Pagó todo" */}
+                  {abonoNum < totalNeto && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (abonos.length === 0) {
+                          agregarAbono()
+                        }
+                        const nuevos = [...abonos]
+                        nuevos[0] = {...nuevos[0], monto: totalNeto}
+                        setAbonos(nuevos)
+                      }}
+                      className="w-full rounded-lg bg-gray-100 text-gray-700 px-3 py-1.5 text-xs font-medium hover:bg-gray-200"
+                    >
+                      Pagó todo ({formatCOP(totalNeto)})
+                    </button>
+                  )}
                 </>
               )}
 
