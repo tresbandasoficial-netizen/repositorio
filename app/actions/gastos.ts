@@ -146,3 +146,48 @@ export async function getVentasDiaAction(): Promise<VentaDia[]> {
     .order('sede_codigo')
   return (data ?? []) as VentaDia[]
 }
+
+// ─── Mensajerías ────────────────────────────────────────────────────────────
+
+export type DeudaMensajeria = {
+  mensajeria: string
+  domicilios_pendientes: number
+  deuda_acumulada: number
+  pagado_acumulado: number
+  saldo_pendiente: number
+  total_movimiento: number
+}
+
+export async function getDeudaMensajeriasAction(): Promise<DeudaMensajeria[]> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('mensajeria_deuda')
+    .select('*')
+    .order('mensajeria')
+  return (data ?? []) as DeudaMensajeria[]
+}
+
+export type DomicilioDeudaPendiente = {
+  id: string
+  numero: string
+  mensajeria: string
+  valor_domicilio: number
+  tipo_cobro: string
+  estado: string
+  pendiente_mensajeria: boolean
+  numero_orden: string
+  cliente_nombre: string
+  cliente_telefono: string
+  creado_en: string
+  deuda_total: number
+  pagado_total: number
+}
+
+export async function getDomiciliosDeudaPendienteAction(): Promise<DomicilioDeudaPendiente[]> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('domicilios_deuda_pendiente')
+    .select('*')
+    .order('creado_en', { ascending: false })
+  return (data ?? []) as DomicilioDeudaPendiente[]
+}

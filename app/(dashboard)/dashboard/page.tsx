@@ -9,6 +9,7 @@ import { EstadoBadge } from '@/components/pedidos/EstadoBadge'
 import { SaldosCuentasWidget } from '@/components/dashboard/SaldosCuentasWidget'
 import { FlujoDiaWidget } from '@/components/dashboard/FlujoDiaWidget'
 import { VentasDiaWidget } from '@/components/dashboard/VentasDiaWidget'
+import { DeudaMensajeriasWidget } from '@/components/dashboard/DeudaMensajeriasWidget'
 import { EstadoPedido } from '@/types'
 import { formatCOP } from '@/lib/utils/format'
 import {
@@ -194,13 +195,14 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        {/* Fase 3: Finanzas, Saldos y Ventas */}
+        {/* Fase 3 + 4: Finanzas, Saldos, Ventas y Mensajerías */}
         <div>
           <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 px-1">Finanzas</p>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-5">
             <SaldosCuentasWidget />
             <FlujoDiaWidget />
             <VentasDiaWidget />
+            <DeudaMensajeriasWidget />
           </div>
         </div>
 
