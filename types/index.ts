@@ -42,7 +42,7 @@ export type EstadoPedido =
 export type MetodoPago =
   // Métodos activos
   | 'efectivo'
-  | 'contra_entrega'
+  | 'recaudo_mensajeria'
   | 'nequi_johan'
   | 'nequi_marisol'
   | 'nequi_luisa'
@@ -57,6 +57,7 @@ export type MetodoPago =
   | 'sistecredito'
   | 'credito'
   // Históricos (registros anteriores)
+  | 'contra_entrega'
   | 'bancolombia'
   | 'nequi'
   | 'daviplata'
@@ -67,7 +68,7 @@ export type MetodoPago =
 // Etiquetas y orden canónico de los métodos de pago (fuente única para selectores y cuadre).
 export const METODO_PAGO_LABELS: Record<MetodoPago, string> = {
   efectivo:              'Efectivo',
-  contra_entrega:        'Contra entrega',
+  recaudo_mensajeria:    'Recaudo Mensajería',
   nequi_johan:           'Nequi Johan',
   nequi_marisol:         'Nequi Marisol',
   nequi_luisa:           'Nequi Luisa Santa Rosa',
@@ -82,6 +83,7 @@ export const METODO_PAGO_LABELS: Record<MetodoPago, string> = {
   sistecredito:          'Sistecrédito',
   credito:               'Crédito',
   // Históricos
+  contra_entrega:        'Contra entrega (antiguo)',
   bancolombia:           'Bancolombia (antiguo)',
   nequi:                 'Nequi (antiguo)',
   daviplata:             'Daviplata',
@@ -93,7 +95,6 @@ export const METODO_PAGO_LABELS: Record<MetodoPago, string> = {
 // Métodos activos que aparecen en los selectores de la app.
 export const METODOS_PAGO: MetodoPago[] = [
   'efectivo',
-  'contra_entrega',
   'nequi_johan', 'nequi_marisol', 'nequi_luisa',
   'bancolombia_ronaldo', 'bancolombia_johan', 'bancolombia_carlos',
   'bancolombia_cristian', 'bancolombia_huber',

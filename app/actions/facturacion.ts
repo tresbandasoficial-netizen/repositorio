@@ -348,23 +348,9 @@ export async function crearFacturaUnificadaAction(
 
   if (error) return { ok: false, error: error.message }
 
-  // Registrar deuda con mensajería para pagos contra entrega
-  const contraEntrega = data.abonos.filter(a => a.monto > 0 && a.metodo === 'contra_entrega' && a.mensajeria)
-  if (contraEntrega.length > 0) {
-    const hoy = new Date().toISOString().slice(0, 10)
-    for (const ab of contraEntrega) {
-      await supabase.from('pagos_mensajeria').insert({
-        mensajeria:     ab.mensajeria as TipoMensajeria,
-        tipo:           'deuda',
-        monto:          ab.monto,
-        fecha:          hoy,
-        factura_id:     facturaId,
-        concepto:       'recaudo',
-        estado:         'pendiente',
-        responsable_id: sesion.id,
-        notas:          `Recaudo contra entrega — Factura`,
-      })
-    }
+  // El recaudo de mensajería (líneas con metodo='recaudo_mensajeria') lo crea el
+  // RPC crear_factura / crear_factura_venta_local de forma atómica.
+  if (data.abonos.some(a => a.monto > 0 && a.metodo === 'recaudo_mensajeria')) {
     revalidatePath('/mensajerias')
   }
 
@@ -413,8 +399,9 @@ export async function registrarPagoFacturaAction(data: RegistrarPagoFacturaInput
 
   if (error) return { ok: false, error: error.message }
 
-  // Registrar deuda con mensajería para contra entrega
-  if (data.metodo === 'contra_entrega' && data.mensajeria) {
+  // Recaudo Mensajería: la mensajería cobró este abono al cliente y se lo debe
+  // a TB. Crea la deuda (concepto='recaudo') para que aparezca en el cuadre.
+  if (data.metodo === 'recaudo_mensajeria' && data.mensajeria) {
     await supabase.from('pagos_mensajeria').insert({
       mensajeria:     data.mensajeria,
       tipo:           'deuda',
@@ -424,7 +411,7 @@ export async function registrarPagoFacturaAction(data: RegistrarPagoFacturaInput
       concepto:       'recaudo',
       estado:         'pendiente',
       responsable_id: sesion.id,
-      notas:          `Recaudo contra entrega — Factura`,
+      notas:          `Recaudo mensajería · Factura`,
     })
     revalidatePath('/mensajerias')
   }

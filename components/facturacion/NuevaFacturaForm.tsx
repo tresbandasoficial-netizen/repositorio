@@ -159,10 +159,13 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
 
   // ── Entrega: cuánto cobra el mensajero ──
   const valorEntregaNum = parseInt(valorEntrega.replace(/\D/g, '')) || 0
-  // El mensajero recauda el saldo pendiente; si el cliente paga el domicilio, suma el domicilio.
-  const cobraMensajero  = tipoEntrega === 'domicilio'
-    ? saldoPendiente + (quienPagaDom === 'cliente' ? valorEntregaNum : 0)
-    : 0
+  // El recaudo es explícito: la suma de las líneas con método "Recaudo Mensajería".
+  const recaudoMensajeria = esCredito ? 0 : abonos
+    .filter(a => a.metodo === 'recaudo_mensajeria')
+    .reduce((s, a) => s + a.monto, 0)
+  // El mensajero cobra el recaudo; si es domicilio y lo paga el cliente, suma el domicilio.
+  const cobraMensajero  = recaudoMensajeria
+    + (tipoEntrega === 'domicilio' && quienPagaDom === 'cliente' ? valorEntregaNum : 0)
 
   function agregarAbono() {
     setAbonos([...abonos, {monto: 0, metodo: 'efectivo', cuenta_id: null}])
@@ -182,9 +185,13 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
     if (!cliente) { setError('Selecciona un cliente'); return }
     if (!hayAlgo) { setError('Agrega al menos un pedido o un producto'); return }
     if (abonoNum > totalNeto) { setError('El pago no puede superar el total'); return }
-    // Validar que cada abono no-efectivo tenga cuenta
-    if (!esCredito && abonos.some(a => a.monto > 0 && a.metodo !== 'efectivo' && !a.cuenta_id)) {
+    // Validar que cada abono con cuenta bancaria tenga cuenta (efectivo y recaudo no la necesitan)
+    if (!esCredito && abonos.some(a => a.monto > 0 && a.metodo !== 'efectivo' && a.metodo !== 'recaudo_mensajeria' && !a.cuenta_id)) {
       setError('Selecciona la cuenta para cada método de pago'); return
+    }
+    // Validar que cada recaudo mensajería tenga mensajería asignada
+    if (!esCredito && abonos.some(a => a.monto > 0 && a.metodo === 'recaudo_mensajeria' && !a.mensajeria)) {
+      setError('Selecciona la mensajería que recauda en cada línea de Recaudo Mensajería'); return
     }
     setError('')
 
@@ -469,6 +476,12 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
                 <span className="text-gray-600">Saldo pendiente</span>
                 <span className={`font-bold ${saldoPendiente > 0 ? 'text-red-600' : 'text-green-600'}`}>{formatCOP(saldoPendiente)}</span>
               </div>
+              {recaudoMensajeria > 0 && (
+                <div className="flex items-center justify-between text-xs pt-2 border-t border-blue-100">
+                  <span className="text-amber-600">🛵 Lo recauda la mensajería</span>
+                  <span className="font-semibold text-amber-600">{formatCOP(recaudoMensajeria)}</span>
+                </div>
+              )}
             </div>
 
             {/* Información de pago */}
@@ -491,52 +504,81 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
                     ) : (
                       <div className="space-y-2">
                         {abonos.map((abono, idx) => (
-                          <div key={idx} className="flex gap-2 items-end">
-                            {/* Monto */}
-                            <div className="flex-1">
-                              <label className="block text-xs text-gray-500 mb-1">Monto</label>
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                value={abono.monto || ''}
-                                onChange={e => actualizarAbono(idx, {monto: parseInt(e.target.value.replace(/\D/g, ''), 10) || 0})}
-                                placeholder="0"
-                                className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              />
-                            </div>
-                            {/* Método/Cuenta */}
-                            <div className="flex-1">
-                              <label className="block text-xs text-gray-500 mb-1">Método</label>
-                              <select
-                                value={abono.cuenta_id || ''}
-                                onChange={e => {
-                                  const cuenta = cuentas.find(c => c.id === e.target.value)
-                                  if (cuenta) {
-                                    actualizarAbono(idx, {
-                                      cuenta_id: cuenta.id,
-                                      metodo: cuenta.metodo_pago as MetodoPago
-                                    })
-                                  } else if (e.target.value === '') {
-                                    actualizarAbono(idx, {
-                                      cuenta_id: null,
-                                      metodo: 'efectivo'
-                                    })
-                                  }
-                                }}
-                                className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          <div key={idx} className="space-y-1.5">
+                            <div className="flex gap-2 items-end">
+                              {/* Monto */}
+                              <div className="flex-1">
+                                <label className="block text-xs text-gray-500 mb-1">Monto</label>
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  value={abono.monto || ''}
+                                  onChange={e => actualizarAbono(idx, {monto: parseInt(e.target.value.replace(/\D/g, ''), 10) || 0})}
+                                  placeholder="0"
+                                  className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                              </div>
+                              {/* Método/Cuenta */}
+                              <div className="flex-1">
+                                <label className="block text-xs text-gray-500 mb-1">Método</label>
+                                <select
+                                  value={abono.metodo === 'recaudo_mensajeria' ? '__recaudo__' : (abono.cuenta_id || '')}
+                                  onChange={e => {
+                                    if (e.target.value === '__recaudo__') {
+                                      actualizarAbono(idx, {
+                                        cuenta_id: null,
+                                        metodo: 'recaudo_mensajeria',
+                                        mensajeria: abono.mensajeria ?? 'servigo',
+                                      })
+                                      return
+                                    }
+                                    const cuenta = cuentas.find(c => c.id === e.target.value)
+                                    if (cuenta) {
+                                      actualizarAbono(idx, {
+                                        cuenta_id: cuenta.id,
+                                        metodo: cuenta.metodo_pago as MetodoPago,
+                                        mensajeria: null,
+                                      })
+                                    } else if (e.target.value === '') {
+                                      actualizarAbono(idx, {
+                                        cuenta_id: null,
+                                        metodo: 'efectivo',
+                                        mensajeria: null,
+                                      })
+                                    }
+                                  }}
+                                  className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                  <option value="">Efectivo</option>
+                                  {cuentas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                                  <option value="__recaudo__">Recaudo Mensajería</option>
+                                </select>
+                              </div>
+                              {/* Eliminar */}
+                              <button
+                                type="button"
+                                onClick={() => eliminarAbono(idx)}
+                                className="text-red-500 hover:text-red-700 px-2 py-1.5 text-sm"
                               >
-                                <option value="">Efectivo</option>
-                                {cuentas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                              </select>
+                                ✕
+                              </button>
                             </div>
-                            {/* Eliminar */}
-                            <button
-                              type="button"
-                              onClick={() => eliminarAbono(idx)}
-                              className="text-red-500 hover:text-red-700 px-2 py-1.5 text-sm"
-                            >
-                              ✕
-                            </button>
+                            {/* Sub-selector de mensajería para recaudo */}
+                            {abono.metodo === 'recaudo_mensajeria' && (
+                              <div className="flex items-center gap-2 pl-1">
+                                <span className="text-xs text-gray-500">🛵 Recauda:</span>
+                                <select
+                                  value={abono.mensajeria ?? 'servigo'}
+                                  onChange={e => actualizarAbono(idx, {mensajeria: e.target.value as TipoMensajeria})}
+                                  className="rounded-lg border border-gray-200 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                  {(Object.keys(MENSAJERIA_LABELS) as TipoMensajeria[]).map(m => (
+                                    <option key={m} value={m}>{MENSAJERIA_LABELS[m]}</option>
+                                  ))}
+                                </select>
+                                <span className="text-xs text-gray-400">la cobra al cliente y se la debe a TB</span>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -651,12 +693,15 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
                     {cobraMensajero > 0 ? (
                       <>
                         <p className="text-sm font-bold text-indigo-800">Cobrar al cliente: {formatCOP(cobraMensajero)}</p>
-                        {quienPagaDom === 'cliente' && valorEntregaNum > 0 && saldoPendiente > 0 && (
-                          <p className="text-xs text-indigo-500 mt-0.5">{formatCOP(saldoPendiente)} factura + {formatCOP(valorEntregaNum)} domicilio</p>
+                        {quienPagaDom === 'cliente' && valorEntregaNum > 0 && recaudoMensajeria > 0 && (
+                          <p className="text-xs text-indigo-500 mt-0.5">{formatCOP(recaudoMensajeria)} recaudo + {formatCOP(valorEntregaNum)} domicilio</p>
                         )}
                       </>
                     ) : (
                       <p className="text-sm font-bold text-green-700">No cobrar · solo entregar</p>
+                    )}
+                    {recaudoMensajeria === 0 && (
+                      <p className="text-[11px] text-indigo-400 mt-1">Agrega un abono con método "Recaudo Mensajería" si el mensajero cobra el pedido al cliente.</p>
                     )}
                   </div>
                 </div>
