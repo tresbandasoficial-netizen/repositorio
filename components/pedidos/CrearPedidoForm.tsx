@@ -6,7 +6,7 @@ import { ParsedPedido, MetodoPago } from '@/types'
 import { formatCOP } from '@/lib/utils/format'
 import { crearPedidoDesdeDataAction } from '@/app/actions/pedidos'
 import { buscarClientesAction, buscarDireccionPorTelefonoAction, ClienteBusqueda } from '@/app/actions/clientes'
-import { buscarArticulosAction, ArticuloBusqueda } from '@/app/actions/articulos'
+import { buscarArticulosAction, crearArticuloAction, ArticuloBusqueda } from '@/app/actions/articulos'
 import { Button } from '@/components/ui/Button'
 import { ImagenProducto } from '@/components/pedidos/ImagenProducto'
 import { uploadPedidoImage } from '@/lib/utils/uploadPedidoImage'
@@ -86,9 +86,12 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
   const [pedidoCreado, setPedidoCreado] = useState<{ id: string; numero: string } | null>(null)
 
   // Per-product search state
-  const [codigoQuery, setCodigoQuery] = useState<string[]>([''])
-  const [searchOpts, setSearchOpts]   = useState<OpcionCatalogo[][]>([[]])
-  const [searchOpen, setSearchOpen]   = useState<boolean[]>([false])
+  const [codigoQuery, setCodigoQuery]   = useState<string[]>([''])
+  const [searchOpts, setSearchOpts]     = useState<OpcionCatalogo[][]>([[]])
+  const [searchOpen, setSearchOpen]     = useState<boolean[]>([false])
+  const [searchDone, setSearchDone]     = useState<boolean[]>([false])
+  const [catalogSaving, setCatalogSaving] = useState<Set<number>>(new Set())
+  const [catalogError, setCatalogError] = useState<(string | null)[]>([null])
   const searchTimersRef = useRef<(ReturnType<typeof setTimeout> | null)[]>([null])
 
   const [isPending, startTransition] = useTransition()
@@ -145,6 +148,8 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
     setCodigoQuery(prev => prev.map((c, i) => i === idx ? val : c))
     patchProducto(idx, { articulo_id: null })
     if (searchTimersRef.current[idx]) clearTimeout(searchTimersRef.current[idx]!)
+    setSearchDone(prev => prev.map((d, i) => i === idx ? false : d))
+    setCatalogError(prev => prev.map((e, i) => i === idx ? null : e))
 
     const q = val.trim()
     if (q.length < 2) {
@@ -157,7 +162,36 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
       const opts = aplanarOpciones(arts)
       setSearchOpts(prev => prev.map((o, i) => i === idx ? opts : o))
       setSearchOpen(prev => prev.map((o, i) => i === idx ? opts.length > 0 : o))
+      setSearchDone(prev => prev.map((d, i) => i === idx ? true : d))
     }, 250)
+  }
+
+  async function crearEnCatalogo(idx: number) {
+    const p = form.productos[idx]
+    const codigo = codigoQuery[idx]?.trim()
+    if (!codigo || !p.descripcion.trim() || !p.marca.trim()) return
+
+    setCatalogSaving(prev => new Set([...prev, idx]))
+    setCatalogError(prev => prev.map((e, i) => i === idx ? null : e))
+
+    const result = await crearArticuloAction({
+      codigo,
+      nombre:      p.descripcion.trim(),
+      marca:       p.marca.trim(),
+      referencia:  '',
+      color:       (p as any).color?.trim() ?? '',
+      sexo:        ((p as any).sexo ?? '') as any,
+      categoria:   ((p as any).categoria ?? '') as any,
+      descripcion: '',
+    })
+
+    setCatalogSaving(prev => { const s = new Set(prev); s.delete(idx); return s })
+    if (result.ok) {
+      patchProducto(idx, { articulo_id: result.articuloId })
+      setSearchDone(prev => prev.map((d, i) => i === idx ? false : d))
+    } else {
+      setCatalogError(prev => prev.map((e, i) => i === idx ? result.error : e))
+    }
   }
 
   function closeSearch(idx: number) {
@@ -185,6 +219,8 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
     setCodigoQuery(prev => [...prev, ''])
     setSearchOpts(prev => [...prev, []])
     setSearchOpen(prev => [...prev, false])
+    setSearchDone(prev => [...prev, false])
+    setCatalogError(prev => [...prev, null])
     searchTimersRef.current = [...searchTimersRef.current, null]
   }
 
@@ -193,6 +229,8 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
     setCodigoQuery(prev => prev.filter((_, j) => j !== idx))
     setSearchOpts(prev => prev.filter((_, j) => j !== idx))
     setSearchOpen(prev => prev.filter((_, j) => j !== idx))
+    setSearchDone(prev => prev.filter((_, j) => j !== idx))
+    setCatalogError(prev => prev.filter((_, j) => j !== idx))
     searchTimersRef.current = searchTimersRef.current.filter((_, j) => j !== idx)
   }
 
@@ -205,6 +243,8 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
     setCodigoQuery(result.data.productos.map(() => ''))
     setSearchOpts(result.data.productos.map(() => []))
     setSearchOpen(result.data.productos.map(() => false))
+    setSearchDone(result.data.productos.map(() => false))
+    setCatalogError(result.data.productos.map(() => null))
     searchTimersRef.current = result.data.productos.map(() => null)
     if (result.data.numero_orden_sugerido) setNumeroOrden(result.data.numero_orden_sugerido)
     if (result.data.cliente_telefono) {
@@ -400,6 +440,29 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
                     className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
+
+                {/* No encontrado en catálogo → guardar */}
+                {searchDone[i] && searchOpts[i]?.length === 0 && (codigoQuery[i]?.trim().length ?? 0) >= 2 && !(p as any).articulo_id && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => crearEnCatalogo(i)}
+                      disabled={catalogSaving.has(i) || !p.descripcion.trim() || !p.marca.trim()}
+                      className="text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg px-2.5 py-1 hover:bg-green-100 disabled:opacity-40 transition-colors"
+                    >
+                      {catalogSaving.has(i) ? 'Guardando...' : '+ Guardar en catálogo'}
+                    </button>
+                    {(!p.descripcion.trim() || !p.marca.trim()) && (
+                      <span className="text-xs text-gray-400">Completa nombre y marca primero</span>
+                    )}
+                    {catalogError[i] && <span className="text-xs text-red-600">{catalogError[i]}</span>}
+                  </div>
+                )}
+
+                {/* Enlazado al catálogo */}
+                {(p as any).articulo_id && (
+                  <p className="text-xs text-green-600 font-medium">✓ Enlazado al catálogo</p>
+                )}
 
                 {/* Fila 2: Marca · Talla · Cant · X */}
                 <div className="grid grid-cols-[2fr_1fr_auto_auto] gap-2 items-center">
