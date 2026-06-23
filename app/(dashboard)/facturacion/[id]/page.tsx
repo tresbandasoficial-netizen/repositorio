@@ -45,6 +45,8 @@ export default async function FacturaDetallePage({
           numeroFactura={factura.numero_factura}
           numerosOrden={factura.pedidos.map(p => p.numero_orden)}
           asesorNombre={factura.asesor_nombre}
+          facturaId={factura.id}
+          saldo={factura.saldo}
         />
       </div>
 

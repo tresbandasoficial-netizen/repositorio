@@ -384,6 +384,25 @@ export async function registrarPagoFacturaAction(data: PagoFacturaInput): Promis
   redirect(`/facturacion/${data.factura_id}`)
 }
 
+// Busca una factura por número para vincularla a un domicilio.
+export async function buscarFacturaPorNumeroAction(numero: string): Promise<{
+  id: string
+  saldo: number
+  cliente_nombre: string
+  numero_factura: string
+} | null> {
+  const num = numero.trim().toUpperCase()
+  if (!num) return null
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('vista_facturas')
+    .select('id, saldo, cliente_nombre, numero_factura')
+    .ilike('numero_factura', num)
+    .maybeSingle()
+  if (!data || (data as any).saldo <= 0) return null
+  return data as { id: string; saldo: number; cliente_nombre: string; numero_factura: string }
+}
+
 // Anular factura: libera los pedidos vinculados. Solo admin.
 export async function anularFacturaAction(facturaId: string): Promise<SimpleResult> {
   const sesion = await getSesion()

@@ -19,6 +19,7 @@ export type DomicilioInput = {
   articulo: string
   numero_pedido: string
   notas: string
+  factura_id?: string | null
 }
 
 export type DomicilioResult =
@@ -54,6 +55,7 @@ export async function crearDomicilioAction(data: DomicilioInput): Promise<Domici
       articulo:            data.articulo.trim() || null,
       numero_pedido:       data.numero_pedido.trim().toUpperCase() || null,
       notas:               data.notas.trim() || null,
+      factura_id:          data.factura_id || null,
     })
     .select('id')
     .single()
@@ -71,6 +73,27 @@ export async function crearDomicilioAction(data: DomicilioInput): Promise<Domici
       responsable_id: user.id,
       notas:          `Domicilio ${data.cliente_nombre.trim()} — ${data.direccion.trim()}`,
     })
+  }
+
+  // Cuando el mensajero cobra el saldo pendiente de una factura
+  if (data.factura_id && data.tipo_cobro === 'mensajero' && valorPedido > 0) {
+    await supabase.from('pagos_factura').insert({
+      factura_id: data.factura_id,
+      monto:      valorPedido,
+      metodo:     'efectivo',
+      asesor_id:  user.id,
+      notas:      `Cobrado por mensajero en domicilio`,
+    })
+    await supabase.from('pagos_mensajeria').insert({
+      mensajeria:     data.mensajeria as TipoMensajeria,
+      tipo:           'deuda',
+      monto:          valorPedido,
+      fecha:          data.fecha,
+      domicilio_id:   dom.id,
+      responsable_id: user.id,
+      notas:          `Saldo de factura cobrado en domicilio a ${data.cliente_nombre.trim()}`,
+    })
+    revalidatePath('/facturacion')
   }
 
   revalidatePath('/domicilios')

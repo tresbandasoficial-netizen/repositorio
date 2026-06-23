@@ -6,6 +6,8 @@ import { parsearDomicilio } from './parsearDomicilio'
 import { buscarClientesAction, buscarDireccionPorTelefonoAction, ClienteBusqueda } from '@/app/actions/clientes'
 
 import { TipoCobroDomicilio, TipoMensajeria } from '@/types'
+import { buscarFacturaPorNumeroAction } from '@/app/actions/facturacion'
+import { formatCOP } from '@/lib/utils/format'
 
 const MENSAJERIA_LABELS: Record<string, string> = {
   exneider: 'Exneider',
@@ -42,6 +44,12 @@ export function NuevoDomicilioPanel({ fecha, onCreado }: Props) {
   const [resultadosBusqueda, setResultadosBusqueda] = useState<ClienteBusqueda[]>([])
   const [resultadosCliente, setResultadosCliente] = useState<ClienteBusqueda[]>([])
   const clienteRef = useRef<HTMLDivElement>(null)
+
+  const [numFactura, setNumFactura] = useState('')
+  const [facturaVinculada, setFacturaVinculada] = useState<{ id: string; saldo: number; cliente_nombre: string; numero_factura: string } | null>(null)
+  const [cobrarSaldo, setCobrarSaldo] = useState(false)
+  const [buscandoFactura, setBuscandoFactura] = useState(false)
+  const [errorFactura, setErrorFactura] = useState<string | null>(null)
 
   useEffect(() => {
     if (busqueda.trim().length < 2) { setResultadosBusqueda([]); return }
@@ -112,6 +120,31 @@ export function NuevoDomicilioPanel({ fecha, onCreado }: Props) {
     setForm(f => ({ ...f, [campo]: valor }))
   }
 
+  async function buscarFactura() {
+    const num = numFactura.trim()
+    if (!num) return
+    setBuscandoFactura(true)
+    setErrorFactura(null)
+    setFacturaVinculada(null)
+    setCobrarSaldo(false)
+    const result = await buscarFacturaPorNumeroAction(num)
+    setBuscandoFactura(false)
+    if (!result) {
+      setErrorFactura(`No se encontró la factura "${num}" o no tiene saldo pendiente`)
+    } else {
+      setFacturaVinculada(result)
+    }
+  }
+
+  function toggleCobrarSaldo(checked: boolean) {
+    setCobrarSaldo(checked)
+    if (checked && facturaVinculada) {
+      setForm(f => ({ ...f, valor_pedido: String(facturaVinculada.saldo) }))
+    } else {
+      setForm(f => ({ ...f, valor_pedido: '' }))
+    }
+  }
+
   function handleGuardar() {
     setError(null)
     if (!form.cliente_nombre.trim()) { setError('El nombre del cliente es obligatorio'); return }
@@ -134,11 +167,15 @@ export function NuevoDomicilioPanel({ fecha, onCreado }: Props) {
         articulo:          form.articulo,
         numero_pedido:     form.numero_pedido,
         notas:             form.notas,
+        factura_id:        cobrarSaldo && facturaVinculada ? facturaVinculada.id : null,
       })
       if (!r.ok) { setError(r.error); return }
       setForm(VACIO)
       setTexto('')
       setModo('auto')
+      setNumFactura('')
+      setFacturaVinculada(null)
+      setCobrarSaldo(false)
       onCreado()
     })
   }
@@ -275,6 +312,53 @@ export function NuevoDomicilioPanel({ fecha, onCreado }: Props) {
                 placeholder="TR0045"
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-gray-900"
               />
+            </div>
+
+            {/* Factura vinculada — para que el mensajero cobre saldo pendiente */}
+            <div className="col-span-2 space-y-2">
+              <label className="block text-xs text-gray-500">Factura vinculada (opcional)</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={numFactura}
+                  onChange={e => { setNumFactura(e.target.value.toUpperCase()); setFacturaVinculada(null); setCobrarSaldo(false); setErrorFactura(null) }}
+                  onKeyDown={e => e.key === 'Enter' && buscarFactura()}
+                  placeholder="F-001"
+                  className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-gray-900"
+                />
+                <button
+                  type="button"
+                  onClick={buscarFactura}
+                  disabled={buscandoFactura || !numFactura.trim()}
+                  className="px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40 transition-colors"
+                >
+                  {buscandoFactura ? '...' : 'Buscar'}
+                </button>
+              </div>
+              {errorFactura && <p className="text-xs text-red-600">{errorFactura}</p>}
+              {facturaVinculada && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-1.5">
+                  <p className="text-xs text-amber-700">
+                    <span className="font-medium">{facturaVinculada.numero_factura}</span> — {facturaVinculada.cliente_nombre} — Saldo: <span className="font-semibold">{formatCOP(facturaVinculada.saldo)}</span>
+                  </p>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={cobrarSaldo}
+                      onChange={e => toggleCobrarSaldo(e.target.checked)}
+                      className="w-4 h-4 accent-amber-600"
+                    />
+                    <span className="text-sm font-medium text-amber-900">
+                      El mensajero cobra el saldo pendiente ({formatCOP(facturaVinculada.saldo)})
+                    </span>
+                  </label>
+                  {cobrarSaldo && (
+                    <p className="text-xs text-amber-700 ml-6">
+                      Se registrará como abono en la factura y como deuda del mensajero con TB.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
             <div className="col-span-2">
               <label className="block text-xs text-gray-500 mb-1">Dirección *</label>
