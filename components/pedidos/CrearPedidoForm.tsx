@@ -51,10 +51,9 @@ function InputField({ label, value, onChange, type = 'text', className = '' }: {
 }
 
 export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFormProps) {
-  const [paso, setPaso] = useState<Paso>('pegar')
+  const [paso, setPaso] = useState<Paso>('preview')
   const [modoCrear, setModoCrear] = useState<'texto' | 'buscar'>('texto')
   const [texto, setTexto] = useState('')
-  const [editableData, setEditableData] = useState<ParsedPedido | null>(null)
   const [errorParser, setErrorParser] = useState<string | null>(null)
   const [numeroOrden, setNumeroOrden] = useState(numeroSugerido)
   const [errorAccion, setErrorAccion] = useState<string | null>(null)
@@ -70,6 +69,22 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
   const [catalogLinks, setCatalogLinks] = useState<(CatalogLink | null)[]>([null])
   const [artSuggs, setArtSuggs] = useState<CatalogLink[][]>([[]])
   const [suggAbierto, setSuggAbierto] = useState<boolean[]>([false])
+
+  const editableDataVacio: ParsedPedido = {
+    formato_version: '1',
+    sede: 'TR',
+    cliente_nombre: '',
+    cliente_doc: null,
+    cliente_telefono: '',
+    productos: [{ marca: '', descripcion: '', talla: null, cantidad: 1, precio_venta: 0, imagen_url: null, codigo: null, color: null, sexo: null, categoria: null }],
+    total: 0,
+    abono: 0,
+    metodo_pago_abono: 'efectivo',
+    tipo_entrega: 'sede',
+    direccion: null,
+    notas: null,
+  }
+  const [editableData, setEditableData] = useState<ParsedPedido>(editableDataVacio)
   const [cuentas, setCuentas] = useState<Cuenta[]>([])
   const [cuentaId, setCuentaId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -160,7 +175,6 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
     const result = parsearPedido(texto)
     if (!result.ok) {
       setErrorParser(result.error)
-      setPaso('error_parser')
       return
     }
     setEditableData(result.data)
@@ -175,28 +189,20 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
     } else if (!numeroOrden.startsWith(result.data.sede)) {
       setNumeroOrden(numeroSugerido)
     }
-    // Buscar última dirección del cliente por teléfono
     if (result.data.cliente_telefono) {
       buscarDireccionPorTelefonoAction(result.data.cliente_telefono).then(dir => {
         setUltimaDireccion(dir)
       })
     }
-    setPaso('preview')
-  }
-
-  function handleReintentar() {
-    setPaso('pegar')
-    setErrorParser(null)
-    setEditableData(null)
   }
 
   function updateField<K extends keyof ParsedPedido>(field: K, value: ParsedPedido[K]) {
-    setEditableData(prev => prev ? { ...prev, [field]: value } : null)
+    setEditableData(prev => ({ ...prev, [field]: value }))
   }
 
   function updateProducto(idx: number, field: string, value: string | number | null) {
     setEditableData(prev => {
-      if (!prev) return null
+      if (!prev) return prev
       const productos = prev.productos.map((p, i) =>
         i === idx ? { ...p, [field]: value } : p
       )
@@ -309,111 +315,12 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
-      {/* Paso 1: pegar texto o buscar cliente */}
-      {(paso === 'pegar' || paso === 'error_parser') && (
-        <Card>
-          <CardContent className="pt-5 space-y-4">
-            {/* Tabs */}
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setModoCrear('texto')}
-                className={`flex-1 py-2 px-3 rounded-lg border text-sm font-medium active:scale-95 ${
-                  modoCrear === 'texto'
-                    ? 'bg-blue-600 border-blue-600 text-white'
-                    : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400'
-                }`}
-              >
-                📋 Pegar resumen
-              </button>
-              <button
-                type="button"
-                onClick={() => setModoCrear('buscar')}
-                className={`flex-1 py-2 px-3 rounded-lg border text-sm font-medium active:scale-95 ${
-                  modoCrear === 'buscar'
-                    ? 'bg-blue-600 border-blue-600 text-white'
-                    : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400'
-                }`}
-              >
-                🔍 Buscar cliente
-              </button>
-            </div>
-
-            {/* Modo: pegar texto */}
-            {modoCrear === 'texto' && (
-              <>
-                <textarea
-                  value={texto}
-                  onChange={(e) => {
-                    setTexto(e.target.value)
-                    if (paso === 'error_parser') setPaso('pegar')
-                  }}
-                  rows={12}
-                  placeholder={`Numero de pedido: TR5946\nNombre: Juan Pérez\nCelular: 3001234567\nPrenda: Nike Air Max 95 negro\nTalla: 40\nPrecio: 350.000\nAbono: 100.000\nMétodo de pago: Bancolombia`}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                />
-                {paso === 'error_parser' && errorParser && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
-                    <p className="font-medium mb-1">Error en el formato del resumen:</p>
-                    <p className="font-mono text-xs">{errorParser}</p>
-                  </div>
-                )}
-                <Button onClick={handleParsear} disabled={texto.trim().length < 10}>
-                  Validar resumen →
-                </Button>
-              </>
-            )}
-
-            {/* Modo: buscar cliente */}
-            {modoCrear === 'buscar' && (
-              <div>
-                <p className="text-xs text-gray-500 mb-3">Busca el cliente y luego llena los productos y número de pedido.</p>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={busquedaDirecta}
-                    onChange={e => setBusquedaDirecta(e.target.value)}
-                    onBlur={() => setTimeout(() => setResultadosDirecta([]), 150)}
-                    placeholder="Nombre o celular del cliente..."
-                    autoFocus
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  {resultadosDirecta.length > 0 && (
-                    <ul className="absolute z-20 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-60 overflow-auto">
-                      {resultadosDirecta.map(c => (
-                        <li
-                          key={c.id}
-                          onMouseDown={() => crearDesdeCliente(c)}
-                          className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-0"
-                        >
-                          <p className="text-sm font-medium text-gray-900">{c.nombre}</p>
-                          <p className="text-xs text-gray-400">{c.telefono_normalizado}</p>
-                          {c.ultima_direccion && (
-                            <p className="text-xs text-blue-500 truncate mt-0.5">📍 {c.ultima_direccion}</p>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Paso 2: preview editable */}
-      {paso === 'preview' && editableData && (
-        <>
+    <div className="flex gap-6 items-start">
+      {/* Columna izquierda: Formulario principal */}
+      <div className="flex-1 min-w-0 space-y-4">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-gray-900">Confirma y edita antes de guardar</h2>
-                <button onClick={handleReintentar} className="text-xs text-gray-400 hover:text-gray-600">
-                  ← Volver al texto
-                </button>
-              </div>
+              <h2 className="text-sm font-semibold text-gray-900">Nuevo pedido</h2>
             </CardHeader>
             <CardContent className="space-y-5">
 
@@ -670,7 +577,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
                         {editableData.productos.length > 1 && (
                           <button type="button"
                             onClick={() => {
-                              setEditableData(prev => prev ? { ...prev, productos: prev.productos.filter((_, j) => j !== i) } : null)
+                              setEditableData(prev => ({ ...prev, productos: prev.productos.filter((_, j) => j !== i) }))
                               setCodigos(prev => prev.filter((_, j) => j !== i))
                               setCatalogLinks(prev => prev.filter((_, j) => j !== i))
                               setArtSuggs(prev => prev.filter((_, j) => j !== i))
@@ -686,7 +593,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
                 </div>
                 <button type="button"
                   onClick={() => {
-                    setEditableData(prev => prev ? { ...prev, productos: [...prev.productos, { marca: '', descripcion: '', talla: null, cantidad: 1, precio_venta: 0, codigo: '', color: '', sexo: '', categoria: '' }] } : null)
+                    setEditableData(prev => ({ ...prev, productos: [...prev.productos, { marca: '', descripcion: '', talla: null, cantidad: 1, precio_venta: 0, codigo: '', color: '', sexo: '', categoria: '' }] }))
                     setCodigos(prev => [...prev, ''])
                     setCatalogLinks(prev => [...prev, null])
                     setArtSuggs(prev => [...prev, []])
@@ -784,8 +691,36 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
           <Button onClick={handleConfirmar} disabled={isPending} size="md" className="w-full">
             {isPending ? 'Guardando pedido...' : `Confirmar y crear pedido ${numeroOrden}`}
           </Button>
-        </>
-      )}
+      </div>
+
+      {/* Columna derecha: Pegar resumen de texto */}
+      <div className="w-80 shrink-0">
+        <Card>
+          <CardContent className="pt-4 space-y-3">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Pegar resumen</p>
+            <p className="text-xs text-gray-400">Pega el texto del pedido y el formulario se llenará automáticamente.</p>
+            <textarea
+              value={texto}
+              onChange={(e) => {
+                setTexto(e.target.value)
+                setErrorParser(null)
+              }}
+              rows={14}
+              placeholder={`Numero de pedido: TR5946\nNombre: Juan Pérez\nCelular: 3001234567\nPrenda: Nike Air Max 95 negro\nTalla: 40\nPrecio: 350.000\nAbono: 100.000\nMétodo de pago: Bancolombia`}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+            />
+            {errorParser && (
+              <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700">
+                <p className="font-medium mb-0.5">Error en el formato:</p>
+                <p className="font-mono">{errorParser}</p>
+              </div>
+            )}
+            <Button onClick={handleParsear} disabled={texto.trim().length < 10} className="w-full">
+              Llenar formulario →
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }
