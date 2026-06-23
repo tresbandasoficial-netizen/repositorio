@@ -7,7 +7,7 @@ import { getSesion } from '@/lib/auth/acceso'
 import { getSiguienteNumeroOrden } from '@/lib/queries/pedidos'
 import { ItemVenta } from '@/app/actions/ventas'
 import { normalizarTelefono } from '@/lib/utils/phone'
-import { MetodoPago, PagoFacturaInput } from '@/types'
+import { MetodoPago, PagoFacturaInput, TipoMensajeria } from '@/types'
 
 export type PedidoFacturable = {
   id: string
@@ -330,6 +330,23 @@ export async function crearFacturaUnificadaAction(
 
   if (error) return { ok: false, error: error.message }
 
+  // Registrar deuda con mensajería para pagos contra entrega
+  const contraEntrega = data.abonos.filter(a => a.monto > 0 && a.metodo === 'contra_entrega' && a.mensajeria)
+  if (contraEntrega.length > 0) {
+    const hoy = new Date().toISOString().slice(0, 10)
+    for (const ab of contraEntrega) {
+      await supabase.from('pagos_mensajeria').insert({
+        mensajeria:     ab.mensajeria as TipoMensajeria,
+        tipo:           'deuda',
+        monto:          ab.monto,
+        fecha:          hoy,
+        responsable_id: sesion.id,
+        notas:          `Contra entrega — Factura`,
+      })
+    }
+    revalidatePath('/mensajerias')
+  }
+
   revalidatePath('/facturacion')
   return { ok: true as const, facturaId }
 }
@@ -340,7 +357,8 @@ export type RegistrarPagoFacturaInput = {
   metodo: MetodoPago
   fecha: string
   notas: string
-  cuenta_id: string
+  cuenta_id: string | null
+  mensajeria?: TipoMensajeria | null
 }
 
 export type SimpleResult = { ok: true } | { ok: false; error: string }
@@ -373,6 +391,19 @@ export async function registrarPagoFacturaAction(data: RegistrarPagoFacturaInput
   })
 
   if (error) return { ok: false, error: error.message }
+
+  // Registrar deuda con mensajería para contra entrega
+  if (data.metodo === 'contra_entrega' && data.mensajeria) {
+    await supabase.from('pagos_mensajeria').insert({
+      mensajeria:     data.mensajeria,
+      tipo:           'deuda',
+      monto:          data.monto,
+      fecha:          data.fecha,
+      responsable_id: sesion.id,
+      notas:          `Contra entrega — Factura`,
+    })
+    revalidatePath('/mensajerias')
+  }
 
   revalidatePath(`/facturacion/${data.factura_id}`)
   redirect(`/facturacion/${data.factura_id}`)

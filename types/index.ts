@@ -42,6 +42,7 @@ export type EstadoPedido =
 export type MetodoPago =
   // Métodos activos
   | 'efectivo'
+  | 'contra_entrega'
   | 'nequi_johan'
   | 'nequi_marisol'
   | 'nequi_luisa'
@@ -66,6 +67,7 @@ export type MetodoPago =
 // Etiquetas y orden canónico de los métodos de pago (fuente única para selectores y cuadre).
 export const METODO_PAGO_LABELS: Record<MetodoPago, string> = {
   efectivo:              'Efectivo',
+  contra_entrega:        'Contra entrega',
   nequi_johan:           'Nequi Johan',
   nequi_marisol:         'Nequi Marisol',
   nequi_luisa:           'Nequi Luisa Santa Rosa',
@@ -91,6 +93,7 @@ export const METODO_PAGO_LABELS: Record<MetodoPago, string> = {
 // Métodos activos que aparecen en los selectores de la app.
 export const METODOS_PAGO: MetodoPago[] = [
   'efectivo',
+  'contra_entrega',
   'nequi_johan', 'nequi_marisol', 'nequi_luisa',
   'bancolombia_ronaldo', 'bancolombia_johan', 'bancolombia_carlos',
   'bancolombia_cristian', 'bancolombia_huber',
@@ -505,6 +508,7 @@ export type PagoFacturaInput = {
   monto: number
   metodo: MetodoPago
   cuenta_id: string | null
+  mensajeria?: TipoMensajeria | null
 }
 
 export type PagoFactura = {
