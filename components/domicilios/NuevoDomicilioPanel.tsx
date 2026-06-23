@@ -8,9 +8,8 @@ import { buscarClientesAction, buscarDireccionPorTelefonoAction, ClienteBusqueda
 import { TipoCobroDomicilio, TipoMensajeria } from '@/types'
 
 const MENSAJERIA_LABELS: Record<string, string> = {
-  exneider:    'Exneider',
-  movilenvios: 'Movilenvíos',
-  otro:        'Otra',
+  exneider: 'Exneider',
+  servigo:  'Servigo',
 }
 
 interface Props {
@@ -303,7 +302,7 @@ export function NuevoDomicilioPanel({ fecha, onCreado }: Props) {
           <div>
             <label className="block text-xs text-gray-500 mb-1">Mensajería *</label>
             <div className="flex gap-2 flex-wrap">
-              {(['exneider', 'movilenvios', 'otro'] as const).map(m => (
+              {(['exneider', 'servigo'] as const).map(m => (
                 <button
                   key={m}
                   type="button"

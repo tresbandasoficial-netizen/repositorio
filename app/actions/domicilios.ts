@@ -9,7 +9,7 @@ export type DomicilioInput = {
   cliente_nombre: string
   cliente_telefono: string
   direccion: string
-  mensajeria: 'exneider' | 'movilenvios' | 'otro'
+  mensajeria: TipoMensajeria
   valor_pedido: number
   valor_domicilio: number
   cobrar_al_cliente: boolean

@@ -8,7 +8,7 @@ import type { ResumenMensajeria, DomicilioPendienteMensajeria } from '@/app/acti
 
 function hoy() { return new Date().toISOString().slice(0, 10) }
 
-const MENSAJERIAS: TipoMensajeria[] = ['exneider', 'movilenvios', 'otro']
+const MENSAJERIAS: TipoMensajeria[] = ['exneider', 'servigo']
 
 interface Props {
   resumenes: ResumenMensajeria[]
