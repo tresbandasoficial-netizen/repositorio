@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { CategoriaGasto, Gasto } from '@/types'
 
+// ─── Gasto CRUD ───────────────────────────────────────────────────────────────
+
 export type GastoInput = {
   fecha: string
   valor: number
@@ -85,4 +87,106 @@ export async function eliminarGastoAction(id: string): Promise<EliminarGastoResu
   revalidatePath('/gastos')
   revalidatePath('/flujo-caja')
   return { ok: true }
+}
+
+// ─── Financial dashboard views ────────────────────────────────────────────────
+
+export type SaldoCuenta = {
+  id: string
+  nombre: string
+  tipo: string
+  sede_codigo: string
+  total_ingresos: number
+  total_egresos: number
+  saldo_neto: number
+}
+
+export type FlujoDia = {
+  fecha: string
+  cuenta_id: string
+  cuenta_nombre: string
+  tipo: string
+  ingresos_hoy: number
+  egresos_hoy: number
+  neto_hoy: number
+}
+
+export type VentaDia = {
+  fecha: string
+  sede_id: string
+  sede_codigo: string
+  sede_nombre: string
+  num_facturas: number
+  total_facturado: number
+  total_recaudado: number
+  saldo_pendiente: number
+}
+
+export type DeudaMensajeria = {
+  mensajeria: string
+  domicilios_pendientes: number
+  deuda_acumulada: number
+  pagado_acumulado: number
+  saldo_pendiente: number
+  total_movimiento: number
+}
+
+export type DomicilioDeudaPendiente = {
+  id: string
+  mensajeria: string
+  valor_domicilio: number
+  tipo_cobro: string
+  estado: string
+  pendiente_mensajeria: boolean
+  numero_pedido: string
+  numero_orden: string
+  cliente_nombre: string
+  telefono_normalizado: string
+  creado_en: string
+  deuda_total: number
+  pagado_total: number
+}
+
+export async function getSaldosCuentasAction(): Promise<SaldoCuenta[]> {
+  const supabase = await createClient()
+  const { data } = await supabase.from('saldos_cuentas').select('*')
+  return (data ?? []) as SaldoCuenta[]
+}
+
+export async function getFlujoDiaAction(): Promise<FlujoDia[]> {
+  const supabase = await createClient()
+  const hoy = new Date().toISOString().slice(0, 10)
+  const { data } = await supabase
+    .from('flujo_caja_diario')
+    .select('*')
+    .eq('fecha', hoy)
+  return (data ?? []) as FlujoDia[]
+}
+
+export async function getVentasDiaAction(): Promise<VentaDia[]> {
+  const supabase = await createClient()
+  const hoy = new Date().toISOString().slice(0, 10)
+  const { data } = await supabase
+    .from('ventas_diarias_sede')
+    .select('*')
+    .eq('fecha', hoy)
+  return (data ?? []) as VentaDia[]
+}
+
+export async function getDeudaMensajeriasAction(): Promise<DeudaMensajeria[]> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('mensajeria_deuda')
+    .select('*')
+    .order('saldo_pendiente', { ascending: false })
+  return (data ?? []) as DeudaMensajeria[]
+}
+
+export async function getDomiciliosDeudaPendienteAction(): Promise<DomicilioDeudaPendiente[]> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('domicilios_deuda_pendiente')
+    .select('*')
+    .order('creado_en', { ascending: false })
+  return (data ?? []) as DomicilioDeudaPendiente[]
 }
