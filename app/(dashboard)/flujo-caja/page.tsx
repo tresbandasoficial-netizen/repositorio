@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { getSesion } from '@/lib/auth/acceso'
 import { createClient } from '@/lib/supabase/server'
 import { formatCOP } from '@/lib/utils/format'
@@ -12,38 +13,57 @@ function hoy() { return new Date().toISOString().slice(0, 10) }
 export default async function FlujoCajaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ desde?: string; hasta?: string }>
+  searchParams: Promise<{ desde?: string; hasta?: string; sede?: string }>
 }) {
   const sesion = await getSesion()
   if (sesion.rol !== 'admin') redirect('/dashboard')
 
-  const sp    = await searchParams
-  const desde = sp.desde || inicioMes()
-  const hasta = sp.hasta || hoy()
+  const sp     = await searchParams
+  const desde  = sp.desde || inicioMes()
+  const hasta  = sp.hasta || hoy()
+  const sedeId = sp.sede  || null
 
   const supabase = await createClient()
 
-  // Ingresos por cuenta en el período
+  // Sedes disponibles para los tabs
+  const { data: sedes } = await supabase
+    .from('sedes')
+    .select('id, codigo, nombre')
+    .order('codigo')
+
+  // Ingresos — pagos directos (join pedidos para obtener sede)
   const { data: ingresosRaw } = await supabase
     .from('pagos')
-    .select('cuenta_id, monto, metodo')
+    .select('cuenta_id, monto, metodo, pedidos(sede_id)')
     .gte('fecha', desde)
     .lte('fecha', hasta)
     .neq('metodo', 'credito')
 
-  const { data: ingresosFactura } = await supabase
+  // Ingresos — pagos de facturas (join facturas para obtener sede)
+  const { data: ingresosFacturaRaw } = await supabase
     .from('pagos_factura')
-    .select('cuenta_id, monto, metodo')
+    .select('cuenta_id, monto, metodo, facturas(sede_id)')
     .gte('fecha', desde)
     .lte('fecha', hasta)
     .neq('metodo', 'credito')
 
-  // Egresos por cuenta en el período
-  const { data: egresosRaw } = await supabase
+  // Egresos — gastos (sede_id directo)
+  let qGastos = supabase
     .from('gastos')
     .select('cuenta_id, valor')
     .gte('fecha', desde)
     .lte('fecha', hasta)
+  if (sedeId) qGastos = qGastos.eq('sede_id', sedeId)
+  const { data: egresosRaw } = await qGastos
+
+  // Filtrar ingresos por sede (client-side sobre el join)
+  const ingresos = sedeId
+    ? (ingresosRaw ?? []).filter(p => (p.pedidos as any)?.sede_id === sedeId)
+    : (ingresosRaw ?? [])
+
+  const ingresosFactura = sedeId
+    ? (ingresosFacturaRaw ?? []).filter(p => (p.facturas as any)?.sede_id === sedeId)
+    : (ingresosFacturaRaw ?? [])
 
   // Cuentas activas
   const { data: cuentas } = await supabase
@@ -54,7 +74,7 @@ export default async function FlujoCajaPage({
 
   // Agrupar por cuenta
   const ingresosPorCuenta = new Map<string, number>()
-  for (const p of [...(ingresosRaw ?? []), ...(ingresosFactura ?? [])]) {
+  for (const p of [...ingresos, ...ingresosFactura]) {
     if (!p.cuenta_id) continue
     ingresosPorCuenta.set(p.cuenta_id, (ingresosPorCuenta.get(p.cuenta_id) ?? 0) + p.monto)
   }
@@ -78,15 +98,47 @@ export default async function FlujoCajaPage({
   const totalEgresos  = filas.reduce((s, f) => s + f.egresos, 0)
   const totalNeto     = totalIngresos - totalEgresos
 
+  const sedeActual = sedes?.find(s => s.id === sedeId)
+
+  function tabUrl(sid: string | null) {
+    const base = `/flujo-caja?desde=${desde}&hasta=${hasta}`
+    return sid ? `${base}&sede=${sid}` : base
+  }
+
   return (
     <div className="p-6 space-y-6">
       <div>
         <h1 className="text-xl font-bold text-gray-900">Flujo de caja</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Ingresos y egresos por cuenta en el período</p>
+        <p className="text-sm text-gray-500 mt-0.5">
+          {sedeActual ? `Sede ${sedeActual.codigo} — ${sedeActual.nombre}` : 'Todas las sedes combinadas'}
+        </p>
+      </div>
+
+      {/* Tabs de sede */}
+      <div className="flex gap-2 flex-wrap">
+        <Link href={tabUrl(null)}
+          className={`px-4 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+            !sedeId
+              ? 'bg-gray-900 text-white border-gray-900'
+              : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+          }`}>
+          Todas
+        </Link>
+        {(sedes ?? []).map(s => (
+          <Link key={s.id} href={tabUrl(s.id)}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+              sedeId === s.id
+                ? 'bg-gray-900 text-white border-gray-900'
+                : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+            }`}>
+            {s.codigo}
+          </Link>
+        ))}
       </div>
 
       {/* Filtros de fecha */}
       <form method="GET" className="flex flex-wrap gap-3 bg-white rounded-xl border border-gray-200 p-4">
+        {sedeId && <input type="hidden" name="sede" value={sedeId} />}
         <div className="flex items-center gap-2">
           <label className="text-xs text-gray-500">Desde</label>
           <input name="desde" type="date" defaultValue={desde}
@@ -121,7 +173,7 @@ export default async function FlujoCajaPage({
 
       {filas.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
-          No hay movimientos con cuenta asignada en este período.
+          No hay movimientos con cuenta asignada en este período{sedeActual ? ` para sede ${sedeActual.codigo}` : ''}.
           <p className="text-xs mt-2">Los pagos nuevos incluirán la cuenta automáticamente.</p>
         </div>
       ) : (
