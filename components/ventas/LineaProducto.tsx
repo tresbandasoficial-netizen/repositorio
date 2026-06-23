@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { buscarArticulosAction, ArticuloBusqueda } from '@/app/actions/articulos'
+import { buscarArticulosAction, crearArticuloAction, ArticuloBusqueda } from '@/app/actions/articulos'
 import { ItemVenta } from '@/app/actions/ventas'
 
 export type Linea = ItemVenta & { stock?: number | null; key: number; codigo?: string }
@@ -55,12 +55,16 @@ export function LineaProducto({
   onChange: (patch: Partial<Linea>) => void
   onRemove?: () => void
 }) {
-  const [opciones, setOpciones] = useState<OpcionCatalogo[]>([])
-  const [abierto, setAbierto] = useState(false)
+  const [opciones, setOpciones]         = useState<OpcionCatalogo[]>([])
+  const [abierto, setAbierto]           = useState(false)
+  const [noEncontrado, setNoEncontrado] = useState(false)
+  const [guardando, setGuardando]       = useState(false)
+  const [errorGuardar, setErrorGuardar] = useState<string | null>(null)
 
-  // El campo Código ES el buscador: cuando cambia y no hay artículo vinculado, busca
   useEffect(() => {
-    if (linea.articulo_id) { setOpciones([]); setAbierto(false); return }
+    if (linea.articulo_id) { setOpciones([]); setAbierto(false); setNoEncontrado(false); return }
+    setNoEncontrado(false)
+    setErrorGuardar(null)
     const q = linea.codigo?.trim() ?? ''
     const t = setTimeout(async () => {
       if (q.length < 2) { setOpciones([]); setAbierto(false); return }
@@ -68,6 +72,7 @@ export function LineaProducto({
       const ops = aplanarOpciones(articulos, sedeId)
       setOpciones(ops)
       setAbierto(ops.length > 0)
+      setNoEncontrado(ops.length === 0)
     }, 250)
     return () => clearTimeout(t)
   }, [linea.codigo, sedeId, linea.articulo_id])
@@ -84,7 +89,34 @@ export function LineaProducto({
       stock:       item.stock,
     })
     setAbierto(false)
+    setNoEncontrado(false)
   }
+
+  async function guardarEnCatalogo() {
+    const codigo = linea.codigo?.trim()
+    if (!codigo || !linea.descripcion.trim() || !linea.marca.trim()) return
+    setGuardando(true)
+    setErrorGuardar(null)
+    const result = await crearArticuloAction({
+      codigo,
+      nombre:      linea.descripcion.trim(),
+      marca:       linea.marca.trim(),
+      referencia:  '',
+      color:       linea.color?.trim() ?? '',
+      sexo:        (linea.sexo ?? '') as any,
+      categoria:   (linea.categoria ?? '') as any,
+      descripcion: '',
+    })
+    setGuardando(false)
+    if (result.ok) {
+      onChange({ articulo_id: result.articuloId })
+      setNoEncontrado(false)
+    } else {
+      setErrorGuardar(result.error)
+    }
+  }
+
+  const puedeGuardar = !!(linea.descripcion.trim() && linea.marca.trim())
 
   return (
     <div className="border border-gray-100 rounded-lg p-3 space-y-2">
@@ -134,6 +166,27 @@ export function LineaProducto({
           className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
+
+      {/* No encontrado → botón Guardar */}
+      {noEncontrado && !linea.articulo_id && (
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={guardarEnCatalogo}
+            disabled={guardando || !puedeGuardar}
+            className="text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg px-2.5 py-1 hover:bg-green-100 disabled:opacity-40 transition-colors"
+          >
+            {guardando ? 'Guardando...' : 'Guardar'}
+          </button>
+          {!puedeGuardar && <span className="text-xs text-gray-400">Completa nombre y marca primero</span>}
+          {errorGuardar && <span className="text-xs text-red-600">{errorGuardar}</span>}
+        </div>
+      )}
+
+      {/* Enlazado */}
+      {linea.articulo_id && (
+        <p className="text-xs text-green-600 font-medium">✓ Enlazado al catálogo</p>
+      )}
 
       {/* Fila 2: Marca · Talla · Cant · X */}
       <div className="grid grid-cols-[2fr_1fr_auto_auto] gap-2 items-center">

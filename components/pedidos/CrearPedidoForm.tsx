@@ -450,7 +450,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
                       disabled={catalogSaving.has(i) || !p.descripcion.trim() || !p.marca.trim()}
                       className="text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg px-2.5 py-1 hover:bg-green-100 disabled:opacity-40 transition-colors"
                     >
-                      {catalogSaving.has(i) ? 'Guardando...' : '+ Guardar en catálogo'}
+                      {catalogSaving.has(i) ? 'Guardando...' : 'Guardar'}
                     </button>
                     {(!p.descripcion.trim() || !p.marca.trim()) && (
                       <span className="text-xs text-gray-400">Completa nombre y marca primero</span>
