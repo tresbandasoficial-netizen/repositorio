@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { buscarArticulosAction, crearArticuloAction, ArticuloBusqueda } from '@/app/actions/articulos'
+import { buscarArticulosAction, guardarArticuloCatalogoAction, ArticuloBusqueda } from '@/app/actions/articulos'
 import { ItemVenta } from '@/app/actions/ventas'
 
 export type Linea = ItemVenta & { stock?: number | null; key: number; codigo?: string }
@@ -97,7 +97,7 @@ export function LineaProducto({
     if (!codigo || !linea.descripcion.trim() || !linea.marca.trim()) return
     setGuardando(true)
     setErrorGuardar(null)
-    const result = await crearArticuloAction({
+    const result = await guardarArticuloCatalogoAction({
       codigo,
       nombre:      linea.descripcion.trim(),
       marca:       linea.marca.trim(),

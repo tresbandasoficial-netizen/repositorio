@@ -6,7 +6,7 @@ import { ParsedPedido, MetodoPago, Cuenta, TipoCuenta } from '@/types'
 import { formatCOP } from '@/lib/utils/format'
 import { crearPedidoDesdeDataAction } from '@/app/actions/pedidos'
 import { buscarClientesAction, buscarDireccionPorTelefonoAction, ClienteBusqueda } from '@/app/actions/clientes'
-import { buscarArticulosAction, crearArticuloAction, ArticuloBusqueda } from '@/app/actions/articulos'
+import { buscarArticulosAction, guardarArticuloCatalogoAction, ArticuloBusqueda } from '@/app/actions/articulos'
 import { Button } from '@/components/ui/Button'
 import { ImagenProducto } from '@/components/pedidos/ImagenProducto'
 import { uploadPedidoImage } from '@/lib/utils/uploadPedidoImage'
@@ -176,7 +176,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, cuentas 
     setCatalogSaving(prev => new Set([...prev, idx]))
     setCatalogError(prev => prev.map((e, i) => i === idx ? null : e))
 
-    const result = await crearArticuloAction({
+    const result = await guardarArticuloCatalogoAction({
       codigo,
       nombre:      p.descripcion.trim(),
       marca:       p.marca.trim(),
