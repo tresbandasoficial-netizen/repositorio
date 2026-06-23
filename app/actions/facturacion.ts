@@ -193,6 +193,8 @@ export type CrearFacturaUnificadaInput = {
   abono_inicial: number
   metodo_abono: MetodoPago
   cuenta_id: string | null
+  envio: number
+  descuento: number
   notas: string
 }
 
@@ -307,6 +309,8 @@ export async function crearFacturaUnificadaAction(
       p_abono_inicial:     data.abono_inicial || 0,
       p_metodo_abono:      data.metodo_abono || null,
       p_cuenta_id:         data.cuenta_id || null,
+      p_envio:             data.envio || 0,
+      p_descuento:         data.descuento || 0,
       p_notas:             data.notas.trim() || null,
     })
     facturaId = fId
@@ -323,6 +327,8 @@ export async function crearFacturaUnificadaAction(
       p_abono_inicial:     data.abono_inicial || 0,
       p_metodo_abono:      data.metodo_abono || null,
       p_cuenta_id:         data.cuenta_id || null,
+      p_envio:             data.envio || 0,
+      p_descuento:         data.descuento || 0,
     })
     facturaId = fId
     error = err
