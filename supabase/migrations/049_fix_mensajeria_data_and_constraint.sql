@@ -1,4 +1,8 @@
--- Corregir constraint de mensajería: debe ser 'servigo', no 'movilenvios'
+-- Primero, actualizar cualquier fila con 'movilenvios' o 'otro' a 'servigo'
+UPDATE domicilios SET mensajeria = 'servigo' WHERE mensajeria IN ('movilenvios', 'otro');
+UPDATE pagos_mensajeria SET mensajeria = 'servigo' WHERE mensajeria IN ('movilenvios', 'otro');
+
+-- Ahora podemos cambiar la constraint sin violarla
 ALTER TABLE domicilios
   DROP CONSTRAINT IF EXISTS domicilios_mensajeria_check,
   ADD CONSTRAINT domicilios_mensajeria_check
