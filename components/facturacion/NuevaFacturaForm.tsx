@@ -9,7 +9,7 @@ import {
 } from '@/app/actions/facturacion'
 import { getCuentasAction } from '@/app/actions/cuentas'
 import { formatCOP, formatFecha } from '@/lib/utils/format'
-import { MetodoPago, PagoFacturaInput } from '@/types'
+import { MetodoPago, PagoFacturaInput, TipoEntrega, QuienPagaEntrega, TipoMensajeria, MENSAJERIA_LABELS } from '@/types'
 import type { Cuenta } from '@/types'
 import { Linea, nuevaLinea, LineaProducto } from '@/components/ventas/LineaProducto'
 
@@ -73,6 +73,13 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
   const [descuento, setDescuento] = useState('')
   const [mensajeria, setMensajeria] = useState('')
   const [notas, setNotas] = useState('')
+
+  // Tipo de entrega (domicilio / envío)
+  const [tipoEntrega, setTipoEntrega] = useState<TipoEntrega>('tienda')
+  const [mensajeriaEntrega, setMensajeriaEntrega] = useState<TipoMensajeria>('servigo')
+  const [valorEntrega, setValorEntrega] = useState('')
+  const [quienPagaDom, setQuienPagaDom] = useState<'cliente' | 'tb'>('cliente')
+  const [quienPagaEnvio, setQuienPagaEnvio] = useState<QuienPagaEntrega>('cliente')
 
   const [error, setError] = useState('')
   const [pending, start] = useTransition()
@@ -150,6 +157,13 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
   const abonoNum        = esCredito ? 0 : abonos.reduce((sum, a) => sum + a.monto, 0)
   const saldoPendiente  = Math.max(0, totalNeto - abonoNum)
 
+  // ── Entrega: cuánto cobra el mensajero ──
+  const valorEntregaNum = parseInt(valorEntrega.replace(/\D/g, '')) || 0
+  // El mensajero recauda el saldo pendiente; si el cliente paga el domicilio, suma el domicilio.
+  const cobraMensajero  = tipoEntrega === 'domicilio'
+    ? saldoPendiente + (quienPagaDom === 'cliente' ? valorEntregaNum : 0)
+    : 0
+
   function agregarAbono() {
     setAbonos([...abonos, {monto: 0, metodo: 'efectivo', cuenta_id: null}])
   }
@@ -193,6 +207,12 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
         envio: envioNum,
         descuento: descuentoNum,
         notas: notasFinal,
+        tipo_entrega: tipoEntrega,
+        mensajeria_entrega: tipoEntrega === 'domicilio' ? mensajeriaEntrega : null,
+        valor_entrega: tipoEntrega === 'tienda' ? 0 : valorEntregaNum,
+        quien_paga_entrega: tipoEntrega === 'domicilio' ? quienPagaDom
+          : tipoEntrega === 'envio' ? quienPagaEnvio : null,
+        direccion_entrega: tipoEntrega === 'domicilio' ? (cliente.ultima_direccion ?? null) : null,
       })
       if (!r.ok) { setError(r.error); return }
       router.push(`/facturacion/${r.facturaId}`)
@@ -570,6 +590,108 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
 
               {esCredito && (
                 <p className="text-xs text-amber-600">🕓 A crédito: el cliente queda debiendo el total. No entra dinero ahora; queda en cartera.</p>
+              )}
+            </div>
+
+            {/* Tipo de entrega */}
+            <div className="bg-white rounded-xl border border-gray-100 p-5 space-y-4">
+              <p className="text-sm font-bold text-gray-900">Tipo de entrega</p>
+
+              <div className="grid grid-cols-3 gap-1.5 p-1 bg-gray-100 rounded-lg">
+                {([
+                  ['tienda', 'Tienda'],
+                  ['domicilio', 'Domicilio'],
+                  ['envio', 'Envío'],
+                ] as [TipoEntrega, string][]).map(([val, label]) => (
+                  <button key={val} type="button" onClick={() => setTipoEntrega(val)}
+                    className={`rounded-md py-2 text-xs font-medium transition-colors ${
+                      tipoEntrega === val ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-200'
+                    }`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {/* DOMICILIO */}
+              {tipoEntrega === 'domicilio' && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Mensajería</label>
+                      <select value={mensajeriaEntrega} onChange={e => setMensajeriaEntrega(e.target.value as TipoMensajeria)} className={inputCls}>
+                        {(Object.keys(MENSAJERIA_LABELS) as TipoMensajeria[]).map(m => (
+                          <option key={m} value={m}>{MENSAJERIA_LABELS[m]}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Valor domicilio</label>
+                      <input type="text" inputMode="numeric" value={valorEntrega}
+                        onChange={e => setValorEntrega(e.target.value.replace(/\D/g, ''))}
+                        placeholder="0" className={inputCls} />
+                    </div>
+                  </div>
+                  <div>
+                    <p className="block text-xs text-gray-500 mb-1.5">¿Quién paga el domicilio?</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {([['cliente', 'Cliente'], ['tb', 'Tres Bandas']] as ['cliente' | 'tb', string][]).map(([val, label]) => (
+                        <button key={val} type="button" onClick={() => setQuienPagaDom(val)}
+                          className={`rounded-lg border-2 py-2 text-sm font-medium transition-colors ${
+                            quienPagaDom === val ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                          }`}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Instrucción al mensajero (en vivo) */}
+                  <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3">
+                    <p className="text-[11px] font-semibold text-indigo-400 uppercase mb-1">💬 Instrucción al mensajero</p>
+                    {cobraMensajero > 0 ? (
+                      <>
+                        <p className="text-sm font-bold text-indigo-800">Cobrar al cliente: {formatCOP(cobraMensajero)}</p>
+                        {quienPagaDom === 'cliente' && valorEntregaNum > 0 && saldoPendiente > 0 && (
+                          <p className="text-xs text-indigo-500 mt-0.5">{formatCOP(saldoPendiente)} factura + {formatCOP(valorEntregaNum)} domicilio</p>
+                        )}
+                      </>
+                    ) : (
+                      <p className="text-sm font-bold text-green-700">No cobrar · solo entregar</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ENVÍO */}
+              {tipoEntrega === 'envio' && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Valor envío</label>
+                    <input type="text" inputMode="numeric" value={valorEntrega}
+                      onChange={e => setValorEntrega(e.target.value.replace(/\D/g, ''))}
+                      placeholder="0" className={inputCls} />
+                  </div>
+                  <div>
+                    <p className="block text-xs text-gray-500 mb-1.5">¿Quién paga el envío?</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {([
+                        ['cliente', 'Cliente'],
+                        ['contra_entrega', 'Contra entrega'],
+                        ['tb', 'Tres Bandas'],
+                      ] as [QuienPagaEntrega, string][]).map(([val, label]) => (
+                        <button key={val} type="button" onClick={() => setQuienPagaEnvio(val)}
+                          className={`rounded-lg border-2 px-1 py-2 text-xs font-medium transition-colors ${
+                            quienPagaEnvio === val ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                          }`}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {quienPagaEnvio === 'contra_entrega' && (
+                    <p className="text-xs text-gray-500">El cliente paga el envío al recibir. Solo queda el registro operativo.</p>
+                  )}
+                </div>
               )}
             </div>
 

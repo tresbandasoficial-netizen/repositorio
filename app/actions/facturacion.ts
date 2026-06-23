@@ -7,7 +7,7 @@ import { getSesion } from '@/lib/auth/acceso'
 import { getSiguienteNumeroOrden } from '@/lib/queries/pedidos'
 import { ItemVenta } from '@/app/actions/ventas'
 import { normalizarTelefono } from '@/lib/utils/phone'
-import { MetodoPago, PagoFacturaInput, TipoMensajeria } from '@/types'
+import { MetodoPago, PagoFacturaInput, TipoMensajeria, TipoEntrega, QuienPagaEntrega } from '@/types'
 
 export type PedidoFacturable = {
   id: string
@@ -163,6 +163,10 @@ export async function crearFacturaAction(data: CrearFacturaInput): Promise<Crear
     return { ok: false, error: 'Algún pedido ya está facturado' }
   }
 
+  const abonos = data.abono_inicial > 0
+    ? [{ monto: data.abono_inicial, metodo: data.metodo_abono || 'efectivo', cuenta_id: data.cuenta_id || null }]
+    : null
+
   const { data: facturaId, error } = await supabase.rpc('crear_factura', {
     p_cliente_id:        data.cliente_id,
     p_sede_id:           sedeId,
@@ -170,9 +174,7 @@ export async function crearFacturaAction(data: CrearFacturaInput): Promise<Crear
     p_fecha_vencimiento: data.fecha_vencimiento,
     p_pedido_ids:        data.pedido_ids,
     p_notas:             data.notas.trim() || null,
-    p_abono_inicial:     data.abono_inicial || 0,
-    p_metodo_abono:      data.metodo_abono || null,
-    p_cuenta_id:         data.cuenta_id || null,
+    p_abonos:            abonos,
   })
 
   if (error) return { ok: false, error: error.message }
@@ -194,6 +196,12 @@ export type CrearFacturaUnificadaInput = {
   envio: number
   descuento: number
   notas: string
+  // Entrega integrada (domicilio / envío)
+  tipo_entrega: TipoEntrega
+  mensajeria_entrega: TipoMensajeria | null
+  valor_entrega: number
+  quien_paga_entrega: QuienPagaEntrega | null
+  direccion_entrega: string | null
 }
 
 export async function crearFacturaUnificadaAction(
@@ -308,6 +316,11 @@ export async function crearFacturaUnificadaAction(
       p_envio:             data.envio || 0,
       p_descuento:         data.descuento || 0,
       p_notas:             data.notas.trim() || null,
+      p_tipo_entrega:       data.tipo_entrega || 'tienda',
+      p_mensajeria_entrega: data.mensajeria_entrega,
+      p_valor_entrega:      data.valor_entrega || 0,
+      p_quien_paga_entrega: data.quien_paga_entrega,
+      p_direccion_entrega:  data.direccion_entrega,
     })
     facturaId = fId
     error = err
@@ -323,6 +336,11 @@ export async function crearFacturaUnificadaAction(
       p_abonos:            data.abonos.length > 0 ? data.abonos : null,
       p_envio:             data.envio || 0,
       p_descuento:         data.descuento || 0,
+      p_tipo_entrega:       data.tipo_entrega || 'tienda',
+      p_mensajeria_entrega: data.mensajeria_entrega,
+      p_valor_entrega:      data.valor_entrega || 0,
+      p_quien_paga_entrega: data.quien_paga_entrega,
+      p_direccion_entrega:  data.direccion_entrega,
     })
     facturaId = fId
     error = err

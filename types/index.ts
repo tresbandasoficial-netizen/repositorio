@@ -437,6 +437,10 @@ export const MENSAJERIA_LABELS: Record<TipoMensajeria, string> = {
   servigo:  'Servigo',
 }
 
+// ─── Tipo de entrega al facturar ──────────────────────────────────────────────
+export type TipoEntrega = 'tienda' | 'domicilio' | 'envio'
+export type QuienPagaEntrega = 'cliente' | 'tb' | 'contra_entrega'
+
 export type PagoMensajeria = {
   id: string
   mensajeria: TipoMensajeria
