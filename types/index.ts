@@ -501,6 +501,12 @@ export type FacturaRow = {
   creado_en: string
 }
 
+export type PagoFacturaInput = {
+  monto: number
+  metodo: MetodoPago
+  cuenta_id: string | null
+}
+
 export type PagoFactura = {
   id: string
   factura_id: string

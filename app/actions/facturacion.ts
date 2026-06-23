@@ -7,7 +7,7 @@ import { getSesion } from '@/lib/auth/acceso'
 import { getSiguienteNumeroOrden } from '@/lib/queries/pedidos'
 import { ItemVenta } from '@/app/actions/ventas'
 import { normalizarTelefono } from '@/lib/utils/phone'
-import { MetodoPago } from '@/types'
+import { MetodoPago, PagoFacturaInput } from '@/types'
 
 export type PedidoFacturable = {
   id: string
@@ -187,12 +187,10 @@ export type CrearFacturaUnificadaInput = {
   cliente_id: string | null
   cliente_nuevo?: { nombre: string; telefono: string; cedula: string } | null
   sede_id: string
-  pedido_ids: string[]              // pedidos existentes del cliente a incluir
-  productos_nuevos: ItemVenta[]     // productos sacados del inventario, se venden ahora
+  pedido_ids: string[]
+  productos_nuevos: ItemVenta[]
   fecha_vencimiento: string
-  abono_inicial: number
-  metodo_abono: MetodoPago
-  cuenta_id: string | null
+  abonos: PagoFacturaInput[]
   envio: number
   descuento: number
   notas: string
@@ -306,9 +304,7 @@ export async function crearFacturaUnificadaAction(
         sexo: it.sexo,
         categoria: it.categoria,
       })),
-      p_abono_inicial:     data.abono_inicial || 0,
-      p_metodo_abono:      data.metodo_abono || null,
-      p_cuenta_id:         data.cuenta_id || null,
+      p_abonos:            data.abonos.length > 0 ? data.abonos : null,
       p_envio:             data.envio || 0,
       p_descuento:         data.descuento || 0,
       p_notas:             data.notas.trim() || null,
@@ -324,9 +320,7 @@ export async function crearFacturaUnificadaAction(
       p_fecha_vencimiento: data.fecha_vencimiento,
       p_pedido_ids:        pedidoIds,
       p_notas:             data.notas.trim() || null,
-      p_abono_inicial:     data.abono_inicial || 0,
-      p_metodo_abono:      data.metodo_abono || null,
-      p_cuenta_id:         data.cuenta_id || null,
+      p_abonos:            data.abonos.length > 0 ? data.abonos : null,
       p_envio:             data.envio || 0,
       p_descuento:         data.descuento || 0,
     })
@@ -340,7 +334,7 @@ export async function crearFacturaUnificadaAction(
   return { ok: true as const, facturaId }
 }
 
-export type PagoFacturaInput = {
+export type RegistrarPagoFacturaInput = {
   factura_id: string
   monto: number
   metodo: MetodoPago
@@ -351,7 +345,7 @@ export type PagoFacturaInput = {
 
 export type SimpleResult = { ok: true } | { ok: false; error: string }
 
-export async function registrarPagoFacturaAction(data: PagoFacturaInput): Promise<SimpleResult> {
+export async function registrarPagoFacturaAction(data: RegistrarPagoFacturaInput): Promise<SimpleResult> {
   const sesion = await getSesion()
   const supabase = await createClient()
 
