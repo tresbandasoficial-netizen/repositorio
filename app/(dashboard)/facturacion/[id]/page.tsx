@@ -44,6 +44,7 @@ export default async function FacturaDetallePage({
           clienteTelefono={factura.cliente_telefono}
           numeroFactura={factura.numero_factura}
           numerosOrden={factura.pedidos.map(p => p.numero_orden)}
+          asesorNombre={factura.asesor_nombre}
         />
       </div>
 

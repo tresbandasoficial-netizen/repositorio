@@ -4,24 +4,32 @@ import { useState, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { crearDomicilioAction } from '@/app/actions/domicilios'
 import { buscarDireccionPorTelefonoAction } from '@/app/actions/clientes'
+import { buildMensajeMensajeria, buildLineaExcel } from './parsearDomicilio'
 
 const inputCls = 'w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
+
+const WA_NUMEROS: Record<string, string> = {
+  exneider: '573166579773',
+  servigo:  '573232501670',
+}
 
 interface Props {
   clienteNombre: string
   clienteTelefono: string
-  numeroFactura: string     // ej. FAC-TR-2026-0001
-  numerosOrden: string[]    // ej. ['TR5946', 'TR5947']
+  numeroFactura: string
+  numerosOrden: string[]
+  asesorNombre?: string
 }
 
 export function DomicilioDesdeFacturaPanel({
-  clienteNombre, clienteTelefono, numeroFactura, numerosOrden,
+  clienteNombre, clienteTelefono, numeroFactura, numerosOrden, asesorNombre = '',
 }: Props) {
   const router = useRouter()
   const [abierto, setAbierto] = useState(false)
   const [isPending, start] = useTransition()
   const [ok, setOk] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [copiado, setCopiado] = useState<'msg' | 'excel' | null>(null)
 
   const hoy = new Date().toISOString().slice(0, 10)
   const articuloSugerido = numerosOrden.join(' + ')
@@ -89,13 +97,73 @@ export function DomicilioDesdeFacturaPanel({
   }
 
   if (ok) {
+    const hoy = new Date().toISOString().slice(0, 10)
+    const dataDomi = {
+      fecha:             hoy,
+      mensajeria:        form.mensajeria as 'exneider' | 'servigo',
+      cliente_nombre:    clienteNombre,
+      cliente_telefono:  clienteTelefono || null,
+      direccion:         form.direccion,
+      valor_pedido:      parseInt(form.valor_pedido) || 0,
+      valor_domicilio:   parseInt(form.valor_domicilio) || 0,
+      cobrar_al_cliente: form.cobrar_al_cliente,
+      metodo_pago:       form.metodo_pago,
+      articulo:          form.articulo || null,
+      numero_pedido:     numeroFactura,
+      notas:             form.notas || null,
+      asesor_nombre:     asesorNombre,
+    }
+
+    function copiar(tipo: 'msg' | 'excel') {
+      const texto = tipo === 'msg'
+        ? buildMensajeMensajeria(dataDomi as any)
+        : buildLineaExcel(dataDomi as any)
+      navigator.clipboard.writeText(texto).then(() => {
+        setCopiado(tipo)
+        setTimeout(() => setCopiado(null), 2000)
+      })
+    }
+
+    function abrirWhatsApp() {
+      const msg = encodeURIComponent(buildMensajeMensajeria(dataDomi as any))
+      const num = WA_NUMEROS[form.mensajeria] ?? ''
+      if (num) window.open(`https://wa.me/${num}?text=${msg}`, '_blank')
+    }
+
     return (
-      <div className="bg-green-50 border border-green-200 rounded-xl p-5">
-        <p className="text-sm font-semibold text-green-800">Domicilio creado</p>
-        <p className="text-sm text-green-700 mt-0.5">
-          Quedó registrado para {clienteNombre}.{' '}
-          <a href="/domicilios" className="underline font-medium">Ver domicilios →</a>
-        </p>
+      <div className="bg-green-50 border border-green-200 rounded-xl p-5 space-y-3">
+        <div>
+          <p className="text-sm font-semibold text-green-800">✓ Domicilio creado</p>
+          <p className="text-xs text-green-600 mt-0.5">
+            Registrado para {clienteNombre}.{' '}
+            <a href="/domicilios" className="underline font-medium">Ver domicilios →</a>
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {form.mensajeria && (
+            <button
+              type="button"
+              onClick={abrirWhatsApp}
+              className="text-xs px-3 py-1.5 rounded-lg bg-green-500 hover:bg-green-600 text-white font-medium transition-colors"
+            >
+              WA {form.mensajeria.charAt(0).toUpperCase() + form.mensajeria.slice(1)}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => copiar('msg')}
+            className="text-xs px-3 py-1.5 rounded-lg border border-green-300 bg-white hover:bg-green-50 text-green-800 font-medium transition-colors"
+          >
+            {copiado === 'msg' ? '✓ Copiado' : '📋 Copiar mensaje domicilio'}
+          </button>
+          <button
+            type="button"
+            onClick={() => copiar('excel')}
+            className="text-xs px-3 py-1.5 rounded-lg border border-green-300 bg-white hover:bg-green-50 text-green-800 font-medium transition-colors"
+          >
+            {copiado === 'excel' ? '✓ Copiado' : 'Línea Excel'}
+          </button>
+        </div>
       </div>
     )
   }
