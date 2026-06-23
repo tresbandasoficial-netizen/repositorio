@@ -153,13 +153,12 @@ export async function getSaldosCuentasAction(): Promise<SaldoCuenta[]> {
   return (data ?? []) as SaldoCuenta[]
 }
 
-export async function getFlujoDiaAction(): Promise<FlujoDia[]> {
+export async function getFlujoDiaAction(sedeId?: string): Promise<FlujoDia[]> {
   const supabase = await createClient()
   const hoy = new Date().toISOString().slice(0, 10)
-  const { data } = await supabase
-    .from('flujo_caja_diario')
-    .select('*')
-    .eq('fecha', hoy)
+  let q = supabase.from('flujo_caja_diario').select('*').eq('fecha', hoy)
+  if (sedeId) q = q.eq('sede_id', sedeId)
+  const { data } = await q
   return (data ?? []) as FlujoDia[]
 }
 

@@ -3,6 +3,7 @@ import { getSesion } from '@/lib/auth/acceso'
 import { createClient } from '@/lib/supabase/server'
 import { formatCOP } from '@/lib/utils/format'
 import { CuadreFiltrosBar } from '@/components/cuadre/CuadreFiltrosBar'
+import { CerrarCajaButton } from '@/components/dashboard/CerrarCajaButton'
 
 function hoy() { return new Date().toISOString().slice(0, 10) }
 
@@ -22,7 +23,12 @@ export default async function CuadrePage({
   ])
 
   const supabase = await createClient()
-  const { data: sedes } = await supabase.from('sedes').select('codigo, nombre').order('codigo')
+  const { data: sedes } = await supabase.from('sedes').select('id, codigo, nombre').order('codigo')
+
+  const fechaHoy = new Date().toISOString().slice(0, 10)
+  const cierreQuery = supabase.from('cierres_caja').select('id').eq('fecha', fechaHoy)
+  if (sesion.sede_id) cierreQuery.eq('sede_id', sesion.sede_id)
+  const { data: cierreHoy } = sesion.rol === 'admin' ? { data: null } : await cierreQuery.maybeSingle()
 
   const params = new URLSearchParams({ desde, hasta, ...(sede ? { sede } : {}) })
 
@@ -33,19 +39,25 @@ export default async function CuadrePage({
           <h1 className="text-xl font-bold text-gray-900">Cuadre de caja</h1>
           <p className="text-sm text-gray-500 mt-0.5">Recaudo por cuenta, sede y asesor</p>
         </div>
-        <a
-          href={`/api/export/cuadre?${params.toString()}`}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 text-white px-4 py-2 text-sm font-medium hover:bg-green-700"
-        >
-          ⬇ Exportar Excel
-        </a>
+        <div className="flex items-center gap-3">
+          <CerrarCajaButton
+            yaCerrada={!!cierreHoy}
+            sedes={sesion.rol === 'admin' ? (sedes ?? []).map(s => ({ id: s.id, nombre: s.nombre, codigo: s.codigo })) : undefined}
+          />
+          <a
+            href={`/api/export/cuadre?${params.toString()}`}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 text-white px-4 py-2 text-sm font-medium hover:bg-green-700"
+          >
+            ⬇ Exportar Excel
+          </a>
+        </div>
       </div>
 
       <CuadreFiltrosBar
         desde={desde}
         hasta={hasta}
         sede={sede}
-        sedes={(sedes ?? []) as { codigo: string; nombre: string }[]}
+        sedes={(sedes ?? []) as { id: string; codigo: string; nombre: string }[]}
         esAdmin={sesion.rol === 'admin'}
       />
 

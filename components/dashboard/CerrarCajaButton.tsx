@@ -7,8 +7,18 @@ import { formatCOP } from '@/lib/utils/format'
 import type { FlujoDia } from '@/app/actions/gastos'
 import type { DetalleCuenta } from '@/app/actions/cierres'
 
-export function CerrarCajaButton({ yaCerrada = false }: { yaCerrada?: boolean }) {
+type Sede = { id: string; nombre: string; codigo: string }
+
+export function CerrarCajaButton({
+  yaCerrada = false,
+  sedes,
+}: {
+  yaCerrada?: boolean
+  sedes?: Sede[]
+}) {
+  const esAdmin = sedes && sedes.length > 0
   const [open, setOpen] = useState(false)
+  const [sedeId, setSedeId] = useState('')
   const [notas, setNotas] = useState('')
   const [flujo, setFlujo] = useState<FlujoDia[]>([])
   const [loading, setLoading] = useState(false)
@@ -16,21 +26,39 @@ export function CerrarCajaButton({ yaCerrada = false }: { yaCerrada?: boolean })
   const [pending, start] = useTransition()
   const [cerrado, setCerrado] = useState(yaCerrada)
 
-  async function abrirModal() {
+  async function cargarFlujo(sid?: string) {
     setLoading(true)
-    const data = await getFlujoDiaAction()
+    setFlujo([])
+    const data = await getFlujoDiaAction(sid)
     setFlujo(data.filter(f => f.ingresos_hoy > 0 || f.egresos_hoy > 0))
     setLoading(false)
+  }
+
+  async function abrirModal() {
     setOpen(true)
+    if (!esAdmin) {
+      // asesor: cargar flujo de su sede directamente
+      await cargarFlujo()
+    }
+  }
+
+  async function handleSedeChange(id: string) {
+    setSedeId(id)
+    setError('')
+    if (id) await cargarFlujo(id)
+    else setFlujo([])
   }
 
   function cerrar() {
     setOpen(false)
     setNotas('')
     setError('')
+    setSedeId('')
+    setFlujo([])
   }
 
   function handleConfirmar() {
+    if (esAdmin && !sedeId) { setError('Selecciona una sede'); return }
     const detalle: DetalleCuenta[] = flujo.map(f => ({
       cuenta_id:     f.cuenta_id,
       cuenta_nombre: f.cuenta_nombre,
@@ -44,10 +72,18 @@ export function CerrarCajaButton({ yaCerrada = false }: { yaCerrada?: boolean })
     const neto           = total_ingresos - total_egresos
 
     start(async () => {
-      const r = await cerrarCajaAction({ notas, detalle_cuentas: detalle, total_ingresos, total_egresos, neto })
+      const r = await cerrarCajaAction({
+        notas,
+        detalle_cuentas: detalle,
+        total_ingresos,
+        total_egresos,
+        neto,
+        sede_id: sedeId || undefined,
+      })
       if (!r.ok) { setError(r.error); return }
-      setCerrado(true)
+      setCerrado(!esAdmin) // solo marcar cerrado automáticamente para asesores
       cerrar()
+      if (esAdmin) setError('') // mostrar éxito via otro mecanismo si se necesita
     })
   }
 
@@ -71,19 +107,40 @@ export function CerrarCajaButton({ yaCerrada = false }: { yaCerrada?: boolean })
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+
             {/* Header */}
             <div className="px-6 py-4 border-b border-gray-100">
               <h2 className="text-base font-bold text-gray-900">Cierre de Caja</h2>
-              <p className="text-xs text-gray-500 mt-0.5">{new Date().toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {new Date().toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+              </p>
             </div>
 
-            {/* Resumen del día */}
             <div className="px-6 py-4 space-y-3">
+
+              {/* Selector de sede (solo admin) */}
+              {esAdmin && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Sede *</label>
+                  <select
+                    value={sedeId}
+                    onChange={e => handleSedeChange(e.target.value)}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">— Selecciona una sede —</option>
+                    {sedes!.map(s => (
+                      <option key={s.id} value={s.id}>{s.nombre} ({s.codigo})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Movimientos del día */}
               {loading ? (
                 <p className="text-sm text-gray-500 text-center py-4">Cargando movimientos...</p>
-              ) : flujo.length === 0 ? (
+              ) : (!esAdmin || sedeId) && flujo.length === 0 && !loading ? (
                 <p className="text-sm text-gray-500 text-center py-4">Sin movimientos registrados hoy</p>
-              ) : (
+              ) : flujo.length > 0 ? (
                 <>
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Movimientos del día</p>
                   <div className="space-y-2">
@@ -92,7 +149,7 @@ export function CerrarCajaButton({ yaCerrada = false }: { yaCerrada?: boolean })
                         <span className="text-gray-700">{f.cuenta_nombre}</span>
                         <div className="text-right">
                           {f.ingresos_hoy > 0 && <span className="text-green-600 text-xs mr-2">+{formatCOP(f.ingresos_hoy)}</span>}
-                          {f.egresos_hoy > 0 && <span className="text-red-600 text-xs mr-2">-{formatCOP(f.egresos_hoy)}</span>}
+                          {f.egresos_hoy > 0  && <span className="text-red-600 text-xs mr-2">-{formatCOP(f.egresos_hoy)}</span>}
                           <span className={`font-semibold ${f.neto_hoy >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
                             {formatCOP(f.neto_hoy)}
                           </span>
@@ -100,8 +157,6 @@ export function CerrarCajaButton({ yaCerrada = false }: { yaCerrada?: boolean })
                       </div>
                     ))}
                   </div>
-
-                  {/* Totales */}
                   <div className="border-t border-gray-100 pt-3 space-y-1">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">Total ingresos</span>
@@ -117,21 +172,23 @@ export function CerrarCajaButton({ yaCerrada = false }: { yaCerrada?: boolean })
                     </div>
                   </div>
                 </>
-              )}
+              ) : null}
 
               {/* Notas */}
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">
-                  Observaciones <span className="font-normal text-gray-400">(diferencias, faltantes, sobrantes...)</span>
-                </label>
-                <textarea
-                  value={notas}
-                  onChange={e => setNotas(e.target.value)}
-                  rows={3}
-                  placeholder="Ej: Caja física $348.000, diferencia $2.000..."
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                />
-              </div>
+              {(!esAdmin || sedeId) && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                    Observaciones <span className="font-normal text-gray-400">(diferencias, faltantes, sobrantes...)</span>
+                  </label>
+                  <textarea
+                    value={notas}
+                    onChange={e => setNotas(e.target.value)}
+                    rows={3}
+                    placeholder="Ej: Caja física $348.000, diferencia $2.000..."
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                  />
+                </div>
+              )}
 
               {error && <p className="text-sm text-red-600">{error}</p>}
             </div>
@@ -146,7 +203,7 @@ export function CerrarCajaButton({ yaCerrada = false }: { yaCerrada?: boolean })
               </button>
               <button
                 onClick={handleConfirmar}
-                disabled={pending || loading}
+                disabled={pending || loading || (esAdmin && !sedeId)}
                 className="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold disabled:opacity-50 transition-colors"
               >
                 {pending ? 'Cerrando...' : '🔒 Confirmar cierre'}

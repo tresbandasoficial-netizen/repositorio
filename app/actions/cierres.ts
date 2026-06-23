@@ -37,9 +37,11 @@ export async function cerrarCajaAction(data: {
   total_ingresos: number
   total_egresos: number
   neto: number
+  sede_id?: string
 }): Promise<CierreCajaResult> {
   const sesion = await getSesion()
-  if (!sesion.sede_id) return { ok: false, error: 'Tu usuario no tiene sede asignada. Pide al administrador que te asigne una sede.' }
+  const sedeId = data.sede_id || sesion.sede_id
+  if (!sedeId) return { ok: false, error: 'Selecciona una sede para cerrar caja.' }
 
   const supabase = await createClient()
 
@@ -48,7 +50,7 @@ export async function cerrarCajaAction(data: {
   const { data: existente } = await supabase
     .from('cierres_caja')
     .select('id')
-    .eq('sede_id', sesion.sede_id)
+    .eq('sede_id', sedeId)
     .eq('fecha', hoy)
     .maybeSingle()
 
@@ -58,7 +60,7 @@ export async function cerrarCajaAction(data: {
     .from('cierres_caja')
     .insert({
       fecha:            hoy,
-      sede_id:          sesion.sede_id,
+      sede_id:          sedeId,
       usuario_id:       sesion.id,
       notas:            data.notas.trim() || null,
       detalle_cuentas:  data.detalle_cuentas,
