@@ -77,12 +77,14 @@ export async function crearDomicilioAction(data: DomicilioInput): Promise<Domici
 
   // Cuando el mensajero cobra el saldo pendiente de una factura
   if (data.factura_id && data.tipo_cobro === 'mensajero' && valorPedido > 0) {
-    await supabase.from('pagos_factura').insert({
-      factura_id: data.factura_id,
-      monto:      valorPedido,
-      metodo:     'efectivo',
-      asesor_id:  user.id,
-      notas:      `Cobrado por mensajero en domicilio`,
+    await supabase.rpc('registrar_pago_factura', {
+      p_factura_id: data.factura_id,
+      p_monto:      valorPedido,
+      p_metodo:     'efectivo',
+      p_fecha:      data.fecha,
+      p_asesor_id:  user.id,
+      p_cuenta_id:  null,
+      p_notas:      `Cobrado por mensajero en domicilio`,
     })
     await supabase.from('pagos_mensajeria').insert({
       mensajeria:     data.mensajeria as TipoMensajeria,
