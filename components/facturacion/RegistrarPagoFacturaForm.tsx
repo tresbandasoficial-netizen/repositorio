@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import { registrarPagoFacturaAction } from '@/app/actions/facturacion'
+import { getCuentasAction } from '@/app/actions/cuentas'
 import { Button } from '@/components/ui/Button'
 import { formatCOP } from '@/lib/utils/format'
 import { MetodoPago, METODOS_PAGO, METODO_PAGO_LABELS } from '@/types'
+import type { Cuenta } from '@/types'
 
 const METODOS: { value: MetodoPago; label: string }[] =
   METODOS_PAGO.map(v => ({ value: v, label: METODO_PAGO_LABELS[v] }))
@@ -14,16 +16,26 @@ export function RegistrarPagoFacturaForm({ facturaId, saldo }: { facturaId: stri
   const [metodo, setMetodo] = useState<MetodoPago>('efectivo')
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10))
   const [notas, setNotas] = useState('')
+  const [cuentas, setCuentas] = useState<Cuenta[]>([])
+  const [cuentaId, setCuentaId] = useState('')
   const [error, setError] = useState('')
   const [pending, start] = useTransition()
+
+  useEffect(() => {
+    getCuentasAction().then(lista => {
+      setCuentas(lista)
+      if (lista.length > 0) setCuentaId(lista[0].id)
+    })
+  }, [])
 
   function submit() {
     const m = parseInt(monto.replace(/\D/g, ''), 10)
     if (!m || m <= 0) { setError('Ingresa un monto válido'); return }
     if (m > saldo) { setError(`El monto supera el saldo (${formatCOP(saldo)})`); return }
+    if (!cuentaId) { setError('Selecciona la cuenta destino'); return }
     setError('')
     start(async () => {
-      const r = await registrarPagoFacturaAction({ factura_id: facturaId, monto: m, metodo, fecha, notas })
+      const r = await registrarPagoFacturaAction({ factura_id: facturaId, monto: m, metodo, fecha, notas, cuenta_id: cuentaId })
       if (!r.ok) setError(r.error)
     })
   }
@@ -43,13 +55,26 @@ export function RegistrarPagoFacturaForm({ facturaId, saldo }: { facturaId: stri
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Método</label>
+          <label className="block text-xs font-medium text-gray-500 mb-1">Método *</label>
           <select
             value={metodo}
             onChange={e => setMetodo(e.target.value as MetodoPago)}
             className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             {METODOS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">Cuenta destino *</label>
+          <select
+            value={cuentaId}
+            onChange={e => setCuentaId(e.target.value)}
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {cuentas.length === 0 && <option value="">Cargando...</option>}
+            {cuentas.map(c => (
+              <option key={c.id} value={c.id}>{c.nombre}</option>
+            ))}
           </select>
         </div>
         <div>
@@ -61,7 +86,7 @@ export function RegistrarPagoFacturaForm({ facturaId, saldo }: { facturaId: stri
             className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
-        <div>
+        <div className="sm:col-span-2">
           <label className="block text-xs font-medium text-gray-500 mb-1">Nota (opcional)</label>
           <input
             type="text"

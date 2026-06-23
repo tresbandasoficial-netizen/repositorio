@@ -6,9 +6,11 @@ import { buscarClientesAction, ClienteBusqueda } from '@/app/actions/clientes'
 import {
   getPedidosFacturablesAction, crearFacturaUnificadaAction, buscarPedidoFacturableAction, PedidoFacturable,
 } from '@/app/actions/facturacion'
+import { getCuentasAction } from '@/app/actions/cuentas'
 import { Button } from '@/components/ui/Button'
 import { formatCOP, formatFecha } from '@/lib/utils/format'
 import { MetodoPago, METODOS_PAGO, METODO_PAGO_LABELS } from '@/types'
+import type { Cuenta } from '@/types'
 import { Linea, nuevaLinea, LineaProducto } from '@/components/ventas/LineaProducto'
 
 type SedeOpcion = { id: string; codigo: string; nombre: string }
@@ -61,10 +63,19 @@ export function NuevaFacturaForm({ sedes }: { sedes: SedeOpcion[] }) {
   const [vence, setVence] = useState(venceDefault())
   const [abono, setAbono] = useState('')
   const [metodo, setMetodo] = useState<MetodoPago>('efectivo')
+  const [cuentas, setCuentas] = useState<Cuenta[]>([])
+  const [cuentaId, setCuentaId] = useState('')
   const [notas, setNotas] = useState('')
 
   const [error, setError] = useState('')
   const [pending, start] = useTransition()
+
+  useEffect(() => {
+    getCuentasAction().then(lista => {
+      setCuentas(lista)
+      if (lista.length > 0) setCuentaId(lista[0].id)
+    })
+  }, [])
 
   useEffect(() => {
     if (cliente) return
@@ -145,6 +156,7 @@ export function NuevaFacturaForm({ sedes }: { sedes: SedeOpcion[] }) {
         fecha_vencimiento: vence,
         abono_inicial: ab,
         metodo_abono: metodo,
+        cuenta_id: ab > 0 ? cuentaId || null : null,
         notas,
       })
       if (!r.ok) { setError(r.error); return }
@@ -309,6 +321,16 @@ export function NuevaFacturaForm({ sedes }: { sedes: SedeOpcion[] }) {
                         Pagó todo
                       </button>
                     </div>
+                  </div>
+                )}
+                {metodo !== 'credito' && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Cuenta destino *</label>
+                    <select value={cuentaId} onChange={e => setCuentaId(e.target.value)}
+                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      {cuentas.length === 0 && <option value="">Cargando...</option>}
+                      {cuentas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                    </select>
                   </div>
                 )}
                 <div>

@@ -119,6 +119,7 @@ export type CrearFacturaInput = {
   notas: string
   abono_inicial: number
   metodo_abono: MetodoPago
+  cuenta_id?: string | null
 }
 
 export type CrearFacturaResult =
@@ -171,6 +172,7 @@ export async function crearFacturaAction(data: CrearFacturaInput): Promise<Crear
     p_notas:             data.notas.trim() || null,
     p_abono_inicial:     data.abono_inicial || 0,
     p_metodo_abono:      data.metodo_abono || null,
+    p_cuenta_id:         data.cuenta_id || null,
   })
 
   if (error) return { ok: false, error: error.message }
@@ -190,6 +192,7 @@ export type CrearFacturaUnificadaInput = {
   fecha_vencimiento: string
   abono_inicial: number
   metodo_abono: MetodoPago
+  cuenta_id: string | null
   notas: string
 }
 
@@ -303,6 +306,7 @@ export async function crearFacturaUnificadaAction(
       })),
       p_abono_inicial:     data.abono_inicial || 0,
       p_metodo_abono:      data.metodo_abono || null,
+      p_cuenta_id:         data.cuenta_id || null,
       p_notas:             data.notas.trim() || null,
     })
     facturaId = fId
@@ -318,6 +322,7 @@ export async function crearFacturaUnificadaAction(
       p_notas:             data.notas.trim() || null,
       p_abono_inicial:     data.abono_inicial || 0,
       p_metodo_abono:      data.metodo_abono || null,
+      p_cuenta_id:         data.cuenta_id || null,
     })
     facturaId = fId
     error = err
@@ -335,6 +340,7 @@ export type PagoFacturaInput = {
   metodo: MetodoPago
   fecha: string
   notas: string
+  cuenta_id: string
 }
 
 export type SimpleResult = { ok: true } | { ok: false; error: string }
@@ -362,6 +368,7 @@ export async function registrarPagoFacturaAction(data: PagoFacturaInput): Promis
     p_metodo:     data.metodo,
     p_fecha:      data.fecha,
     p_asesor_id:  sesion.id,
+    p_cuenta_id:  data.cuenta_id,
     p_notas:      data.notas.trim() || null,
   })
 
