@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { buscarArticulosAction, ArticuloBusqueda } from '@/app/actions/articulos'
 import { ItemVenta } from '@/app/actions/ventas'
 
-export type Linea = ItemVenta & { stock?: number | null; key: number }
+export type Linea = ItemVenta & { stock?: number | null; key: number; codigo?: string }
 
 let _k = 0
 export const nuevaLinea = (): Linea => ({
