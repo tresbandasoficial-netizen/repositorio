@@ -39,6 +39,8 @@ export async function cerrarCajaAction(data: {
   neto: number
 }): Promise<CierreCajaResult> {
   const sesion = await getSesion()
+  if (!sesion.sede_id) return { ok: false, error: 'Tu usuario no tiene sede asignada. Pide al administrador que te asigne una sede.' }
+
   const supabase = await createClient()
 
   // Verificar que no haya ya un cierre hoy para esta sede
