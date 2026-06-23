@@ -358,8 +358,11 @@ export async function crearFacturaUnificadaAction(
         tipo:           'deuda',
         monto:          ab.monto,
         fecha:          hoy,
+        factura_id:     facturaId,
+        concepto:       'recaudo',
+        estado:         'pendiente',
         responsable_id: sesion.id,
-        notas:          `Contra entrega — Factura`,
+        notas:          `Recaudo contra entrega — Factura`,
       })
     }
     revalidatePath('/mensajerias')
@@ -417,8 +420,11 @@ export async function registrarPagoFacturaAction(data: RegistrarPagoFacturaInput
       tipo:           'deuda',
       monto:          data.monto,
       fecha:          data.fecha,
+      factura_id:     data.factura_id,
+      concepto:       'recaudo',
+      estado:         'pendiente',
       responsable_id: sesion.id,
-      notas:          `Contra entrega — Factura`,
+      notas:          `Recaudo contra entrega — Factura`,
     })
     revalidatePath('/mensajerias')
   }
