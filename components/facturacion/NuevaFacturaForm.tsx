@@ -68,7 +68,7 @@ export function NuevaFacturaForm({ sedes, asesorNombre }: { sedes: SedeOpcion[];
   const [error, setError] = useState('')
   const [pending, start] = useTransition()
 
-  useEffect(() => { getCuentasAction().then(setCuentas).catch(console.error) }, [])
+  useEffect(() => { getCuentasAction().then(r => setCuentas(r.ok ? r.cuentas : [])).catch(console.error) }, [])
 
   useEffect(() => {
     if (cliente) return

@@ -37,7 +37,7 @@ export function VentaInmediataForm({ sedes }: { sedes: SedeOpcion[] }) {
   const [pending, start] = useTransition()
 
   useEffect(() => {
-    getCuentasAction().then(setCuentas).catch(console.error)
+    getCuentasAction().then(r => setCuentas(r.ok ? r.cuentas : [])).catch(console.error)
   }, [])
 
   useEffect(() => {

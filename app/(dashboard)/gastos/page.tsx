@@ -28,13 +28,14 @@ export default async function GastosPage({
   const sede_id   = sp.sede     || undefined
 
   const supabase = await createClient()
-  const [gastos, cuentas, sedesRes] = await Promise.all([
+  const [gastos, cuentasRes, sedesRes] = await Promise.all([
     getGastosAction({ desde, hasta, categoria, sede_id }),
     getCuentasAction(),
     supabase.from('sedes').select('id, codigo, nombre').order('codigo'),
   ])
 
   const sedes = (sedesRes.data ?? []) as { id: string; codigo: string; nombre: string }[]
+  const cuentas = cuentasRes.ok ? cuentasRes.cuentas : []
 
   const totalGeneral = gastos.reduce((s, g) => s + g.valor, 0)
   const porCategoria = CATEGORIAS_GASTO.map(cat => ({

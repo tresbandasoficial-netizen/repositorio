@@ -23,12 +23,14 @@ export default async function MensajeriasPage({
   const sp = await searchParams
   const activaMensajeria = (sp.mensajeria as TipoMensajeria) || 'exneider'
 
-  const [resumenes, pendientes, historial, cuentas] = await Promise.all([
+  const [resumenes, pendientes, historial, cuentasRes] = await Promise.all([
     getResumenMensajeriasAction(),
     getDomiciliosPendientesMensajeriaAction(activaMensajeria),
     getHistorialPagosMensajeriaAction(activaMensajeria),
     getCuentasAction(),
   ])
+
+  const cuentas = cuentasRes.ok ? cuentasRes.cuentas : []
 
   // Completar mensajerías sin datos
   const resumenesCompletos = MENSAJERIAS.map(m => {

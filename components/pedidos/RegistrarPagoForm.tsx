@@ -32,7 +32,7 @@ export function RegistrarPagoForm({ pedidoId, total, totalPagado }: Props) {
   const [isPending, startTransition] = useTransition()
 
   useEffect(() => {
-    getCuentasAction().then(setCuentas).catch(console.error)
+    getCuentasAction().then(r => setCuentas(r.ok ? r.cuentas : [])).catch(console.error)
   }, [])
 
   function handleSubmit(e: React.FormEvent) {

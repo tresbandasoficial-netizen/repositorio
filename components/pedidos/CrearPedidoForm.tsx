@@ -76,7 +76,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre }: CrearPedidoFor
   const dropdownRef = useRef<HTMLUListElement>(null)
   const searchTimeoutsRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map())
 
-  useEffect(() => { getCuentasAction().then(setCuentas).catch(console.error) }, [])
+  useEffect(() => { getCuentasAction().then(r => setCuentas(r.ok ? r.cuentas : [])).catch(console.error) }, [])
 
   // Paste global de imágenes: el click en una tarjeta de producto la marca como destino
   const activeProductIdxRef = useRef(0)
