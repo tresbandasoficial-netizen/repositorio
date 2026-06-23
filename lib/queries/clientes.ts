@@ -116,7 +116,7 @@ export async function getClienteDetalle(id: string): Promise<ClienteDetalle | nu
       sede:sedes(nombre),
       asesor:usuarios(nombre),
       pagos(monto),
-      facturas:factura_id(pagos_factura(monto))
+      facturas!factura_id(pagos_factura(monto))
     `)
     .eq('cliente_id', id)
     .neq('estado', 'cancelado')

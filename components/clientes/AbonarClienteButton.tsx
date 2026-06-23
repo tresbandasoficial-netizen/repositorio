@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { abonarClienteAction } from '@/app/actions/abonos'
 import { getCuentasAction } from '@/app/actions/cuentas'
 import { formatCOP } from '@/lib/utils/format'
@@ -14,6 +15,7 @@ export function AbonarClienteButton({
   clienteId: string
   deudaTotal: number
 }) {
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [monto, setMonto] = useState('')
   const [metodo, setMetodo] = useState<MetodoPago>('efectivo')
@@ -55,9 +57,10 @@ export function AbonarClienteButton({
     start(async () => {
       const r = await abonarClienteAction({ cliente_id: clienteId, monto: m, metodo, cuenta_id: cuentaId, notas })
       if (!r.ok) { setError(r.error); return }
-      setExito(`✓ Abono de ${formatCOP(r.aplicado)} registrado correctamente`)
+      setExito(`✓ Abono de ${formatCOP(r.aplicado)} registrado`)
       setMonto('')
       setNotas('')
+      router.refresh()
     })
   }
 

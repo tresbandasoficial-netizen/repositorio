@@ -28,7 +28,7 @@ export async function abonarClienteAction(data: AbonarClienteInput): Promise<Abo
     .select(`
       id, total, factura_id, fecha_creacion,
       pagos(monto),
-      facturas:factura_id(pagos_factura(monto))
+      facturas!factura_id(pagos_factura(monto))
     `)
     .eq('cliente_id', data.cliente_id)
     .neq('estado', 'cancelado')
