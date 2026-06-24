@@ -89,8 +89,11 @@ export async function crearDomicilioAction(data: DomicilioInput): Promise<Domici
     await supabase.from('pagos_mensajeria').insert({
       mensajeria:     data.mensajeria as TipoMensajeria,
       tipo:           'deuda',
+      concepto:       'recaudo',
+      estado:         'pendiente',
       monto:          valorPedido,
       fecha:          data.fecha,
+      factura_id:     data.factura_id,
       domicilio_id:   dom.id,
       responsable_id: user.id,
       notas:          `Saldo de factura cobrado en domicilio a ${data.cliente_nombre.trim()}`,
