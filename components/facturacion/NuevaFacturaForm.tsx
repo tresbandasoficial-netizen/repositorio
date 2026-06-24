@@ -693,14 +693,16 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
                     {cobraMensajero > 0 ? (
                       <>
                         <p className="text-sm font-bold text-indigo-800">Cobrar al cliente: {formatCOP(cobraMensajero)}</p>
-                        {quienPagaDom === 'cliente' && valorEntregaNum > 0 && recaudoMensajeria > 0 && (
+                        {recaudoMensajeria > 0 && valorEntregaNum > 0 && quienPagaDom === 'cliente' ? (
                           <p className="text-xs text-indigo-500 mt-0.5">{formatCOP(recaudoMensajeria)} recaudo + {formatCOP(valorEntregaNum)} domicilio</p>
-                        )}
+                        ) : recaudoMensajeria === 0 ? (
+                          <p className="text-xs text-indigo-500 mt-0.5">Solo el domicilio</p>
+                        ) : null}
                       </>
                     ) : (
                       <p className="text-sm font-bold text-green-700">No cobrar · solo entregar</p>
                     )}
-                    {recaudoMensajeria === 0 && (
+                    {!esCredito && recaudoMensajeria === 0 && (
                       <p className="text-[11px] text-indigo-400 mt-1">Agrega un abono con método "Recaudo Mensajería" si el mensajero cobra el pedido al cliente.</p>
                     )}
                   </div>
