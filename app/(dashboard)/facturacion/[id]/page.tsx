@@ -8,6 +8,7 @@ import { ESTADO_FACTURA_LABELS, ESTADO_FACTURA_COLORES } from '@/types'
 import { RegistrarPagoFacturaForm } from '@/components/facturacion/RegistrarPagoFacturaForm'
 import { AnularFacturaButton } from '@/components/facturacion/AnularFacturaButton'
 import { DomicilioDesdeFacturaPanel } from '@/components/domicilios/DomicilioDesdeFacturaPanel'
+import { DomicilioFacturaCard } from '@/components/domicilios/DomicilioFacturaCard'
 
 export default async function FacturaDetallePage({
   params,
@@ -34,20 +35,33 @@ export default async function FacturaDetallePage({
         <Badge className={ESTADO_FACTURA_COLORES[factura.estado]}>{ESTADO_FACTURA_LABELS[factura.estado]}</Badge>
       </div>
 
-      <div className="mb-6 flex flex-wrap gap-3">
-        <Link href={`/facturacion/${factura.id}/recibo`}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 text-white px-4 py-2 text-sm font-medium hover:bg-gray-800">
-          🧾 Generar imagen para el cliente
-        </Link>
-        <DomicilioDesdeFacturaPanel
-          clienteNombre={factura.cliente_nombre}
-          clienteTelefono={factura.cliente_telefono}
-          numeroFactura={factura.numero_factura}
-          numerosOrden={factura.pedidos.map(p => p.numero_orden)}
-          asesorNombre={factura.asesor_nombre}
-          facturaId={factura.id}
-          saldo={factura.saldo}
-        />
+      <div className="mb-6 space-y-3">
+        <div className="flex flex-wrap gap-3">
+          <Link href={`/facturacion/${factura.id}/recibo`}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 text-white px-4 py-2 text-sm font-medium hover:bg-gray-800">
+            🧾 Generar imagen para el cliente
+          </Link>
+          {/* Si la factura no se creó con domicilio, permitir crearlo aquí (respaldo). */}
+          {!factura.domicilio && (
+            <DomicilioDesdeFacturaPanel
+              clienteNombre={factura.cliente_nombre}
+              clienteTelefono={factura.cliente_telefono}
+              numeroFactura={factura.numero_factura}
+              numerosOrden={factura.pedidos.map(p => p.numero_orden)}
+              asesorNombre={factura.asesor_nombre}
+              facturaId={factura.id}
+              saldo={factura.saldo}
+            />
+          )}
+        </div>
+        {/* Domicilio ya creado al facturar: despachar a la mensajería sin volver a escribirlo. */}
+        {factura.domicilio && (
+          <DomicilioFacturaCard
+            domicilio={factura.domicilio}
+            numeroFactura={factura.numero_factura}
+            asesorNombre={factura.asesor_nombre}
+          />
+        )}
       </div>
 
       {/* Datos */}

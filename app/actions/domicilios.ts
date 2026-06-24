@@ -193,6 +193,33 @@ export async function actualizarEstadoDomicilioAction(
   return { ok: true }
 }
 
+// Completar / corregir la dirección (y datos de despacho) de un domicilio ya
+// creado desde la factura — la factura no siempre trae la dirección guardada.
+export type ActualizarDespachoResult =
+  | { ok: true }
+  | { ok: false; error: string }
+
+export async function actualizarDespachoDomicilioAction(
+  id: string,
+  data: { direccion: string; articulo?: string; notas?: string }
+): Promise<ActualizarDespachoResult> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'No autenticado' }
+
+  const patch: Record<string, string | null> = {
+    direccion: data.direccion.trim() || null,
+  }
+  if (data.articulo !== undefined) patch.articulo = data.articulo.trim() || null
+  if (data.notas !== undefined) patch.notas = data.notas.trim() || null
+
+  const { error } = await supabase.from('domicilios').update(patch).eq('id', id)
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/domicilios')
+  return { ok: true }
+}
+
 export type EliminarDomicilioResult =
   | { ok: true }
   | { ok: false; error: string }

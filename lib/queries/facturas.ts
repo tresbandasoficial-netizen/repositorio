@@ -29,6 +29,25 @@ export async function getFacturas(filtros?: {
   return (data ?? []) as FacturaRow[]
 }
 
+export type DomicilioFactura = {
+  id: string
+  fecha: string
+  mensajeria: 'exneider' | 'servigo'
+  direccion: string | null
+  valor_pedido: number
+  valor_domicilio: number
+  valor_a_cobrar: number
+  cobrar_al_cliente: boolean
+  tipo_cobro: string | null
+  metodo_pago: 'efectivo' | 'transferencia'
+  estado: string
+  articulo: string | null
+  numero_pedido: string | null
+  notas: string | null
+  cliente_nombre: string
+  cliente_telefono: string | null
+}
+
 export type FacturaDetalle = FacturaRow & {
   pedidos: Array<{
     id: string
@@ -44,6 +63,7 @@ export type FacturaDetalle = FacturaRow & {
     notas: string | null
     asesor_nombre: string
   }>
+  domicilio: DomicilioFactura | null
 }
 
 export async function getFacturaDetalle(id: string): Promise<FacturaDetalle | null> {
@@ -61,7 +81,7 @@ export async function getFacturaDetalle(id: string): Promise<FacturaDetalle | nu
   const sesion = await getSesion()
   if (sesion.rol !== 'admin' && factura.sede_id !== sesion.sede_id) return null
 
-  const [pedidosRes, abonosRes] = await Promise.all([
+  const [pedidosRes, abonosRes, domicilioRes] = await Promise.all([
     supabase
       .from('pedidos')
       .select('id, numero_orden, total, fecha_creacion')
@@ -72,6 +92,13 @@ export async function getFacturaDetalle(id: string): Promise<FacturaDetalle | nu
       .select('id, monto, metodo, fecha, notas, usuarios(nombre)')
       .eq('factura_id', id)
       .order('fecha'),
+    supabase
+      .from('domicilios')
+      .select('id, fecha, mensajeria, direccion, valor_pedido, valor_domicilio, valor_a_cobrar, cobrar_al_cliente, tipo_cobro, metodo_pago, estado, articulo, numero_pedido, notas, cliente_nombre, cliente_telefono')
+      .eq('factura_id', id)
+      .order('creado_en', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ])
 
   const abonos = (abonosRes.data ?? []).map((a: any) => ({
@@ -87,6 +114,7 @@ export async function getFacturaDetalle(id: string): Promise<FacturaDetalle | nu
     ...(factura as FacturaRow),
     pedidos: (pedidosRes.data ?? []) as FacturaDetalle['pedidos'],
     abonos,
+    domicilio: (domicilioRes.data ?? null) as DomicilioFactura | null,
   }
 }
 
