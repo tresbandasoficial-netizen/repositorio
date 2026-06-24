@@ -469,7 +469,7 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
             {/* Abono / Saldo */}
             <div className="bg-blue-50/60 rounded-xl border border-blue-100 p-5 space-y-2">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">Abono recibido</span>
+                <span className="text-gray-600">Pago recibido</span>
                 <span className="font-bold text-blue-600">{formatCOP(abonoNum)}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
@@ -498,9 +498,9 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
                 <>
                   {/* Múltiples abonos */}
                   <div className="space-y-2">
-                    <label className="block text-xs font-medium text-gray-700">Abonos (opcional)</label>
+                    <label className="block text-xs font-medium text-gray-700">Método de pago (opcional)</label>
                     {abonos.length === 0 ? (
-                      <p className="text-xs text-gray-400 italic">Sin abonos (a crédito)</p>
+                      <p className="text-xs text-gray-400 italic">Sin pagos (a crédito)</p>
                     ) : (
                       <div className="space-y-2">
                         {abonos.map((abono, idx) => (
@@ -588,7 +588,7 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
                       onClick={agregarAbono}
                       className="text-sm text-blue-600 hover:text-blue-700 font-medium mt-2"
                     >
-                      + Agregar abono
+                      + Agregar método de pago
                     </button>
                     {abonoNum > totalNeto && (
                       <p className="text-xs text-red-600 mt-1">
@@ -703,7 +703,7 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
                       <p className="text-sm font-bold text-green-700">No cobrar · solo entregar</p>
                     )}
                     {!esCredito && recaudoMensajeria === 0 && (
-                      <p className="text-[11px] text-indigo-400 mt-1">Agrega un abono con método "Recaudo Mensajería" si el mensajero cobra el pedido al cliente.</p>
+                      <p className="text-[11px] text-indigo-400 mt-1">Agrega un método de pago "Recaudo Mensajería" si el mensajero cobra el pedido al cliente.</p>
                     )}
                   </div>
                 </div>
