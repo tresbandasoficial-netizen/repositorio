@@ -40,3 +40,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .claude/
+
+# scratchpad temporal (archivos de trabajo, no parte del proyecto)
+scratchpad/
