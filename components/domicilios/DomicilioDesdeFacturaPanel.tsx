@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { crearDomicilioAction } from '@/app/actions/domicilios'
 import { buscarDireccionPorTelefonoAction } from '@/app/actions/clientes'
 import { buildMensajeMensajeria, buildLineaExcel } from './parsearDomicilio'
-import { formatCOP } from '@/lib/utils/format'
+import { formatCOP, hoyBogota } from '@/lib/utils/format'
 
 const inputCls = 'w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
 
@@ -36,7 +36,7 @@ export function DomicilioDesdeFacturaPanel({
   const [copiado, setCopiado] = useState<'msg' | 'excel' | null>(null)
   const [cobrarSaldo, setCobrarSaldo] = useState(false)
 
-  const hoy = new Date().toISOString().slice(0, 10)
+  const hoy = hoyBogota()
   const articuloSugerido = numerosOrden.join(' + ')
 
   const [form, setForm] = useState({
@@ -78,8 +78,8 @@ export function DomicilioDesdeFacturaPanel({
         cliente_telefono:  clienteTelefono,
         direccion:         form.direccion,
         mensajeria:        form.mensajeria as any,
-        tipo_cobro:        'mensajero',
-        cobrar_al_cliente: true,
+        tipo_cobro:        form.cobrar_al_cliente ? 'mensajero' : 'tb_cobra',
+        cobrar_al_cliente: form.cobrar_al_cliente,
         metodo_pago:       'efectivo',
         valor_pedido:      parseInt(form.valor_pedido) || 0,
         valor_domicilio:   parseInt(form.valor_domicilio) || 0,
@@ -108,7 +108,7 @@ export function DomicilioDesdeFacturaPanel({
   }
 
   if (ok) {
-    const hoy = new Date().toISOString().slice(0, 10)
+    const hoy = hoyBogota()
     const dataDomi = {
       fecha:             hoy,
       mensajeria:        form.mensajeria as 'exneider' | 'servigo',

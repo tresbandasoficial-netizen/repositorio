@@ -7,7 +7,7 @@ import { registrarVentaInmediataAction } from '@/app/actions/ventas'
 import { getCuentasAction } from '@/app/actions/cuentas'
 import { Button } from '@/components/ui/Button'
 import { formatCOP } from '@/lib/utils/format'
-import { Cuenta } from '@/types'
+import { Cuenta, MetodoPago, METODO_PAGO_LABELS, METODOS_PAGO } from '@/types'
 import { Linea, nuevaLinea, LineaProducto } from '@/components/ventas/LineaProducto'
 
 type SedeOpcion = { id: string; codigo: string; nombre: string }
@@ -28,6 +28,7 @@ export function VentaInmediataForm({ sedes }: { sedes: SedeOpcion[] }) {
   const [lineas, setLineas] = useState<Linea[]>([nuevaLinea()])
 
   const [abono, setAbono] = useState('')
+  const [metodo, setMetodo] = useState<MetodoPago>('efectivo')
   const [cuentaId, setCuentaId] = useState<string | null>(null)
   const [cuentas, setCuentas] = useState<Cuenta[]>([])
   const [notas, setNotas] = useState('')
@@ -87,6 +88,7 @@ export function VentaInmediataForm({ sedes }: { sedes: SedeOpcion[] }) {
           articulo_id, marca, descripcion, talla, cantidad, precio_venta, color, sexo, categoria,
         })),
         abono: abonoNum,
+        metodo,
         cuenta_id: cuentaId,
         notas,
       })
@@ -188,6 +190,18 @@ export function VentaInmediataForm({ sedes }: { sedes: SedeOpcion[] }) {
           </div>
         )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Método de pago</label>
+            <select
+              value={metodo}
+              onChange={e => setMetodo(e.target.value as MetodoPago)}
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {METODOS_PAGO.map(m => (
+                <option key={m} value={m}>{METODO_PAGO_LABELS[m]}</option>
+              ))}
+            </select>
+          </div>
           {cuentas.length > 0 && (
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">

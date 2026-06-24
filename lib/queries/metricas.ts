@@ -1,17 +1,18 @@
 import { createClient } from '@/lib/supabase/server'
 import { MetricasAdmin, MetricasAsesor, MetricasSede } from '@/types'
 import type { PedidoRow } from '@/lib/queries/pedidos'
+import { hoyBogota } from '@/lib/utils/format'
 
 function hace(dias: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() - dias)
+  const hoy = hoyBogota()
+  const d = new Date(hoy + 'T05:00:00.000Z')
+  d.setUTCDate(d.getUTCDate() - dias)
   return d.toISOString()
 }
 
 function hoyInicio(): string {
-  const d = new Date()
-  d.setHours(0, 0, 0, 0)
-  return d.toISOString()
+  const hoy = hoyBogota()
+  return hoy + 'T05:00:00.000Z'
 }
 
 export async function getMetricasAdmin(): Promise<MetricasAdmin> {
@@ -28,15 +29,18 @@ export async function getMetricasAdmin(): Promise<MetricasAdmin> {
     supabase
       .from('pedidos')
       .select('total', { count: 'exact' })
-      .gte('fecha_creacion', hoyInicio()),
+      .gte('fecha_creacion', hoyInicio())
+      .neq('estado', 'cancelado'),
     supabase
       .from('pedidos')
       .select('total', { count: 'exact' })
-      .gte('fecha_creacion', hace(7)),
+      .gte('fecha_creacion', hace(7))
+      .neq('estado', 'cancelado'),
     supabase
       .from('pedidos')
       .select('total', { count: 'exact' })
-      .gte('fecha_creacion', hace(30)),
+      .gte('fecha_creacion', hace(30))
+      .neq('estado', 'cancelado'),
     supabase
       .from('vista_pedidos_asesor')
       .select('en_alerta, es_zombie'),

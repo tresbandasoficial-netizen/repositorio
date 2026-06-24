@@ -17,6 +17,7 @@ function EstadoInline({ pedidoId, estadoActual, sedeCodigo }: { pedidoId: string
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [estadoLocal, setEstadoLocal] = useState<EstadoPedido>(estadoActual)
+  const [errorEstado, setErrorEstado] = useState<string | null>(null)
   const ref = useRef<HTMLDivElement>(null)
 
   const esSantaRosa = sedeCodigo === 'SR'
@@ -44,16 +45,24 @@ function EstadoInline({ pedidoId, estadoActual, sedeCodigo }: { pedidoId: string
     e.stopPropagation()
     setOpen(false)
     startTransition(async () => {
+      setErrorEstado(null)
       const result = await cambiarEstadoInlineAction(pedidoId, estadoLocal, nuevoEstado)
       if (result.ok) {
         setEstadoLocal(nuevoEstado)
         router.refresh()
+      } else {
+        setErrorEstado(result.error ?? 'No se pudo cambiar el estado')
       }
     })
   }
 
   return (
     <div ref={ref} className="relative" onClick={e => { e.preventDefault(); e.stopPropagation() }}>
+      {errorEstado && (
+        <div className="absolute z-50 top-full left-0 mt-1 bg-red-50 border border-red-200 rounded-lg px-2 py-1 text-xs text-red-700 whitespace-nowrap shadow">
+          {errorEstado}
+        </div>
+      )}
       <button
         onClick={handleBadgeClick}
         disabled={esTerminal || isPending}

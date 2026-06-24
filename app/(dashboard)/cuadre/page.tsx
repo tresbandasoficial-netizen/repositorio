@@ -1,11 +1,9 @@
 import { getCuadre } from '@/lib/queries/cuadre'
 import { getSesion } from '@/lib/auth/acceso'
 import { createClient } from '@/lib/supabase/server'
-import { formatCOP } from '@/lib/utils/format'
+import { formatCOP, hoyBogota } from '@/lib/utils/format'
 import { CuadreFiltrosBar } from '@/components/cuadre/CuadreFiltrosBar'
 import { CerrarCajaButton } from '@/components/dashboard/CerrarCajaButton'
-
-function hoy() { return new Date().toISOString().slice(0, 10) }
 
 export default async function CuadrePage({
   searchParams,
@@ -13,7 +11,7 @@ export default async function CuadrePage({
   searchParams: Promise<{ desde?: string; hasta?: string; sede?: string }>
 }) {
   const sp = await searchParams
-  const desde = sp.desde || hoy()
+  const desde = sp.desde || hoyBogota()
   const hasta = sp.hasta || desde
   const sede = sp.sede || ''
 
@@ -26,7 +24,7 @@ export default async function CuadrePage({
   const supabase = await createClient()
   const { data: sedes } = await supabase.from('sedes').select('id, codigo, nombre').order('codigo')
 
-  const fechaHoy = new Date().toISOString().slice(0, 10)
+  const fechaHoy = hoyBogota()
   const cierreQuery = supabase.from('cierres_caja').select('id').eq('fecha', fechaHoy)
   if (sesion.sede_id) cierreQuery.eq('sede_id', sesion.sede_id)
   const { data: cierreHoy } = sesion.rol === 'admin' ? { data: null } : await cierreQuery.maybeSingle()

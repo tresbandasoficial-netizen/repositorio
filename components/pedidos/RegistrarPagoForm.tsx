@@ -4,14 +4,11 @@ import { useState, useTransition, useEffect } from 'react'
 import { MetodoPago, METODOS_PAGO, METODO_PAGO_LABELS, Cuenta } from '@/types'
 import { registrarPagoAction } from '@/app/actions/pedidos'
 import { getCuentasAction } from '@/app/actions/cuentas'
-import { formatCOP } from '@/lib/utils/format'
+import { formatCOP, hoyBogota } from '@/lib/utils/format'
 
 const METODOS: { value: MetodoPago; label: string }[] =
   METODOS_PAGO.map(v => ({ value: v, label: METODO_PAGO_LABELS[v] }))
 
-function hoy(): string {
-  return new Date().toISOString().slice(0, 10)
-}
 
 interface Props {
   pedidoId: string
@@ -24,7 +21,7 @@ export function RegistrarPagoForm({ pedidoId, total, totalPagado }: Props) {
 
   const [monto, setMonto] = useState(saldo.toString())
   const [metodo, setMetodo] = useState<MetodoPago>('efectivo')
-  const [fecha, setFecha] = useState(hoy())
+  const [fecha, setFecha] = useState(hoyBogota())
   const [notas, setNotas] = useState('')
   const [cuentaId, setCuentaId] = useState<string | null>(null)
   const [cuentas, setCuentas] = useState<Cuenta[]>([])

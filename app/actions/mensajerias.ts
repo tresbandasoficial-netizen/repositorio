@@ -256,6 +256,8 @@ export async function getDomiciliosPendientesMensajeriaAction(
     `)
     .eq('mensajeria', mensajeria)
     .eq('tipo', 'deuda')
+    .eq('estado', 'pendiente')
+    .or('concepto.is.null,concepto.eq.domicilio_tb')
     .order('fecha', { ascending: false })
     .limit(200)
 

@@ -7,7 +7,7 @@ import { parsearFacturaAction, FacturaExtraida } from '@/app/actions/parsear-fac
 import { buscarPorCodigoAction } from '@/app/actions/articulos'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
-import { formatCOP } from '@/lib/utils/format'
+import { formatCOP, hoyBogota } from '@/lib/utils/format'
 
 type Paso = 'subir' | 'revisar' | 'guardando'
 
@@ -58,7 +58,7 @@ export function CrearCompraForm() {
   const [tipo, setTipo] = useState<'usa' | 'colombia'>('usa')
   const [proveedor, setProveedor] = useState('')
   const [numeroFactura, setNumeroFactura] = useState('')
-  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10))
+  const [fecha, setFecha] = useState(hoyBogota())
   const [totalUsd, setTotalUsd] = useState('')
   const [totalCopPagado, setTotalCopPagado] = useState('')
   const [subtotalUsd, setSubtotalUsd] = useState('')

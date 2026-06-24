@@ -4,7 +4,7 @@ import { useState, useTransition, useEffect } from 'react'
 import { registrarPagoFacturaAction } from '@/app/actions/facturacion'
 import { getCuentasAction } from '@/app/actions/cuentas'
 import { Button } from '@/components/ui/Button'
-import { formatCOP } from '@/lib/utils/format'
+import { formatCOP, hoyBogota } from '@/lib/utils/format'
 import { MetodoPago, METODOS_PAGO, METODO_PAGO_LABELS, MENSAJERIA_LABELS, TipoMensajeria } from '@/types'
 import type { Cuenta } from '@/types'
 
@@ -17,7 +17,7 @@ const METODOS: { value: MetodoPago; label: string }[] = [
 export function RegistrarPagoFacturaForm({ facturaId, saldo }: { facturaId: string; saldo: number }) {
   const [monto, setMonto] = useState('')
   const [metodo, setMetodo] = useState<MetodoPago>('efectivo')
-  const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10))
+  const [fecha, setFecha] = useState(() => hoyBogota())
   const [notas, setNotas] = useState('')
   const [cuentas, setCuentas] = useState<Cuenta[]>([])
   const [cuentaId, setCuentaId] = useState('')

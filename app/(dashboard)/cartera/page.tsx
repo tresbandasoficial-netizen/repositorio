@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { getCartera } from '@/lib/queries/cartera'
+import { getCartera, getTotalCartera } from '@/lib/queries/cartera'
 import { formatCOP } from '@/lib/utils/format'
 import { formatearTelefono } from '@/lib/utils/phone'
 import { ClientesBusqueda } from '@/components/clientes/ClientesBusqueda'
@@ -25,8 +25,12 @@ export default async function CarteraPage({
 
   const { q, pagina: paginaParam } = await searchParams
   const pagina = Math.max(1, parseInt(paginaParam ?? '1', 10) || 1)
-  const resultado = await getCartera({ busqueda: q, pagina })
-  const { clientes, total, totalSaldo, totalPaginas } = resultado
+  const [resultado, carteraTotal] = await Promise.all([
+    getCartera({ busqueda: q, pagina }),
+    getTotalCartera(),
+  ])
+  const { clientes, total, totalPaginas } = resultado
+  const totalSaldo = (pagina === 1 && !q) ? carteraTotal.saldo : resultado.totalSaldo
 
   const desde = total === 0 ? 0 : (pagina - 1) * 30 + 1
   const hasta = Math.min(pagina * 30, total)
@@ -64,7 +68,7 @@ export default async function CarteraPage({
           </div>
           <div className="bg-white rounded-xl border border-red-200 bg-red-50 p-4">
             <p className="text-xs text-red-500 font-medium uppercase tracking-wide mb-1">
-              {pagina > 1 || q ? 'Saldo (esta página)' : 'Cartera total'}
+              {pagina > 1 || q ? 'Saldo (filtrado)' : 'Cartera total'}
             </p>
             <p className="text-2xl font-bold text-red-700">{formatCOP(totalSaldo)}</p>
           </div>

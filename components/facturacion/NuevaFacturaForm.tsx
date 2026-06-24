@@ -8,7 +8,7 @@ import {
   getPedidosFacturablesAction, crearFacturaUnificadaAction, buscarPedidoFacturableAction, PedidoFacturable,
 } from '@/app/actions/facturacion'
 import { getCuentasAction } from '@/app/actions/cuentas'
-import { formatCOP, formatFecha } from '@/lib/utils/format'
+import { formatCOP, formatFecha, hoyBogota } from '@/lib/utils/format'
 import { MetodoPago, PagoFacturaInput, TipoEntrega, QuienPagaEntrega, TipoMensajeria, MENSAJERIA_LABELS } from '@/types'
 import type { Cuenta } from '@/types'
 import { Linea, nuevaLinea, LineaProducto } from '@/components/ventas/LineaProducto'
@@ -16,8 +16,9 @@ import { Linea, nuevaLinea, LineaProducto } from '@/components/ventas/LineaProdu
 type SedeOpcion = { id: string; codigo: string; nombre: string }
 
 function venceDefault() {
-  const d = new Date()
-  d.setDate(d.getDate() + 30)
+  const hoy = hoyBogota()
+  const d = new Date(hoy + 'T12:00:00Z')
+  d.setUTCDate(d.getUTCDate() + 30)
   return d.toISOString().slice(0, 10)
 }
 
@@ -184,6 +185,7 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
   function crear() {
     if (!cliente) { setError('Selecciona un cliente'); return }
     if (!hayAlgo) { setError('Agrega al menos un pedido o un producto'); return }
+    if (descuentoNum > subtotal + envioNum) { setError('El descuento no puede superar el subtotal'); return }
     if (abonoNum > totalNeto) { setError('El pago no puede superar el total'); return }
     // Validar que cada abono con cuenta bancaria tenga cuenta (efectivo y recaudo no la necesitan)
     if (!esCredito && abonos.some(a => a.monto > 0 && a.metodo !== 'efectivo' && a.metodo !== 'recaudo_mensajeria' && !a.cuenta_id)) {
@@ -403,7 +405,7 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
                   </div>
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">Fecha factura</label>
-                    <input type="text" readOnly value={formatFecha(new Date().toISOString().slice(0, 10))}
+                    <input type="text" readOnly value={formatFecha(hoyBogota())}
                       className={`${inputCls} bg-gray-50 text-gray-600`} />
                   </div>
                 </div>

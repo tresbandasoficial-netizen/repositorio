@@ -24,6 +24,7 @@ export type VentaInmediataInput = {
   cliente_cedula: string
   items: ItemVenta[]
   abono: number
+  metodo: string
   cuenta_id: string | null
   notas: string
 }
@@ -110,6 +111,7 @@ export async function registrarVentaInmediataAction(data: VentaInmediataInput): 
     p_abono:        data.abono,
     p_cuenta_id:    data.cuenta_id,
     p_notas:        data.notas.trim() || null,
+    p_metodo:       data.abono > 0 ? (data.metodo || 'efectivo') : 'efectivo',
   })
 
   if (error) {

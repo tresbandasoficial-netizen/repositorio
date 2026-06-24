@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { hoyBogota } from '@/lib/utils/format'
 
 export function CuadreFiltrosBar({
   desde, hasta, sede, sedes, esAdmin,
@@ -21,7 +22,7 @@ export function CuadreFiltrosBar({
   }
 
   function hoy() {
-    const d = new Date().toISOString().slice(0, 10)
+    const d = hoyBogota()
     aplicar({ desde: d, hasta: d })
   }
 

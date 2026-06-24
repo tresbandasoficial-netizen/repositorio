@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getSesion } from '@/lib/auth/acceso'
 import { MetodoPago } from '@/types'
+import { hoyBogota } from '@/lib/utils/format'
 
 export type AbonarClienteInput = {
   cliente_id: string
@@ -18,9 +19,11 @@ export type AbonarClienteResult =
   | { ok: false; error: string }
 
 export async function abonarClienteAction(data: AbonarClienteInput): Promise<AbonarClienteResult> {
+  if (data.monto <= 0) return { ok: false, error: 'El monto debe ser mayor a cero' }
+
   const sesion = await getSesion()
   const supabase = await createClient()
-  const hoy = new Date().toISOString().slice(0, 10)
+  const hoy = hoyBogota()
 
   // 1. Todos los pedidos no cancelados del cliente, con pagos de AMBAS tablas
   const { data: pedidosRaw, error: errPedidos } = await supabase

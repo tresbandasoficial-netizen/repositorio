@@ -236,7 +236,7 @@ export async function getCierreDia(fecha: string): Promise<CierreDia> {
     .from('cuadres_domicilios')
     .select('fecha, cerrado_en, total_neto, usuarios(nombre)')
     .eq('fecha', fecha)
-    .single()
+    .maybeSingle()
 
   if (!data) return null
   return {

@@ -1,16 +1,21 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { getFacturas } from '@/lib/queries/facturas'
 import { getResumenCxC } from '@/lib/queries/facturas'
 import { formatCOP, formatFecha } from '@/lib/utils/format'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { ESTADO_FACTURA_LABELS, ESTADO_FACTURA_COLORES, EstadoFactura } from '@/types'
+import { getSesion } from '@/lib/auth/acceso'
 
 export default async function FacturacionPage({
   searchParams,
 }: {
   searchParams: Promise<{ estado?: string; q?: string }>
 }) {
+  const sesion = await getSesion()
+  if (sesion.rol === 'visor') redirect('/pedidos')
+
   const sp = await searchParams
   const estado = sp.estado as EstadoFactura | undefined
 

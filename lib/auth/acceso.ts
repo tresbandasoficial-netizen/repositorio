@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 
 export type SesionUsuario = {
   id: string
-  rol: 'asesor' | 'admin'
+  rol: 'asesor' | 'admin' | 'visor'
   sede_id: string | null
 }
 
@@ -21,7 +21,7 @@ export async function getSesion(): Promise<SesionUsuario> {
 
   if (!usuario) redirect('/login')
 
-  return { id: user.id, rol: usuario.rol as 'asesor' | 'admin', sede_id: usuario.sede_id }
+  return { id: user.id, rol: usuario.rol as 'asesor' | 'admin' | 'visor', sede_id: usuario.sede_id }
 }
 
 // Todos los usuarios autenticados pueden acceder a pedidos de cualquier sede.
