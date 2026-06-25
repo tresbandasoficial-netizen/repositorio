@@ -178,6 +178,10 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
     if (!hayAlgo) { setError('Agrega al menos un pedido o un producto'); return }
     if (descuentoNum > subtotal + envioNum) { setError('El descuento no puede superar el subtotal'); return }
     if (abonoNum > totalNeto) { setError('El pago no puede superar el total'); return }
+    // El valor del pago es obligatorio salvo que sea a crédito.
+    if (!esCredito && abonoNum <= 0) {
+      setError('Registra cómo pagó el cliente (el valor del pago) o marca "A crédito".'); return
+    }
     // Validar que cada recaudo mensajería tenga mensajería asignada
     if (!esCredito && abonos.some(a => a.monto > 0 && a.metodo === 'recaudo_mensajeria' && !a.mensajeria)) {
       setError('Selecciona la mensajería que recauda en cada línea de Recaudo Mensajería'); return
@@ -200,6 +204,7 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
         })),
         fecha_vencimiento: vence,
         abonos: esCredito ? [] : abonos.filter(a => a.monto > 0),
+        es_credito: esCredito,
         envio: envioNum,
         descuento: descuentoNum,
         notas: notasFinal,
@@ -215,7 +220,9 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
     })
   }
 
-  const puedeEmitir = !!cliente && hayAlgo && !pending
+  // El pago es obligatorio salvo que sea a crédito: no se emite con $0 sin marcar crédito.
+  const pagoOk = esCredito || abonoNum > 0
+  const puedeEmitir = !!cliente && hayAlgo && pagoOk && !pending
 
   return (
     <div className="space-y-5">
@@ -418,15 +425,25 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
               </div>
             </div>
 
-            {/* Banner listo */}
+            {/* Banner listo / falta pago */}
             {hayAlgo && (
-              <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
-                <div className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center text-green-600 flex-none">✓</div>
-                <div>
-                  <p className="text-sm font-semibold text-green-800">Todo listo para emitir la factura</p>
-                  <p className="text-xs text-green-600">Revisa la información y haz clic en Emitir factura.</p>
+              pagoOk ? (
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
+                  <div className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center text-green-600 flex-none">✓</div>
+                  <div>
+                    <p className="text-sm font-semibold text-green-800">Todo listo para emitir la factura</p>
+                    <p className="text-xs text-green-600">Revisa la información y haz clic en Emitir factura.</p>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3">
+                  <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 flex-none">!</div>
+                  <div>
+                    <p className="text-sm font-semibold text-amber-800">Falta registrar el pago</p>
+                    <p className="text-xs text-amber-600">Registra cómo pagó el cliente (el valor del pago) o marca "A crédito" para emitir.</p>
+                  </div>
+                </div>
+              )
             )}
           </div>
 

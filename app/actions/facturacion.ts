@@ -193,6 +193,7 @@ export type CrearFacturaUnificadaInput = {
   productos_nuevos: ItemVenta[]
   fecha_vencimiento: string
   abonos: PagoFacturaInput[]
+  es_credito: boolean
   envio: number
   descuento: number
   notas: string
@@ -214,6 +215,14 @@ export async function crearFacturaUnificadaAction(
     return { ok: false, error: 'Agrega al menos un pedido o un producto' }
   }
   if (!data.fecha_vencimiento) return { ok: false, error: 'La fecha de vencimiento es obligatoria' }
+
+  // Regla: si NO es a crédito, el valor del pago es obligatorio. No se permite
+  // emitir con pago en $0 sin marcar explícitamente "A crédito" (evita facturas
+  // que entran como crédito implícito y descuadran el flujo de caja).
+  const totalAbonos = data.abonos.reduce((s, a) => s + (a.monto || 0), 0)
+  if (!data.es_credito && totalAbonos <= 0) {
+    return { ok: false, error: 'Registra cómo pagó el cliente (el valor del pago) o marca "A crédito".' }
+  }
 
   const sedeId = sesion.rol === 'admin' ? data.sede_id : sesion.sede_id
   if (!sedeId) return { ok: false, error: 'Selecciona una sede' }
