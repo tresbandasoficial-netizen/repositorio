@@ -21,6 +21,17 @@ export type ClienteRow = {
   ultimo_pedido: string | null
 }
 
+export type PagoCliente = {
+  id: string
+  fecha: string
+  monto: number
+  metodo: string
+  notas: string | null
+  origen: 'pedido' | 'factura'
+  referencia: string  // numero_orden o numero_factura
+  referencia_id: string
+}
+
 export type ClienteDetalle = {
   id: string
   nombre: string
@@ -39,6 +50,7 @@ export type ClienteDetalle = {
     sede_nombre: string
     asesor_nombre: string
   }>
+  pagos: PagoCliente[]
 }
 
 export async function getClientes(params?: {
@@ -115,16 +127,18 @@ export async function getClienteDetalle(id: string): Promise<ClienteDetalle | nu
       id, numero_orden, estado, total, fecha_creacion,
       sede:sedes(nombre),
       asesor:usuarios(nombre),
-      pagos(monto),
-      facturas!factura_id(pagos_factura(monto))
+      pagos(id, monto, metodo, fecha, notas, anulado),
+      facturas!factura_id(id, numero_factura, pagos_factura(id, monto, metodo, fecha, notas, anulado))
     `)
     .eq('cliente_id', id)
     .neq('estado', 'cancelado')
     .order('fecha_creacion', { ascending: false })
 
   const pedidos = (pedidosRaw ?? []).map((p: any) => {
-    const pagado_directo = (p.pagos ?? []).reduce((s: number, pg: any) => s + pg.monto, 0)
-    const pagado_factura = (p.facturas?.pagos_factura ?? []).reduce((s: number, pf: any) => s + pf.monto, 0)
+    const pagos_activos = (p.pagos ?? []).filter((pg: any) => !pg.anulado)
+    const pf_activos = (p.facturas?.pagos_factura ?? []).filter((pf: any) => !pf.anulado)
+    const pagado_directo = pagos_activos.reduce((s: number, pg: any) => s + pg.monto, 0)
+    const pagado_factura = pf_activos.reduce((s: number, pf: any) => s + pf.monto, 0)
     return {
       id:             p.id,
       numero_orden:   p.numero_orden,
@@ -137,5 +151,41 @@ export async function getClienteDetalle(id: string): Promise<ClienteDetalle | nu
     }
   })
 
-  return { ...cliente, pedidos }
+  // Historial de pagos: pagos de pedidos + pagos de facturas, ordenados por fecha desc
+  const pagos: PagoCliente[] = []
+  for (const _p of pedidosRaw ?? []) {
+    const p = _p as any
+    for (const pg of (p.pagos ?? [])) {
+      if (pg.anulado) continue
+      pagos.push({
+        id:            pg.id,
+        fecha:         pg.fecha,
+        monto:         pg.monto,
+        metodo:        pg.metodo,
+        notas:         pg.notas ?? null,
+        origen:        'pedido',
+        referencia:    p.numero_orden,
+        referencia_id: p.id,
+      })
+    }
+    const factura = Array.isArray(p.facturas) ? p.facturas[0] : p.facturas
+    if (factura) {
+      for (const pf of (factura.pagos_factura ?? [])) {
+        if (pf.anulado) continue
+        pagos.push({
+          id:            pf.id,
+          fecha:         pf.fecha,
+          monto:         pf.monto,
+          metodo:        pf.metodo,
+          notas:         pf.notas ?? null,
+          origen:        'factura',
+          referencia:    factura.numero_factura ?? p.numero_orden,
+          referencia_id: factura.id,
+        })
+      }
+    }
+  }
+  pagos.sort((a, b) => b.fecha.localeCompare(a.fecha))
+
+  return { ...cliente, pedidos, pagos }
 }

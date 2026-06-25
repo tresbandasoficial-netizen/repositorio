@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { EstadoBadge } from '@/components/pedidos/EstadoBadge'
 import { formatCOP, formatFecha } from '@/lib/utils/format'
 import { formatearTelefono, whatsappUrl } from '@/lib/utils/phone'
-import { EstadoPedido } from '@/types'
+import { EstadoPedido, METODO_PAGO_LABELS, MetodoPago } from '@/types'
 import { AbonarClienteButton } from '@/components/clientes/AbonarClienteButton'
 
 export default async function ClienteDetallePage({
@@ -123,6 +123,59 @@ export default async function ClienteDetallePage({
             </CardContent>
           </Card>
         </div>
+
+          {/* Historial de pagos */}
+          <Card>
+            <CardHeader>
+              <h2 className="text-sm font-semibold text-gray-900">Historial de pagos</h2>
+            </CardHeader>
+            <CardContent className="p-0">
+              {cliente.pagos.length === 0 ? (
+                <p className="px-6 py-4 text-sm text-gray-400">Sin pagos registrados.</p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                      <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">Monto</th>
+                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Método</th>
+                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Pedido</th>
+                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Notas</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {cliente.pagos.map((pg) => (
+                      <tr key={pg.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-3 text-gray-600">{formatFecha(pg.fecha)}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-green-700">{formatCOP(pg.monto)}</td>
+                        <td className="px-4 py-3 text-gray-600">
+                          {METODO_PAGO_LABELS[pg.metodo as MetodoPago] ?? pg.metodo}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Link
+                            href={pg.origen === 'pedido' ? `/pedidos/${pg.referencia_id}` : `/facturacion/${pg.referencia_id}`}
+                            className="font-mono text-xs text-blue-600 hover:underline"
+                          >
+                            {pg.referencia}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3 text-gray-400 text-xs">{pg.notas ?? '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="border-t-2 border-gray-200 bg-gray-50">
+                    <tr>
+                      <td className="px-6 py-3 text-xs font-semibold text-gray-600 uppercase">Total pagado</td>
+                      <td className="px-4 py-3 text-right font-bold text-green-700">
+                        {formatCOP(cliente.pagos.reduce((s, pg) => s + pg.monto, 0))}
+                      </td>
+                      <td colSpan={3} />
+                    </tr>
+                  </tfoot>
+                </table>
+              )}
+            </CardContent>
+          </Card>
 
         {/* Columna lateral — info del cliente */}
         <div className="space-y-4">
