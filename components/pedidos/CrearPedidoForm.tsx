@@ -5,7 +5,7 @@ import { parsearPedido } from '@/lib/parser'
 import { ParsedPedido, MetodoPago, METODOS_PAGO, METODO_PAGO_LABELS } from '@/types'
 import { formatCOP } from '@/lib/utils/format'
 import { crearPedidoDesdeDataAction } from '@/app/actions/pedidos'
-import { buscarClientesAction, buscarDireccionPorTelefonoAction, ClienteBusqueda } from '@/app/actions/clientes'
+import { buscarClientesAction, buscarDireccionPorTelefonoAction, buscarClientePorTelefonoAction, ClienteBusqueda, ClientePorTelefono } from '@/app/actions/clientes'
 import { buscarArticulosAction, guardarArticuloCatalogoAction, ArticuloBusqueda } from '@/app/actions/articulos'
 import { Button } from '@/components/ui/Button'
 import { ImagenProducto } from '@/components/pedidos/ImagenProducto'
@@ -74,6 +74,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
   const [busquedaCliente, setBusquedaCliente] = useState('')
   const [resultadosCliente, setResultadosCliente] = useState<ClienteBusqueda[]>([])
   const [busquedaHecha, setBusquedaHecha] = useState(false)
+  const [clienteExistente, setClienteExistente] = useState<ClientePorTelefono>(null)
   const [ultimaDireccion, setUltimaDireccion] = useState<string | null>(null)
   const [pedidoCreado, setPedidoCreado] = useState<{ id: string; numero: string } | null>(null)
 
@@ -119,9 +120,25 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
     return () => clearTimeout(t)
   }, [busquedaCliente])
 
+  // Verificar en tiempo real si el celular escrito manualmente ya existe
+  useEffect(() => {
+    const tel = form.cliente_telefono.replace(/\D/g, '')
+    if (tel.length < 7) { setClienteExistente(null); return }
+    const t = setTimeout(async () => {
+      const c = await buscarClientePorTelefonoAction(tel)
+      setClienteExistente(c)
+      if (c) {
+        setForm(f => ({ ...f, cliente_nombre: c.nombre }))
+        setUltimaDireccion(c.ultima_direccion ?? null)
+      }
+    }, 400)
+    return () => clearTimeout(t)
+  }, [form.cliente_telefono])
+
   function seleccionarCliente(c: ClienteBusqueda) {
     setForm(f => ({ ...f, cliente_nombre: c.nombre, cliente_telefono: c.telefono_normalizado }))
     setUltimaDireccion(c.ultima_direccion ?? null)
+    setClienteExistente(c)
     setBusquedaCliente('')
     setResultadosCliente([])
     setBusquedaHecha(false)
@@ -359,7 +376,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
             <div>
               <label className="block text-xs text-gray-500 mb-1">Nombre *</label>
               <input type="text" value={form.cliente_nombre}
-                onChange={e => updateField('cliente_nombre', e.target.value)}
+                onChange={e => { updateField('cliente_nombre', e.target.value); setClienteExistente(null) }}
                 placeholder="Nombre completo"
                 className="w-full border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
@@ -368,9 +385,20 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
               <input type="text" value={form.cliente_telefono}
                 onChange={e => updateField('cliente_telefono', e.target.value)}
                 placeholder="3001234567"
-                className="w-full border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                className={`w-full border rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 ${clienteExistente ? 'border-green-400 focus:ring-green-400' : 'border-gray-300 focus:ring-blue-500'}`} />
             </div>
           </div>
+
+          {/* Aviso cliente existente / nuevo */}
+          {clienteExistente ? (
+            <div className="flex items-center gap-2 rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-sm text-green-800">
+              <span className="text-green-500 font-bold">✓</span>
+              <span>Cliente existente: <strong>{clienteExistente.nombre}</strong> · {clienteExistente.telefono_normalizado}</span>
+            </div>
+          ) : form.cliente_telefono.replace(/\D/g, '').length >= 7 && (
+            <p className="text-xs text-blue-600">Celular nuevo — se creará el cliente al confirmar.</p>
+          )}
+
           <p className="text-xs text-gray-400">Asesor: {asesorNombre} · Sede: {form.sede}</p>
         </div>
 

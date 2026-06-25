@@ -48,6 +48,37 @@ export async function buscarClientesAction(busqueda: string): Promise<ClienteBus
   }))
 }
 
+export type ClientePorTelefono = {
+  id: string
+  nombre: string
+  telefono_normalizado: string
+  ultima_direccion: string | null
+} | null
+
+export async function buscarClientePorTelefonoAction(telefono: string): Promise<ClientePorTelefono> {
+  if (!telefono || telefono.replace(/\D/g, '').length < 7) return null
+  const supabase = await createClient()
+  const { data: cliente } = await supabase
+    .from('clientes')
+    .select('id, nombre, telefono_normalizado')
+    .eq('telefono_normalizado', telefono.replace(/\D/g, ''))
+    .maybeSingle()
+
+  if (!cliente) return null
+
+  const { data: pedido } = await supabase
+    .from('pedidos')
+    .select('direccion_entrega')
+    .eq('cliente_id', cliente.id)
+    .eq('tipo_entrega', 'domicilio')
+    .not('direccion_entrega', 'is', null)
+    .order('fecha_creacion', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  return { ...cliente, ultima_direccion: pedido?.direccion_entrega ?? null }
+}
+
 export async function buscarDireccionPorTelefonoAction(telefono: string): Promise<string | null> {
   const supabase = await createClient()
   const { data: cliente } = await supabase
