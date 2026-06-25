@@ -5,6 +5,7 @@ export type PedidoRow = {
   id: string
   numero_orden: string
   estado: EstadoPedido
+  tipo: 'pedido' | 'venta_inmediata'
   total: number
   total_pagado: number
   // en_alerta y es_zombie vienen calculados desde SQL (fuente de verdad)
@@ -24,6 +25,7 @@ export type PedidoRow = {
   asesor_id: string
   sede_id: string
   cliente_id: string
+  factura_id: string | null
 }
 
 export type PedidoDetalle = PedidoRow & {
@@ -82,6 +84,7 @@ export async function getPedidos(filtros?: {
   let query = supabase
     .from('vista_pedidos_asesor')
     .select('*', { count: 'exact' })
+    .neq('tipo', 'venta_inmediata')
     .order('fecha_creacion', { ascending: false })
     .range(desde, hasta)
 
