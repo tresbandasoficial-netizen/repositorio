@@ -9,14 +9,16 @@
 --   1. Columna `anulado boolean` en `pagos` y `pagos_factura`.
 --   2. anular_factura      → marca anulado=true en sus pagos_factura.
 --   3. cambiar_estado_pedido (a 'cancelado') → marca anulado=true en sus pagos.
---   4. Las vistas/queries que suman pagos excluyen anulado=true.
+--   4. Las queries TS que suman pagos excluyen anulado=true (ver lib/queries).
 --
--- Nota: las vistas vista_cartera_clientes (065), vista_flujo_caja (068) y
--- vista_pagos_unificados (028) YA excluyen facturas anuladas y pedidos
--- cancelados por estado del padre, por lo que siguen siendo correctas sin
--- cambios (un pago sólo se marca anulado cuando su padre ya está anulado/
--- cancelado). Aquí se corrigen las que sumaban SIN ese filtro de padre:
--- vista_pedidos_asesor (total_pagado) y vista_facturas (total_abonado).
+-- Nota sobre vistas: NO se recrean aquí. Las vistas financieras
+-- (vista_cartera_clientes 065, vista_flujo_caja 068, vista_pagos_unificados
+-- 028, vista_morosos 027) YA excluyen facturas anuladas y pedidos cancelados
+-- por el estado del padre — y un pago sólo se marca anulado cuando su padre
+-- ya está anulado/cancelado, así que esas vistas siguen siendo correctas sin
+-- cambios. El total_pagado de vista_pedidos_asesor y el total_abonado de
+-- vista_facturas quedan como registro histórico de lo que se pagó antes de
+-- anular (no alimentan ningún cálculo de caja ni de cartera).
 
 -- ── 1. Columna anulado ───────────────────────────────────────────────────────
 alter table pagos          add column if not exists anulado boolean not null default false;
@@ -118,100 +120,3 @@ begin
   values ('pedidos', p_pedido_id, 'estado', v_estado_actual, p_nuevo_estado, p_usuario_id);
 end;
 $$;
-
--- ── 4. vista_pedidos_asesor: excluir pagos anulados en total_pagado ──────────
--- CREATE OR REPLACE conserva las columnas (no cambian), así vista_zombies y
--- cualquier dependiente siguen válidos.
-create or replace view vista_pedidos_asesor as
-  select
-    p.id,
-    p.numero_orden,
-    p.estado,
-    p.tipo,
-    p.total,
-    p.tipo_entrega,
-    p.direccion_entrega,
-    p.notas,
-    p.fecha_creacion,
-    p.fecha_actualizacion,
-    s.codigo  as sede_codigo,
-    s.nombre  as sede_nombre,
-    c.nombre  as cliente_nombre,
-    c.telefono_normalizado as cliente_telefono,
-    u.nombre  as asesor_nombre,
-    p.asesor_id,
-    p.sede_id,
-    p.cliente_id,
-    p.factura_id,
-    coalesce(
-      (select sum(pg.monto) from pagos pg where pg.pedido_id = p.id and not pg.anulado),
-      0
-    ) as total_pagado,
-    (
-      select pi2.imagen_url
-      from pedido_items pi2
-      where pi2.pedido_id = p.id
-        and pi2.imagen_url is not null
-      order by pi2.id
-      limit 1
-    ) as primera_imagen,
-    case
-      when p.estado = 'pendiente'
-        and p.fecha_actualizacion < now() - interval '2 days'    then true
-      when p.estado = 'comprado'
-        and p.fecha_actualizacion < now() - interval '8 days'    then true
-      when p.estado in ('pendiente', 'comprado', 'usa')
-        and p.fecha_creacion < now() - interval '15 days'        then true
-      when p.estado = 'usa'
-        and p.fecha_actualizacion < now() - interval '6 days'    then true
-      when p.estado in ('bucaramanga', 'santa_rosa')
-        and p.fecha_actualizacion < now() - interval '1 day'     then true
-      else false
-    end as en_alerta,
-    (
-      p.estado = 'pendiente'
-      and p.fecha_creacion < now() - interval '30 days'
-    ) as es_zombie
-
-  from pedidos p
-  join sedes    s on s.id = p.sede_id
-  join clientes c on c.id = p.cliente_id
-  join usuarios u on u.id = p.asesor_id;
-
--- ── 5. vista_facturas: excluir pagos anulados en total_abonado ───────────────
-create or replace view vista_facturas as
-select
-  f.id,
-  f.numero_factura,
-  f.cliente_id,
-  c.nombre               as cliente_nombre,
-  c.telefono_normalizado as cliente_telefono,
-  f.sede_id,
-  s.codigo               as sede_codigo,
-  s.nombre               as sede_nombre,
-  f.asesor_id,
-  u.nombre               as asesor_nombre,
-  f.fecha_factura,
-  f.fecha_vencimiento,
-  f.total,
-  coalesce(pg.total_abonado, 0)::integer            as total_abonado,
-  (f.total - coalesce(pg.total_abonado, 0))::integer as saldo,
-  case
-    when f.estado in ('pagada', 'anulada') then 0
-    when f.fecha_vencimiento < current_date
-      then (current_date - f.fecha_vencimiento)
-    else 0
-  end as dias_atraso,
-  f.estado,
-  f.notas,
-  f.creado_en
-from facturas f
-join clientes c on c.id = f.cliente_id
-join sedes    s on s.id = f.sede_id
-join usuarios u on u.id = f.asesor_id
-left join (
-  select factura_id, sum(monto) as total_abonado
-  from pagos_factura
-  where not anulado
-  group by factura_id
-) pg on pg.factura_id = f.id;
