@@ -47,6 +47,7 @@ export async function getMetricasAdmin(): Promise<MetricasAdmin> {
     supabase
       .from('pagos')
       .select('monto')
+      .eq('anulado', false)
       .gte('fecha', hace(30).slice(0, 10)),
     supabase
       .from('vista_cartera_clientes')

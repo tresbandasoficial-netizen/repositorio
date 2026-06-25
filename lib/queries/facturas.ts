@@ -91,6 +91,7 @@ export async function getFacturaDetalle(id: string): Promise<FacturaDetalle | nu
       .from('pagos_factura')
       .select('id, monto, metodo, fecha, notas, usuarios(nombre)')
       .eq('factura_id', id)
+      .eq('anulado', false)
       .order('fecha'),
     supabase
       .from('domicilios')
@@ -136,7 +137,7 @@ export async function getFacturaRecibo(id: string): Promise<ReciboFactura | null
 
   const [pedidosRes, abonosRes, sedeRes] = await Promise.all([
     supabase.from('pedidos').select('id').eq('factura_id', id),
-    supabase.from('pagos_factura').select('monto, metodo, fecha').eq('factura_id', id).order('fecha'),
+    supabase.from('pagos_factura').select('monto, metodo, fecha').eq('factura_id', id).eq('anulado', false).order('fecha'),
     supabase.from('sedes').select('direccion').eq('id', factura.sede_id).single(),
   ])
 
@@ -235,6 +236,7 @@ export async function getPedidosFacturables(clienteId: string, sedeId: string) {
   const { data: pagos } = await supabase
     .from('pagos')
     .select('pedido_id, monto')
+    .eq('anulado', false)
     .in('pedido_id', ids)
 
   const abonado = new Map<string, number>()

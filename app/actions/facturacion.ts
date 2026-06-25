@@ -48,7 +48,7 @@ export async function getPedidosFacturablesAction(clienteId: string): Promise<Pe
   if (pedidos.length === 0) return []
 
   const ids = pedidos.map(p => p.id)
-  const { data: pagos } = await supabase.from('pagos').select('pedido_id, monto').in('pedido_id', ids)
+  const { data: pagos } = await supabase.from('pagos').select('pedido_id, monto').eq('anulado', false).in('pedido_id', ids)
   const abonado = new Map<string, number>()
   for (const pg of (pagos ?? []) as Array<{ pedido_id: string; monto: number }>) {
     abonado.set(pg.pedido_id, (abonado.get(pg.pedido_id) ?? 0) + pg.monto)

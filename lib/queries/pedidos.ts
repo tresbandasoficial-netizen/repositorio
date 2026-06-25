@@ -141,6 +141,7 @@ export async function getPedidoDetalle(id: string): Promise<PedidoDetalle | null
       .from('pagos')
       .select('id, monto, metodo, fecha, notas, usuarios(nombre)')
       .eq('pedido_id', id)
+      .eq('anulado', false)
       .order('fecha', { ascending: true }),
     supabase
       .from('historial_cambios')
