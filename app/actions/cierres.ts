@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getSesion } from '@/lib/auth/acceso'
+import { hoyBogota } from '@/lib/utils/format'
 
 export type DetalleCuenta = {
   cuenta_id: string
@@ -40,13 +41,14 @@ export async function cerrarCajaAction(data: {
   sede_id?: string
 }): Promise<CierreCajaResult> {
   const sesion = await getSesion()
-  const sedeId = data.sede_id || sesion.sede_id
+  if (sesion.rol === 'visor') return { ok: false, error: 'Sin permisos para cerrar caja' }
+  const sedeId = sesion.rol === 'admin' ? (data.sede_id || sesion.sede_id) : sesion.sede_id
   if (!sedeId) return { ok: false, error: 'Selecciona una sede para cerrar caja.' }
 
   const supabase = await createClient()
 
   // Verificar que no haya ya un cierre hoy para esta sede
-  const hoy = new Date().toISOString().slice(0, 10)
+  const hoy = hoyBogota()
   const { data: existente } = await supabase
     .from('cierres_caja')
     .select('id')

@@ -38,7 +38,7 @@ export function RegistrarPagoFacturaForm({ facturaId, saldo }: { facturaId: stri
     const m = parseInt(monto.replace(/\D/g, ''), 10)
     if (!m || m <= 0) { setError('Ingresa un monto válido'); return }
     if (m > saldo) { setError(`El monto supera el saldo (${formatCOP(saldo)})`); return }
-    if (!esRecaudo && !cuentaId) { setError('Selecciona la cuenta destino'); return }
+    if (metodo !== 'efectivo' && !esRecaudo && !cuentaId) { setError('Selecciona la cuenta destino'); return }
     setError('')
     start(async () => {
       const r = await registrarPagoFacturaAction({
@@ -47,7 +47,7 @@ export function RegistrarPagoFacturaForm({ facturaId, saldo }: { facturaId: stri
         metodo,
         fecha,
         notas,
-        cuenta_id: esRecaudo ? null : cuentaId,
+        cuenta_id: (esRecaudo || metodo === 'efectivo') ? null : cuentaId,
         mensajeria: esRecaudo ? mensajeria : null,
       })
       if (!r.ok) setError(r.error)
@@ -91,7 +91,7 @@ export function RegistrarPagoFacturaForm({ facturaId, saldo }: { facturaId: stri
               ))}
             </select>
           </div>
-        ) : (
+        ) : metodo !== 'efectivo' ? (
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Cuenta destino *</label>
             <select
@@ -105,7 +105,7 @@ export function RegistrarPagoFacturaForm({ facturaId, saldo }: { facturaId: stri
               ))}
             </select>
           </div>
-        )}
+        ) : null}
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1">Fecha</label>
           <input

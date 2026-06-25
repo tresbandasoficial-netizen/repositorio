@@ -19,6 +19,8 @@ async function _crearPedidoConDatos(
   datos: ParsedPedido,
   numeroOrdenManual: string
 ): Promise<CrearPedidoResult> {
+  const sesionPre = await getSesion()
+  if (sesionPre.rol === 'visor') return { ok: false, error: 'Sin permisos para crear pedidos' }
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -138,16 +140,16 @@ export type CambiarEstadoResult =
 
 export async function cambiarEstadoAction(
   pedidoId: string,
-  estadoActual: EstadoPedido,
+  _estadoActualIgnorado: EstadoPedido,
   nuevoEstado: EstadoPedido
 ): Promise<CambiarEstadoResult> {
   const sesion = await getSesion()
   const supabase = await createClient()
 
-  // Verificar que el pedido pertenece a la sede del usuario
+  // Leer el estado actual desde la BD — no confiar en el valor que manda el cliente.
   const { data: pedido } = await supabase
     .from('vista_pedidos_asesor')
-    .select('sede_id')
+    .select('sede_id, estado')
     .eq('id', pedidoId)
     .single()
 
@@ -155,6 +157,7 @@ export async function cambiarEstadoAction(
     return { ok: false, error: 'Sin acceso a este pedido' }
   }
 
+  const estadoActual = pedido.estado as EstadoPedido
   if (!puedeTransicionar(estadoActual, nuevoEstado, sesion.rol)) {
     return {
       ok: false,
@@ -186,7 +189,7 @@ export async function cambiarEstadoAction(
 // Igual que cambiarEstadoAction pero sin redirect (para cambio inline desde la lista)
 export async function cambiarEstadoInlineAction(
   pedidoId: string,
-  estadoActual: EstadoPedido,
+  _estadoActualIgnorado: EstadoPedido,
   nuevoEstado: EstadoPedido
 ): Promise<CambiarEstadoResult> {
   const sesion = await getSesion()
@@ -194,7 +197,7 @@ export async function cambiarEstadoInlineAction(
 
   const { data: pedido } = await supabase
     .from('vista_pedidos_asesor')
-    .select('sede_id')
+    .select('sede_id, estado')
     .eq('id', pedidoId)
     .single()
 
@@ -202,6 +205,7 @@ export async function cambiarEstadoInlineAction(
     return { ok: false, error: 'Sin acceso a este pedido' }
   }
 
+  const estadoActual = pedido.estado as EstadoPedido
   if (!puedeTransicionar(estadoActual, nuevoEstado, sesion.rol)) {
     return { ok: false, error: `Transición inválida: ${estadoActual} → ${nuevoEstado}` }
   }
@@ -235,6 +239,7 @@ export async function registrarPagoAction(
   data: { monto: number; metodo: MetodoPago; fecha: string; notas: string; cuenta_id?: string | null }
 ): Promise<RegistrarPagoResult> {
   const sesion = await getSesion()
+  if (sesion.rol === 'visor') return { ok: false, error: 'Sin permisos para registrar pagos' }
   const supabase = await createClient()
 
   const { data: pedido } = await supabase
@@ -298,6 +303,7 @@ export async function editarPedidoAction(
     .single()
 
   if (!pedidoCheck) return { ok: false, error: 'Pedido no encontrado' }
+  if (sesion.rol === 'visor') return { ok: false, error: 'Sin permisos para editar pedidos' }
   if (!puedeAccederSede(sesion, pedidoCheck.sede_id)) return { ok: false, error: 'Sin acceso a este pedido' }
   if (pedidoCheck.estado === 'cancelado') return { ok: false, error: 'No se puede editar un pedido cancelado' }
 

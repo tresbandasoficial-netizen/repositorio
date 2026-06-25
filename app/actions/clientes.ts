@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { getSesion } from '@/lib/auth/acceso'
 import { normalizarTelefono } from '@/lib/utils/phone'
 
 export type ClienteBusqueda = {
@@ -78,6 +79,8 @@ export async function editarClienteAction(
   id: string,
   formData: FormData
 ): Promise<EditarClienteResult> {
+  const sesion = await getSesion()
+  if (sesion.rol === 'visor') return { ok: false, error: 'Sin permisos para editar clientes' }
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()

@@ -28,6 +28,8 @@ export type DomicilioResult =
   | { ok: false; error: string }
 
 export async function crearDomicilioAction(data: DomicilioInput): Promise<DomicilioResult> {
+  const sesionDom = await getSesion()
+  if (sesionDom.rol === 'visor') return { ok: false, error: 'Sin permisos para crear domicilios' }
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { ok: false, error: 'No autenticado' }
@@ -115,6 +117,8 @@ export async function editarDomicilioAction(
   id: string,
   data: DomicilioInput
 ): Promise<EditarDomicilioResult> {
+  const sesionEdit = await getSesion()
+  if (sesionEdit.rol === 'visor') return { ok: false, error: 'Sin permisos para editar domicilios' }
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { ok: false, error: 'No autenticado' }
@@ -159,6 +163,8 @@ export async function cerrarCuadreDiaAction(
   total_neto: number,
   resumen: object
 ): Promise<CerrarDiaResult> {
+  const sesionCuadre = await getSesion()
+  if (sesionCuadre.rol === 'visor') return { ok: false, error: 'Sin permisos para cerrar el cuadre' }
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { ok: false, error: 'No autenticado' }
@@ -182,6 +188,8 @@ export async function actualizarEstadoDomicilioAction(
   id: string,
   estado: 'pendiente' | 'entregado'
 ): Promise<ActualizarEstadoResult> {
+  const sesionEst = await getSesion()
+  if (sesionEst.rol === 'visor') return { ok: false, error: 'Sin permisos para actualizar domicilios' }
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { ok: false, error: 'No autenticado' }
@@ -207,6 +215,8 @@ export async function actualizarDespachoDomicilioAction(
   id: string,
   data: { direccion: string; articulo?: string; notas?: string }
 ): Promise<ActualizarDespachoResult> {
+  const sesionDesp = await getSesion()
+  if (sesionDesp.rol === 'visor') return { ok: false, error: 'Sin permisos para actualizar domicilios' }
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { ok: false, error: 'No autenticado' }

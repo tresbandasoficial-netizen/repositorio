@@ -605,11 +605,12 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
                       type="button"
                       onClick={() => {
                         if (abonos.length === 0) {
-                          agregarAbono()
+                          setAbonos([{monto: totalNeto, metodo: 'efectivo', cuenta_id: null}])
+                        } else {
+                          const nuevos = [...abonos]
+                          nuevos[0] = {...nuevos[0], monto: totalNeto}
+                          setAbonos(nuevos)
                         }
-                        const nuevos = [...abonos]
-                        nuevos[0] = {...nuevos[0], monto: totalNeto}
-                        setAbonos(nuevos)
                       }}
                       className="w-full rounded-lg bg-gray-100 text-gray-700 px-3 py-1.5 text-xs font-medium hover:bg-gray-200"
                     >
