@@ -242,30 +242,27 @@ export async function registrarPagoAction(
   if (sesion.rol === 'visor') return { ok: false, error: 'Sin permisos para registrar pagos' }
   const supabase = await createClient()
 
+  // Verificar acceso a la sede antes de tocar datos financieros.
   const { data: pedido } = await supabase
     .from('vista_pedidos_asesor')
-    .select('estado, total, total_pagado, sede_id')
+    .select('sede_id')
     .eq('id', pedidoId)
     .single()
 
   if (!pedido) return { ok: false, error: 'Pedido no encontrado' }
   if (!puedeAccederSede(sesion, pedido.sede_id)) return { ok: false, error: 'Sin acceso a este pedido' }
-  if (pedido.estado === 'cancelado') return { ok: false, error: 'No se pueden registrar pagos en pedidos cancelados' }
-
-  const saldo = pedido.total - pedido.total_pagado
   if (data.monto <= 0) return { ok: false, error: 'El monto debe ser mayor a cero' }
-  if (data.monto > saldo) {
-    return { ok: false, error: `El monto supera el saldo pendiente (${saldo.toLocaleString('es-CO')} COP)` }
-  }
 
-  const { error } = await supabase.from('pagos').insert({
-    pedido_id:  pedidoId,
-    monto:      data.monto,
-    metodo:     data.metodo,
-    fecha:      data.fecha,
-    notas:      data.notas || null,
-    asesor_id:  sesion.id,
-    cuenta_id:  data.cuenta_id || null,
+  // El RPC bloquea el pedido con FOR UPDATE antes de validar el saldo,
+  // evitando que dos asesores simultáneos sobreabonen el mismo pedido.
+  const { error } = await supabase.rpc('registrar_pago_pedido', {
+    p_pedido_id: pedidoId,
+    p_monto:     data.monto,
+    p_metodo:    data.metodo,
+    p_fecha:     data.fecha,
+    p_asesor_id: sesion.id,
+    p_cuenta_id: data.cuenta_id || null,
+    p_notas:     data.notas.trim() || null,
   })
 
   if (error) return { ok: false, error: error.message }
