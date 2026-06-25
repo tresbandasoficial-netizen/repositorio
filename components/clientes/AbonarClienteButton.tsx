@@ -33,6 +33,14 @@ export function AbonarClienteButton({
     })
   }, [])
 
+  // Cuando cambia el método, auto-seleccionar la cuenta si el nombre coincide
+  useEffect(() => {
+    if (metodo === 'efectivo' || cuentas.length === 0) return
+    const label = METODO_PAGO_LABELS[metodo].toLowerCase()
+    const match = cuentas.find(c => c.nombre.toLowerCase() === label)
+    if (match) setCuentaId(match.id)
+  }, [metodo, cuentas])
+
   function abrir() {
     setOpen(true)
     setMonto('')
@@ -123,8 +131,8 @@ export function AbonarClienteButton({
                 </select>
               </div>
 
-              {/* Cuenta destino (solo si no es efectivo) */}
-              {metodo !== 'efectivo' && (
+              {/* Cuenta destino: solo si no es efectivo y el método no ya la implica por nombre */}
+              {metodo !== 'efectivo' && !cuentas.find(c => c.nombre.toLowerCase() === METODO_PAGO_LABELS[metodo].toLowerCase()) && (
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">Cuenta destino *</label>
                   <select
