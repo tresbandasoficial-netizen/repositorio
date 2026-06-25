@@ -73,6 +73,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
   const [advertencias, setAdvertencias] = useState<string[]>([])
   const [busquedaCliente, setBusquedaCliente] = useState('')
   const [resultadosCliente, setResultadosCliente] = useState<ClienteBusqueda[]>([])
+  const [busquedaHecha, setBusquedaHecha] = useState(false)
   const [ultimaDireccion, setUltimaDireccion] = useState<string | null>(null)
   const [pedidoCreado, setPedidoCreado] = useState<{ id: string; numero: string } | null>(null)
 
@@ -109,10 +110,11 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
 
   // Buscar cliente por nombre/celular
   useEffect(() => {
-    if (busquedaCliente.trim().length < 2) { setResultadosCliente([]); return }
+    if (busquedaCliente.trim().length < 2) { setResultadosCliente([]); setBusquedaHecha(false); return }
     const t = setTimeout(async () => {
       const res = await buscarClientesAction(busquedaCliente)
       setResultadosCliente(res)
+      setBusquedaHecha(true)
     }, 300)
     return () => clearTimeout(t)
   }, [busquedaCliente])
@@ -122,6 +124,22 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
     setUltimaDireccion(c.ultima_direccion ?? null)
     setBusquedaCliente('')
     setResultadosCliente([])
+    setBusquedaHecha(false)
+  }
+
+  // El texto buscado no coincide con ningún cliente → ofrecer crear uno nuevo con ese dato
+  function crearClienteNuevo() {
+    const q = busquedaCliente.trim()
+    // Si lo que escribió parece un teléfono, lo lleva al campo celular; si no, al nombre.
+    const soloDigitos = q.replace(/\D/g, '')
+    if (soloDigitos.length >= 7 && soloDigitos.length === q.replace(/\s/g, '').length) {
+      setForm(f => ({ ...f, cliente_telefono: q }))
+    } else {
+      setForm(f => ({ ...f, cliente_nombre: q }))
+    }
+    setBusquedaCliente('')
+    setResultadosCliente([])
+    setBusquedaHecha(false)
   }
 
   function updateField<K extends keyof ParsedPedido>(field: K, value: ParsedPedido[K]) {
@@ -324,6 +342,18 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
               </ul>
             )}
           </div>
+
+          {/* Sin coincidencias → crear cliente nuevo con lo que escribió */}
+          {busquedaHecha && resultadosCliente.length === 0 && busquedaCliente.trim().length >= 2 && (
+            <button
+              type="button"
+              onMouseDown={crearClienteNuevo}
+              className="w-full text-left rounded-lg border border-dashed border-blue-300 bg-blue-50/50 px-3 py-2 text-sm text-blue-700 hover:bg-blue-50 transition-colors"
+            >
+              No existe ningún cliente con «<span className="font-medium">{busquedaCliente.trim()}</span>».{' '}
+              <span className="font-semibold underline">Crear cliente nuevo →</span>
+            </button>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>
