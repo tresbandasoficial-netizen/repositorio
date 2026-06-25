@@ -1,14 +1,11 @@
 'use client'
 
-import { useState, useTransition, useEffect } from 'react'
+import { useState, useTransition } from 'react'
 import { registrarPagoFacturaAction } from '@/app/actions/facturacion'
-import { getCuentasAction } from '@/app/actions/cuentas'
 import { Button } from '@/components/ui/Button'
 import { formatCOP, hoyBogota } from '@/lib/utils/format'
 import { MetodoPago, METODOS_PAGO, METODO_PAGO_LABELS, MENSAJERIA_LABELS, TipoMensajeria } from '@/types'
-import type { Cuenta } from '@/types'
 
-// Métodos estándar (cuenta bancaria / efectivo) + Recaudo Mensajería al final.
 const METODOS: { value: MetodoPago; label: string }[] = [
   ...METODOS_PAGO.map(v => ({ value: v, label: METODO_PAGO_LABELS[v] })),
   { value: 'recaudo_mensajeria' as MetodoPago, label: METODO_PAGO_LABELS['recaudo_mensajeria'] },
@@ -19,26 +16,16 @@ export function RegistrarPagoFacturaForm({ facturaId, saldo }: { facturaId: stri
   const [metodo, setMetodo] = useState<MetodoPago>('efectivo')
   const [fecha, setFecha] = useState(() => hoyBogota())
   const [notas, setNotas] = useState('')
-  const [cuentas, setCuentas] = useState<Cuenta[]>([])
-  const [cuentaId, setCuentaId] = useState('')
   const [mensajeria, setMensajeria] = useState<TipoMensajeria>('servigo')
   const [error, setError] = useState('')
   const [pending, start] = useTransition()
 
   const esRecaudo = metodo === 'recaudo_mensajeria'
 
-  useEffect(() => {
-    getCuentasAction().then(lista => {
-      setCuentas(lista)
-      if (lista.length > 0) setCuentaId(lista[0].id)
-    })
-  }, [])
-
   function submit() {
     const m = parseInt(monto.replace(/\D/g, ''), 10)
     if (!m || m <= 0) { setError('Ingresa un monto válido'); return }
     if (m > saldo) { setError(`El monto supera el saldo (${formatCOP(saldo)})`); return }
-    if (metodo !== 'efectivo' && !esRecaudo && !cuentaId) { setError('Selecciona la cuenta destino'); return }
     setError('')
     start(async () => {
       const r = await registrarPagoFacturaAction({
@@ -47,7 +34,7 @@ export function RegistrarPagoFacturaForm({ facturaId, saldo }: { facturaId: stri
         metodo,
         fecha,
         notas,
-        cuenta_id: (esRecaudo || metodo === 'efectivo') ? null : cuentaId,
+        cuenta_id: null,
         mensajeria: esRecaudo ? mensajeria : null,
       })
       if (!r.ok) setError(r.error)
@@ -78,7 +65,7 @@ export function RegistrarPagoFacturaForm({ facturaId, saldo }: { facturaId: stri
             {METODOS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
           </select>
         </div>
-        {esRecaudo ? (
+        {esRecaudo && (
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Mensajería que recauda *</label>
             <select
@@ -91,21 +78,7 @@ export function RegistrarPagoFacturaForm({ facturaId, saldo }: { facturaId: stri
               ))}
             </select>
           </div>
-        ) : metodo !== 'efectivo' ? (
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Cuenta destino *</label>
-            <select
-              value={cuentaId}
-              onChange={e => setCuentaId(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {cuentas.length === 0 && <option value="">Cargando...</option>}
-              {cuentas.map(c => (
-                <option key={c.id} value={c.id}>{c.nombre}</option>
-              ))}
-            </select>
-          </div>
-        ) : null}
+        )}
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1">Fecha</label>
           <input

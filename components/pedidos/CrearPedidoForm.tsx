@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect, useRef } from 'react'
 import { parsearPedido } from '@/lib/parser'
-import { ParsedPedido, MetodoPago, Cuenta, TipoCuenta } from '@/types'
+import { ParsedPedido, MetodoPago, METODOS_PAGO, METODO_PAGO_LABELS } from '@/types'
 import { formatCOP } from '@/lib/utils/format'
 import { crearPedidoDesdeDataAction } from '@/app/actions/pedidos'
 import { buscarClientesAction, buscarDireccionPorTelefonoAction, ClienteBusqueda } from '@/app/actions/clientes'
@@ -40,16 +40,6 @@ interface CrearPedidoFormProps {
   numeroSugerido: string
   asesorNombre: string
   sedeId: string | null
-  cuentas: Cuenta[]
-}
-
-function metodoDeCuenta(tipo: TipoCuenta): MetodoPago {
-  if (['bancolombia', 'nequi', 'daviplata'].includes(tipo)) return 'transferencia'
-  if (tipo === 'addi') return 'addi'
-  if (tipo === 'sistecredito') return 'sistecredito'
-  if (tipo === 'bold') return 'bold'
-  if (tipo === 'credito') return 'credito'
-  return 'efectivo'
 }
 
 function emptyData(sede: 'TR' | 'CR' | 'SR', numeroSugerido: string, asesorNombre: string): ParsedPedido {
@@ -65,14 +55,13 @@ function emptyData(sede: 'TR' | 'CR' | 'SR', numeroSugerido: string, asesorNombr
     total: 0,
     abono: 0,
     metodo_pago_abono: 'efectivo',
-    cuenta_id_abono: null,
     tipo_entrega: 'sede',
     direccion: null,
     notas: null,
   }
 }
 
-export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, cuentas }: CrearPedidoFormProps) {
+export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearPedidoFormProps) {
   const sedeCode = numeroSugerido.slice(0, 2) as 'TR' | 'CR' | 'SR'
 
   const [form, setForm]               = useState<ParsedPedido>(() => emptyData(sedeCode, numeroSugerido, asesorNombre))
@@ -260,8 +249,6 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, cuentas 
     if (!form.cliente_nombre.trim()) { setErrorAccion('El nombre del cliente es obligatorio'); return }
     if (!form.cliente_telefono.trim()) { setErrorAccion('El celular del cliente es obligatorio'); return }
     if (form.productos.find(p => !p.descripcion.trim())) { setErrorAccion('Todos los artículos deben tener nombre'); return }
-    if (form.abono > 0 && !(form as any).cuenta_id_abono) { setErrorAccion('Selecciona la cuenta donde se recibió el abono'); return }
-
     startTransition(async () => {
       const result = await crearPedidoDesdeDataAction(form, numeroOrden)
       if (!result.ok) {
@@ -561,23 +548,14 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, cuentas 
               className="max-w-[180px] border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Cuenta de pago</label>
+            <label className="block text-xs text-gray-500 mb-1">Método de pago</label>
             <select
-              value={(form as any).cuenta_id_abono ?? ''}
-              onChange={e => {
-                const cuentaId = e.target.value || null
-                const cuenta = cuentas.find(c => c.id === cuentaId)
-                setForm(f => ({
-                  ...f,
-                  cuenta_id_abono: cuentaId,
-                  metodo_pago_abono: cuenta ? metodoDeCuenta(cuenta.tipo) : 'efectivo',
-                }))
-              }}
+              value={form.metodo_pago_abono}
+              onChange={e => updateField('metodo_pago_abono', e.target.value as MetodoPago)}
               className="w-full max-w-xs border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="">— Seleccionar cuenta —</option>
-              {cuentas.map(c => (
-                <option key={c.id} value={c.id}>{c.nombre}</option>
+              {METODOS_PAGO.map(m => (
+                <option key={m} value={m}>{METODO_PAGO_LABELS[m]}</option>
               ))}
             </select>
           </div>
@@ -589,7 +567,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, cuentas 
             </div>
             {form.abono > 0 && (
               <div className="flex justify-between">
-                <span className="text-gray-600">Abono ({form.metodo_pago_abono})</span>
+                <span className="text-gray-600">Abono ({METODO_PAGO_LABELS[form.metodo_pago_abono]})</span>
                 <span className="text-green-700">− {formatCOP(form.abono)}</span>
               </div>
             )}

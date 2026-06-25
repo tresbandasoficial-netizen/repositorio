@@ -7,10 +7,8 @@ import { buscarClientesAction, ClienteBusqueda } from '@/app/actions/clientes'
 import {
   getPedidosFacturablesAction, crearFacturaUnificadaAction, buscarPedidoFacturableAction, PedidoFacturable,
 } from '@/app/actions/facturacion'
-import { getCuentasAction } from '@/app/actions/cuentas'
 import { formatCOP, formatFecha, hoyBogota } from '@/lib/utils/format'
-import { MetodoPago, PagoFacturaInput, TipoEntrega, QuienPagaEntrega, TipoMensajeria, MENSAJERIA_LABELS } from '@/types'
-import type { Cuenta } from '@/types'
+import { MetodoPago, PagoFacturaInput, TipoEntrega, QuienPagaEntrega, TipoMensajeria, MENSAJERIA_LABELS, METODOS_PAGO, METODO_PAGO_LABELS } from '@/types'
 import { Linea, nuevaLinea, LineaProducto } from '@/components/ventas/LineaProducto'
 
 type SedeOpcion = { id: string; codigo: string; nombre: string }
@@ -69,7 +67,6 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
   const [vence, setVence] = useState(venceDefault())
   const [abonos, setAbonos] = useState<PagoFacturaInput[]>([])
   const [esCredito, setEsCredito] = useState(false)
-  const [cuentas, setCuentas] = useState<Cuenta[]>([])
   const [envio, setEnvio] = useState('')
   const [descuento, setDescuento] = useState('')
   const [mensajeria, setMensajeria] = useState('')
@@ -84,12 +81,6 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
 
   const [error, setError] = useState('')
   const [pending, start] = useTransition()
-
-  useEffect(() => {
-    getCuentasAction().then(lista => {
-      setCuentas(lista)
-    })
-  }, [])
 
   useEffect(() => {
     if (cliente) return
@@ -187,10 +178,6 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
     if (!hayAlgo) { setError('Agrega al menos un pedido o un producto'); return }
     if (descuentoNum > subtotal + envioNum) { setError('El descuento no puede superar el subtotal'); return }
     if (abonoNum > totalNeto) { setError('El pago no puede superar el total'); return }
-    // Validar que cada abono con cuenta bancaria tenga cuenta (efectivo y recaudo no la necesitan)
-    if (!esCredito && abonos.some(a => a.monto > 0 && a.metodo !== 'efectivo' && a.metodo !== 'recaudo_mensajeria' && !a.cuenta_id)) {
-      setError('Selecciona la cuenta para cada método de pago'); return
-    }
     // Validar que cada recaudo mensajería tenga mensajería asignada
     if (!esCredito && abonos.some(a => a.monto > 0 && a.metodo === 'recaudo_mensajeria' && !a.mensajeria)) {
       setError('Selecciona la mensajería que recauda en cada línea de Recaudo Mensajería'); return
@@ -520,40 +507,23 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
                                   className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 />
                               </div>
-                              {/* Método/Cuenta */}
+                              {/* Método */}
                               <div className="flex-1">
                                 <label className="block text-xs text-gray-500 mb-1">Método</label>
                                 <select
-                                  value={abono.metodo === 'recaudo_mensajeria' ? '__recaudo__' : (abono.cuenta_id || '')}
+                                  value={abono.metodo}
                                   onChange={e => {
-                                    if (e.target.value === '__recaudo__') {
-                                      actualizarAbono(idx, {
-                                        cuenta_id: null,
-                                        metodo: 'recaudo_mensajeria',
-                                        mensajeria: abono.mensajeria ?? 'servigo',
-                                      })
-                                      return
-                                    }
-                                    const cuenta = cuentas.find(c => c.id === e.target.value)
-                                    if (cuenta) {
-                                      actualizarAbono(idx, {
-                                        cuenta_id: cuenta.id,
-                                        metodo: cuenta.metodo_pago as MetodoPago,
-                                        mensajeria: null,
-                                      })
-                                    } else if (e.target.value === '') {
-                                      actualizarAbono(idx, {
-                                        cuenta_id: null,
-                                        metodo: 'efectivo',
-                                        mensajeria: null,
-                                      })
-                                    }
+                                    const m = e.target.value as MetodoPago
+                                    actualizarAbono(idx, {
+                                      metodo: m,
+                                      cuenta_id: null,
+                                      mensajeria: m === 'recaudo_mensajeria' ? (abono.mensajeria ?? 'servigo') : null,
+                                    })
                                   }}
                                   className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 >
-                                  <option value="">Efectivo</option>
-                                  {cuentas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                                  <option value="__recaudo__">Recaudo Mensajería</option>
+                                  {METODOS_PAGO.map(m => <option key={m} value={m}>{METODO_PAGO_LABELS[m]}</option>)}
+                                  <option value="recaudo_mensajeria">{METODO_PAGO_LABELS['recaudo_mensajeria']}</option>
                                 </select>
                               </div>
                               {/* Eliminar */}

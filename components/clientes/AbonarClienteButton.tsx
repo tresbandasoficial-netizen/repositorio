@@ -1,12 +1,10 @@
 'use client'
 
-import { useState, useTransition, useEffect } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { abonarClienteAction } from '@/app/actions/abonos'
-import { getCuentasAction } from '@/app/actions/cuentas'
 import { formatCOP } from '@/lib/utils/format'
 import { MetodoPago, METODOS_PAGO, METODO_PAGO_LABELS } from '@/types'
-import type { Cuenta } from '@/types'
 
 export function AbonarClienteButton({
   clienteId,
@@ -19,27 +17,10 @@ export function AbonarClienteButton({
   const [open, setOpen] = useState(false)
   const [monto, setMonto] = useState('')
   const [metodo, setMetodo] = useState<MetodoPago>('efectivo')
-  const [cuentaId, setCuentaId] = useState('')
-  const [cuentas, setCuentas] = useState<Cuenta[]>([])
   const [notas, setNotas] = useState('')
   const [error, setError] = useState('')
   const [exito, setExito] = useState('')
   const [pending, start] = useTransition()
-
-  useEffect(() => {
-    getCuentasAction().then(lista => {
-      setCuentas(lista)
-      if (lista.length > 0) setCuentaId(lista[0].id)
-    })
-  }, [])
-
-  // Cuando cambia el método, auto-seleccionar la cuenta si el nombre coincide
-  useEffect(() => {
-    if (metodo === 'efectivo' || cuentas.length === 0) return
-    const label = METODO_PAGO_LABELS[metodo].toLowerCase()
-    const match = cuentas.find(c => c.nombre.toLowerCase() === label)
-    if (match) setCuentaId(match.id)
-  }, [metodo, cuentas])
 
   function abrir() {
     setOpen(true)
@@ -59,11 +40,10 @@ export function AbonarClienteButton({
     const m = parseInt(monto.replace(/\D/g, ''), 10)
     if (!m || m <= 0) { setError('Ingresa un monto válido'); return }
     if (m > deudaTotal) { setError(`El monto supera la deuda total (${formatCOP(deudaTotal)})`); return }
-    if (metodo !== 'efectivo' && !cuentaId) { setError('Selecciona una cuenta destino'); return }
     setError('')
 
     start(async () => {
-      const r = await abonarClienteAction({ cliente_id: clienteId, monto: m, metodo, cuenta_id: metodo === 'efectivo' ? null : cuentaId, notas })
+      const r = await abonarClienteAction({ cliente_id: clienteId, monto: m, metodo, cuenta_id: null, notas })
       if (!r.ok) { setError(r.error); return }
       setExito(`✓ Abono de ${formatCOP(r.aplicado)} registrado`)
       setMonto('')
@@ -130,23 +110,6 @@ export function AbonarClienteButton({
                   ))}
                 </select>
               </div>
-
-              {/* Cuenta destino: solo si no es efectivo y el método no ya la implica por nombre */}
-              {metodo !== 'efectivo' && !cuentas.find(c => c.nombre.toLowerCase() === METODO_PAGO_LABELS[metodo].toLowerCase()) && (
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Cuenta destino *</label>
-                  <select
-                    value={cuentaId}
-                    onChange={e => setCuentaId(e.target.value)}
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {cuentas.length === 0 && <option value="">Cargando...</option>}
-                    {cuentas.map(c => (
-                      <option key={c.id} value={c.id}>{c.nombre}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
 
               {/* Notas */}
               <div>

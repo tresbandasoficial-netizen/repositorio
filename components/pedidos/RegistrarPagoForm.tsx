@@ -1,9 +1,8 @@
 'use client'
 
-import { useState, useTransition, useEffect } from 'react'
-import { MetodoPago, METODOS_PAGO, METODO_PAGO_LABELS, Cuenta } from '@/types'
+import { useState, useTransition } from 'react'
+import { MetodoPago, METODOS_PAGO, METODO_PAGO_LABELS } from '@/types'
 import { registrarPagoAction } from '@/app/actions/pedidos'
-import { getCuentasAction } from '@/app/actions/cuentas'
 import { formatCOP, hoyBogota } from '@/lib/utils/format'
 
 const METODOS: { value: MetodoPago; label: string }[] =
@@ -23,14 +22,8 @@ export function RegistrarPagoForm({ pedidoId, total, totalPagado }: Props) {
   const [metodo, setMetodo] = useState<MetodoPago>('efectivo')
   const [fecha, setFecha] = useState(hoyBogota())
   const [notas, setNotas] = useState('')
-  const [cuentaId, setCuentaId] = useState<string | null>(null)
-  const [cuentas, setCuentas] = useState<Cuenta[]>([])
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
-
-  useEffect(() => {
-    getCuentasAction().then(setCuentas).catch(console.error)
-  }, [])
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -48,7 +41,7 @@ export function RegistrarPagoForm({ pedidoId, total, totalPagado }: Props) {
         metodo,
         fecha,
         notas,
-        cuenta_id: cuentaId,
+        cuenta_id: null,
       })
       if (!result.ok) setError(result.error)
     })
@@ -119,10 +112,7 @@ export function RegistrarPagoForm({ pedidoId, total, totalPagado }: Props) {
             <button
               key={m.value}
               type="button"
-              onClick={() => {
-                setMetodo(m.value)
-                setCuentaId(null)
-              }}
+              onClick={() => setMetodo(m.value)}
               className={`py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${
                 metodo === m.value
                   ? 'bg-blue-600 border-blue-600 text-white'
@@ -134,30 +124,6 @@ export function RegistrarPagoForm({ pedidoId, total, totalPagado }: Props) {
           ))}
         </div>
       </div>
-
-      {/* Cuenta específica (si aplica) */}
-      {cuentas.length > 0 && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            Cuenta donde llega el dinero <span className="text-gray-400 font-normal">(opcional)</span>
-          </label>
-          <select
-            value={cuentaId || ''}
-            onChange={(e) => setCuentaId(e.target.value || null)}
-            className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">Sin especificar</option>
-            {cuentas.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nombre}
-              </option>
-            ))}
-          </select>
-          <p className="text-xs text-gray-400 mt-1">
-            Selecciona para mejor seguimiento en el cuadre de caja. Verás el detalle de cada cuenta (Bancolombia Ronaldo, Nequi Johan, etc.)
-          </p>
-        </div>
-      )}
 
       {/* Fecha */}
       <div>
