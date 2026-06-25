@@ -178,8 +178,9 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
     if (!hayAlgo) { setError('Agrega al menos un pedido o un producto'); return }
     if (descuentoNum > subtotal + envioNum) { setError('El descuento no puede superar el subtotal'); return }
     if (abonoNum > totalNeto) { setError('El pago no puede superar el total'); return }
-    // El valor del pago es obligatorio salvo que sea a crédito.
-    if (!esCredito && abonoNum <= 0) {
+    // El valor del pago es obligatorio salvo que sea a crédito —pero solo si
+    // queda algo por cobrar. Si el pedido ya está pago (total 0), se factura igual.
+    if (!esCredito && abonoNum <= 0 && totalNeto > 0) {
       setError('Registra cómo pagó el cliente (el valor del pago) o marca "A crédito".'); return
     }
     // Validar que cada recaudo mensajería tenga mensajería asignada
@@ -220,8 +221,9 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
     })
   }
 
-  // El pago es obligatorio salvo que sea a crédito: no se emite con $0 sin marcar crédito.
-  const pagoOk = esCredito || abonoNum > 0
+  // El pago es obligatorio salvo que sea a crédito, salvo que ya no quede saldo
+  // por cobrar (pedido pagado por completo → total 0 → se factura sin pago nuevo).
+  const pagoOk = esCredito || abonoNum > 0 || totalNeto <= 0
   const puedeEmitir = !!cliente && hayAlgo && pagoOk && !pending
 
   return (

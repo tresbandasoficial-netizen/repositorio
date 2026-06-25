@@ -219,9 +219,28 @@ export async function crearFacturaUnificadaAction(
   // Regla: si NO es a crédito, el valor del pago es obligatorio. No se permite
   // emitir con pago en $0 sin marcar explícitamente "A crédito" (evita facturas
   // que entran como crédito implícito y descuadran el flujo de caja).
+  // EXCEPCIÓN: si el pedido ya está pagado por completo (no queda saldo por
+  // cobrar), se factura sin pago nuevo — el dinero ya entró antes.
   const totalAbonos = data.abonos.reduce((s, a) => s + (a.monto || 0), 0)
   if (!data.es_credito && totalAbonos <= 0) {
-    return { ok: false, error: 'Registra cómo pagó el cliente (el valor del pago) o marca "A crédito".' }
+    // Saldo real por cobrar = (total de pedidos − abonos previos) + productos + envío − descuento.
+    // Se calcula igual que el RPC crear_factura para que la validación coincida con el total resultante.
+    let saldoPedidos = 0
+    if (data.pedido_ids.length > 0) {
+      const [{ data: peds }, { data: pagosPrev }] = await Promise.all([
+        supabase.from('pedidos').select('total').in('id', data.pedido_ids),
+        supabase.from('pagos').select('monto').in('pedido_id', data.pedido_ids),
+      ])
+      const bruto = (peds ?? []).reduce((s, p) => s + (p.total ?? 0), 0)
+      const prepagado = (pagosPrev ?? []).reduce((s, pg) => s + (pg.monto ?? 0), 0)
+      saldoPedidos = Math.max(0, bruto - prepagado)
+    }
+    const totalProductosNuevos = data.productos_nuevos.reduce((s, it) => s + it.precio_venta * it.cantidad, 0)
+    const totalACobrar = Math.max(0, saldoPedidos + totalProductosNuevos + (data.envio || 0) - (data.descuento || 0))
+
+    if (totalACobrar > 0) {
+      return { ok: false, error: 'Registra cómo pagó el cliente (el valor del pago) o marca "A crédito".' }
+    }
   }
 
   const sedeId = sesion.rol === 'admin' ? data.sede_id : sesion.sede_id
