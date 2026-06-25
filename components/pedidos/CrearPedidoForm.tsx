@@ -283,6 +283,10 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
     setSiguienteNumero(null)
     if (!form.cliente_nombre.trim()) { setErrorAccion('El nombre del cliente es obligatorio'); return }
     if (!form.cliente_telefono.trim()) { setErrorAccion('El celular del cliente es obligatorio'); return }
+    if (clienteExistente && form.cliente_nombre.trim().toLowerCase() !== clienteExistente.nombre.trim().toLowerCase()) {
+      setErrorAccion(`Ese celular ya pertenece a "${clienteExistente.nombre}". Si es la misma persona usa ese nombre; si es otra persona, cambia el número.`)
+      return
+    }
     if (form.productos.find(p => !p.descripcion.trim())) { setErrorAccion('Todos los artículos deben tener nombre'); return }
     startTransition(async () => {
       const result = await crearPedidoDesdeDataAction(form, numeroOrden)
@@ -376,7 +380,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
             <div>
               <label className="block text-xs text-gray-500 mb-1">Nombre *</label>
               <input type="text" value={form.cliente_nombre}
-                onChange={e => { updateField('cliente_nombre', e.target.value); setClienteExistente(null) }}
+                onChange={e => updateField('cliente_nombre', e.target.value)}
                 placeholder="Nombre completo"
                 className="w-full border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
@@ -389,12 +393,24 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
             </div>
           </div>
 
-          {/* Aviso cliente existente / nuevo */}
+          {/* Aviso cliente existente / mismatch / nuevo */}
           {clienteExistente ? (
-            <div className="flex items-center gap-2 rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-sm text-green-800">
-              <span className="text-green-500 font-bold">✓</span>
-              <span>Cliente existente: <strong>{clienteExistente.nombre}</strong> · {clienteExistente.telefono_normalizado}</span>
-            </div>
+            form.cliente_nombre.trim().toLowerCase() !== clienteExistente.nombre.trim().toLowerCase() ? (
+              <div className="rounded-lg bg-amber-50 border border-amber-300 px-3 py-2 text-sm text-amber-900">
+                <p>⚠ Ese celular ya es de <strong>{clienteExistente.nombre}</strong>.</p>
+                <p className="text-xs mt-1">
+                  Si es la misma persona,{' '}
+                  <button type="button" onClick={() => updateField('cliente_nombre', clienteExistente.nombre)}
+                    className="font-semibold underline">usa a {clienteExistente.nombre}</button>.{' '}
+                  Si es otra persona, cambia el número de celular.
+                </p>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-sm text-green-800">
+                <span className="text-green-500 font-bold">✓</span>
+                <span>Cliente existente: <strong>{clienteExistente.nombre}</strong> · {clienteExistente.telefono_normalizado}</span>
+              </div>
+            )
           ) : form.cliente_telefono.replace(/\D/g, '').length >= 7 && (
             <p className="text-xs text-blue-600">Celular nuevo — se creará el cliente al confirmar.</p>
           )}
