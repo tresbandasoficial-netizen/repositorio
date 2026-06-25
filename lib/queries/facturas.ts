@@ -2,11 +2,13 @@ import { createClient } from '@/lib/supabase/server'
 import { getSesion } from '@/lib/auth/acceso'
 import { FacturaRow, EstadoFactura } from '@/types'
 
+export type FacturaListRow = FacturaRow & { numeros_orden: string[]; metodos: string[] }
+
 export async function getFacturas(filtros?: {
   estado?: EstadoFactura
   sede?: string
   q?: string
-}): Promise<FacturaRow[]> {
+}): Promise<FacturaListRow[]> {
   const supabase = await createClient()
   const sesion = await getSesion()
 
@@ -26,7 +28,38 @@ export async function getFacturas(filtros?: {
 
   const { data, error } = await query
   if (error) throw new Error(`Error cargando facturas: ${error.message}`)
-  return (data ?? []) as FacturaRow[]
+  const facturas = (data ?? []) as FacturaRow[]
+  if (facturas.length === 0) return []
+
+  // Traer los números de pedido y los métodos de pago de cada factura.
+  const ids = facturas.map(f => f.id)
+  const [pedsRes, pagosRes] = await Promise.all([
+    supabase.from('pedidos').select('factura_id, numero_orden').in('factura_id', ids).order('numero_orden'),
+    supabase.from('pagos_factura').select('factura_id, metodo').in('factura_id', ids).eq('anulado', false),
+  ])
+
+  const porFactura = new Map<string, string[]>()
+  for (const p of (pedsRes.data ?? []) as Array<{ factura_id: string | null; numero_orden: string }>) {
+    if (!p.factura_id) continue
+    const arr = porFactura.get(p.factura_id) ?? []
+    arr.push(p.numero_orden)
+    porFactura.set(p.factura_id, arr)
+  }
+
+  // Métodos distintos por factura (una factura puede tener abonos por varias cuentas).
+  const metodosPorFactura = new Map<string, string[]>()
+  for (const pg of (pagosRes.data ?? []) as Array<{ factura_id: string | null; metodo: string }>) {
+    if (!pg.factura_id) continue
+    const arr = metodosPorFactura.get(pg.factura_id) ?? []
+    if (!arr.includes(pg.metodo)) arr.push(pg.metodo)
+    metodosPorFactura.set(pg.factura_id, arr)
+  }
+
+  return facturas.map(f => ({
+    ...f,
+    numeros_orden: porFactura.get(f.id) ?? [],
+    metodos: metodosPorFactura.get(f.id) ?? [],
+  }))
 }
 
 export type DomicilioFactura = {

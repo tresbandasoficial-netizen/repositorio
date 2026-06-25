@@ -5,7 +5,7 @@ import { getResumenCxC } from '@/lib/queries/facturas'
 import { formatCOP, formatFecha } from '@/lib/utils/format'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { ESTADO_FACTURA_LABELS, ESTADO_FACTURA_COLORES, EstadoFactura } from '@/types'
+import { ESTADO_FACTURA_LABELS, ESTADO_FACTURA_COLORES, EstadoFactura, METODO_PAGO_LABELS, MetodoPago } from '@/types'
 import { getSesion } from '@/lib/auth/acceso'
 
 export default async function FacturacionPage({
@@ -95,6 +95,7 @@ export default async function FacturacionPage({
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Cliente</th>
                 <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">Sede</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Vence</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase hidden lg:table-cell">Pago</th>
                 <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">Saldo</th>
                 <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Estado</th>
                 <th className="px-4 py-3" />
@@ -103,7 +104,12 @@ export default async function FacturacionPage({
             <tbody className="divide-y divide-gray-50">
               {facturas.map(f => (
                 <tr key={f.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 font-mono text-xs text-gray-700">{f.numero_factura}</td>
+                  <td className="px-6 py-4 font-mono text-xs text-gray-700">
+                    {f.numero_factura}
+                    {f.numeros_orden.length > 0 && (
+                      <span className="block text-gray-400 mt-0.5">{f.numeros_orden.join(', ')}</span>
+                    )}
+                  </td>
                   <td className="px-4 py-4">
                     <p className="font-medium text-gray-900">{f.cliente_nombre}</p>
                     <p className="text-xs text-gray-400">{f.cliente_telefono}</p>
@@ -116,6 +122,11 @@ export default async function FacturacionPage({
                     {f.dias_atraso > 0 && (
                       <span className="block text-xs text-red-500">{f.dias_atraso} días atraso</span>
                     )}
+                  </td>
+                  <td className="px-4 py-4 hidden lg:table-cell text-xs text-gray-600">
+                    {f.metodos.length === 0
+                      ? <span className="text-gray-300">—</span>
+                      : f.metodos.map(m => METODO_PAGO_LABELS[m as MetodoPago] ?? m).join(', ')}
                   </td>
                   <td className="px-4 py-4 text-right">
                     <span className={`font-semibold ${f.saldo > 0 ? 'text-gray-900' : 'text-green-600'}`}>
