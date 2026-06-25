@@ -408,7 +408,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
             ) : (
               <div className="flex items-center gap-2 rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-sm text-green-800">
                 <span className="text-green-500 font-bold">✓</span>
-                <span>Cliente existente: <strong>{clienteExistente.nombre}</strong> · {clienteExistente.telefono_normalizado}</span>
+                <span>Cliente existente: <strong>{clienteExistente.nombre}</strong> · {clienteExistente.telefono_normalizado.replace(/\D/g, '').slice(-10)}</span>
               </div>
             )
           ) : form.cliente_telefono.replace(/\D/g, '').length >= 7 && (

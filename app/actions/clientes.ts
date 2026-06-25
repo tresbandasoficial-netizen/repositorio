@@ -56,14 +56,19 @@ export type ClientePorTelefono = {
 } | null
 
 export async function buscarClientePorTelefonoAction(telefono: string): Promise<ClientePorTelefono> {
-  if (!telefono || telefono.replace(/\D/g, '').length < 7) return null
+  const digitos = telefono.replace(/\D/g, '')
+  if (digitos.length < 7) return null
+  // Comparar por los últimos 10 dígitos: ignora el indicativo (+57) y cualquier
+  // diferencia de formato entre lo escrito y lo guardado.
+  const ultimos = digitos.slice(-10)
   const supabase = await createClient()
-  const { data: cliente } = await supabase
+  const { data: clientes } = await supabase
     .from('clientes')
     .select('id, nombre, telefono_normalizado')
-    .eq('telefono_normalizado', telefono.replace(/\D/g, ''))
-    .maybeSingle()
+    .ilike('telefono_normalizado', `%${ultimos}`)
+    .limit(1)
 
+  const cliente = clientes?.[0]
   if (!cliente) return null
 
   const { data: pedido } = await supabase
