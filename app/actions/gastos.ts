@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { getSesion } from '@/lib/auth/acceso'
 import { CategoriaGasto, Gasto } from '@/types'
 import { hoyBogota } from '@/lib/utils/format'
 
@@ -21,9 +22,13 @@ export type GastoResult = { ok: true; id: string } | { ok: false; error: string 
 export async function crearGastoAction(data: GastoInput): Promise<GastoResult> {
   if (data.valor <= 0) return { ok: false, error: 'El valor debe ser mayor a cero' }
 
+  const sesion = await getSesion()
+  if (sesion.rol === 'visor') return { ok: false, error: 'Sin permisos para crear gastos' }
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { ok: false, error: 'No autenticado' }
+
+  // El asesor solo puede registrar gastos en su propia sede; el admin elige.
+  const sedeId = sesion.rol === 'admin' ? data.sede_id : sesion.sede_id
+  if (!sedeId) return { ok: false, error: 'Selecciona una sede para el gasto' }
 
   const { data: gasto, error } = await supabase
     .from('gastos')
@@ -31,9 +36,9 @@ export async function crearGastoAction(data: GastoInput): Promise<GastoResult> {
       fecha:          data.fecha,
       valor:          data.valor,
       categoria:      data.categoria,
-      sede_id:        data.sede_id,
+      sede_id:        sedeId,
       cuenta_id:      data.cuenta_id || null,
-      responsable_id: user.id,
+      responsable_id: sesion.id,
       observacion:    data.observacion.trim() || null,
       origen:         'manual',
     })

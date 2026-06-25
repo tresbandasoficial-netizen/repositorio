@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { getSesion } from '@/lib/auth/acceso'
 import { TipoMensajeria } from '@/types'
 
 export type DomicilioInput = {
@@ -228,9 +229,17 @@ export type EliminarDomicilioResult =
   | { ok: false; error: string }
 
 export async function eliminarDomicilioAction(id: string): Promise<EliminarDomicilioResult> {
+  const sesion = await getSesion()
+  if (sesion.rol === 'visor') return { ok: false, error: 'Sin permisos para eliminar domicilios' }
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { ok: false, error: 'No autenticado' }
+
+  // Solo el admin o el asesor que lo creó pueden eliminarlo.
+  const { data: dom } = await supabase
+    .from('domicilios').select('asesor_id').eq('id', id).maybeSingle()
+  if (!dom) return { ok: false, error: 'Domicilio no encontrado' }
+  if (sesion.rol !== 'admin' && dom.asesor_id !== sesion.id) {
+    return { ok: false, error: 'Solo puedes eliminar domicilios que tú creaste' }
+  }
 
   const { error } = await supabase
     .from('domicilios')

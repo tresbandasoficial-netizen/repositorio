@@ -7,6 +7,7 @@ import { puedeTransicionar } from '@/lib/domain/estados'
 import { EstadoPedido, METODO_PAGO_LABELS, METODOS_PAGO } from '@/types'
 import { crearFacturaAction, buscarPedidoFacturableAction } from '@/app/actions/facturacion'
 import { crearDomicilioAction } from '@/app/actions/domicilios'
+import { hoyBogota } from '@/lib/utils/format'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -115,6 +116,7 @@ async function ejecutarBuscarPedido(numeroOrden: string): Promise<string> {
 
 async function ejecutarCambiarEstado(numeroOrden: string, nuevoEstado: string): Promise<string> {
   const sesion = await getSesion()
+  if (sesion.rol === 'visor') return 'No tienes permisos para cambiar estados.'
   const pedido = await buscarPedidoBase(numeroOrden)
   if (!pedido) return `Pedido ${numeroOrden} no encontrado.`
   if (!puedeAccederSede(sesion, pedido.sede_id)) return 'Sin acceso a este pedido.'
@@ -132,6 +134,7 @@ async function ejecutarCambiarEstado(numeroOrden: string, nuevoEstado: string): 
 
 async function ejecutarRegistrarPago(numeroOrden: string, monto: number, metodo: string, notas: string): Promise<string> {
   const sesion = await getSesion()
+  if (sesion.rol === 'visor') return 'No tienes permisos para registrar pagos.'
   const pedido = await buscarPedidoBase(numeroOrden)
   if (!pedido) return `Pedido ${numeroOrden} no encontrado.`
   if (!puedeAccederSede(sesion, pedido.sede_id)) return 'Sin acceso a este pedido.'
@@ -142,7 +145,7 @@ async function ejecutarRegistrarPago(numeroOrden: string, monto: number, metodo:
   const supabase = await createClient()
   const { error } = await supabase.from('pagos').insert({
     pedido_id: pedido.id, monto, metodo,
-    fecha: new Date().toISOString().slice(0, 10),
+    fecha: hoyBogota(),
     notas: notas || null, asesor_id: sesion.id,
   })
   if (error) return `Error: ${error.message}`
@@ -151,6 +154,7 @@ async function ejecutarRegistrarPago(numeroOrden: string, monto: number, metodo:
 
 async function ejecutarAgregarNota(numeroOrden: string, nota: string): Promise<string> {
   const sesion = await getSesion()
+  if (sesion.rol === 'visor') return 'No tienes permisos para editar notas.'
   const pedido = await buscarPedidoBase(numeroOrden)
   if (!pedido) return `Pedido ${numeroOrden} no encontrado.`
   if (!puedeAccederSede(sesion, pedido.sede_id)) return 'Sin acceso.'
@@ -163,6 +167,8 @@ async function ejecutarAgregarNota(numeroOrden: string, nota: string): Promise<s
 }
 
 async function ejecutarCrearFactura(numeroOrden: string, diasVencimiento: number): Promise<string> {
+  const sesion = await getSesion()
+  if (sesion.rol === 'visor') return 'No tienes permisos para crear facturas.'
   const busqueda = await buscarPedidoFacturableAction(numeroOrden)
   if (!busqueda.ok) return `No se puede facturar: ${busqueda.error}`
 
@@ -196,8 +202,10 @@ async function ejecutarCrearDomicilio(params: {
   numero_pedido: string
   notas: string
 }): Promise<string> {
+  const sesion = await getSesion()
+  if (sesion.rol === 'visor') return 'No tienes permisos para crear domicilios.'
   const result = await crearDomicilioAction({
-    fecha:             new Date().toISOString().slice(0, 10),
+    fecha:             hoyBogota(),
     cliente_nombre:    params.cliente_nombre,
     cliente_telefono:  params.cliente_telefono,
     direccion:         params.direccion,
@@ -418,6 +426,11 @@ export async function chatAsistenteAction(
     ? `${pedidos.length} pedidos pendientes:\n${formatearContexto(pedidos)}`
     : 'Sin pedidos pendientes.'
 
+  // El visor es de solo lectura: solo se le exponen herramientas de consulta.
+  const herramientas = sesion.rol === 'visor'
+    ? TOOLS.filter(t => t.name === 'buscar_pedido')
+    : TOOLS
+
   const mensajes: Anthropic.MessageParam[] = [
     { role: 'user', content: `Contexto (${hoy}):\n${ctx}` },
     { role: 'assistant', content: 'Entendido, tengo el contexto. ¿En qué te ayudo?' },
@@ -431,7 +444,7 @@ export async function chatAsistenteAction(
       max_tokens: 1500,
       system: SYSTEM,
       messages: mensajes,
-      tools: TOOLS,
+      tools: herramientas,
       tool_choice: { type: 'auto' },
     })
 
