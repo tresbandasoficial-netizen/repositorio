@@ -204,6 +204,9 @@ export type ParsedPedido = {
   abono: number
   metodo_pago_abono: MetodoPago
   cuenta_id_abono?: string | null
+  // Abonos múltiples (cliente paga una parte por una cuenta y otra por otra).
+  // Si está presente, reemplaza a `abono`/`metodo_pago_abono`.
+  abonos?: Array<{ monto: number; metodo: MetodoPago }>
   tipo_entrega: 'domicilio' | 'sede'
   direccion: string | null
   notas: string | null

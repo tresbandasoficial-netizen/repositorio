@@ -90,6 +90,14 @@ async function _crearPedidoConDatos(
   }))
   const total = datos.productos.reduce((s, p) => s + p.precio_venta * p.cantidad, 0)
 
+  // Abonos: si vienen múltiples (pago dividido por varias cuentas) usamos el
+  // primero al crear el pedido (atómico) y el resto se insertan después con el
+  // RPC validado registrar_pago_pedido. Si no, comportamiento clásico de un abono.
+  const abonosMultiples = (datos.abonos ?? []).filter(a => a.monto > 0)
+  const primerAbono = abonosMultiples.length > 0
+    ? abonosMultiples[0]
+    : { monto: datos.abono, metodo: datos.metodo_pago_abono }
+
   const { data: pedidoId, error: errPedido } = await supabase.rpc('crear_pedido', {
     p_numero_orden:     numeroOrden,
     p_sede_id:          sede.id,
@@ -100,8 +108,8 @@ async function _crearPedidoConDatos(
     p_direccion_entrega: datos.direccion ?? null,
     p_notas:            datos.notas ?? null,
     p_items:            items,
-    p_abono:            datos.abono,
-    p_metodo_pago:      datos.metodo_pago_abono,
+    p_abono:            primerAbono.monto,
+    p_metodo_pago:      primerAbono.metodo,
     p_cuenta_id:        (datos as any).cuenta_id_abono ?? null,
   })
 
@@ -111,6 +119,23 @@ async function _crearPedidoConDatos(
       return { ok: false, error: `El número "${numeroOrden}" ya está en uso.`, siguienteNumero }
     }
     return { ok: false, error: `Error creando pedido: ${errPedido.message}` }
+  }
+
+  // Abonos adicionales (del segundo en adelante) — RPC atómico con validación de saldo.
+  const hoy = new Date().toISOString().slice(0, 10)
+  for (const abono of abonosMultiples.slice(1)) {
+    const { error: errPago } = await supabase.rpc('registrar_pago_pedido', {
+      p_pedido_id: pedidoId,
+      p_monto:     abono.monto,
+      p_metodo:    abono.metodo,
+      p_fecha:     hoy,
+      p_asesor_id: usuario.id,
+      p_cuenta_id: null,
+      p_notas:     null,
+    })
+    if (errPago) {
+      return { ok: false, error: `Pedido creado, pero falló un abono adicional: ${errPago.message}` }
+    }
   }
 
   return { ok: true as const, pedidoId }

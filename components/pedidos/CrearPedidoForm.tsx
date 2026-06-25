@@ -78,6 +78,9 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
   const [ultimaDireccion, setUltimaDireccion] = useState<string | null>(null)
   const [pedidoCreado, setPedidoCreado] = useState<{ id: string; numero: string } | null>(null)
 
+  // Abonos: el cliente puede abonar por varias cuentas a la vez.
+  const [abonos, setAbonos] = useState<Array<{ monto: number; metodo: MetodoPago }>>([])
+
   // Per-product search state
   const [codigoQuery, setCodigoQuery]   = useState<string[]>([''])
   const [searchOpts, setSearchOpts]     = useState<OpcionCatalogo[][]>([[]])
@@ -161,6 +164,16 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
 
   function updateField<K extends keyof ParsedPedido>(field: K, value: ParsedPedido[K]) {
     setForm(prev => ({ ...prev, [field]: value }))
+  }
+
+  function agregarAbono() {
+    setAbonos(prev => [...prev, { monto: 0, metodo: 'efectivo' }])
+  }
+  function eliminarAbono(idx: number) {
+    setAbonos(prev => prev.filter((_, i) => i !== idx))
+  }
+  function actualizarAbono(idx: number, patch: Partial<{ monto: number; metodo: MetodoPago }>) {
+    setAbonos(prev => prev.map((a, i) => i === idx ? { ...a, ...patch } : a))
   }
 
   function patchProducto(idx: number, patch: Partial<ParsedPedido['productos'][number]>) {
@@ -272,6 +285,10 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
     setSearchDone(result.data.productos.map(() => false))
     setCatalogError(result.data.productos.map(() => null))
     searchTimersRef.current = result.data.productos.map(() => null)
+    // Sembrar el abono parseado como primera línea de la lista de abonos.
+    setAbonos(result.data.abono > 0
+      ? [{ monto: result.data.abono, metodo: result.data.metodo_pago_abono }]
+      : [])
     if (result.data.numero_orden_sugerido) setNumeroOrden(result.data.numero_orden_sugerido)
     if (result.data.cliente_telefono) {
       buscarDireccionPorTelefonoAction(result.data.cliente_telefono).then(dir => setUltimaDireccion(dir))
@@ -288,8 +305,21 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
       return
     }
     if (form.productos.find(p => !p.descripcion.trim())) { setErrorAccion('Todos los artículos deben tener nombre'); return }
+
+    const total = form.productos.reduce((s, p) => s + p.precio_venta * p.cantidad, 0)
+    const abonosValidos = abonos.filter(a => a.monto > 0)
+    const totalAbonos = abonosValidos.reduce((s, a) => s + a.monto, 0)
+    if (totalAbonos > total) { setErrorAccion(`La suma de los abonos (${formatCOP(totalAbonos)}) supera el total del pedido (${formatCOP(total)}).`); return }
+
+    const datos: ParsedPedido = {
+      ...form,
+      abono: totalAbonos,
+      metodo_pago_abono: abonosValidos[0]?.metodo ?? form.metodo_pago_abono,
+      abonos: abonosValidos,
+    }
+
     startTransition(async () => {
-      const result = await crearPedidoDesdeDataAction(form, numeroOrden)
+      const result = await crearPedidoDesdeDataAction(datos, numeroOrden)
       if (!result.ok) {
         setErrorAccion(result.error)
         if (result.siguienteNumero) setSiguienteNumero(result.siguienteNumero)
@@ -300,7 +330,8 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
   }
 
   const total = form.productos.reduce((s, p) => s + p.precio_venta * p.cantidad, 0)
-  const saldo = total - (form.abono ?? 0)
+  const totalAbonos = abonos.reduce((s, a) => s + (a.monto || 0), 0)
+  const saldo = total - totalAbonos
 
   if (pedidoCreado) {
     return <PedidoSuccessOverlay pedidoId={pedidoCreado.id} numeroOrden={pedidoCreado.numero} />
@@ -610,40 +641,65 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
           </div>
         </div>
 
-        {/* Abono */}
+        {/* Abonos */}
         <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Abono</p>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Monto del abono</label>
-            <input type="number" min={0}
-              value={form.abono === 0 ? '' : form.abono}
-              onChange={e => updateField('abono', parseInt(e.target.value) || 0)}
-              placeholder="0"
-              className="max-w-[180px] border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Abonos</p>
+            <button type="button" onClick={agregarAbono}
+              className="text-sm text-blue-600 hover:text-blue-800 font-medium">
+              + Agregar abono
+            </button>
           </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Método de pago</label>
-            <select
-              value={form.metodo_pago_abono}
-              onChange={e => updateField('metodo_pago_abono', e.target.value as MetodoPago)}
-              className="w-full max-w-xs border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {METODOS_PAGO.map(m => (
-                <option key={m} value={m}>{METODO_PAGO_LABELS[m]}</option>
+
+          {abonos.length === 0 ? (
+            <p className="text-xs text-gray-400">Sin abono. El cliente queda con el saldo completo pendiente.</p>
+          ) : (
+            <div className="space-y-2">
+              {abonos.map((a, idx) => (
+                <div key={idx} className="flex gap-2 items-end">
+                  <div className="flex-1">
+                    <label className="block text-xs text-gray-500 mb-1">Monto</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={a.monto ? String(a.monto) : ''}
+                      onChange={e => actualizarAbono(idx, { monto: parseInt(e.target.value.replace(/\D/g, '')) || 0 })}
+                      placeholder="0"
+                      className="w-full border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-xs text-gray-500 mb-1">Cuenta / método</label>
+                    <select
+                      value={a.metodo}
+                      onChange={e => actualizarAbono(idx, { metodo: e.target.value as MetodoPago })}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      {METODOS_PAGO.map(m => (
+                        <option key={m} value={m}>{METODO_PAGO_LABELS[m]}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <button type="button" onClick={() => eliminarAbono(idx)}
+                    className="text-red-400 hover:text-red-600 px-2 py-2" title="Quitar abono">✕</button>
+                </div>
               ))}
-            </select>
-          </div>
+            </div>
+          )}
 
           <div className="border-t border-gray-100 pt-3 space-y-1 text-sm">
             <div className="flex justify-between">
               <span className="text-gray-600">Total pedido</span>
               <span className="font-semibold text-gray-900">{formatCOP(total)}</span>
             </div>
-            {form.abono > 0 && (
+            {totalAbonos > 0 && (
               <div className="flex justify-between">
-                <span className="text-gray-600">Abono ({METODO_PAGO_LABELS[form.metodo_pago_abono]})</span>
-                <span className="text-green-700">− {formatCOP(form.abono)}</span>
+                <span className="text-gray-600">Abonado</span>
+                <span className="text-green-700">− {formatCOP(totalAbonos)}</span>
               </div>
+            )}
+            {totalAbonos > total && (
+              <p className="text-xs text-red-600">La suma de los abonos supera el total del pedido.</p>
             )}
             <div className="flex justify-between font-semibold">
               <span className={saldo > 0 ? 'text-red-600' : 'text-green-600'}>
