@@ -306,6 +306,7 @@ export async function crearFacturaUnificadaAction(
       p_abono:       0,   // el pago se registra a nivel de factura
       p_cuenta_id:   null,
       p_notas:       'Productos agregados al facturar',
+      p_metodo:      'efectivo',
     })
     if (errVenta) return { ok: false, error: `Error creando la venta: ${errVenta.message}` }
     pedidoIds.push(ventaPedidoId)
