@@ -6,7 +6,6 @@ import { getSesion, puedeAccederSede } from '@/lib/auth/acceso'
 import { puedeTransicionar } from '@/lib/domain/estados'
 import { EstadoPedido, METODO_PAGO_LABELS, METODOS_PAGO } from '@/types'
 import { crearFacturaAction, buscarPedidoFacturableAction } from '@/app/actions/facturacion'
-import { crearDomicilioAction } from '@/app/actions/domicilios'
 import { hoyBogota } from '@/lib/utils/format'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -190,40 +189,6 @@ async function ejecutarCrearFactura(numeroOrden: string, diasVencimiento: number
   return `Factura creada para ${numeroOrden}. Vence el ${fecha_vencimiento}. ID: ${result.facturaId}`
 }
 
-async function ejecutarCrearDomicilio(params: {
-  cliente_nombre: string
-  cliente_telefono: string
-  direccion: string
-  mensajeria: 'exneider' | 'servigo'
-  valor_pedido: number
-  valor_domicilio: number
-  cobrar_al_cliente: boolean
-  articulo: string
-  numero_pedido: string
-  notas: string
-}): Promise<string> {
-  const sesion = await getSesion()
-  if (sesion.rol === 'visor') return 'No tienes permisos para crear domicilios.'
-  const result = await crearDomicilioAction({
-    fecha:             hoyBogota(),
-    cliente_nombre:    params.cliente_nombre,
-    cliente_telefono:  params.cliente_telefono,
-    direccion:         params.direccion,
-    mensajeria:        params.mensajeria as any,
-    tipo_cobro:        'mensajero',
-    cobrar_al_cliente: true,
-    metodo_pago:       'efectivo',
-    valor_pedido:      params.valor_pedido,
-    valor_domicilio:   params.valor_domicilio,
-    articulo:          params.articulo,
-    cuenta_id:         null,
-    numero_pedido:     params.numero_pedido,
-    notas:             params.notas ?? '',
-  })
-  if (!result.ok) return `Error al crear domicilio: ${result.error}`
-  return `Domicilio creado para ${params.cliente_nombre} — ${params.mensajeria}, ${params.direccion}.`
-}
-
 // ─── Definición de herramientas ───────────────────────────────────────────────
 
 const METODOS_ENUM = METODOS_PAGO as string[]
@@ -293,26 +258,6 @@ const TOOLS: Anthropic.Tool[] = [
       required: ['numero_orden'],
     },
   },
-  {
-    name: 'crear_domicilio',
-    description: 'Crea un registro de domicilio. Usa buscar_pedido primero para obtener nombre, teléfono y dirección del cliente.',
-    input_schema: {
-      type: 'object' as const,
-      properties: {
-        cliente_nombre:    { type: 'string' },
-        cliente_telefono:  { type: 'string' },
-        direccion:         { type: 'string', description: 'Dirección de entrega' },
-        mensajeria:        { type: 'string', enum: ['exneider', 'servigo'], description: 'Mensajero que hace la entrega' },
-        valor_pedido:      { type: 'number', description: 'Valor a cobrar por el pedido (saldo que debe el cliente). 0 si ya pagó.' },
-        valor_domicilio:   { type: 'number', description: 'Costo del domicilio' },
-        cobrar_al_cliente: { type: 'boolean', description: 'true si el cliente paga el domicilio, false si lo paga la tienda' },
-        articulo:          { type: 'string', description: 'Descripción del artículo (ej: tenis Nike, ropa...)' },
-        numero_pedido:     { type: 'string', description: 'Número de pedido o factura de referencia' },
-        notas:             { type: 'string', description: 'Instrucciones adicionales para el mensajero' },
-      },
-      required: ['cliente_nombre', 'direccion', 'mensajeria', 'numero_pedido'],
-    },
-  },
 ]
 
 // ─── Loop agentic: ejecuta todas las herramientas hasta obtener respuesta final ─
@@ -329,8 +274,6 @@ async function ejecutarHerramienta(nombre: string, input: any): Promise<string> 
       return ejecutarAgregarNota(input.numero_orden, input.nota)
     case 'crear_factura':
       return ejecutarCrearFactura(input.numero_orden, input.dias_vencimiento ?? 30)
-    case 'crear_domicilio':
-      return ejecutarCrearDomicilio(input)
     default:
       return 'Herramienta desconocida.'
   }
@@ -346,11 +289,8 @@ Puedes hacer lo siguiente usando las herramientas disponibles:
 - Registrar pagos y abonos (registrar_pago)
 - Agregar notas a pedidos (agregar_nota)
 - Crear facturas para pedidos (crear_factura)
-- Crear domicilios (crear_domicilio)
 
-Para procesos de varios pasos como "factura el TR2540 y crea el domicilio", sigue este orden:
-1. Usa buscar_pedido para obtener los datos del cliente y la dirección
-2. Ejecuta las acciones en secuencia
+Los domicilios se crean automáticamente al facturar un pedido con entrega a domicilio; no se crean por separado.
 
 Estados del pedido: pendiente → comprado → listo → enviado / santa_rosa → entregado. cancelado es irreversible.
 
