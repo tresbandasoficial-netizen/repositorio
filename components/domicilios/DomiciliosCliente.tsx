@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { NuevoDomicilioPanel } from './NuevoDomicilioPanel'
 import { DomicilioCard } from './DomicilioCard'
 import type { DomicilioRow, CuadreDia, CuadreSemana } from '@/lib/queries/domicilios'
 
@@ -32,7 +31,6 @@ interface Props {
 
 export function DomiciliosCliente({ fecha, domicilios, cuadre, cuadreSemana, isAdmin, fechasDisponibles }: Props) {
   const router = useRouter()
-  const [mostrarNuevo, setMostrarNuevo] = useState(false)
   const [filtroMensajeria, setFiltroMensajeria] = useState<'todos' | 'exneider' | 'servigo'>('todos')
   const [vistaCuadre, setVistaCuadre] = useState<'dia' | 'semana'>('dia')
 
@@ -105,13 +103,6 @@ export function DomiciliosCliente({ fecha, domicilios, cuadre, cuadreSemana, isA
                 {domicilios.length} pedido{domicilios.length !== 1 ? 's' : ''} · {fecha}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setMostrarNuevo(v => !v)}
-              className="h-10 px-4 rounded-xl bg-white text-blue-800 font-extrabold text-sm flex items-center gap-1.5 shadow-lg flex-none"
-            >
-              {mostrarNuevo ? '✕ Cancelar' : '+ Nuevo'}
-            </button>
           </div>
 
           {/* Stats chips */}
@@ -146,14 +137,6 @@ export function DomiciliosCliente({ fecha, domicilios, cuadre, cuadreSemana, isA
           ))}
         </select>
       </div>
-
-      {/* Nuevo panel */}
-      {mostrarNuevo && (
-        <NuevoDomicilioPanel
-          fecha={fecha}
-          onCreado={() => { setMostrarNuevo(false); router.refresh() }}
-        />
-      )}
 
       {/* Yellow hint note */}
       {domicilios.length > 0 && (
