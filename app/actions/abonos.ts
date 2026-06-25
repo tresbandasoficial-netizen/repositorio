@@ -10,7 +10,7 @@ export type AbonarClienteInput = {
   cliente_id: string
   monto: number
   metodo: MetodoPago
-  cuenta_id: string
+  cuenta_id: string | null
   notas: string
 }
 

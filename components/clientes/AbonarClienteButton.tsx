@@ -51,11 +51,11 @@ export function AbonarClienteButton({
     const m = parseInt(monto.replace(/\D/g, ''), 10)
     if (!m || m <= 0) { setError('Ingresa un monto válido'); return }
     if (m > deudaTotal) { setError(`El monto supera la deuda total (${formatCOP(deudaTotal)})`); return }
-    if (!cuentaId) { setError('Selecciona una cuenta destino'); return }
+    if (metodo !== 'efectivo' && !cuentaId) { setError('Selecciona una cuenta destino'); return }
     setError('')
 
     start(async () => {
-      const r = await abonarClienteAction({ cliente_id: clienteId, monto: m, metodo, cuenta_id: cuentaId, notas })
+      const r = await abonarClienteAction({ cliente_id: clienteId, monto: m, metodo, cuenta_id: metodo === 'efectivo' ? null : cuentaId, notas })
       if (!r.ok) { setError(r.error); return }
       setExito(`✓ Abono de ${formatCOP(r.aplicado)} registrado`)
       setMonto('')
@@ -123,20 +123,22 @@ export function AbonarClienteButton({
                 </select>
               </div>
 
-              {/* Cuenta destino */}
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Cuenta destino *</label>
-                <select
-                  value={cuentaId}
-                  onChange={e => setCuentaId(e.target.value)}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  {cuentas.length === 0 && <option value="">Cargando...</option>}
-                  {cuentas.map(c => (
-                    <option key={c.id} value={c.id}>{c.nombre}</option>
-                  ))}
-                </select>
-              </div>
+              {/* Cuenta destino (solo si no es efectivo) */}
+              {metodo !== 'efectivo' && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Cuenta destino *</label>
+                  <select
+                    value={cuentaId}
+                    onChange={e => setCuentaId(e.target.value)}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {cuentas.length === 0 && <option value="">Cargando...</option>}
+                    {cuentas.map(c => (
+                      <option key={c.id} value={c.id}>{c.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* Notas */}
               <div>
