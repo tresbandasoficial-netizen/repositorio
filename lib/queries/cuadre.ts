@@ -57,8 +57,8 @@ export type CuadreFactura = {
   estado: string
 }
 
-// Detalle: cada pedido (encargo) creado en el rango. Excluye las ventas
-// inmediatas (venta_inmediata), que ya se reflejan como factura, para no
+// Detalle: cada pedido vendido (creado) en el rango que aún no tiene factura.
+// Los pedidos ya facturados se muestran en la lista de facturas, para no
 // contar lo mismo dos veces.
 export type CuadrePedido = {
   numero_orden: string
@@ -122,10 +122,10 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
   const sedeFiltroCodigo = esAdmin ? (filtros.sede || null) : sedeForzadaCodigo
 
   // ── Ventas (pedidos): todo lo vendido por sede en el rango ──────────────────
-  // Trae también numero_orden/cliente/tipo/abonado para listar cada pedido.
+  // Trae también numero_orden/cliente/factura_id/abonado para listar cada pedido.
   let qVentas = supabase
     .from('vista_pedidos_asesor')
-    .select('numero_orden, sede_codigo, total, estado, tipo, cliente_nombre, total_pagado')
+    .select('numero_orden, sede_codigo, total, estado, tipo, cliente_nombre, total_pagado, factura_id')
     .gte('fecha_creacion', bogotaDayStartUTC(filtros.desde))
     .lt('fecha_creacion', bogotaDayStartUTC(sumarDias(filtros.hasta, 1)))
     .neq('estado', 'cancelado')
@@ -133,11 +133,13 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
   if (sedeFiltroCodigo) qVentas = qVentas.eq('sede_codigo', sedeFiltroCodigo)
 
   // ── Facturas emitidas en el rango (no anuladas) ─────────────────────────────
+  // Se filtra por creado_en (timestamptz) con ventana horaria Bogotá: fecha_factura
+  // usa current_date (UTC) y dejaría fuera las facturas emitidas de noche.
   let qFacturas = supabase
     .from('vista_facturas')
     .select('numero_factura, cliente_nombre, sede_codigo, sede_id, total, saldo, estado')
-    .gte('fecha_factura', filtros.desde)
-    .lte('fecha_factura', filtros.hasta)
+    .gte('creado_en', bogotaDayStartUTC(filtros.desde))
+    .lt('creado_en', bogotaDayStartUTC(sumarDias(filtros.hasta, 1)))
     .neq('estado', 'anulada')
     .limit(20000)
   if (sedeForzadaId) qFacturas = qFacturas.eq('sede_id', sedeForzadaId)
@@ -177,7 +179,7 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
   if (recaudoRes.error) throw new Error(`Error cargando recaudo del cuadre: ${recaudoRes.error.message}`)
   if (facturasRes.error) throw new Error(`Error cargando facturas del cuadre: ${facturasRes.error.message}`)
 
-  const ventasRows  = (ventasRes.data ?? []) as Array<{ numero_orden: string; sede_codigo: string; total: number; estado: string; tipo: string; cliente_nombre: string; total_pagado: number }>
+  const ventasRows  = (ventasRes.data ?? []) as Array<{ numero_orden: string; sede_codigo: string; total: number; estado: string; tipo: string; cliente_nombre: string; total_pagado: number; factura_id: string | null }>
   const recaudoRows = (recaudoRes.data ?? []) as Array<{ monto: number; metodo: MetodoPago; sede_codigo: string; asesor_id: string; asesor_nombre: string }>
   const gastosRows  = (gastosRes.data ?? []) as Array<{ valor: number; sede_id: string }>
   const facturasRows = (facturasRes.data ?? []) as Array<{ numero_factura: string; cliente_nombre: string; sede_codigo: string; total: number; saldo: number; estado: string }>
@@ -274,10 +276,11 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
     }))
     .sort((a, b) => a.sede_codigo.localeCompare(b.sede_codigo) || a.numero_factura.localeCompare(b.numero_factura))
 
-  // ── Detalle: pedidos (encargos) creados en el rango ─────────────────────────
-  // Solo tipo 'pedido': las ventas inmediatas ya aparecen como factura.
+  // ── Detalle: pedidos vendidos creados en el rango ───────────────────────────
+  // Solo los que NO tienen factura: los facturados ya salen en la lista de
+  // facturas (evita doble conteo). Incluye encargos y ventas directas en tienda.
   const pedidos: CuadrePedido[] = ventasRows
-    .filter(p => p.tipo === 'pedido')
+    .filter(p => !p.factura_id)
     .map(p => ({
       numero_orden: p.numero_orden,
       cliente_nombre: p.cliente_nombre,
