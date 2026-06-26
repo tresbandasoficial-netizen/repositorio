@@ -275,8 +275,8 @@ async function _resolverArticuloCompraItem(
   }
 }
 
-// Crea o actualiza el gasto asociado a una compra (egreso del cuenta_id).
-// Si la cuenta no tiene sede_id, no se puede crear el gasto (sede_id NOT NULL).
+// Crea o actualiza el gasto asociado a una compra (egreso de la cuenta elegida).
+// El gasto descuenta el saldo de esa cuenta en el flujo de caja.
 async function _sincronizarGastoCompra(
   compraId: string,
   fecha: string,
@@ -292,16 +292,25 @@ async function _sincronizarGastoCompra(
 
   if (!cuentaId) return  // sin cuenta → sin egreso
 
-  // Obtener sede_id de la cuenta (gastos.sede_id es NOT NULL)
+  // gastos.sede_id es obligatorio. Si la cuenta tiene sede, se usa; si es una
+  // cuenta global (Nequi, Addi, Bancolombia Huber…), el egreso se atribuye a
+  // Bucaramanga, que es el hub donde se gestionan las compras.
   const { data: cuenta } = await adminClient
     .from('cuentas').select('sede_id').eq('id', cuentaId).maybeSingle()
-  if (!cuenta?.sede_id) return
+
+  let sedeId = cuenta?.sede_id ?? null
+  if (!sedeId) {
+    const { data: tr } = await adminClient
+      .from('sedes').select('id').eq('codigo', 'TR').maybeSingle()
+    sedeId = tr?.id ?? null
+  }
+  if (!sedeId) return  // sin ninguna sede disponible (no debería pasar)
 
   await adminClient.from('gastos').insert({
     fecha,
     valor: totalCop,
     categoria: 'compras_mercancia',
-    sede_id: cuenta.sede_id,
+    sede_id: sedeId,
     cuenta_id: cuentaId,
     responsable_id: userId,
     origen: 'compra',
