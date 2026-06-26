@@ -131,6 +131,13 @@ export async function crearCompraAction(data: CrearCompraInput): Promise<CrearCo
     }
   }
 
+  // Crear gasto egreso si hay cuenta asignada
+  await _sincronizarGastoCompra(
+    compra.id, data.fecha, data.total_cop,
+    data.proveedor.trim(), numeroFactura,
+    data.cuenta_id || null, userId, adminClient
+  )
+
   return { ok: true as const, compraId: compra.id }
 }
 
@@ -263,12 +270,110 @@ async function _resolverArticuloCompraItem(
   }
 }
 
+// Crea o actualiza el gasto asociado a una compra (egreso del cuenta_id).
+// Si la cuenta no tiene sede_id, no se puede crear el gasto (sede_id NOT NULL).
+async function _sincronizarGastoCompra(
+  compraId: string,
+  fecha: string,
+  totalCop: number,
+  proveedor: string,
+  numeroFactura: string | null,
+  cuentaId: string | null,
+  userId: string,
+  adminClient: ReturnType<typeof import('@/lib/supabase/admin').createAdminClient>
+) {
+  // Borrar gasto previo de esta compra (si existía)
+  await adminClient.from('gastos').delete().eq('origen', 'compra').eq('origen_id', compraId)
+
+  if (!cuentaId) return  // sin cuenta → sin egreso
+
+  // Obtener sede_id de la cuenta (gastos.sede_id es NOT NULL)
+  const { data: cuenta } = await adminClient
+    .from('cuentas').select('sede_id').eq('id', cuentaId).maybeSingle()
+  if (!cuenta?.sede_id) return
+
+  await adminClient.from('gastos').insert({
+    fecha,
+    valor: totalCop,
+    categoria: 'compras_mercancia',
+    sede_id: cuenta.sede_id,
+    cuenta_id: cuentaId,
+    responsable_id: userId,
+    origen: 'compra',
+    origen_id: compraId,
+    observacion: `Compra ${numeroFactura ? '#' + numeroFactura + ' — ' : ''}${proveedor}`.trim(),
+  })
+}
+
+export type EditarCompraInput = {
+  proveedor: string
+  fecha: string
+  numero_factura: string
+  tipo: 'usa' | 'colombia'
+  total_usd: number | null
+  trm: number | null
+  total_cop: number
+  notas: string
+  cuenta_id: string | null
+}
+
+export type EditarCompraResult =
+  | { ok: true }
+  | { ok: false; error: string }
+
+export async function editarCompraAction(compraId: string, data: EditarCompraInput): Promise<EditarCompraResult> {
+  const { userId, adminClient } = await verificarAdmin()
+
+  const numeroFactura = data.numero_factura.trim() || null
+
+  // Verificar duplicado de número de factura excluyendo esta compra
+  if (numeroFactura) {
+    const { data: existente } = await adminClient
+      .from('compras')
+      .select('id, proveedor, fecha')
+      .eq('numero_factura', numeroFactura)
+      .neq('id', compraId)
+      .maybeSingle()
+    if (existente) {
+      return { ok: false, error: `La factura "${numeroFactura}" ya existe en otra compra (${existente.proveedor} — ${existente.fecha})` }
+    }
+  }
+
+  const { error } = await adminClient
+    .from('compras')
+    .update({
+      tipo:           data.tipo,
+      proveedor:      data.proveedor.trim(),
+      fecha:          data.fecha,
+      numero_factura: numeroFactura,
+      total_usd:      data.tipo === 'usa' ? data.total_usd : null,
+      trm:            data.tipo === 'usa' ? data.trm : null,
+      total_cop:      data.total_cop,
+      notas:          data.notas.trim() || null,
+      cuenta_id:      data.cuenta_id || null,
+    })
+    .eq('id', compraId)
+
+  if (error) return { ok: false, error: error.message }
+
+  await _sincronizarGastoCompra(
+    compraId, data.fecha, data.total_cop,
+    data.proveedor.trim(), numeroFactura,
+    data.cuenta_id || null, userId, adminClient
+  )
+
+  return { ok: true }
+}
+
 export type EliminarCompraResult =
   | { ok: true }
   | { ok: false; error: string }
 
 export async function eliminarCompraAction(compraId: string): Promise<EliminarCompraResult> {
   const { adminClient } = await verificarAdmin()
+
+  // Borrar gasto asociado antes de borrar la compra
+  await adminClient.from('gastos').delete().eq('origen', 'compra').eq('origen_id', compraId)
 
   const { error } = await adminClient
     .from('compras')
