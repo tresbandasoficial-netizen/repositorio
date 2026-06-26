@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getSesion } from '@/lib/auth/acceso'
 import { bloqueoCajaCerrada } from '@/lib/auth/caja'
+import { efectivoCuentaId } from '@/lib/queries/cuentas'
 import { getSiguienteNumeroOrden } from '@/lib/queries/pedidos'
 import { normalizarTelefono } from '@/lib/utils/phone'
 
@@ -104,6 +105,13 @@ export async function registrarVentaInmediataAction(data: VentaInmediataInput): 
     precio_venta: it.precio_venta,
   }))
 
+  // Efectivo: rutear a la caja de la sede si no viene cuenta.
+  const metodoVenta = data.abono > 0 ? (data.metodo || 'efectivo') : 'efectivo'
+  let cuentaVenta = data.cuenta_id || null
+  if (!cuentaVenta && data.abono > 0 && metodoVenta === 'efectivo') {
+    cuentaVenta = await efectivoCuentaId(supabase, sede.id)
+  }
+
   const { data: pedidoId, error } = await supabase.rpc('registrar_venta_inmediata', {
     p_numero_orden: numeroOrden,
     p_sede_id:      sede.id,
@@ -112,9 +120,9 @@ export async function registrarVentaInmediataAction(data: VentaInmediataInput): 
     p_total:        total,
     p_items:        items,
     p_abono:        data.abono,
-    p_cuenta_id:    data.cuenta_id,
+    p_cuenta_id:    cuentaVenta,
     p_notas:        data.notas.trim() || null,
-    p_metodo:       data.abono > 0 ? (data.metodo || 'efectivo') : 'efectivo',
+    p_metodo:       metodoVenta,
   })
 
   if (error) {

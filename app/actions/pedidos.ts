@@ -10,6 +10,7 @@ import { puedeTransicionar } from '@/lib/domain/estados'
 import { EstadoPedido, MetodoPago, ParsedPedido } from '@/types'
 import { getSesion, puedeAccederSede } from '@/lib/auth/acceso'
 import { bloqueoCajaCerrada } from '@/lib/auth/caja'
+import { efectivoCuentaId } from '@/lib/queries/cuentas'
 
 export type CrearPedidoResult =
   | { ok: true; pedidoId: string }
@@ -101,6 +102,12 @@ async function _crearPedidoConDatos(
     ? abonosMultiples[0]
     : { monto: datos.abono, metodo: datos.metodo_pago_abono }
 
+  // Efectivo: rutear a la caja de la sede si no viene cuenta explícita.
+  let cuentaAbono = (datos as any).cuenta_id_abono ?? null
+  if (!cuentaAbono && primerAbono.monto > 0 && primerAbono.metodo === 'efectivo') {
+    cuentaAbono = await efectivoCuentaId(supabase, sede.id)
+  }
+
   const { data: pedidoId, error: errPedido } = await supabase.rpc('crear_pedido', {
     p_numero_orden:     numeroOrden,
     p_sede_id:          sede.id,
@@ -113,7 +120,7 @@ async function _crearPedidoConDatos(
     p_items:            items,
     p_abono:            primerAbono.monto,
     p_metodo_pago:      primerAbono.metodo,
-    p_cuenta_id:        (datos as any).cuenta_id_abono ?? null,
+    p_cuenta_id:        cuentaAbono,
   })
 
   if (errPedido) {
@@ -283,6 +290,10 @@ export async function registrarPagoAction(
   if (!puedeAccederSede(sesion, pedido.sede_id)) return { ok: false, error: 'Sin acceso a este pedido' }
   if (data.monto <= 0) return { ok: false, error: 'El monto debe ser mayor a cero' }
 
+  // Efectivo: rutear a la caja de la sede del pedido si no viene cuenta.
+  let cuentaId = data.cuenta_id || null
+  if (!cuentaId && data.metodo === 'efectivo') cuentaId = await efectivoCuentaId(supabase, pedido.sede_id)
+
   // El RPC bloquea el pedido con FOR UPDATE antes de validar el saldo,
   // evitando que dos asesores simultáneos sobreabonen el mismo pedido.
   const { error } = await supabase.rpc('registrar_pago_pedido', {
@@ -291,7 +302,7 @@ export async function registrarPagoAction(
     p_metodo:    data.metodo,
     p_fecha:     data.fecha,
     p_asesor_id: sesion.id,
-    p_cuenta_id: data.cuenta_id || null,
+    p_cuenta_id: cuentaId,
     p_notas:     data.notas.trim() || null,
   })
 

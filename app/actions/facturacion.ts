@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getSesion } from '@/lib/auth/acceso'
 import { bloqueoCajaCerrada } from '@/lib/auth/caja'
+import { efectivoCuentaId } from '@/lib/queries/cuentas'
 import { getSiguienteNumeroOrden } from '@/lib/queries/pedidos'
 import { ItemVenta } from '@/app/actions/ventas'
 import { normalizarTelefono } from '@/lib/utils/phone'
@@ -166,8 +167,11 @@ export async function crearFacturaAction(data: CrearFacturaInput): Promise<Crear
     return { ok: false, error: 'Algún pedido ya está facturado' }
   }
 
+  let cuentaInicial = data.cuenta_id || null
+  const metodoInicial = data.metodo_abono || 'efectivo'
+  if (!cuentaInicial && metodoInicial === 'efectivo') cuentaInicial = await efectivoCuentaId(supabase, sedeId)
   const abonos = data.abono_inicial > 0
-    ? [{ monto: data.abono_inicial, metodo: data.metodo_abono || 'efectivo', cuenta_id: data.cuenta_id || null }]
+    ? [{ monto: data.abono_inicial, metodo: metodoInicial, cuenta_id: cuentaInicial }]
     : null
 
   const { data: facturaId, error } = await supabase.rpc('crear_factura', {
@@ -254,6 +258,12 @@ export async function crearFacturaUnificadaAction(
   if (sesion.rol !== 'admin' && data.sede_id && data.sede_id !== sesion.sede_id) {
     return { ok: false, error: 'No puedes facturar en otra sede' }
   }
+
+  // Efectivo: rutear los abonos en efectivo a la caja de la sede.
+  const efectivoId = await efectivoCuentaId(supabase, sedeId)
+  const abonos = data.abonos.map(a =>
+    (!a.cuenta_id && a.metodo === 'efectivo' && efectivoId) ? { ...a, cuenta_id: efectivoId } : a
+  )
 
   // Resolver cliente: existente o crear uno nuevo.
   let clienteId = data.cliente_id
@@ -350,7 +360,7 @@ export async function crearFacturaUnificadaAction(
         sexo: it.sexo,
         categoria: it.categoria,
       })),
-      p_abonos:            data.abonos.length > 0 ? data.abonos : null,
+      p_abonos:            abonos.length > 0 ? abonos : null,
       p_envio:             data.envio || 0,
       p_descuento:         data.descuento || 0,
       p_notas:             data.notas.trim() || null,
@@ -372,7 +382,7 @@ export async function crearFacturaUnificadaAction(
       p_fecha_vencimiento: data.fecha_vencimiento,
       p_pedido_ids:        pedidoIds,
       p_notas:             data.notas.trim() || null,
-      p_abonos:            data.abonos.length > 0 ? data.abonos : null,
+      p_abonos:            abonos.length > 0 ? abonos : null,
       p_envio:             data.envio || 0,
       p_descuento:         data.descuento || 0,
       p_tipo_entrega:       data.tipo_entrega || 'tienda',
@@ -429,13 +439,17 @@ export async function registrarPagoFacturaAction(data: RegistrarPagoFacturaInput
     return { ok: false, error: 'Sin acceso a esta factura' }
   }
 
+  // Efectivo: rutear a la caja de la sede de la factura si no viene cuenta.
+  let cuentaId = data.cuenta_id || null
+  if (!cuentaId && data.metodo === 'efectivo') cuentaId = await efectivoCuentaId(supabase, factura.sede_id)
+
   const { error } = await supabase.rpc('registrar_pago_factura', {
     p_factura_id: data.factura_id,
     p_monto:      data.monto,
     p_metodo:     data.metodo,
     p_fecha:      data.fecha,
     p_asesor_id:  sesion.id,
-    p_cuenta_id:  data.cuenta_id,
+    p_cuenta_id:  cuentaId,
     p_notas:      data.notas.trim() || null,
   })
 
