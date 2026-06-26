@@ -47,10 +47,36 @@ export type FilaAsesor = {
   recaudadoCaja: number
 }
 
+// Detalle: cada factura emitida en el rango (no anuladas).
+export type CuadreFactura = {
+  numero_factura: string
+  cliente_nombre: string
+  sede_codigo: string
+  total: number
+  saldo: number
+  estado: string
+}
+
+// Detalle: cada pedido (encargo) creado en el rango. Excluye las ventas
+// inmediatas (venta_inmediata), que ya se reflejan como factura, para no
+// contar lo mismo dos veces.
+export type CuadrePedido = {
+  numero_orden: string
+  cliente_nombre: string
+  sede_codigo: string
+  total: number
+  abonado: number
+  estado: string
+}
+
 export type Cuadre = {
   filtros: CuadreFiltros
   sedes: CuadreSede[]
   porAsesor: FilaAsesor[]
+  facturas: CuadreFactura[]
+  pedidos: CuadrePedido[]
+  totalFacturado: number
+  totalPedidos: number
   totalVendido: number
   totalRecaudadoCaja: number
   totalPorCobrarMensajeria: number
@@ -96,14 +122,26 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
   const sedeFiltroCodigo = esAdmin ? (filtros.sede || null) : sedeForzadaCodigo
 
   // ── Ventas (pedidos): todo lo vendido por sede en el rango ──────────────────
+  // Trae también numero_orden/cliente/tipo/abonado para listar cada pedido.
   let qVentas = supabase
     .from('vista_pedidos_asesor')
-    .select('sede_codigo, total, estado')
+    .select('numero_orden, sede_codigo, total, estado, tipo, cliente_nombre, total_pagado')
     .gte('fecha_creacion', bogotaDayStartUTC(filtros.desde))
     .lt('fecha_creacion', bogotaDayStartUTC(sumarDias(filtros.hasta, 1)))
     .neq('estado', 'cancelado')
     .limit(20000)
   if (sedeFiltroCodigo) qVentas = qVentas.eq('sede_codigo', sedeFiltroCodigo)
+
+  // ── Facturas emitidas en el rango (no anuladas) ─────────────────────────────
+  let qFacturas = supabase
+    .from('vista_facturas')
+    .select('numero_factura, cliente_nombre, sede_codigo, sede_id, total, saldo, estado')
+    .gte('fecha_factura', filtros.desde)
+    .lte('fecha_factura', filtros.hasta)
+    .neq('estado', 'anulada')
+    .limit(20000)
+  if (sedeForzadaId) qFacturas = qFacturas.eq('sede_id', sedeForzadaId)
+  else if (sedeFiltroCodigo) qFacturas = qFacturas.eq('sede_codigo', sedeFiltroCodigo)
 
   // ── Recaudo (pagos + pagos_factura) por sede y método ───────────────────────
   let qRecaudo = supabase
@@ -128,18 +166,21 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
     : null
   if (qGastos && sedeFiltroId) qGastos = qGastos.eq('sede_id', sedeFiltroId)
 
-  const [ventasRes, recaudoRes, gastosRes] = await Promise.all([
+  const [ventasRes, recaudoRes, gastosRes, facturasRes] = await Promise.all([
     qVentas,
     qRecaudo,
     qGastos ?? Promise.resolve({ data: [] as Array<{ valor: number; sede_id: string }> }),
+    qFacturas,
   ])
 
   if (ventasRes.error) throw new Error(`Error cargando ventas del cuadre: ${ventasRes.error.message}`)
   if (recaudoRes.error) throw new Error(`Error cargando recaudo del cuadre: ${recaudoRes.error.message}`)
+  if (facturasRes.error) throw new Error(`Error cargando facturas del cuadre: ${facturasRes.error.message}`)
 
-  const ventasRows  = (ventasRes.data ?? []) as Array<{ sede_codigo: string; total: number; estado: string }>
+  const ventasRows  = (ventasRes.data ?? []) as Array<{ numero_orden: string; sede_codigo: string; total: number; estado: string; tipo: string; cliente_nombre: string; total_pagado: number }>
   const recaudoRows = (recaudoRes.data ?? []) as Array<{ monto: number; metodo: MetodoPago; sede_codigo: string; asesor_id: string; asesor_nombre: string }>
   const gastosRows  = (gastosRes.data ?? []) as Array<{ valor: number; sede_id: string }>
+  const facturasRows = (facturasRes.data ?? []) as Array<{ numero_factura: string; cliente_nombre: string; sede_codigo: string; total: number; saldo: number; estado: string }>
 
   // ── Determinar qué sedes mostrar ────────────────────────────────────────────
   let codigosVisibles: string[]
@@ -221,17 +262,49 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
   }
   const porAsesor = [...asesorMap.values()].sort((a, b) => b.recaudadoCaja - a.recaudadoCaja)
 
+  // ── Detalle: facturas emitidas ──────────────────────────────────────────────
+  const facturas: CuadreFactura[] = facturasRows
+    .map(f => ({
+      numero_factura: f.numero_factura,
+      cliente_nombre: f.cliente_nombre,
+      sede_codigo: f.sede_codigo,
+      total: f.total ?? 0,
+      saldo: f.saldo ?? 0,
+      estado: f.estado,
+    }))
+    .sort((a, b) => a.sede_codigo.localeCompare(b.sede_codigo) || a.numero_factura.localeCompare(b.numero_factura))
+
+  // ── Detalle: pedidos (encargos) creados en el rango ─────────────────────────
+  // Solo tipo 'pedido': las ventas inmediatas ya aparecen como factura.
+  const pedidos: CuadrePedido[] = ventasRows
+    .filter(p => p.tipo === 'pedido')
+    .map(p => ({
+      numero_orden: p.numero_orden,
+      cliente_nombre: p.cliente_nombre,
+      sede_codigo: p.sede_codigo,
+      total: p.total ?? 0,
+      abonado: p.total_pagado ?? 0,
+      estado: p.estado,
+    }))
+    .sort((a, b) => a.sede_codigo.localeCompare(b.sede_codigo) || a.numero_orden.localeCompare(b.numero_orden))
+
   // ── Totales ─────────────────────────────────────────────────────────────────
   const totalVendido             = sedesOut.reduce((s, x) => s + x.vendido, 0)
   const totalRecaudadoCaja       = sedesOut.reduce((s, x) => s + x.recaudadoCaja, 0)
   const totalPorCobrarMensajeria = sedesOut.reduce((s, x) => s + x.porCobrarMensajeria, 0)
   const totalCredito             = sedesOut.reduce((s, x) => s + x.credito, 0)
   const totalGastos              = sedesOut.reduce((s, x) => s + x.gastos, 0)
+  const totalFacturado           = facturas.reduce((s, x) => s + x.total, 0)
+  const totalPedidos             = pedidos.reduce((s, x) => s + x.total, 0)
 
   return {
     filtros,
     sedes: sedesOut,
     porAsesor,
+    facturas,
+    pedidos,
+    totalFacturado,
+    totalPedidos,
     totalVendido,
     totalRecaudadoCaja,
     totalPorCobrarMensajeria,
