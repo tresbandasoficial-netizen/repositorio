@@ -3,7 +3,7 @@ import { getSesion } from '@/lib/auth/acceso'
 import { createClient } from '@/lib/supabase/server'
 import { getGastosAction } from '@/app/actions/gastos'
 import { formatCOP } from '@/lib/utils/format'
-import { CATEGORIA_GASTO_LABELS, CategoriaGasto, CATEGORIAS_GASTO } from '@/types'
+import { CATEGORIA_GASTO_LABELS, CategoriaGasto, CATEGORIAS_GASTO, metodosDeSede } from '@/types'
 import { GastosClientPage } from '@/components/gastos/GastosClientPage'
 
 function hoy() { return new Date().toISOString().slice(0, 10) }
@@ -31,19 +31,25 @@ export default async function GastosPage({
 
   const supabase = await createClient()
 
-  // Cuentas: asesor ve solo las de su sede; admin ve todas.
-  const cuentasQuery = sedeForzadaId
-    ? supabase.from('cuentas').select('id, nombre, tipo, sede_id, orden').eq('activa', true).neq('tipo', 'credito').eq('sede_id', sedeForzadaId).order('orden')
-    : supabase.from('cuentas').select('id, nombre, tipo, sede_id, orden').eq('activa', true).neq('tipo', 'credito').order('orden')
-
   const [gastos, sedesRes, cuentasRes] = await Promise.all([
     getGastosAction({ desde, hasta, categoria, sede_id }),
     supabase.from('sedes').select('id, codigo, nombre').order('codigo'),
-    cuentasQuery,
+    supabase.from('cuentas').select('id, nombre, tipo, sede_id, metodo_pago, orden').eq('activa', true).neq('tipo', 'credito').order('orden'),
   ])
 
   const sedes = (sedesRes.data ?? []) as { id: string; codigo: string; nombre: string }[]
-  const cuentas = (cuentasRes.data ?? []) as { id: string; nombre: string; tipo: string; sede_id: string | null; orden: number }[]
+  let cuentas = (cuentasRes.data ?? []) as { id: string; nombre: string; tipo: string; sede_id: string | null; metodo_pago: string | null; orden: number }[]
+
+  // Asesor: las cuentas de los métodos permitidos de su sede (efectivo = su caja;
+  // Nequi/Addi/etc. son globales). Admin: todas.
+  if (sedeForzadaId) {
+    const codigo = sedes.find(s => s.id === sedeForzadaId)?.codigo
+    const permitidos = new Set<string>(metodosDeSede(codigo))
+    cuentas = cuentas.filter(c =>
+      !!c.metodo_pago && permitidos.has(c.metodo_pago) &&
+      (c.metodo_pago !== 'efectivo' || c.sede_id === sedeForzadaId)
+    )
+  }
 
   const sedeRestringida = sedeForzadaId ? (sedes.find(s => s.id === sedeForzadaId) ?? null) : null
 
