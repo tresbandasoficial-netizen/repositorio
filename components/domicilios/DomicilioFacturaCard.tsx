@@ -207,7 +207,12 @@ export function DomicilioFacturaCard({ domicilio, numeroFactura, asesorNombre = 
           </button>
         )}
         {guardado && !cambios && <span className="text-xs text-green-600 font-medium">✓ Guardado</span>}
-        <a href="/domicilios" className="text-xs text-blue-600 hover:underline ml-auto">Ver domicilios →</a>
+        <a
+          href="/domicilios"
+          className="inline-block px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 transition-colors ml-auto"
+        >
+          Ver domicilios
+        </a>
       </div>
     </div>
   )

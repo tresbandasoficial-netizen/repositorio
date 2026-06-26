@@ -113,8 +113,11 @@ export default async function ClienteDetallePage({
                         </td>
                         <td className="px-4 py-3 text-gray-500">{formatFecha(p.fecha_creacion)}</td>
                         <td className="px-4 py-3 text-right">
-                          <Link href={`/pedidos/${p.id}`} className="text-xs text-blue-600 hover:underline">
-                            Ver →
+                          <Link
+                            href={`/pedidos/${p.id}`}
+                            className="inline-block px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
+                            Ver
                           </Link>
                         </td>
                       </tr>

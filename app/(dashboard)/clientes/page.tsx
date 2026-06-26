@@ -106,9 +106,9 @@ export default async function ClientesPage({
                     <td className="px-4 py-4 text-right">
                       <Link
                         href={`/clientes/${c.id}`}
-                        className="text-sm text-blue-600 hover:underline font-medium"
+                        className="inline-block px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 transition-colors"
                       >
-                        Ver →
+                        Ver
                       </Link>
                     </td>
                   </tr>

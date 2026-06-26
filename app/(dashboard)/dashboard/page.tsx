@@ -338,8 +338,11 @@ export default async function DashboardPage() {
               {m.pedidos_en_alerta} {m.pedidos_en_alerta === 1 ? 'pedido requiere' : 'pedidos requieren'} atención
             </p>
           </div>
-          <Link href="/pedidos" className="text-sm font-bold text-amber-700 hover:text-amber-900">
-            Ver →
+          <Link
+            href="/pedidos"
+            className="inline-block px-3 py-1.5 text-xs font-medium border border-amber-300 rounded-lg bg-white text-amber-700 hover:bg-amber-50 transition-colors shrink-0"
+          >
+            Ver
           </Link>
         </div>
       )}

@@ -66,8 +66,11 @@ export default async function CuentasPorCobrarPage() {
                   </td>
                   <td className="px-4 py-4 text-right font-bold text-red-600">{formatCOP(f.saldo)}</td>
                   <td className="px-4 py-4 text-right">
-                    <Link href={`/facturacion/${f.id}`} className="text-sm text-blue-600 hover:underline font-medium">
-                      Cobrar →
+                    <Link
+                      href={`/facturacion/${f.id}`}
+                      className="inline-block px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      Cobrar
                     </Link>
                   </td>
                 </tr>
