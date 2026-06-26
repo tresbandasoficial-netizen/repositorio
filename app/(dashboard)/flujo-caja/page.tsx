@@ -135,7 +135,7 @@ export default async function FlujoCajaPage({
         <div>
           <h1 className="text-xl font-bold text-gray-900">Flujo de caja</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {sedeActual ? `Sede ${sedeActual.codigo} — ${sedeActual.nombre}` : 'Todas las sedes'} · saldos desde el corte ({corteLabel})
+            {sedeActual ? sedeActual.nombre : 'Todas las sedes'} · saldos desde el corte ({corteLabel})
           </p>
         </div>
         <EntregaEfectivoButton cuentas={cuentasOpc} />
@@ -154,7 +154,7 @@ export default async function FlujoCajaPage({
             className={`px-4 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
               sedeId === s.id ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
             }`}>
-            {s.codigo}
+            {s.nombre}
           </Link>
         ))}
       </div>
