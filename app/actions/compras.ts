@@ -39,6 +39,7 @@ export type CrearCompraInput = {
   trm: number | null
   total_cop: number
   notas: string
+  cuenta_id: string | null
   items: CompraItemInput[]
 }
 
@@ -78,6 +79,7 @@ export async function crearCompraAction(data: CrearCompraInput): Promise<CrearCo
       trm: data.trm,
       total_cop: data.total_cop,
       notas: data.notas.trim() || null,
+      cuenta_id: data.cuenta_id || null,
       creado_por: userId,
     })
     .select('id')

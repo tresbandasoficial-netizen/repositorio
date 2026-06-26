@@ -35,7 +35,8 @@ export default async function CompraDetallePage({
   const { data } = await supabase
     .from('compras')
     .select(`
-      id, tipo, proveedor, fecha, total_usd, trm, total_cop, notas, creado_por, creado_en,
+      id, tipo, proveedor, fecha, total_usd, trm, total_cop, notas, creado_por, creado_en, cuenta_id,
+      cuenta:cuentas (nombre),
       compra_items (
         id, compra_id, descripcion, marca, talla, cantidad, costo_unitario_cop,
         destino, pedido_id, pedido_item_indice, transferido_contoda, transferido_en, creado_en,
@@ -105,6 +106,12 @@ export default async function CompraDetallePage({
           </CardContent>
         </Card>
       </div>
+
+      {(compra as any).cuenta && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-800 mb-6">
+          <span className="font-medium">Cuenta de pago: </span>{(compra as any).cuenta.nombre}
+        </div>
+      )}
 
       {compra.notas && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3 text-sm text-yellow-800 mb-6">

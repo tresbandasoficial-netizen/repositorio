@@ -50,12 +50,15 @@ function facturaToItems(items: FacturaExtraida['items'], moneda: 'USD' | 'COP'):
   return result
 }
 
-export function CrearCompraForm() {
+type CuentaOpc = { id: string; nombre: string; tipo: string; sede_id: string | null }
+
+export function CrearCompraForm({ cuentas }: { cuentas: CuentaOpc[] }) {
   const [paso, setPaso] = useState<Paso>('subir')
   const [factura, setFactura] = useState<FacturaExtraida | null>(null)
 
   // Campos de la factura
   const [tipo, setTipo] = useState<'usa' | 'colombia'>('usa')
+  const [cuentaId, setCuentaId] = useState<string>('')
   const [proveedor, setProveedor] = useState('')
   const [numeroFactura, setNumeroFactura] = useState('')
   const [fecha, setFecha] = useState(hoyBogota())
@@ -213,6 +216,7 @@ export function CrearCompraForm() {
       trm: tipo === 'usa' ? (trmCalculada ?? null) : null,
       total_cop: totalCopNum,
       notas,
+      cuenta_id: cuentaId || null,
       items: itemsValidos,
     }
 
@@ -494,6 +498,22 @@ export function CrearCompraForm() {
               {totalCopNum > 0 && <p className="text-xs text-gray-400 mt-1">{formatCOP(totalCopNum)}</p>}
             </div>
           )}
+
+          {/* Cuenta de pago */}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Cuenta de pago</label>
+            <select
+              value={cuentaId}
+              onChange={(e) => setCuentaId(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">— Sin especificar —</option>
+              {cuentas.map(c => (
+                <option key={c.id} value={c.id}>{c.nombre}</option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-400 mt-1">Cuenta desde la que salió el dinero de esta compra</p>
+          </div>
 
           {/* Notas */}
           <div>
