@@ -203,6 +203,7 @@ export type CrearFacturaUnificadaInput = {
   valor_entrega: number
   quien_paga_entrega: QuienPagaEntrega | null
   direccion_entrega: string | null
+  articulo_entrega: string | null
 }
 
 export async function crearFacturaUnificadaAction(
@@ -353,6 +354,7 @@ export async function crearFacturaUnificadaAction(
       p_valor_entrega:      data.valor_entrega || 0,
       p_quien_paga_entrega: data.quien_paga_entrega,
       p_direccion_entrega:  data.direccion_entrega,
+      p_articulo_entrega:   data.articulo_entrega,
     })
     facturaId = fId
     error = err
@@ -373,6 +375,7 @@ export async function crearFacturaUnificadaAction(
       p_valor_entrega:      data.valor_entrega || 0,
       p_quien_paga_entrega: data.quien_paga_entrega,
       p_direccion_entrega:  data.direccion_entrega,
+      p_articulo_entrega:   data.articulo_entrega,
     })
     facturaId = fId
     error = err

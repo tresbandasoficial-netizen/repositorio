@@ -78,6 +78,8 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
   const [valorEntrega, setValorEntrega] = useState('')
   const [quienPagaDom, setQuienPagaDom] = useState<'cliente' | 'tb'>('cliente')
   const [quienPagaEnvio, setQuienPagaEnvio] = useState<QuienPagaEntrega>('cliente')
+  const [dirEntrega, setDirEntrega] = useState('')
+  const [articuloEntrega, setArticuloEntrega] = useState('')
 
   const [error, setError] = useState('')
   const [pending, start] = useTransition()
@@ -90,6 +92,15 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
     }, 250)
     return () => clearTimeout(t)
   }, [busqueda, cliente])
+
+  // Pre-fill dirección from client's last known address when switching to domicilio
+  useEffect(() => {
+    if (tipoEntrega !== 'domicilio') return
+    if (!dirEntrega && cliente?.ultima_direccion) {
+      setDirEntrega(cliente.ultima_direccion)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tipoEntrega, cliente])
 
   async function elegirCliente(c: ClienteBusqueda, preseleccion?: string, numeroPedido?: string) {
     setCliente(c)
@@ -121,6 +132,7 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
     setCliente(null); setPedidos([]); setSeleccionados(new Set()); setLineas([]); setBusqueda('')
     setMostrarNuevo(false); setNNombre(''); setNTelefono(''); setNCedula('')
     setNumPedido(''); setPedidoRef(''); setError('')
+    setDirEntrega(''); setArticuloEntrega('')
   }
 
   // Pedidos visibles = los de la sede seleccionada
@@ -139,6 +151,21 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
   const pedidosElegidos = pedidosSede.filter(p => seleccionados.has(p.id))
   const totalPedidos    = pedidosElegidos.reduce((s, p) => s + p.saldo, 0)
   const lineasValidas   = lineas.filter(l => l.descripcion.trim() && l.precio_venta > 0)
+
+  // Default artículo for the domicilio record: order numbers + new product descriptions
+  const articuloDefault = [
+    ...pedidosElegidos.map(p => p.numero_orden),
+    ...lineasValidas.map(l => [l.marca, l.descripcion].filter(Boolean).join(' ')),
+  ].join(' / ')
+
+  // Auto-fill artículo when switching to domicilio (only if still empty)
+  useEffect(() => {
+    if (tipoEntrega !== 'domicilio') return
+    if (!articuloEntrega && articuloDefault) {
+      setArticuloEntrega(articuloDefault)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tipoEntrega, articuloDefault])
   const totalProductos  = lineasValidas.reduce((s, l) => s + l.precio_venta * l.cantidad, 0)
   const subtotal        = totalPedidos + totalProductos
   const envioNum        = parseInt(envio.replace(/\D/g, '')) || 0
@@ -214,7 +241,8 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
         valor_entrega: tipoEntrega === 'tienda' ? 0 : valorEntregaNum,
         quien_paga_entrega: tipoEntrega === 'domicilio' ? quienPagaDom
           : tipoEntrega === 'envio' ? quienPagaEnvio : null,
-        direccion_entrega: tipoEntrega === 'domicilio' ? (cliente.ultima_direccion ?? null) : null,
+        direccion_entrega: tipoEntrega === 'domicilio' ? (dirEntrega.trim() || null) : null,
+        articulo_entrega: tipoEntrega === 'domicilio' ? (articuloEntrega.trim() || null) : null,
       })
       if (!r.ok) { setError(r.error); return }
       router.push(`/facturacion/${r.facturaId}`)
@@ -649,6 +677,26 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
               {/* DOMICILIO */}
               {tipoEntrega === 'domicilio' && (
                 <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Dirección de entrega</label>
+                    <input
+                      type="text"
+                      value={dirEntrega}
+                      onChange={e => setDirEntrega(e.target.value)}
+                      placeholder="Dirección del cliente"
+                      className={inputCls}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Artículo</label>
+                    <input
+                      type="text"
+                      value={articuloEntrega}
+                      onChange={e => setArticuloEntrega(e.target.value)}
+                      placeholder="Qué se envía (ej: TR1234, Air Max 90)"
+                      className={inputCls}
+                    />
+                  </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs text-gray-500 mb-1">Mensajería</label>
