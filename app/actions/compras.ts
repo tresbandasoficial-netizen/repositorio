@@ -1,6 +1,7 @@
 'use server'
 
 import { redirect } from 'next/navigation'
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -131,12 +132,16 @@ export async function crearCompraAction(data: CrearCompraInput): Promise<CrearCo
     }
   }
 
-  // Crear gasto egreso si hay cuenta asignada
-  await _sincronizarGastoCompra(
-    compra.id, data.fecha, data.total_cop,
-    data.proveedor.trim(), numeroFactura,
-    data.cuenta_id || null, userId, adminClient
-  )
+  // Crear gasto egreso si hay cuenta asignada (secundario: no debe romper la compra)
+  try {
+    await _sincronizarGastoCompra(
+      compra.id, data.fecha, data.total_cop,
+      data.proveedor.trim(), numeroFactura,
+      data.cuenta_id || null, userId, adminClient
+    )
+  } catch (e) {
+    console.error('Error sincronizando gasto de compra:', e)
+  }
 
   return { ok: true as const, compraId: compra.id }
 }
@@ -328,12 +333,13 @@ export async function editarCompraAction(compraId: string, data: EditarCompraInp
 
   // Verificar duplicado de número de factura excluyendo esta compra
   if (numeroFactura) {
-    const { data: existente } = await adminClient
+    const { data: existentes } = await adminClient
       .from('compras')
       .select('id, proveedor, fecha')
       .eq('numero_factura', numeroFactura)
       .neq('id', compraId)
-      .maybeSingle()
+      .limit(1)
+    const existente = existentes?.[0]
     if (existente) {
       return { ok: false, error: `La factura "${numeroFactura}" ya existe en otra compra (${existente.proveedor} — ${existente.fecha})` }
     }
@@ -356,11 +362,21 @@ export async function editarCompraAction(compraId: string, data: EditarCompraInp
 
   if (error) return { ok: false, error: error.message }
 
-  await _sincronizarGastoCompra(
-    compraId, data.fecha, data.total_cop,
-    data.proveedor.trim(), numeroFactura,
-    data.cuenta_id || null, userId, adminClient
-  )
+  // El egreso en flujo de caja es secundario: si falla, la compra ya se guardó.
+  try {
+    await _sincronizarGastoCompra(
+      compraId, data.fecha, data.total_cop,
+      data.proveedor.trim(), numeroFactura,
+      data.cuenta_id || null, userId, adminClient
+    )
+  } catch (e) {
+    console.error('Error sincronizando gasto de compra:', e)
+  }
+
+  revalidatePath('/compras')
+  revalidatePath(`/compras/${compraId}`)
+  revalidatePath('/flujo-caja')
+  revalidatePath('/gastos')
 
   return { ok: true }
 }

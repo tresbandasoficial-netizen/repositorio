@@ -63,10 +63,13 @@ export function EditarCompraForm({ compraId, inicial, cuentas }: Props) {
     }
 
     startSaving(async () => {
-      const result = await editarCompraAction(compraId, payload)
-      if (!result.ok) { setError(result.error); return }
-      router.push(`/compras/${compraId}`)
-      router.refresh()
+      try {
+        const result = await editarCompraAction(compraId, payload)
+        if (!result.ok) { setError(result.error); return }
+        router.push(`/compras/${compraId}`)
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Error al guardar la compra')
+      }
     })
   }
 
