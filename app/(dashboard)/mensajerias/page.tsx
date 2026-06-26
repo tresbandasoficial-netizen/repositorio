@@ -16,7 +16,9 @@ export default async function MensajeriasPage({
   searchParams: Promise<{ mensajeria?: string }>
 }) {
   const sesion = await getSesion()
-  if (sesion.rol !== 'admin') redirect('/dashboard')
+  // Asesores y admin pueden ver Mensajerías: los asesores son quienes liquidan
+  // con el mensajero. El visor (solo lectura) no entra a esta pantalla operativa.
+  if (sesion.rol !== 'admin' && sesion.rol !== 'asesor') redirect('/dashboard')
 
   const sp = await searchParams
   const activaMensajeria = (sp.mensajeria as TipoMensajeria) || 'exneider'
