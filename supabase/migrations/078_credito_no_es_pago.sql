@@ -40,8 +40,9 @@ declare
   v_total      integer;
   v_count      integer;
   v_abono      jsonb;
-  v_total_abonado     integer := 0;  -- todos los abonos (incluye crédito) → saldo a recaudar
-  v_total_pagado_real integer := 0;  -- solo pagos reales (no crédito) → liquidación
+  v_total_abonado      integer := 0;  -- todos los abonos (incluye crédito) → saldo a recaudar
+  v_total_pagado_real  integer := 0;  -- solo pagos reales (no crédito) → liquidación
+  v_recaudo_mensajeria integer := 0;  -- lo que la mensajería cobra al cliente y debe a TB
 begin
   if array_length(p_pedido_ids, 1) is null then
     raise exception 'Debe incluir al menos un pedido';
@@ -106,6 +107,16 @@ begin
       if v_abono->>'metodo' <> 'credito' then
         v_total_pagado_real := v_total_pagado_real + (v_abono->>'monto')::integer;
       end if;
+
+      -- Recaudo Mensajería: la mensajería cobra este valor al cliente y se lo
+      -- debe a TB. Crea la deuda con la mensajería y alimenta el valor a cobrar
+      -- del domicilio (sin esto, el domicilio aparece con $0 a cobrar).
+      if v_abono->>'metodo' = 'recaudo_mensajeria' and nullif(v_abono->>'mensajeria', '') is not null then
+        insert into pagos_mensajeria (mensajeria, tipo, monto, fecha, factura_id, responsable_id, estado, concepto, notas)
+        values (v_abono->>'mensajeria', 'deuda', (v_abono->>'monto')::integer, hoy_bogota(), v_factura_id, p_asesor_id, 'pendiente', 'recaudo',
+                'Recaudo mensajería · factura ' || v_numero);
+        v_recaudo_mensajeria := v_recaudo_mensajeria + (v_abono->>'monto')::integer;
+      end if;
     end loop;
 
     if v_total_pagado_real >= v_total then
@@ -113,12 +124,12 @@ begin
     end if;
   end if;
 
-  -- Resolver la entrega (domicilio / envío). El mensajero recauda el SALDO
-  -- pendiente (total menos lo abonado, incluido el crédito que el cliente
-  -- pagará por otro medio, no al mensajero).
+  -- Resolver la entrega (domicilio / envío). El mensajero cobra el recaudo
+  -- explícito (líneas metodo='recaudo_mensajeria'), más el domicilio si lo
+  -- paga el cliente.
   perform _entrega_factura(
     v_factura_id, v_numero, p_cliente_id, p_sede_id, p_asesor_id,
-    greatest(v_total - v_total_abonado, 0),
+    v_recaudo_mensajeria,
     coalesce(p_tipo_entrega, 'tienda'), p_mensajeria_entrega, coalesce(p_valor_entrega, 0),
     p_quien_paga_entrega, p_direccion_entrega
   );
