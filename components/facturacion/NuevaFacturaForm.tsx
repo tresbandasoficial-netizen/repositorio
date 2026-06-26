@@ -8,7 +8,7 @@ import {
   getPedidosFacturablesAction, crearFacturaUnificadaAction, buscarPedidoFacturableAction, PedidoFacturable,
 } from '@/app/actions/facturacion'
 import { formatCOP, formatFecha, hoyBogota } from '@/lib/utils/format'
-import { MetodoPago, PagoFacturaInput, TipoEntrega, QuienPagaEntrega, TipoMensajeria, MENSAJERIA_LABELS, metodosDeSede, METODO_PAGO_LABELS } from '@/types'
+import { MetodoPago, PagoFacturaInput, TipoEntrega, QuienPagaEntrega, TipoMensajeria, MENSAJERIA_LABELS, metodosDeSede, labelMetodo, METODO_PAGO_LABELS } from '@/types'
 import { Linea, nuevaLinea, LineaProducto } from '@/components/ventas/LineaProducto'
 
 type SedeOpcion = { id: string; codigo: string; nombre: string }
@@ -569,7 +569,7 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
                                   }}
                                   className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 >
-                                  {metodosDeSede(sedeCodigo).map(m => <option key={m} value={m}>{METODO_PAGO_LABELS[m]}</option>)}
+                                  {metodosDeSede(sedeCodigo).map(m => <option key={m} value={m}>{labelMetodo(m, sedeCodigo)}</option>)}
                                   <option value="recaudo_mensajeria">{METODO_PAGO_LABELS['recaudo_mensajeria']}</option>
                                 </select>
                               </div>

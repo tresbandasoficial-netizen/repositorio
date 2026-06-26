@@ -6,7 +6,7 @@ import { buscarClientesAction, ClienteBusqueda } from '@/app/actions/clientes'
 import { registrarVentaInmediataAction } from '@/app/actions/ventas'
 import { Button } from '@/components/ui/Button'
 import { formatCOP } from '@/lib/utils/format'
-import { MetodoPago, METODO_PAGO_LABELS, metodosDeSede } from '@/types'
+import { MetodoPago, labelMetodo, metodosDeSede } from '@/types'
 import { Linea, nuevaLinea, LineaProducto } from '@/components/ventas/LineaProducto'
 
 type SedeOpcion = { id: string; codigo: string; nombre: string }
@@ -191,7 +191,7 @@ export function VentaInmediataForm({ sedes }: { sedes: SedeOpcion[] }) {
               className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               {metodosDeSede(sedeCodigo).map(m => (
-                <option key={m} value={m}>{METODO_PAGO_LABELS[m]}</option>
+                <option key={m} value={m}>{labelMetodo(m, sedeCodigo)}</option>
               ))}
             </select>
           </div>

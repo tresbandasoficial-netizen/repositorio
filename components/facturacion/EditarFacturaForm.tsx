@@ -8,7 +8,7 @@ import {
   editarAbonoFacturaAction,
   eliminarAbonoFacturaAction,
 } from '@/app/actions/facturacion'
-import { MetodoPago, metodosDeSede, METODO_PAGO_LABELS } from '@/types'
+import { MetodoPago, metodosDeSede, labelMetodo } from '@/types'
 import { formatCOP, formatFecha } from '@/lib/utils/format'
 
 type Factura = {
@@ -179,7 +179,7 @@ function AbonoRow({ abono, sedeCodigo, onChanged }: { abono: Abono; sedeCodigo?:
         <div>
           <p className="text-sm font-medium text-gray-900">{formatCOP(abono.monto)}</p>
           <p className="text-xs text-gray-400">
-            {formatFecha(abono.fecha)} · {METODO_PAGO_LABELS[abono.metodo as MetodoPago] ?? abono.metodo} · {abono.asesor_nombre}
+            {formatFecha(abono.fecha)} · {labelMetodo(abono.metodo as MetodoPago, sedeCodigo)} · {abono.asesor_nombre}
           </p>
         </div>
         <div className="flex gap-2">
@@ -209,7 +209,7 @@ function AbonoRow({ abono, sedeCodigo, onChanged }: { abono: Abono; sedeCodigo?:
           <select value={metodo} onChange={e => setMetodo(e.target.value as MetodoPago)}
             className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
             {/* incluye el método actual aunque no esté en la lista de la sede */}
-            {Array.from(new Set([abono.metodo as MetodoPago, ...metodosDeSede(sedeCodigo)])).map(m => <option key={m} value={m}>{METODO_PAGO_LABELS[m] ?? m}</option>)}
+            {Array.from(new Set([abono.metodo as MetodoPago, ...metodosDeSede(sedeCodigo)])).map(m => <option key={m} value={m}>{labelMetodo(m, sedeCodigo)}</option>)}
           </select>
         </div>
         <div>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { MetodoPago, metodosDeSede, METODO_PAGO_LABELS } from '@/types'
+import { MetodoPago, metodosDeSede, labelMetodo } from '@/types'
 import { registrarPagoAction } from '@/app/actions/pedidos'
 import { formatCOP, hoyBogota } from '@/lib/utils/format'
 
@@ -14,7 +14,7 @@ interface Props {
 
 export function RegistrarPagoForm({ pedidoId, total, totalPagado, sedeCodigo }: Props) {
   const saldo = total - totalPagado
-  const METODOS = metodosDeSede(sedeCodigo).map(v => ({ value: v, label: METODO_PAGO_LABELS[v] }))
+  const METODOS = metodosDeSede(sedeCodigo).map(v => ({ value: v, label: labelMetodo(v, sedeCodigo) }))
 
   const [monto, setMonto] = useState(saldo.toString())
   const [metodo, setMetodo] = useState<MetodoPago>('efectivo')

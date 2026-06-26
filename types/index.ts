@@ -114,6 +114,21 @@ export function metodosDeSede(sedeCodigo?: string | null): MetodoPago[] {
   return METODOS_PAGO
 }
 
+// El efectivo se muestra con el nombre de la caja de su sede (ej: en Santa Rosa
+// aparece "Efectivo Santa Rosa", no solo "Efectivo").
+const EFECTIVO_LABEL_POR_SEDE: Record<string, string> = {
+  SR: 'Efectivo Santa Rosa',
+  CR: 'Efectivo Cúcuta',
+}
+
+// Etiqueta de un método de pago, ajustada a la sede cuando aplica.
+export function labelMetodo(metodo: MetodoPago, sedeCodigo?: string | null): string {
+  if (metodo === 'efectivo' && sedeCodigo && EFECTIVO_LABEL_POR_SEDE[sedeCodigo]) {
+    return EFECTIVO_LABEL_POR_SEDE[sedeCodigo]
+  }
+  return METODO_PAGO_LABELS[metodo] ?? metodo
+}
+
 export type PedidoItem = {
   id: string
   pedido_id: string
