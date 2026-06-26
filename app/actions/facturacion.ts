@@ -283,7 +283,10 @@ export async function crearFacturaUnificadaAction(
     const { data: sede } = await supabase.from('sedes').select('codigo').eq('id', sedeId).single()
     if (!sede) return { ok: false, error: 'Sede no encontrada' }
 
-    const numeroOrden = await getSiguienteNumeroOrden(sede.codigo)
+    // Los productos agregados al facturar son una venta inmediata, NO un pedido.
+    // Se marcan con prefijo 'VL-' para que no aparezcan en el módulo de pedidos
+    // ni consuman la secuencia de numeración real (igual que crear_factura_venta_local).
+    const numeroOrden = 'VL-' + (await getSiguienteNumeroOrden(sede.codigo))
     const totalNuevos = data.productos_nuevos.reduce((s, it) => s + it.precio_venta * it.cantidad, 0)
 
     const { data: ventaPedidoId, error: errVenta } = await supabase.rpc('registrar_venta_inmediata', {
