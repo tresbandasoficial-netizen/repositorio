@@ -134,11 +134,22 @@ export async function getClienteDetalle(id: string): Promise<ClienteDetalle | nu
     .neq('estado', 'cancelado')
     .order('fecha_creacion', { ascending: false })
 
+  // Una misma factura puede agrupar varios pedidos. Sus pagos_factura deben
+  // contarse UNA sola vez, no una vez por cada pedido vinculado (eso duplicaba
+  // el total pagado y dejaba el saldo en negativo).
+  const facturasContadas = new Set<string>()
+
   const pedidos = (pedidosRaw ?? []).map((p: any) => {
     const pagos_activos = (p.pagos ?? []).filter((pg: any) => !pg.anulado)
-    const pf_activos = (p.facturas?.pagos_factura ?? []).filter((pf: any) => !pf.anulado)
     const pagado_directo = pagos_activos.reduce((s: number, pg: any) => s + pg.monto, 0)
-    const pagado_factura = pf_activos.reduce((s: number, pf: any) => s + pf.monto, 0)
+    const factura = Array.isArray(p.facturas) ? p.facturas[0] : p.facturas
+    let pagado_factura = 0
+    if (factura && !facturasContadas.has(factura.id)) {
+      facturasContadas.add(factura.id)
+      pagado_factura = (factura.pagos_factura ?? [])
+        .filter((pf: any) => !pf.anulado)
+        .reduce((s: number, pf: any) => s + pf.monto, 0)
+    }
     return {
       id:             p.id,
       numero_orden:   p.numero_orden,
@@ -151,8 +162,10 @@ export async function getClienteDetalle(id: string): Promise<ClienteDetalle | nu
     }
   })
 
-  // Historial de pagos: pagos de pedidos + pagos de facturas, ordenados por fecha desc
+  // Historial de pagos: pagos de pedidos + pagos de facturas, ordenados por fecha desc.
+  // Cada factura se procesa una sola vez aunque esté ligada a varios pedidos.
   const pagos: PagoCliente[] = []
+  const facturasVistas = new Set<string>()
   for (const _p of pedidosRaw ?? []) {
     const p = _p as any
     for (const pg of (p.pagos ?? [])) {
@@ -169,7 +182,8 @@ export async function getClienteDetalle(id: string): Promise<ClienteDetalle | nu
       })
     }
     const factura = Array.isArray(p.facturas) ? p.facturas[0] : p.facturas
-    if (factura) {
+    if (factura && !facturasVistas.has(factura.id)) {
+      facturasVistas.add(factura.id)
       for (const pf of (factura.pagos_factura ?? [])) {
         if (pf.anulado) continue
         pagos.push({
