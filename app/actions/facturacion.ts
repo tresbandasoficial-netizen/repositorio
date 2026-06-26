@@ -508,3 +508,97 @@ export async function anularFacturaAction(facturaId: string): Promise<SimpleResu
   revalidatePath('/facturacion')
   return { ok: true }
 }
+
+// ── Edición de facturas (solo admin) ─────────────────────────────────────────
+
+export type EditarFacturaDatosInput = {
+  cliente_id: string
+  fecha_vencimiento: string
+  notas: string
+  envio: number
+  descuento: number
+}
+
+// Edita los datos de la factura (cliente, vencimiento, notas, envío, descuento).
+// El RPC recalcula total y estado. Solo admin.
+export async function editarFacturaDatosAction(
+  facturaId: string,
+  data: EditarFacturaDatosInput,
+): Promise<SimpleResult> {
+  const sesion = await getSesion()
+  if (sesion.rol !== 'admin') return { ok: false, error: 'Solo el administrador puede editar facturas' }
+  if (!data.cliente_id) return { ok: false, error: 'Selecciona el cliente' }
+  if (!data.fecha_vencimiento) return { ok: false, error: 'La fecha de vencimiento es obligatoria' }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('editar_factura_datos', {
+    p_factura_id:        facturaId,
+    p_cliente_id:        data.cliente_id,
+    p_fecha_vencimiento: data.fecha_vencimiento,
+    p_notas:             data.notas.trim() || null,
+    p_envio:             data.envio || 0,
+    p_descuento:         data.descuento || 0,
+  })
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/facturacion')
+  revalidatePath(`/facturacion/${facturaId}`)
+  revalidatePath('/flujo-caja')
+  return { ok: true }
+}
+
+export type EditarAbonoInput = {
+  monto: number
+  metodo: MetodoPago
+  fecha: string
+}
+
+// Edita un abono de la factura: método (re-enruta la cuenta), monto y fecha.
+// El RPC recalcula el estado de la factura. Solo admin.
+export async function editarAbonoFacturaAction(
+  abonoId: string,
+  data: EditarAbonoInput,
+): Promise<SimpleResult> {
+  const sesion = await getSesion()
+  if (sesion.rol !== 'admin') return { ok: false, error: 'Solo el administrador puede editar abonos' }
+  if (data.monto <= 0) return { ok: false, error: 'El monto debe ser mayor a cero' }
+
+  const supabase = await createClient()
+
+  // Sede de la factura para enrutar el efectivo a la caja correcta.
+  const { data: abono } = await supabase
+    .from('pagos_factura')
+    .select('factura_id, facturas(sede_id)')
+    .eq('id', abonoId)
+    .maybeSingle()
+  const sedeId = (abono as any)?.facturas?.sede_id ?? null
+
+  const cuentaId = await cuentaIdPorMetodo(supabase, data.metodo, sedeId)
+
+  const { error } = await supabase.rpc('editar_abono_factura', {
+    p_abono_id:  abonoId,
+    p_monto:     data.monto,
+    p_metodo:    data.metodo,
+    p_cuenta_id: cuentaId,
+    p_fecha:     data.fecha,
+  })
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/facturacion')
+  revalidatePath('/flujo-caja')
+  return { ok: true }
+}
+
+// Anula un abono de la factura y recalcula su estado. Solo admin.
+export async function eliminarAbonoFacturaAction(abonoId: string): Promise<SimpleResult> {
+  const sesion = await getSesion()
+  if (sesion.rol !== 'admin') return { ok: false, error: 'Solo el administrador puede eliminar abonos' }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('eliminar_abono_factura', { p_abono_id: abonoId })
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/facturacion')
+  revalidatePath('/flujo-caja')
+  return { ok: true }
+}

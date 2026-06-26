@@ -1,6 +1,7 @@
 'use server'
 
 import { redirect } from 'next/navigation'
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { parsearPedido } from '@/lib/parser'
@@ -395,6 +396,14 @@ export async function editarPedidoAction(
   if (error) {
     if (error.code === '23505') return { ok: false, error: `El número "${nuevoNumero}" ya está en uso.` }
     return { ok: false, error: error.message }
+  }
+
+  // Si el pedido pertenece a una factura, recalcular su total/estado para que no
+  // se descuadre al cambiar los productos.
+  const { data: ped } = await supabase.from('pedidos').select('factura_id').eq('id', pedidoId).maybeSingle()
+  if ((ped as any)?.factura_id) {
+    await supabase.rpc('recalcular_factura', { p_factura_id: (ped as any).factura_id })
+    revalidatePath(`/facturacion/${(ped as any).factura_id}`)
   }
 
   redirect(`/pedidos/${pedidoId}`)
