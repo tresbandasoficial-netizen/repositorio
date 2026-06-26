@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getSesion } from '@/lib/auth/acceso'
 import { bloqueoCajaCerrada } from '@/lib/auth/caja'
-import { efectivoCuentaId } from '@/lib/queries/cuentas'
+import { cuentaIdPorMetodo } from '@/lib/queries/cuentas'
 import { getSiguienteNumeroOrden } from '@/lib/queries/pedidos'
 import { ItemVenta } from '@/app/actions/ventas'
 import { normalizarTelefono } from '@/lib/utils/phone'
@@ -169,7 +169,7 @@ export async function crearFacturaAction(data: CrearFacturaInput): Promise<Crear
 
   let cuentaInicial = data.cuenta_id || null
   const metodoInicial = data.metodo_abono || 'efectivo'
-  if (!cuentaInicial && metodoInicial === 'efectivo') cuentaInicial = await efectivoCuentaId(supabase, sedeId)
+  if (!cuentaInicial) cuentaInicial = await cuentaIdPorMetodo(supabase, metodoInicial, sedeId)
   const abonos = data.abono_inicial > 0
     ? [{ monto: data.abono_inicial, metodo: metodoInicial, cuenta_id: cuentaInicial }]
     : null
@@ -259,11 +259,11 @@ export async function crearFacturaUnificadaAction(
     return { ok: false, error: 'No puedes facturar en otra sede' }
   }
 
-  // Efectivo: rutear los abonos en efectivo a la caja de la sede.
-  const efectivoId = await efectivoCuentaId(supabase, sedeId)
-  const abonos = data.abonos.map(a =>
-    (!a.cuenta_id && a.metodo === 'efectivo' && efectivoId) ? { ...a, cuenta_id: efectivoId } : a
-  )
+  // Rutear cada abono a la cuenta de su método (efectivo → caja de la sede; demás
+  // → su cuenta global) para que el saldo se actualice solo en el flujo de caja.
+  const abonos = await Promise.all(data.abonos.map(async a =>
+    a.cuenta_id ? a : { ...a, cuenta_id: await cuentaIdPorMetodo(supabase, a.metodo, sedeId) }
+  ))
 
   // Resolver cliente: existente o crear uno nuevo.
   let clienteId = data.cliente_id
@@ -439,9 +439,10 @@ export async function registrarPagoFacturaAction(data: RegistrarPagoFacturaInput
     return { ok: false, error: 'Sin acceso a esta factura' }
   }
 
-  // Efectivo: rutear a la caja de la sede de la factura si no viene cuenta.
+  // Rutear el pago a la cuenta de su método (efectivo → caja de la sede de la
+  // factura; demás → su cuenta global) para que el saldo se actualice solo.
   let cuentaId = data.cuenta_id || null
-  if (!cuentaId && data.metodo === 'efectivo') cuentaId = await efectivoCuentaId(supabase, factura.sede_id)
+  if (!cuentaId) cuentaId = await cuentaIdPorMetodo(supabase, data.metodo, factura.sede_id)
 
   const { error } = await supabase.rpc('registrar_pago_factura', {
     p_factura_id: data.factura_id,

@@ -10,7 +10,7 @@ import { puedeTransicionar } from '@/lib/domain/estados'
 import { EstadoPedido, MetodoPago, ParsedPedido } from '@/types'
 import { getSesion, puedeAccederSede } from '@/lib/auth/acceso'
 import { bloqueoCajaCerrada } from '@/lib/auth/caja'
-import { efectivoCuentaId } from '@/lib/queries/cuentas'
+import { cuentaIdPorMetodo } from '@/lib/queries/cuentas'
 
 export type CrearPedidoResult =
   | { ok: true; pedidoId: string }
@@ -102,10 +102,12 @@ async function _crearPedidoConDatos(
     ? abonosMultiples[0]
     : { monto: datos.abono, metodo: datos.metodo_pago_abono }
 
-  // Efectivo: rutear a la caja de la sede si no viene cuenta explícita.
+  // Rutear el abono a la cuenta que corresponde al método (efectivo → caja de la
+  // sede; bancolombia_carlos, nequi_johan… → su cuenta global). Así el saldo se
+  // actualiza solo en el flujo de caja.
   let cuentaAbono = (datos as any).cuenta_id_abono ?? null
-  if (!cuentaAbono && primerAbono.monto > 0 && primerAbono.metodo === 'efectivo') {
-    cuentaAbono = await efectivoCuentaId(supabase, sede.id)
+  if (!cuentaAbono && primerAbono.monto > 0) {
+    cuentaAbono = await cuentaIdPorMetodo(supabase, primerAbono.metodo, sede.id)
   }
 
   const { data: pedidoId, error: errPedido } = await supabase.rpc('crear_pedido', {
@@ -134,13 +136,14 @@ async function _crearPedidoConDatos(
   // Abonos adicionales (del segundo en adelante) — RPC atómico con validación de saldo.
   const hoy = new Date().toISOString().slice(0, 10)
   for (const abono of abonosMultiples.slice(1)) {
+    const cuentaAdic = await cuentaIdPorMetodo(supabase, abono.metodo, sede.id)
     const { error: errPago } = await supabase.rpc('registrar_pago_pedido', {
       p_pedido_id: pedidoId,
       p_monto:     abono.monto,
       p_metodo:    abono.metodo,
       p_fecha:     hoy,
       p_asesor_id: usuario.id,
-      p_cuenta_id: null,
+      p_cuenta_id: cuentaAdic,
       p_notas:     null,
     })
     if (errPago) {
@@ -290,9 +293,10 @@ export async function registrarPagoAction(
   if (!puedeAccederSede(sesion, pedido.sede_id)) return { ok: false, error: 'Sin acceso a este pedido' }
   if (data.monto <= 0) return { ok: false, error: 'El monto debe ser mayor a cero' }
 
-  // Efectivo: rutear a la caja de la sede del pedido si no viene cuenta.
+  // Rutear el pago a la cuenta de su método (efectivo → caja de la sede; demás →
+  // su cuenta global), para que el saldo se actualice solo en el flujo de caja.
   let cuentaId = data.cuenta_id || null
-  if (!cuentaId && data.metodo === 'efectivo') cuentaId = await efectivoCuentaId(supabase, pedido.sede_id)
+  if (!cuentaId) cuentaId = await cuentaIdPorMetodo(supabase, data.metodo, pedido.sede_id)
 
   // El RPC bloquea el pedido con FOR UPDATE antes de validar el saldo,
   // evitando que dos asesores simultáneos sobreabonen el mismo pedido.

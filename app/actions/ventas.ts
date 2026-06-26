@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getSesion } from '@/lib/auth/acceso'
 import { bloqueoCajaCerrada } from '@/lib/auth/caja'
-import { efectivoCuentaId } from '@/lib/queries/cuentas'
+import { cuentaIdPorMetodo } from '@/lib/queries/cuentas'
 import { getSiguienteNumeroOrden } from '@/lib/queries/pedidos'
 import { normalizarTelefono } from '@/lib/utils/phone'
 
@@ -105,11 +105,12 @@ export async function registrarVentaInmediataAction(data: VentaInmediataInput): 
     precio_venta: it.precio_venta,
   }))
 
-  // Efectivo: rutear a la caja de la sede si no viene cuenta.
+  // Rutear el pago a la cuenta de su método (efectivo → caja de la sede; demás →
+  // su cuenta global) para que el saldo se actualice solo en el flujo de caja.
   const metodoVenta = data.abono > 0 ? (data.metodo || 'efectivo') : 'efectivo'
   let cuentaVenta = data.cuenta_id || null
-  if (!cuentaVenta && data.abono > 0 && metodoVenta === 'efectivo') {
-    cuentaVenta = await efectivoCuentaId(supabase, sede.id)
+  if (!cuentaVenta && data.abono > 0) {
+    cuentaVenta = await cuentaIdPorMetodo(supabase, metodoVenta, sede.id)
   }
 
   const { data: pedidoId, error } = await supabase.rpc('registrar_venta_inmediata', {
