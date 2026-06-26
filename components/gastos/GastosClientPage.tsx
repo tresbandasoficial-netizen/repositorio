@@ -15,20 +15,22 @@ function inicioMes() {
 
 interface Props {
   gastos: Gasto[]
-  cuentas: Cuenta[]
+  cuentas: { id: string; nombre: string }[]
   sedes: { id: string; codigo: string; nombre: string }[]
+  sedeRestringida?: { id: string; codigo: string; nombre: string } | null
+  esAdmin?: boolean
   porCategoria: { categoria: CategoriaGasto; label: string; total: number }[]
   totalGeneral: number
   filtros: { desde: string; hasta: string; categoria?: CategoriaGasto; sede_id?: string }
 }
 
-export function GastosClientPage({ gastos, cuentas, sedes, porCategoria, totalGeneral, filtros }: Props) {
+export function GastosClientPage({ gastos, cuentas, sedes, sedeRestringida, esAdmin = true, porCategoria, totalGeneral, filtros }: Props) {
   const [mostrarForm, setMostrarForm] = useState(false)
   const [form, setForm] = useState({
     fecha:       hoy(),
     valor:       '',
     categoria:   '' as CategoriaGasto | '',
-    sede_id:     sedes[0]?.id ?? '',
+    sede_id:     sedeRestringida?.id ?? sedes[0]?.id ?? '',
     cuenta_id:   '',
     observacion: '',
   })
@@ -122,13 +124,22 @@ export function GastosClientPage({ gastos, cuentas, sedes, porCategoria, totalGe
                 ))}
               </select>
             </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Sede *</label>
-              <select value={form.sede_id} onChange={e => set('sede_id', e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                {sedes.map(s => <option key={s.id} value={s.id}>{s.nombre} ({s.codigo})</option>)}
-              </select>
-            </div>
+            {sedeRestringida ? (
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Sede</label>
+                <div className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                  {sedeRestringida.nombre}
+                </div>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Sede *</label>
+                <select value={form.sede_id} onChange={e => set('sede_id', e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  {sedes.map(s => <option key={s.id} value={s.id}>{s.nombre} ({s.codigo})</option>)}
+                </select>
+              </div>
+            )}
             <div>
               <label className="block text-xs text-gray-500 mb-1">Cuenta de egreso</label>
               <select value={form.cuenta_id} onChange={e => set('cuenta_id', e.target.value)}
@@ -179,11 +190,13 @@ export function GastosClientPage({ gastos, cuentas, sedes, porCategoria, totalGe
           <option value="">Todas las categorías</option>
           {CATEGORIAS_GASTO.map(c => <option key={c} value={c}>{CATEGORIA_GASTO_LABELS[c]}</option>)}
         </select>
-        <select defaultValue={filtros.sede_id ?? ''} onChange={e => aplicarFiltro('sede', e.target.value)}
-          className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">Todas las sedes</option>
-          {sedes.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-        </select>
+        {!sedeRestringida && (
+          <select defaultValue={filtros.sede_id ?? ''} onChange={e => aplicarFiltro('sede', e.target.value)}
+            className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="">Todas las sedes</option>
+            {sedes.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+          </select>
+        )}
       </div>
 
       {/* Resumen por categoría */}
@@ -222,7 +235,7 @@ export function GastosClientPage({ gastos, cuentas, sedes, porCategoria, totalGe
                   <th className="text-left px-3 py-2">Cuenta</th>
                   <th className="text-right px-3 py-2">Valor</th>
                   <th className="text-left px-3 py-2">Observación</th>
-                  <th className="px-3 py-2"></th>
+                  {esAdmin && <th className="px-3 py-2"></th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -234,14 +247,16 @@ export function GastosClientPage({ gastos, cuentas, sedes, porCategoria, totalGe
                     <td className="px-3 py-2.5 text-gray-500">{(g.cuenta as any)?.nombre ?? '—'}</td>
                     <td className="px-3 py-2.5 text-right font-semibold text-red-700">{formatCOP(g.valor)}</td>
                     <td className="px-3 py-2.5 text-gray-500 max-w-xs truncate">{g.observacion ?? '—'}</td>
-                    <td className="px-3 py-2.5">
-                      <button
-                        onClick={() => handleEliminar(g.id)}
-                        className="text-xs text-gray-400 hover:text-red-600 transition-colors"
-                      >
-                        Eliminar
-                      </button>
-                    </td>
+                    {esAdmin && (
+                      <td className="px-3 py-2.5">
+                        <button
+                          onClick={() => handleEliminar(g.id)}
+                          className="text-xs text-gray-400 hover:text-red-600 transition-colors"
+                        >
+                          Eliminar
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

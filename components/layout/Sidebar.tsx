@@ -52,7 +52,7 @@ const navItems: { href: string; label: string; icon: NavIcon; rol: string[] }[] 
   { href: '/clientes',     label: 'Clientes',     icon: Users,           rol: ['asesor', 'admin', 'visor'] },
   { href: '/domicilios',   label: 'Domicilios',   icon: MotoIcon,        rol: ['asesor', 'admin'] },
   { href: '/cuadre',       label: 'Cuadre caja',  icon: Calculator,  rol: ['asesor', 'admin'] },
-  { href: '/gastos',       label: 'Gastos',       icon: Wallet,      rol: ['admin'] },
+  { href: '/gastos',       label: 'Gastos',       icon: Wallet,      rol: ['asesor', 'admin'] },
   { href: '/flujo-caja',   label: 'Flujo de caja',icon: BarChart2,   rol: ['admin'] },
   { href: '/mensajerias',  label: 'Mensajerías', icon: Package,     rol: ['asesor', 'admin'] },
   { href: '/inventario',   label: 'Inventario',   icon: Boxes,       rol: ['admin'] },
