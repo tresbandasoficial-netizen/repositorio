@@ -276,7 +276,11 @@ end;
 $function$;
 
 -- ── 3. vista_cartera_clientes: el crédito no reduce el saldo ──────────────────
-CREATE OR REPLACE VIEW vista_cartera_clientes AS
+-- DROP + CREATE porque CREATE OR REPLACE no puede eliminar columnas de una vista
+-- (error 42P16). Si la vista en producción tiene más columnas de las que vemos
+-- en las migrations anteriores, el REPLACE fallaría.
+DROP VIEW IF EXISTS vista_cartera_clientes CASCADE;
+CREATE VIEW vista_cartera_clientes AS
 SELECT
   c.id,
   c.nombre,
@@ -326,7 +330,11 @@ WHERE totales.total_comprado
 -- ── 4. vista_facturas: el crédito no reduce el saldo de la factura ────────────
 -- Alimenta vista_morosos. Si el crédito restara el saldo, un cliente financiado
 -- y vencido nunca aparecería como moroso.
-CREATE OR REPLACE VIEW vista_facturas AS
+-- DROP + CREATE porque CREATE OR REPLACE no puede quitar columnas (error 42P16).
+-- vista_morosos depende de vista_facturas; CASCADE la eliminará y la recreamos abajo.
+DROP VIEW IF EXISTS vista_morosos CASCADE;
+DROP VIEW IF EXISTS vista_facturas CASCADE;
+CREATE VIEW vista_facturas AS
 SELECT
   f.id,
   f.numero_factura,
@@ -362,6 +370,14 @@ left join (
   where metodo != 'credito'   -- el crédito es deuda, no abono
   group by factura_id
 ) pg on pg.factura_id = f.id;
+
+-- Recrear vista_morosos (dependía de vista_facturas, fue eliminada por CASCADE)
+CREATE VIEW vista_morosos AS
+SELECT *
+FROM vista_facturas
+WHERE saldo > 0
+  AND estado NOT IN ('pagada', 'anulada')
+  AND fecha_vencimiento < current_date;
 
 -- ── 5. registrar_pago_factura: saldo real excluye el crédito ──────────────────
 -- Si el crédito contara como abonado, el cliente nunca podría pagar después su
