@@ -32,11 +32,13 @@ export default async function CuadrePage({
   if (sesion.sede_id) cierreQuery.eq('sede_id', sesion.sede_id)
   const { data: cierreHoy } = sesion.rol === 'admin' ? { data: null } : await cierreQuery.maybeSingle()
 
-  // Admin: cajas cerradas hoy (para poder reabrirlas con un clic).
+  // Admin: cajas cerradas hoy (para poder reabrirlas con un clic). El cierre
+  // automático se reconoce por su nota.
   const { data: cierresHoyRaw } = esAdmin
-    ? await supabase.from('cierres_caja').select('sede_id, automatico').eq('fecha', fechaHoy)
+    ? await supabase.from('cierres_caja').select('sede_id, notas').eq('fecha', fechaHoy)
     : { data: [] }
-  const cierresHoy = (cierresHoyRaw ?? []) as Array<{ sede_id: string; automatico: boolean }>
+  const cierresHoy = ((cierresHoyRaw ?? []) as Array<{ sede_id: string; notas: string | null }>)
+    .map(c => ({ sede_id: c.sede_id, automatico: (c.notas ?? '').toLowerCase().includes('autom') }))
 
   const params = new URLSearchParams({ desde, hasta, ...(sede ? { sede } : {}) })
 

@@ -3,13 +3,16 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { hoyBogota } from '@/lib/utils/format'
 
 // Cierre automático de caja a las 9:00 p.m. (hora Colombia).
-// Para cada sede que NO cerró caja hoy, crea el cierre con el snapshot del día
-// y lo marca como automático. A partir de ahí la sede queda bloqueada para los
-// asesores (solo el admin puede registrar o reabrir).
+// Para cada sede que NO cerró caja hoy, crea el cierre con el snapshot del día.
+// Se marca como automático por su nota ("Cierre automático") y se atribuye a un
+// usuario admin existente (la tabla exige usuario_id). A partir de ahí la sede
+// queda bloqueada para los asesores (solo el admin puede registrar o reabrir).
 //
 // Protegido con CRON_SECRET. Agendado en vercel.json:
 //   { "path": "/api/cron/cierre-automatico", "schedule": "0 2 * * *" }
 // 02:00 UTC = 21:00 hora Bogotá (UTC-5).
+
+const NOTA_AUTOMATICO = 'Cierre automático (9:00 p.m.)'
 
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET
@@ -26,6 +29,16 @@ export async function GET(req: NextRequest) {
   const { data: sedes, error: errSedes } = await supabase.from('sedes').select('id')
   if (errSedes) return NextResponse.json({ error: errSedes.message }, { status: 500 })
   if (!sedes || sedes.length === 0) return NextResponse.json({ cerradas: 0 })
+
+  // La tabla cierres_caja exige usuario_id; el cierre automático se atribuye a
+  // un admin existente (queda claro que es automático por la nota).
+  const { data: admin } = await supabase
+    .from('usuarios')
+    .select('id')
+    .eq('rol', 'admin')
+    .limit(1)
+    .maybeSingle()
+  if (!admin) return NextResponse.json({ error: 'No hay usuario admin para atribuir el cierre' }, { status: 500 })
 
   // Sedes que ya tienen cierre hoy (manual o automático): no se tocan.
   const { data: yaCerradasRaw } = await supabase
@@ -70,9 +83,8 @@ export async function GET(req: NextRequest) {
     const { error } = await supabase.from('cierres_caja').insert({
       fecha:           hoy,
       sede_id:         sede.id,
-      usuario_id:      null,
-      automatico:      true,
-      notas:           'Cierre automático (9:00 p.m.)',
+      usuario_id:      admin.id,
+      notas:           NOTA_AUTOMATICO,
       detalle_cuentas: detalle,
       total_ingresos,
       total_egresos,
