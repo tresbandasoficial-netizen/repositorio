@@ -104,14 +104,18 @@ export default async function FacturacionPage({
             <tbody className="divide-y divide-gray-50">
               {facturas.map(f => (
                 <tr key={f.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 font-mono text-xs text-gray-700">
-                    {f.numero_factura}
+                  <td className="px-6 py-4 font-mono text-xs">
+                    <Link href={`/facturacion/${f.id}`} className="text-blue-600 hover:underline font-medium">
+                      {f.numero_factura}
+                    </Link>
                     {f.numeros_orden.length > 0 && (
                       <span className="block text-gray-400 mt-0.5">{f.numeros_orden.join(', ')}</span>
                     )}
                   </td>
                   <td className="px-4 py-4">
-                    <p className="font-medium text-gray-900">{f.cliente_nombre}</p>
+                    <Link href={`/clientes/${f.cliente_id}`} className="font-medium text-gray-900 hover:text-blue-600 hover:underline">
+                      {f.cliente_nombre}
+                    </Link>
                     <p className="text-xs text-gray-400">{f.cliente_telefono}</p>
                   </td>
                   <td className="px-4 py-4 text-center hidden sm:table-cell">
@@ -140,8 +144,11 @@ export default async function FacturacionPage({
                     <Badge className={ESTADO_FACTURA_COLORES[f.estado]}>{ESTADO_FACTURA_LABELS[f.estado]}</Badge>
                   </td>
                   <td className="px-4 py-4 text-right">
-                    <Link href={`/facturacion/${f.id}`} className="text-sm text-blue-600 hover:underline font-medium">
-                      Ver →
+                    <Link
+                      href={`/facturacion/${f.id}`}
+                      className="inline-block px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      Ver
                     </Link>
                   </td>
                 </tr>
