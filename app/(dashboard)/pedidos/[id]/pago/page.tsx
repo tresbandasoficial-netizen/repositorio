@@ -16,7 +16,7 @@ export default async function RegistrarPagoPage({
 
   const { data: pedido } = await supabase
     .from('vista_pedidos_asesor')
-    .select('id, numero_orden, estado, total, total_pagado, sede_id')
+    .select('id, numero_orden, estado, total, total_pagado, sede_id, sede_codigo')
     .eq('id', id)
     .single()
 
@@ -43,6 +43,7 @@ export default async function RegistrarPagoPage({
             pedidoId={pedido.id}
             total={pedido.total}
             totalPagado={pedido.total_pagado}
+            sedeCodigo={(pedido as { sede_codigo?: string }).sede_codigo}
           />
         </CardContent>
       </Card>

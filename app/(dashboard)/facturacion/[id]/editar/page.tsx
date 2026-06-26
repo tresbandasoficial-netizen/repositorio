@@ -47,6 +47,7 @@ export default async function EditarFacturaPage({
         }}
         abonos={factura.abonos}
         pedidos={factura.pedidos}
+        sedeCodigo={factura.sede_codigo}
       />
     </div>
   )

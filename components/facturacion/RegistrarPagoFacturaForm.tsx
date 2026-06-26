@@ -4,14 +4,14 @@ import { useState, useTransition } from 'react'
 import { registrarPagoFacturaAction } from '@/app/actions/facturacion'
 import { Button } from '@/components/ui/Button'
 import { formatCOP, hoyBogota } from '@/lib/utils/format'
-import { MetodoPago, METODOS_PAGO, METODO_PAGO_LABELS, MENSAJERIA_LABELS, TipoMensajeria } from '@/types'
+import { MetodoPago, metodosDeSede, METODO_PAGO_LABELS, MENSAJERIA_LABELS, TipoMensajeria } from '@/types'
 
-const METODOS: { value: MetodoPago; label: string }[] = [
-  ...METODOS_PAGO.map(v => ({ value: v, label: METODO_PAGO_LABELS[v] })),
-  { value: 'recaudo_mensajeria' as MetodoPago, label: METODO_PAGO_LABELS['recaudo_mensajeria'] },
-]
-
-export function RegistrarPagoFacturaForm({ facturaId, saldo }: { facturaId: string; saldo: number }) {
+export function RegistrarPagoFacturaForm({ facturaId, saldo, sedeCodigo }: { facturaId: string; saldo: number; sedeCodigo?: string }) {
+  // Métodos de la sede + recaudo por mensajería (opción de cobro a domicilio).
+  const METODOS: { value: MetodoPago; label: string }[] = [
+    ...metodosDeSede(sedeCodigo).map(v => ({ value: v, label: METODO_PAGO_LABELS[v] })),
+    { value: 'recaudo_mensajeria' as MetodoPago, label: METODO_PAGO_LABELS['recaudo_mensajeria'] },
+  ]
   const [monto, setMonto] = useState('')
   const [metodo, setMetodo] = useState<MetodoPago>('efectivo')
   const [fecha, setFecha] = useState(() => hoyBogota())

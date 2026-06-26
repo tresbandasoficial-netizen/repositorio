@@ -132,7 +132,7 @@ export default async function FacturaDetallePage({
       {activa && factura.saldo > 0 && (
         <div className="bg-white rounded-xl border border-gray-100 mb-6 p-5">
           <p className="text-sm font-semibold text-gray-900 mb-3">Registrar abono</p>
-          <RegistrarPagoFacturaForm facturaId={factura.id} saldo={factura.saldo} />
+          <RegistrarPagoFacturaForm facturaId={factura.id} saldo={factura.saldo} sedeCodigo={factura.sede_codigo} />
         </div>
       )}
 

@@ -8,7 +8,7 @@ import {
   editarAbonoFacturaAction,
   eliminarAbonoFacturaAction,
 } from '@/app/actions/facturacion'
-import { MetodoPago, METODOS_PAGO, METODO_PAGO_LABELS } from '@/types'
+import { MetodoPago, metodosDeSede, METODO_PAGO_LABELS } from '@/types'
 import { formatCOP, formatFecha } from '@/lib/utils/format'
 
 type Factura = {
@@ -26,10 +26,11 @@ type Factura = {
 type Abono = { id: string; monto: number; metodo: string; fecha: string; notas: string | null; asesor_nombre: string }
 type Pedido = { id: string; numero_orden: string; total: number; fecha_creacion: string }
 
-export function EditarFacturaForm({ factura, abonos, pedidos }: {
+export function EditarFacturaForm({ factura, abonos, pedidos, sedeCodigo }: {
   factura: Factura
   abonos: Abono[]
   pedidos: Pedido[]
+  sedeCodigo?: string
 }) {
   const router = useRouter()
 
@@ -43,7 +44,7 @@ export function EditarFacturaForm({ factura, abonos, pedidos }: {
       </div>
 
       <DatosFactura factura={factura} onSaved={() => router.refresh()} />
-      <AbonosEditor abonos={abonos} onChanged={() => router.refresh()} />
+      <AbonosEditor abonos={abonos} sedeCodigo={sedeCodigo} onChanged={() => router.refresh()} />
       <ProductosEditor pedidos={pedidos} />
     </div>
   )
@@ -129,7 +130,7 @@ function DatosFactura({ factura, onSaved }: { factura: Factura; onSaved: () => v
 }
 
 // ── Abonos ───────────────────────────────────────────────────────────────────
-function AbonosEditor({ abonos, onChanged }: { abonos: Abono[]; onChanged: () => void }) {
+function AbonosEditor({ abonos, sedeCodigo, onChanged }: { abonos: Abono[]; sedeCodigo?: string; onChanged: () => void }) {
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-5 space-y-3">
       <p className="text-sm font-semibold text-gray-900">Abonos / método de pago ({abonos.length})</p>
@@ -137,14 +138,14 @@ function AbonosEditor({ abonos, onChanged }: { abonos: Abono[]; onChanged: () =>
         <p className="text-sm text-gray-400">Sin abonos. Agrégalos desde el detalle de la factura.</p>
       ) : (
         <div className="space-y-2">
-          {abonos.map(a => <AbonoRow key={a.id} abono={a} onChanged={onChanged} />)}
+          {abonos.map(a => <AbonoRow key={a.id} abono={a} sedeCodigo={sedeCodigo} onChanged={onChanged} />)}
         </div>
       )}
     </div>
   )
 }
 
-function AbonoRow({ abono, onChanged }: { abono: Abono; onChanged: () => void }) {
+function AbonoRow({ abono, sedeCodigo, onChanged }: { abono: Abono; sedeCodigo?: string; onChanged: () => void }) {
   const [editando, setEditando] = useState(false)
   const [monto, setMonto] = useState(String(abono.monto))
   const [metodo, setMetodo] = useState<MetodoPago>(abono.metodo as MetodoPago)
@@ -207,7 +208,8 @@ function AbonoRow({ abono, onChanged }: { abono: Abono; onChanged: () => void })
           <label className="block text-xs text-gray-500 mb-1">Método</label>
           <select value={metodo} onChange={e => setMetodo(e.target.value as MetodoPago)}
             className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-            {METODOS_PAGO.map(m => <option key={m} value={m}>{METODO_PAGO_LABELS[m]}</option>)}
+            {/* incluye el método actual aunque no esté en la lista de la sede */}
+            {Array.from(new Set([abono.metodo as MetodoPago, ...metodosDeSede(sedeCodigo)])).map(m => <option key={m} value={m}>{METODO_PAGO_LABELS[m] ?? m}</option>)}
           </select>
         </div>
         <div>

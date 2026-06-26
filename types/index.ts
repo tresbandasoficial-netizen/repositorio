@@ -101,6 +101,19 @@ export const METODOS_PAGO: MetodoPago[] = [
   'davivienda', 'addi', 'bold', 'sistecredito', 'credito',
 ]
 
+// Métodos permitidos por sede (código). Si una sede no está aquí, se muestran
+// todos. Santa Rosa solo maneja estos: efectivo (Caja/Efectivo Santa Rosa),
+// Nequi Luisa, Addi, Sistecrédito, Bold y Crédito.
+export const METODOS_PAGO_POR_SEDE: Record<string, MetodoPago[]> = {
+  SR: ['efectivo', 'nequi_luisa', 'addi', 'sistecredito', 'bold', 'credito'],
+}
+
+// Devuelve los métodos de pago que debe mostrar el selector para una sede.
+export function metodosDeSede(sedeCodigo?: string | null): MetodoPago[] {
+  if (sedeCodigo && METODOS_PAGO_POR_SEDE[sedeCodigo]) return METODOS_PAGO_POR_SEDE[sedeCodigo]
+  return METODOS_PAGO
+}
+
 export type PedidoItem = {
   id: string
   pedido_id: string

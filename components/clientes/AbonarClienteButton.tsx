@@ -4,15 +4,18 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { abonarClienteAction } from '@/app/actions/abonos'
 import { formatCOP } from '@/lib/utils/format'
-import { MetodoPago, METODOS_PAGO, METODO_PAGO_LABELS } from '@/types'
+import { MetodoPago, metodosDeSede, METODO_PAGO_LABELS } from '@/types'
 
 export function AbonarClienteButton({
   clienteId,
   deudaTotal,
+  sedeCodigo,
 }: {
   clienteId: string
   deudaTotal: number
+  sedeCodigo?: string
 }) {
+  const METODOS_DISPONIBLES = metodosDeSede(sedeCodigo)
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [monto, setMonto] = useState('')
@@ -105,7 +108,7 @@ export function AbonarClienteButton({
                   onChange={e => setMetodo(e.target.value as MetodoPago)}
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  {METODOS_PAGO.map(m => (
+                  {METODOS_DISPONIBLES.map(m => (
                     <option key={m} value={m}>{METODO_PAGO_LABELS[m]}</option>
                   ))}
                 </select>

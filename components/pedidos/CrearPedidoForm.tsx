@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect, useRef } from 'react'
 import { parsearPedido } from '@/lib/parser'
-import { ParsedPedido, MetodoPago, METODOS_PAGO, METODO_PAGO_LABELS } from '@/types'
+import { ParsedPedido, MetodoPago, metodosDeSede, METODO_PAGO_LABELS } from '@/types'
 import { formatCOP } from '@/lib/utils/format'
 import { crearPedidoDesdeDataAction } from '@/app/actions/pedidos'
 import { buscarClientesAction, buscarDireccionPorTelefonoAction, buscarClientePorTelefonoAction, ClienteBusqueda, ClientePorTelefono } from '@/app/actions/clientes'
@@ -675,7 +675,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
                       onChange={e => actualizarAbono(idx, { metodo: e.target.value as MetodoPago })}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      {METODOS_PAGO.map(m => (
+                      {metodosDeSede(sedeCode).map(m => (
                         <option key={m} value={m}>{METODO_PAGO_LABELS[m]}</option>
                       ))}
                     </select>

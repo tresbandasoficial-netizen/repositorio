@@ -18,6 +18,13 @@ export default async function ClienteDetallePage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  const { data: usuario } = await supabase
+    .from('usuarios')
+    .select('sedes(codigo)')
+    .eq('id', user.id)
+    .single()
+  const sedeCodigo = (usuario?.sedes as { codigo?: string } | null)?.codigo
+
   const { id } = await params
   const cliente = await getClienteDetalle(id)
   if (!cliente) notFound()
@@ -43,7 +50,7 @@ export default async function ClienteDetallePage({
         </Link>
         <h1 className="text-lg font-bold text-gray-900 flex-1">{cliente.nombre}</h1>
         <div className="flex items-center gap-2">
-          <AbonarClienteButton clienteId={id} deudaTotal={saldoTotal} />
+          <AbonarClienteButton clienteId={id} deudaTotal={saldoTotal} sedeCodigo={sedeCodigo} />
           <Link
             href={`/clientes/${id}/editar`}
             className="px-4 py-2 text-sm font-medium border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 transition-colors"
