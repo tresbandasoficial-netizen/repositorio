@@ -15,7 +15,10 @@ export async function getFacturas(filtros?: {
   let query = supabase
     .from('vista_facturas')
     .select('*')
-    .order('fecha_factura', { ascending: false })
+    // Por creado_en (timestamp con hora): la última factura emitida queda de
+    // primera. fecha_factura es solo día → varias del mismo día quedaban en
+    // orden arbitrario.
+    .order('creado_en', { ascending: false })
     .limit(200)
 
   if (sesion.rol !== 'admin' && sesion.sede_id) query = query.eq('sede_id', sesion.sede_id)
