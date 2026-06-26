@@ -4,6 +4,7 @@ import { getSesion } from '@/lib/auth/acceso'
 import { createClient } from '@/lib/supabase/server'
 import { formatCOP, formatFecha, hoyBogota } from '@/lib/utils/format'
 import { EntregaEfectivoButton } from '@/components/flujo/EntregaEfectivoButton'
+import { AgregarDineroButton } from '@/components/flujo/AgregarDineroButton'
 
 type Cuenta = {
   id: string
@@ -60,7 +61,7 @@ export default async function FlujoCajaPage({
   const pf       = (pfRes.data     ?? []) as Array<{ cuenta_id: string | null; monto: number; fecha: string }>
   const gastos   = (gastosRes.data ?? []) as Array<{ cuenta_id: string | null; valor: number; fecha: string }>
   const pm       = (pmRes.data     ?? []) as Array<{ cuenta_id: string | null; monto: number; fecha: string }>
-  const traslados = (traslRes.data ?? []) as Array<{ origen_cuenta_id: string; destino_cuenta_id: string; monto: number; fecha: string }>
+  const traslados = (traslRes.data ?? []) as Array<{ origen_cuenta_id: string | null; destino_cuenta_id: string; monto: number; fecha: string }>
 
   // Saldo de cada cuenta = saldo_inicial + (ingresos − egresos) desde su corte.
   type Fila = Cuenta & { ingresos: number; egresos: number; saldo: number }
@@ -140,7 +141,10 @@ export default async function FlujoCajaPage({
             {sedeActual ? sedeActual.nombre : 'Todas las sedes'} · saldos desde el corte ({corteLabel})
           </p>
         </div>
-        <EntregaEfectivoButton cuentas={cuentasOpc} />
+        <div className="flex gap-2 flex-wrap">
+          <AgregarDineroButton cuentas={cuentasOpc} />
+          <EntregaEfectivoButton cuentas={cuentasOpc} />
+        </div>
       </div>
 
       {/* Tabs de sede */}
