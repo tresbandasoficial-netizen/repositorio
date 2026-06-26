@@ -46,9 +46,11 @@ export default async function FlujoCajaPage({
   const corteMin = cortes.length ? cortes.sort()[0] : hoyBogota()
 
   // Movimientos desde el corte (cada cuenta cuenta los suyos desde su fecha_corte).
+  // Se excluye crédito (no es dinero) y pagos anulados (pedidos cancelados /
+  // facturas anuladas — marcados anulado=true por la migración 076).
   const [pagosRes, pfRes, gastosRes, pmRes, traslRes] = await Promise.all([
-    supabase.from('pagos').select('cuenta_id, monto, fecha').neq('metodo', 'credito').gte('fecha', corteMin).limit(20000),
-    supabase.from('pagos_factura').select('cuenta_id, monto, fecha').neq('metodo', 'credito').gte('fecha', corteMin).limit(20000),
+    supabase.from('pagos').select('cuenta_id, monto, fecha').neq('metodo', 'credito').eq('anulado', false).gte('fecha', corteMin).limit(20000),
+    supabase.from('pagos_factura').select('cuenta_id, monto, fecha').neq('metodo', 'credito').eq('anulado', false).gte('fecha', corteMin).limit(20000),
     supabase.from('gastos').select('cuenta_id, valor, fecha').gte('fecha', corteMin).limit(20000),
     supabase.from('pagos_mensajeria').select('cuenta_id, monto, fecha, tipo').eq('tipo', 'pago').gte('fecha', corteMin).limit(20000),
     supabase.from('traslados_caja').select('origen_cuenta_id, destino_cuenta_id, monto, fecha').gte('fecha', corteMin).limit(20000),
