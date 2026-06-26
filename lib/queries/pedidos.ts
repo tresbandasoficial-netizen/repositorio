@@ -205,19 +205,25 @@ export async function getPedidoDetalle(id: string): Promise<PedidoDetalle | null
 export async function getSiguienteNumeroOrden(sedeCodigo: string): Promise<string> {
   const supabase = await createClient()
 
+  // Consecutivo COMPARTIDO entre sedes: el siguiente número es el más alto usado
+  // por cualquier sede + 1, así no se repiten números entre TR y SR (no quedan
+  // TR0001 y SR0001 a la vez). Se mira solo el bloque reciente para que un número
+  // viejo mal digitado (ej: TR59581) no dañe la sugerencia.
   const { data } = await supabase
     .from('pedidos')
     .select('numero_orden')
-    .ilike('numero_orden', `${sedeCodigo}%`)
-    .order('numero_orden', { ascending: false })
-    .limit(1)
+    .order('fecha_creacion', { ascending: false })
+    .limit(300)
 
-  if (!data || data.length === 0) return `${sedeCodigo}0001`
+  let max = 0
+  for (const p of (data ?? []) as Array<{ numero_orden: string }>) {
+    // Prefijo de 2 letras (TR/CR/SR) + número. Otros formatos (VL-…) se ignoran.
+    const m = /^[A-Za-z]{2}(\d+)$/.exec(p.numero_orden)
+    if (m) {
+      const n = parseInt(m[1], 10)
+      if (n > max) max = n
+    }
+  }
 
-  const ultimo = data[0].numero_orden
-  const prefixLen = sedeCodigo.length
-  const numPart = parseInt(ultimo.slice(prefixLen), 10)
-  const siguiente = isNaN(numPart) ? 1 : numPart + 1
-
-  return `${sedeCodigo}${siguiente}`
+  return `${sedeCodigo}${max + 1}`
 }
