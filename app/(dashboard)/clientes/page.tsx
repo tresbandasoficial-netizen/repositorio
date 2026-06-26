@@ -82,7 +82,12 @@ export default async function ClientesPage({
                 {clientes.map((c) => (
                   <tr key={c.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4">
-                      <p className="font-medium text-gray-900">{c.nombre}</p>
+                      <Link
+                        href={`/clientes/${c.id}`}
+                        className="font-medium text-gray-900 hover:text-blue-600 hover:underline"
+                      >
+                        {c.nombre}
+                      </Link>
                       {c.cedula && (
                         <p className="text-xs text-gray-400 mt-0.5">CC {c.cedula}</p>
                       )}

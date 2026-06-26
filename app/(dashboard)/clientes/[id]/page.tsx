@@ -35,10 +35,12 @@ export default async function ClienteDetallePage({
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
-        <Link href="/clientes" className="text-gray-400 hover:text-gray-600 text-sm">
+        <Link
+          href="/clientes"
+          className="px-4 py-2 text-sm font-medium border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 transition-colors inline-flex items-center gap-1.5 whitespace-nowrap"
+        >
           ← Clientes
         </Link>
-        <span className="text-gray-300">/</span>
         <h1 className="text-lg font-bold text-gray-900 flex-1">{cliente.nombre}</h1>
         <div className="flex items-center gap-2">
           <AbonarClienteButton clienteId={id} deudaTotal={saldoTotal} />
