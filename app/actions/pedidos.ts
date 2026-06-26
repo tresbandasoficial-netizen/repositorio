@@ -9,6 +9,7 @@ import { getSiguienteNumeroOrden } from '@/lib/queries/pedidos'
 import { puedeTransicionar } from '@/lib/domain/estados'
 import { EstadoPedido, MetodoPago, ParsedPedido } from '@/types'
 import { getSesion, puedeAccederSede } from '@/lib/auth/acceso'
+import { bloqueoCajaCerrada } from '@/lib/auth/caja'
 
 export type CrearPedidoResult =
   | { ok: true; pedidoId: string }
@@ -21,6 +22,8 @@ async function _crearPedidoConDatos(
 ): Promise<CrearPedidoResult> {
   const sesionPre = await getSesion()
   if (sesionPre.rol === 'visor') return { ok: false, error: 'Sin permisos para crear pedidos' }
+  const bloqueo = await bloqueoCajaCerrada(sesionPre)
+  if (bloqueo) return { ok: false, error: bloqueo }
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -265,6 +268,8 @@ export async function registrarPagoAction(
 ): Promise<RegistrarPagoResult> {
   const sesion = await getSesion()
   if (sesion.rol === 'visor') return { ok: false, error: 'Sin permisos para registrar pagos' }
+  const bloqueo = await bloqueoCajaCerrada(sesion)
+  if (bloqueo) return { ok: false, error: bloqueo }
   const supabase = await createClient()
 
   // Verificar acceso a la sede antes de tocar datos financieros.

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getSesion } from '@/lib/auth/acceso'
+import { bloqueoCajaCerrada } from '@/lib/auth/caja'
 import { CategoriaGasto, Gasto } from '@/types'
 import { hoyBogota } from '@/lib/utils/format'
 
@@ -24,6 +25,8 @@ export async function crearGastoAction(data: GastoInput): Promise<GastoResult> {
 
   const sesion = await getSesion()
   if (sesion.rol === 'visor') return { ok: false, error: 'Sin permisos para crear gastos' }
+  const bloqueo = await bloqueoCajaCerrada(sesion)
+  if (bloqueo) return { ok: false, error: bloqueo }
   const supabase = await createClient()
 
   // El asesor solo puede registrar gastos en su propia sede; el admin elige.

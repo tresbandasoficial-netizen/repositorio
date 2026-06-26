@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getSesion } from '@/lib/auth/acceso'
 import { hoyBogota } from '@/lib/utils/format'
 
@@ -78,6 +79,34 @@ export async function cerrarCajaAction(data: {
   revalidatePath('/dashboard')
   revalidatePath('/cierres-caja')
   return { ok: true, id: cierre.id }
+}
+
+// Reabrir la caja de una sede (borra el cierre del día). Solo admin: con esto
+// los asesores de esa sede vuelven a poder registrar movimientos. Usa el cliente
+// de servicio porque no hay política de DELETE en cierres_caja vía RLS.
+export async function reabrirCajaAction(data: {
+  sede_id?: string
+  fecha?: string
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const sesion = await getSesion()
+  if (sesion.rol !== 'admin') return { ok: false, error: 'Solo un administrador puede reabrir la caja' }
+
+  const sedeId = data.sede_id || sesion.sede_id
+  if (!sedeId) return { ok: false, error: 'Selecciona una sede para reabrir' }
+  const fecha = data.fecha || hoyBogota()
+
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('cierres_caja')
+    .delete()
+    .eq('sede_id', sedeId)
+    .eq('fecha', fecha)
+
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/dashboard')
+  revalidatePath('/cuadre')
+  return { ok: true }
 }
 
 export async function getCierresAction(params?: {

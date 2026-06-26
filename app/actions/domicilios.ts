@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getSesion } from '@/lib/auth/acceso'
+import { bloqueoCajaCerrada } from '@/lib/auth/caja'
 import { TipoMensajeria } from '@/types'
 
 export type DomicilioInput = {
@@ -30,6 +31,8 @@ export type DomicilioResult =
 export async function crearDomicilioAction(data: DomicilioInput): Promise<DomicilioResult> {
   const sesionDom = await getSesion()
   if (sesionDom.rol === 'visor') return { ok: false, error: 'Sin permisos para crear domicilios' }
+  const bloqueo = await bloqueoCajaCerrada(sesionDom)
+  if (bloqueo) return { ok: false, error: bloqueo }
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { ok: false, error: 'No autenticado' }

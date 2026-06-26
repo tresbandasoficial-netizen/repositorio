@@ -5,6 +5,7 @@ import { formatCOP, formatFecha, hoyBogota } from '@/lib/utils/format'
 import { ESTADO_FACTURA_LABELS, ESTADO_FACTURA_COLORES, ESTADO_LABELS, ESTADO_COLORES, EstadoFactura, EstadoPedido } from '@/types'
 import { CuadreFiltrosBar } from '@/components/cuadre/CuadreFiltrosBar'
 import { CuadreDescargable } from '@/components/cuadre/CuadreDescargable'
+import { ReabrirCajaButton } from '@/components/cuadre/ReabrirCajaButton'
 import { CerrarCajaButton } from '@/components/dashboard/CerrarCajaButton'
 
 export default async function CuadrePage({
@@ -30,6 +31,12 @@ export default async function CuadrePage({
   const cierreQuery = supabase.from('cierres_caja').select('id').eq('fecha', fechaHoy)
   if (sesion.sede_id) cierreQuery.eq('sede_id', sesion.sede_id)
   const { data: cierreHoy } = sesion.rol === 'admin' ? { data: null } : await cierreQuery.maybeSingle()
+
+  // Admin: cajas cerradas hoy (para poder reabrirlas con un clic).
+  const { data: cierresHoyRaw } = esAdmin
+    ? await supabase.from('cierres_caja').select('sede_id, automatico').eq('fecha', fechaHoy)
+    : { data: [] }
+  const cierresHoy = (cierresHoyRaw ?? []) as Array<{ sede_id: string; automatico: boolean }>
 
   const params = new URLSearchParams({ desde, hasta, ...(sede ? { sede } : {}) })
 
@@ -66,6 +73,22 @@ export default async function CuadrePage({
         sedes={(sedes ?? []) as { id: string; codigo: string; nombre: string }[]}
         esAdmin={esAdmin}
       />
+
+      {esAdmin && cierresHoy.length > 0 && (
+        <div className="flex flex-wrap gap-2 mt-4">
+          {cierresHoy.map(c => {
+            const s = sedes?.find(x => x.id === c.sede_id)
+            return (
+              <ReabrirCajaButton
+                key={c.sede_id}
+                sedeId={c.sede_id}
+                sedeNombre={s?.nombre ?? 'Sede'}
+                automatico={c.automatico}
+              />
+            )
+          })}
+        </div>
+      )}
 
       <div className="mt-6">
       <CuadreDescargable nombreArchivo={nombreArchivo}>

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getSesion } from '@/lib/auth/acceso'
+import { bloqueoCajaCerrada } from '@/lib/auth/caja'
 import { MetodoPago } from '@/types'
 import { hoyBogota } from '@/lib/utils/format'
 
@@ -23,6 +24,8 @@ export async function abonarClienteAction(data: AbonarClienteInput): Promise<Abo
 
   const sesion = await getSesion()
   if (sesion.rol === 'visor') return { ok: false, error: 'Sin permisos para registrar abonos' }
+  const bloqueo = await bloqueoCajaCerrada(sesion)
+  if (bloqueo) return { ok: false, error: bloqueo }
   const supabase = await createClient()
 
   // Toda la distribución del abono ocurre dentro de un único RPC transaccional

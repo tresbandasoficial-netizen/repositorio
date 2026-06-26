@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { getSesion } from '@/lib/auth/acceso'
+import { bloqueoCajaCerrada } from '@/lib/auth/caja'
 import { getSiguienteNumeroOrden } from '@/lib/queries/pedidos'
 import { normalizarTelefono } from '@/lib/utils/phone'
 
@@ -35,6 +36,8 @@ export type VentaResult =
 
 export async function registrarVentaInmediataAction(data: VentaInmediataInput): Promise<VentaResult> {
   const sesion = await getSesion()
+  const bloqueo = await bloqueoCajaCerrada(sesion)
+  if (bloqueo) return { ok: false, error: bloqueo }
   const supabase = await createClient()
 
   if (data.items.length === 0) return { ok: false, error: 'Debe haber al menos un producto' }

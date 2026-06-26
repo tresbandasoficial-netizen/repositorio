@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getSesion } from '@/lib/auth/acceso'
+import { bloqueoCajaCerrada } from '@/lib/auth/caja'
 import { getSiguienteNumeroOrden } from '@/lib/queries/pedidos'
 import { ItemVenta } from '@/app/actions/ventas'
 import { normalizarTelefono } from '@/lib/utils/phone'
@@ -129,6 +130,8 @@ export type CrearFacturaResult =
 // Crea una factura agrupando 1..N pedidos entregados del mismo cliente y sede.
 export async function crearFacturaAction(data: CrearFacturaInput): Promise<CrearFacturaResult> {
   const sesion = await getSesion()
+  const bloqueo = await bloqueoCajaCerrada(sesion)
+  if (bloqueo) return { ok: false, error: bloqueo }
   const supabase = await createClient()
 
   if (data.pedido_ids.length === 0) return { ok: false, error: 'Selecciona al menos un pedido' }
@@ -210,6 +213,8 @@ export async function crearFacturaUnificadaAction(
   data: CrearFacturaUnificadaInput
 ): Promise<CrearFacturaResult> {
   const sesion = await getSesion()
+  const bloqueo = await bloqueoCajaCerrada(sesion)
+  if (bloqueo) return { ok: false, error: bloqueo }
   const supabase = await createClient()
 
   if (data.pedido_ids.length === 0 && data.productos_nuevos.length === 0) {
@@ -407,6 +412,8 @@ export type SimpleResult = { ok: true } | { ok: false; error: string }
 
 export async function registrarPagoFacturaAction(data: RegistrarPagoFacturaInput): Promise<SimpleResult> {
   const sesion = await getSesion()
+  const bloqueo = await bloqueoCajaCerrada(sesion)
+  if (bloqueo) return { ok: false, error: bloqueo }
   const supabase = await createClient()
 
   if (data.monto <= 0) return { ok: false, error: 'El monto debe ser mayor a cero' }
