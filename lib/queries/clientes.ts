@@ -139,15 +139,18 @@ export async function getClienteDetalle(id: string): Promise<ClienteDetalle | nu
   // el total pagado y dejaba el saldo en negativo).
   const facturasContadas = new Set<string>()
 
+  // El crédito es deuda del cliente, no pago: no reduce el saldo (igual que cartera).
+  const esPago = (m: string) => m !== 'credito'
+
   const pedidos = (pedidosRaw ?? []).map((p: any) => {
-    const pagos_activos = (p.pagos ?? []).filter((pg: any) => !pg.anulado)
+    const pagos_activos = (p.pagos ?? []).filter((pg: any) => !pg.anulado && esPago(pg.metodo))
     const pagado_directo = pagos_activos.reduce((s: number, pg: any) => s + pg.monto, 0)
     const factura = Array.isArray(p.facturas) ? p.facturas[0] : p.facturas
     let pagado_factura = 0
     if (factura && !facturasContadas.has(factura.id)) {
       facturasContadas.add(factura.id)
       pagado_factura = (factura.pagos_factura ?? [])
-        .filter((pf: any) => !pf.anulado)
+        .filter((pf: any) => !pf.anulado && esPago(pf.metodo))
         .reduce((s: number, pf: any) => s + pf.monto, 0)
     }
     return {

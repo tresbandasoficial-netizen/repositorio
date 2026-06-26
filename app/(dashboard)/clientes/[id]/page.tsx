@@ -147,9 +147,12 @@ export default async function ClienteDetallePage({
                     {cliente.pagos.map((pg) => (
                       <tr key={pg.id} className="hover:bg-gray-50">
                         <td className="px-6 py-3 text-gray-600">{formatFecha(pg.fecha)}</td>
-                        <td className="px-4 py-3 text-right font-semibold text-green-700">{formatCOP(pg.monto)}</td>
+                        <td className={`px-4 py-3 text-right font-semibold ${pg.metodo === 'credito' ? 'text-gray-400' : 'text-green-700'}`}>
+                          {pg.metodo === 'credito' ? `(${formatCOP(pg.monto)})` : formatCOP(pg.monto)}
+                        </td>
                         <td className="px-4 py-3 text-gray-600">
                           {METODO_PAGO_LABELS[pg.metodo as MetodoPago] ?? pg.metodo}
+                          {pg.metodo === 'credito' && <span className="ml-1 text-xs text-gray-400">(deuda)</span>}
                         </td>
                         <td className="px-4 py-3">
                           <Link
@@ -167,7 +170,7 @@ export default async function ClienteDetallePage({
                     <tr>
                       <td className="px-6 py-3 text-xs font-semibold text-gray-600 uppercase">Total pagado</td>
                       <td className="px-4 py-3 text-right font-bold text-green-700">
-                        {formatCOP(cliente.pagos.reduce((s, pg) => s + pg.monto, 0))}
+                        {formatCOP(cliente.pagos.filter((pg) => pg.metodo !== 'credito').reduce((s, pg) => s + pg.monto, 0))}
                       </td>
                       <td colSpan={3} />
                     </tr>
