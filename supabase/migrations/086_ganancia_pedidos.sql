@@ -37,6 +37,17 @@ costo_stock as (
    and (cp.talla is not distinct from m.talla)
   where m.tipo = 'salida' and m.pedido_id is not null
   group by m.pedido_id
+),
+-- Código representativo del artículo del pedido: se prefiere el del pedido y,
+-- si no hay, el de la compra asignada. (En pedidos de un solo artículo, que es
+-- lo normal, este es exactamente el código de ese artículo.)
+codigo_ped as (
+  select pedido_id, min(codigo) filter (where codigo is not null and codigo <> '') as codigo
+  from pedido_items group by pedido_id
+),
+codigo_com as (
+  select pedido_id, min(codigo) filter (where codigo is not null and codigo <> '') as codigo
+  from compra_items where pedido_id is not null group by pedido_id
 )
 select
   p.id            as pedido_id,
@@ -47,6 +58,7 @@ select
   p.estado,
   p.fecha_creacion,
   p.factura_id,
+  coalesce(cped.codigo, ccom.codigo)                               as codigo,
   coalesce(v.venta, 0)                                              as venta,
   (coalesce(cc.costo, 0) + coalesce(cs.costo, 0))                   as costo,
   (coalesce(v.venta, 0)

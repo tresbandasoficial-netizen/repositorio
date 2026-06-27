@@ -11,6 +11,7 @@ export type GananciaPedido = {
   estado: string
   fecha_creacion: string
   factura_id: string | null
+  codigo: string | null
   venta: number
   costo: number
   utilidad: number

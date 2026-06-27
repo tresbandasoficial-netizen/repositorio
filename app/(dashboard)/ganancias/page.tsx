@@ -64,8 +64,9 @@ export default async function GananciasPage({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase">
-              <th className="text-left px-4 py-2.5">Pedido</th>
-              <th className="text-right px-4 py-2.5">Venta</th>
+              <th className="text-left px-4 py-2.5">N° Pedido</th>
+              <th className="text-left px-4 py-2.5">Código</th>
+              <th className="text-right px-4 py-2.5">Precio venta</th>
               <th className="text-right px-4 py-2.5">Costo</th>
               <th className="text-right px-4 py-2.5">Utilidad</th>
               <th className="text-right px-4 py-2.5">Margen</th>
@@ -82,6 +83,7 @@ export default async function GananciasPage({
                       {p.numero_orden}
                     </Link>
                   </td>
+                  <td className="px-4 py-2 font-mono text-xs text-gray-600">{p.codigo || '—'}</td>
                   <td className="px-4 py-2 text-right text-gray-900">{formatCOP(p.venta)}</td>
                   <td className="px-4 py-2 text-right">
                     {p.tiene_costo
@@ -98,7 +100,7 @@ export default async function GananciasPage({
               )
             })}
             {resumen.pedidos.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-6 text-center text-gray-400">Sin ventas en el rango</td></tr>
+              <tr><td colSpan={6} className="px-4 py-6 text-center text-gray-400">Sin ventas en el rango</td></tr>
             )}
           </tbody>
         </table>
