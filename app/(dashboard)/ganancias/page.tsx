@@ -60,6 +60,42 @@ export default async function GananciasPage({
         </p>
       )}
 
+      {/* Pendientes de costo — lista para ir rellenando (asignar compra) */}
+      {resumen.pendientes.length > 0 && (
+        <div className="bg-white rounded-xl border border-amber-200 overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-amber-100 bg-amber-50/60">
+            <h2 className="text-sm font-semibold text-amber-800">Pendientes de costo</h2>
+            <p className="text-xs text-amber-700">
+              Ventas sin compra asignada. Entra a cada pedido y asígnale su compra para que se calcule la ganancia.
+            </p>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase">
+                <th className="text-left px-4 py-2.5">N° Pedido</th>
+                <th className="text-left px-4 py-2.5">Código</th>
+                <th className="text-right px-4 py-2.5">Precio venta</th>
+                <th className="text-right px-4 py-2.5">Acción</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {resumen.pendientes.map(p => (
+                <tr key={p.pedido_id} className="hover:bg-gray-50">
+                  <td className="px-4 py-2 font-mono text-blue-600">
+                    <Link href={`/pedidos/${p.pedido_id}`} className="hover:underline">{p.numero_orden}</Link>
+                  </td>
+                  <td className="px-4 py-2 font-mono text-xs text-gray-600">{p.codigo || '—'}</td>
+                  <td className="px-4 py-2 text-right text-gray-900">{formatCOP(p.venta)}</td>
+                  <td className="px-4 py-2 text-right">
+                    <Link href={`/pedidos/${p.pedido_id}`} className="text-xs text-blue-600 hover:underline">Asignar compra →</Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* Margen por producto (ranking) */}
       {resumen.articulos.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">

@@ -66,6 +66,7 @@ export type GananciasNegocio = {
   pedidos_sin_costo: number
   venta_sin_costo: number
   pedidos: GananciaPedido[]
+  pendientes: GananciaPedido[]
   articulos: GananciaArticulo[]
 }
 
@@ -145,6 +146,7 @@ export async function getGananciasNegocio(params: {
     pedidos_sin_costo,
     venta_sin_costo,
     pedidos,
+    pendientes: sinCosto,
     articulos,
   }
 }
