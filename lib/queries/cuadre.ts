@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getSesion } from '@/lib/auth/acceso'
-import { MetodoPago, METODO_PAGO_LABELS } from '@/types'
+import { MetodoPago, METODO_PAGO_LABELS, labelMetodo } from '@/types'
 
 export type CuadreFiltros = {
   desde: string
@@ -55,6 +55,7 @@ export type CuadreFactura = {
   total: number
   saldo: number
   estado: string
+  metodos: string   // por dónde pagaron, ej: "Efectivo Santa Rosa, Addi"
 }
 
 // Detalle: cada pedido vendido (creado) en el rango que aún no tiene factura.
@@ -137,7 +138,7 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
   // usa current_date (UTC) y dejaría fuera las facturas emitidas de noche.
   let qFacturas = supabase
     .from('vista_facturas')
-    .select('numero_factura, cliente_nombre, sede_codigo, sede_id, total, saldo, estado')
+    .select('id, numero_factura, cliente_nombre, sede_codigo, sede_id, total, saldo, estado')
     .gte('creado_en', bogotaDayStartUTC(filtros.desde))
     .lt('creado_en', bogotaDayStartUTC(sumarDias(filtros.hasta, 1)))
     .neq('estado', 'anulada')
@@ -182,7 +183,19 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
   const ventasRows  = (ventasRes.data ?? []) as Array<{ numero_orden: string; sede_codigo: string; total: number; estado: string; tipo: string; cliente_nombre: string; total_pagado: number; factura_id: string | null }>
   const recaudoRows = (recaudoRes.data ?? []) as Array<{ monto: number; metodo: MetodoPago; sede_codigo: string; asesor_id: string; asesor_nombre: string }>
   const gastosRows  = (gastosRes.data ?? []) as Array<{ valor: number; sede_id: string }>
-  const facturasRows = (facturasRes.data ?? []) as Array<{ numero_factura: string; cliente_nombre: string; sede_codigo: string; total: number; saldo: number; estado: string }>
+  const facturasRows = (facturasRes.data ?? []) as Array<{ id: string; numero_factura: string; cliente_nombre: string; sede_codigo: string; total: number; saldo: number; estado: string }>
+
+  // Métodos de pago de cada factura (por dónde pagaron), desde sus abonos no anulados.
+  const factIds = facturasRows.map(f => f.id)
+  const { data: pfMetodoRows } = factIds.length
+    ? await supabase.from('pagos_factura').select('factura_id, metodo').in('factura_id', factIds).eq('anulado', false)
+    : { data: [] as Array<{ factura_id: string; metodo: MetodoPago }> }
+  const metodosPorFactura = new Map<string, Set<MetodoPago>>()
+  for (const p of (pfMetodoRows ?? []) as Array<{ factura_id: string; metodo: MetodoPago }>) {
+    let set = metodosPorFactura.get(p.factura_id)
+    if (!set) { set = new Set(); metodosPorFactura.set(p.factura_id, set) }
+    set.add(p.metodo)
+  }
 
   // ── Determinar qué sedes mostrar ────────────────────────────────────────────
   let codigosVisibles: string[]
@@ -266,14 +279,21 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
 
   // ── Detalle: facturas emitidas ──────────────────────────────────────────────
   const facturas: CuadreFactura[] = facturasRows
-    .map(f => ({
-      numero_factura: f.numero_factura,
-      cliente_nombre: f.cliente_nombre,
-      sede_codigo: f.sede_codigo,
-      total: f.total ?? 0,
-      saldo: f.saldo ?? 0,
-      estado: f.estado,
-    }))
+    .map(f => {
+      const ms = metodosPorFactura.get(f.id)
+      const metodos = ms && ms.size
+        ? [...ms].map(m => labelMetodo(m, f.sede_codigo)).join(', ')
+        : '—'
+      return {
+        numero_factura: f.numero_factura,
+        cliente_nombre: f.cliente_nombre,
+        sede_codigo: f.sede_codigo,
+        total: f.total ?? 0,
+        saldo: f.saldo ?? 0,
+        estado: f.estado,
+        metodos,
+      }
+    })
     .sort((a, b) => a.sede_codigo.localeCompare(b.sede_codigo) || a.numero_factura.localeCompare(b.numero_factura))
 
   // ── Detalle: pedidos vendidos creados en el rango ───────────────────────────

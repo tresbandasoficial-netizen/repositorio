@@ -244,6 +244,7 @@ export default async function CuadrePage({
                 <th className="text-left px-5 py-2">N° factura</th>
                 <th className="text-left px-3 py-2">Cliente</th>
                 {multiSede && <th className="text-left px-3 py-2">Sede</th>}
+                <th className="text-left px-3 py-2">Pago</th>
                 <th className="text-right px-3 py-2">Total</th>
                 <th className="text-right px-3 py-2">Saldo</th>
                 <th className="text-left px-5 py-2">Estado</th>
@@ -255,6 +256,7 @@ export default async function CuadrePage({
                   <td className="px-5 py-2 font-mono text-gray-900">{f.numero_factura}</td>
                   <td className="px-3 py-2 text-gray-700">{f.cliente_nombre}</td>
                   {multiSede && <td className="px-3 py-2 text-gray-500">{f.sede_codigo}</td>}
+                  <td className="px-3 py-2 text-gray-600 text-xs">{f.metodos}</td>
                   <td className="px-3 py-2 text-right font-medium text-gray-900">{formatCOP(f.total)}</td>
                   <td className={`px-3 py-2 text-right ${f.saldo > 0 ? 'text-red-600' : 'text-green-600'}`}>{formatCOP(f.saldo)}</td>
                   <td className="px-5 py-2">
