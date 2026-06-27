@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getSesion } from '@/lib/auth/acceso'
 import { hoyBogota } from '@/lib/utils/format'
+import { METODOS_SIN_CONFIRMAR } from '@/types'
 
 export type PagoSinConfirmar = { id: string; referencia: string; metodo: string; monto: number; origen: string }
 
@@ -20,7 +21,7 @@ export async function getPagosSinConfirmarAction(sedeId?: string): Promise<PagoS
     .select('id, referencia, metodo, monto, origen, sede_id')
     .eq('fecha', hoy)
     .eq('confirmado', false)
-    .not('metodo', 'in', '(efectivo,credito,recaudo_mensajeria,contra_entrega)')
+    .not('metodo', 'in', `(${[...METODOS_SIN_CONFIRMAR].join(',')})`)
 
   const sede = sesion.rol === 'admin' ? sedeId : sesion.sede_id
   if (sede) q = q.eq('sede_id', sede)

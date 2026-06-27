@@ -2,6 +2,7 @@
 
 import { Fragment, useState, useTransition } from 'react'
 import { formatCOP } from '@/lib/utils/format'
+import { requiereConfirmacion } from '@/types'
 import type { CuadreMetodo } from '@/lib/queries/cuadre'
 import { confirmarPagoCuadreAction } from '@/app/actions/cuadre'
 
@@ -48,6 +49,7 @@ export function MetodosCuadre({ metodos }: { metodos: CuadreMetodo[] }) {
         {metodos.map(m => {
           const tieneDetalle = m.detalle.length > 0
           const expandido = abierto === m.metodo
+          const confirmable = requiereConfirmacion(m.metodo)
           const conf = m.detalle.filter(d => confirmados.has(d.id)).length
           const todos = tieneDetalle && conf === m.detalle.length
           return (
@@ -62,7 +64,7 @@ export function MetodosCuadre({ metodos }: { metodos: CuadreMetodo[] }) {
                   {m.tipo === 'mensajeria' && <span className="ml-1.5 text-[10px] text-amber-600">por cobrar</span>}
                   {m.tipo === 'credito' && <span className="ml-1.5 text-[10px] text-gray-400">a crédito</span>}
                   {!m.esperado && m.monto > 0 && <span className="ml-1.5 text-[10px] text-purple-500">no esperado</span>}
-                  {tieneDetalle && (
+                  {tieneDetalle && confirmable && (
                     <span className={`ml-1.5 text-[10px] font-medium ${todos ? 'text-green-600' : 'text-gray-400'}`}>
                       {todos ? '✓ confirmado' : `${conf}/${m.detalle.length} confirmados`}
                     </span>
@@ -71,20 +73,27 @@ export function MetodosCuadre({ metodos }: { metodos: CuadreMetodo[] }) {
                 <td className="px-5 py-2 text-right font-medium text-gray-900">{m.monto ? formatCOP(m.monto) : '—'}</td>
               </tr>
               {expandido && m.detalle.map((d, i) => {
-                const ok = confirmados.has(d.id)
+                const ok = confirmable && confirmados.has(d.id)
                 return (
                   <tr key={m.metodo + '-' + i} className={`text-xs ${ok ? 'bg-green-50' : 'bg-gray-50/60'}`}>
                     <td className="px-5 py-1.5 pl-10">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={ok}
-                          onChange={() => toggle(d.id, d.origen)}
-                          className="w-4 h-4 accent-green-600"
-                        />
-                        <span className={`font-mono ${ok ? 'text-green-700 font-medium' : 'text-gray-600'}`}>{d.referencia}</span>
-                        <span className="text-gray-400">{ORIGEN_LABEL[d.origen] ?? d.origen}</span>
-                      </label>
+                      {confirmable ? (
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={ok}
+                            onChange={() => toggle(d.id, d.origen)}
+                            className="w-4 h-4 accent-green-600"
+                          />
+                          <span className={`font-mono ${ok ? 'text-green-700 font-medium' : 'text-gray-600'}`}>{d.referencia}</span>
+                          <span className="text-gray-400">{ORIGEN_LABEL[d.origen] ?? d.origen}</span>
+                        </label>
+                      ) : (
+                        <span>
+                          <span className="font-mono text-gray-600">{d.referencia}</span>
+                          <span className="text-gray-400 ml-2">{ORIGEN_LABEL[d.origen] ?? d.origen}</span>
+                        </span>
+                      )}
                     </td>
                     <td className={`px-5 py-1.5 text-right ${ok ? 'text-green-700 font-medium' : 'text-gray-700'}`}>{formatCOP(d.monto)}</td>
                   </tr>

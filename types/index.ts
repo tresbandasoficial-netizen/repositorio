@@ -129,6 +129,19 @@ export function labelMetodo(metodo: MetodoPago, sedeCodigo?: string | null): str
   return METODO_PAGO_LABELS[metodo] ?? metodo
 }
 
+// Métodos que NO se confirman en el cuadre: no son transferencias a verificar en
+// el banco. Efectivo (se cuenta físico), crédito (deuda, no entró plata),
+// recaudo/contra-entrega (lo cobra la mensajería, aún no recibido) y las
+// financieras Addi/Sistecrédito (se concilian aparte con la plataforma).
+export const METODOS_SIN_CONFIRMAR = new Set<string>([
+  'efectivo', 'credito', 'recaudo_mensajeria', 'contra_entrega', 'addi', 'sistecredito',
+])
+
+// ¿Este método requiere confirmación (es una transferencia/tarjeta a verificar)?
+export function requiereConfirmacion(metodo: string): boolean {
+  return !METODOS_SIN_CONFIRMAR.has(metodo)
+}
+
 export type PedidoItem = {
   id: string
   pedido_id: string
