@@ -5,6 +5,7 @@ import { formatCOP, formatFecha, hoyBogota } from '@/lib/utils/format'
 import { ESTADO_FACTURA_LABELS, ESTADO_FACTURA_COLORES, ESTADO_LABELS, ESTADO_COLORES, EstadoFactura, EstadoPedido } from '@/types'
 import { CuadreFiltrosBar } from '@/components/cuadre/CuadreFiltrosBar'
 import { CuadreDescargable } from '@/components/cuadre/CuadreDescargable'
+import { MetodosCuadre } from '@/components/cuadre/MetodosCuadre'
 import { ReabrirCajaButton } from '@/components/cuadre/ReabrirCajaButton'
 import { CerrarCajaButton } from '@/components/dashboard/CerrarCajaButton'
 
@@ -197,31 +198,8 @@ export default async function CuadrePage({
                 )}
               </div>
 
-              {/* Por método */}
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-y border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase">
-                    <th className="text-left px-5 py-2">Método</th>
-                    <th className="text-right px-5 py-2">Recaudado</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {s.porMetodo.map(m => (
-                    <tr key={m.metodo} className={m.monto === 0 ? 'text-gray-400' : ''}>
-                      <td className="px-5 py-2">
-                        {m.label}
-                        {m.tipo === 'mensajeria' && <span className="ml-1.5 text-[10px] text-amber-600">por cobrar</span>}
-                        {m.tipo === 'credito' && <span className="ml-1.5 text-[10px] text-gray-400">a crédito</span>}
-                        {!m.esperado && m.monto > 0 && <span className="ml-1.5 text-[10px] text-purple-500">no esperado</span>}
-                      </td>
-                      <td className="px-5 py-2 text-right font-medium text-gray-900">{m.monto ? formatCOP(m.monto) : '—'}</td>
-                    </tr>
-                  ))}
-                  {s.porMetodo.length === 0 && (
-                    <tr><td colSpan={2} className="px-5 py-3 text-gray-400 text-center">Sin recaudo</td></tr>
-                  )}
-                </tbody>
-              </table>
+              {/* Por método (cada uno se despliega para ver sus ingresos) */}
+              <MetodosCuadre metodos={s.porMetodo} />
             </div>
           ))}
         </div>

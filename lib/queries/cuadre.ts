@@ -86,12 +86,19 @@ export function tipoDeMetodo(m: MetodoPago): TipoRecaudo {
   return 'caja'
 }
 
+export type CuadreIngreso = {
+  referencia: string          // número de pedido o de factura
+  monto: number
+  origen: string              // 'venta' | 'abono' | 'cartera'
+}
+
 export type CuadreMetodo = {
   metodo: MetodoPago
   label: string
   monto: number
   tipo: TipoRecaudo
   esperado: boolean   // está en la lista de métodos configurados de la sede
+  detalle: CuadreIngreso[]   // cada ingreso (factura/pedido) que compone el total
 }
 
 export type CuadreSede = {
@@ -214,7 +221,7 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
   // ── Recaudo (pagos + pagos_factura) por sede y método ───────────────────────
   let qRecaudo = supabase
     .from('vista_pagos_unificados')
-    .select('monto, metodo, sede_id, sede_codigo, asesor_id, asesor_nombre')
+    .select('monto, metodo, sede_id, sede_codigo, asesor_id, asesor_nombre, referencia, origen')
     .gte('fecha', filtros.desde)
     .lte('fecha', filtros.hasta)
     .limit(20000)
@@ -246,7 +253,7 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
   if (facturasRes.error) throw new Error(`Error cargando facturas del cuadre: ${facturasRes.error.message}`)
 
   const ventasRows  = (ventasRes.data ?? []) as Array<{ numero_orden: string; sede_codigo: string; total: number; estado: string; tipo: string; cliente_nombre: string; total_pagado: number; factura_id: string | null }>
-  const recaudoRows = (recaudoRes.data ?? []) as Array<{ monto: number; metodo: MetodoPago; sede_codigo: string; asesor_id: string; asesor_nombre: string }>
+  const recaudoRows = (recaudoRes.data ?? []) as Array<{ monto: number; metodo: MetodoPago; sede_codigo: string; asesor_id: string; asesor_nombre: string; referencia: string | null; origen: string }>
   const gastosRows  = (gastosRes.data ?? []) as Array<{ valor: number; sede_id: string }>
   const facturasRows = (facturasRes.data ?? []) as Array<{ id: string; numero_factura: string; cliente_nombre: string; sede_codigo: string; total: number; saldo: number; estado: string }>
 
@@ -272,11 +279,12 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
     vendido: number
     gastos: number
     metodos: Map<MetodoPago, number>
+    detalles: Map<MetodoPago, CuadreIngreso[]>
   }
   const accBySede = new Map<string, Acc>()
   const ensure = (codigo: string): Acc => {
     let a = accBySede.get(codigo)
-    if (!a) { a = { vendido: 0, gastos: 0, metodos: new Map() }; accBySede.set(codigo, a) }
+    if (!a) { a = { vendido: 0, gastos: 0, metodos: new Map(), detalles: new Map() }; accBySede.set(codigo, a) }
     return a
   }
   codigosVisibles.forEach(ensure)
@@ -286,6 +294,9 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
   for (const r of recaudoRows) {
     const a = ensure(r.sede_codigo)
     a.metodos.set(r.metodo, (a.metodos.get(r.metodo) ?? 0) + (r.monto ?? 0))
+    let det = a.detalles.get(r.metodo)
+    if (!det) { det = []; a.detalles.set(r.metodo, det) }
+    det.push({ referencia: r.referencia ?? '—', monto: r.monto ?? 0, origen: r.origen })
   }
 
   for (const r of gastosRows) {
@@ -305,10 +316,11 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
 
     const porMetodo: CuadreMetodo[] = [...metodosSet].map(metodo => ({
       metodo,
-      label: METODO_PAGO_LABELS[metodo] ?? metodo,
+      label: labelMetodo(metodo, codigo),
       monto: a.metodos.get(metodo) ?? 0,
       tipo: tipoDeMetodo(metodo),
       esperado: esperados ? esperados.includes(metodo) : true,
+      detalle: (a.detalles.get(metodo) ?? []).sort((x, y) => y.monto - x.monto),
     })).sort((x, y) => y.monto - x.monto || x.label.localeCompare(y.label))
 
     let recaudadoCaja = 0, porCobrarMensajeria = 0, credito = 0
