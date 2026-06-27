@@ -66,7 +66,9 @@ select
      - coalesce(cs.costo, 0))                                       as utilidad,
   (cc.pedido_id is not null or cs.pedido_id is not null)            as tiene_costo
 from pedidos p
-left join venta        v  on v.pedido_id  = p.id
-left join costo_compra cc on cc.pedido_id = p.id
-left join costo_stock  cs on cs.pedido_id = p.id
+left join venta        v    on v.pedido_id    = p.id
+left join costo_compra cc   on cc.pedido_id   = p.id
+left join costo_stock  cs   on cs.pedido_id   = p.id
+left join codigo_ped   cped on cped.pedido_id = p.id
+left join codigo_com   ccom on ccom.pedido_id = p.id
 where p.estado != 'cancelado';
