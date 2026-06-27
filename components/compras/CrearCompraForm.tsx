@@ -56,7 +56,7 @@ function facturaToItems(items: FacturaExtraida['items'], moneda: 'USD' | 'COP'):
 
 type CuentaOpc = { id: string; nombre: string; tipo: string; sede_id: string | null }
 
-export function CrearCompraForm({ cuentas }: { cuentas: CuentaOpc[] }) {
+export function CrearCompraForm({ cuentas, proveedores = [] }: { cuentas: CuentaOpc[]; proveedores?: string[] }) {
   const [paso, setPaso] = useState<Paso>('subir')
   const [factura, setFactura] = useState<FacturaExtraida | null>(null)
 
@@ -354,11 +354,15 @@ export function CrearCompraForm({ cuentas }: { cuentas: CuentaOpc[] }) {
               <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Proveedor</label>
               <input
                 type="text"
+                list="lista-proveedores"
                 value={proveedor}
                 onChange={(e) => setProveedor(e.target.value)}
-                placeholder="Nombre del proveedor"
+                placeholder="Escribe o elige un proveedor"
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+              <datalist id="lista-proveedores">
+                {proveedores.map((p) => <option key={p} value={p} />)}
+              </datalist>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">N° Factura</label>
