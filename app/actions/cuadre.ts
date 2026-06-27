@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getSesion } from '@/lib/auth/acceso'
 import { hoyBogota } from '@/lib/utils/format'
 import { METODOS_SIN_CONFIRMAR } from '@/types'
@@ -36,6 +37,11 @@ export type ConfirmarPagoResult = { ok: true } | { ok: false; error: string }
 // Marca un pago como confirmado/conciliado (verificado que el dinero entró).
 // `origen` viene del cuadre: 'cartera' = abono de factura (pagos_factura);
 // 'venta'/'abono' = pago de pedido (pagos).
+//
+// Usa el admin client a propósito: `pagos` y `pagos_factura` NO tienen política
+// RLS de UPDATE, así que un update con el cliente de usuario afecta 0 filas en
+// silencio (sin error) y el chuleo no persiste. La sede del asesor se verifica
+// manualmente abajo para que cada quien solo confirme pagos de su propia sede.
 export async function confirmarPagoCuadreAction(
   id: string,
   origen: string,
@@ -45,9 +51,26 @@ export async function confirmarPagoCuadreAction(
   if (sesion.rol === 'visor') return { ok: false, error: 'Sin permisos para confirmar pagos' }
 
   const tabla = origen === 'cartera' ? 'pagos_factura' : 'pagos'
-  const supabase = await createClient()
-  const { error } = await supabase.from(tabla).update({ confirmado }).eq('id', id)
+  const admin = createAdminClient()
+
+  // El asesor solo puede confirmar pagos de su sede. El admin puede todos.
+  if (sesion.rol !== 'admin') {
+    const { data: pago } =
+      tabla === 'pagos_factura'
+        ? await admin.from('pagos_factura').select('factura:facturas(sede_id)').eq('id', id).single()
+        : await admin.from('pagos').select('pedido:pedidos(sede_id)').eq('id', id).single()
+    const sedePago =
+      tabla === 'pagos_factura'
+        ? (pago as { factura?: { sede_id: string } } | null)?.factura?.sede_id
+        : (pago as { pedido?: { sede_id: string } } | null)?.pedido?.sede_id
+    if (!sedePago || sedePago !== sesion.sede_id) {
+      return { ok: false, error: 'Sin permisos para confirmar este pago' }
+    }
+  }
+
+  const { data, error } = await admin.from(tabla).update({ confirmado }).eq('id', id).select('id')
   if (error) return { ok: false, error: error.message }
+  if (!data || data.length === 0) return { ok: false, error: 'No se encontró el pago' }
 
   revalidatePath('/cuadre')
   return { ok: true }
