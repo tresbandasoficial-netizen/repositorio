@@ -15,9 +15,11 @@ Quedan pendientes principalmente temas de **seguridad de rutas API**, **rendimie
 | Severidad | Corregidos | Pendientes |
 |---|---|---|
 | 🔴 Crítico | 2 | 0 |
-| 🟠 Alto | 2 | 2 |
-| 🟡 Medio | 2 | 4 |
-| 🔵 Bajo | 1 | 3 |
+| 🟠 Alto | 4 | 0 |
+| 🟡 Medio | 3 | 1 (índices — migración lista) |
+| 🔵 Bajo | 1 | 2 (informativos) |
+
+> **Actualización (misma fecha):** se corrigieron en código A-03, A-04 y M-03. M-04 resultó **falso positivo**. Para M-05 (índices) quedó lista la migración `083_indices_fk.sql`. Solo resta correr 2 migraciones SQL en Supabase y el diff de esquema (M-06).
 
 ---
 
@@ -60,28 +62,26 @@ Quedan pendientes principalmente temas de **seguridad de rutas API**, **rendimie
 
 ## 3. Hallazgos pendientes ⚠️
 
-### A-03 · 🟠 Ruta `/api/setup-admin` expone credenciales — PENDIENTE
-- **Qué:** `app/api/setup-admin/route.ts` tiene token, email y contraseña del admin **hardcodeados** y devuelve la contraseña en texto plano.
-- **Riesgo:** Cualquiera con el token (visible en el repo/git) puede resetear la contraseña del administrador.
-- **Solución:** Eliminar el archivo (ya cumplió su propósito) o protegerlo con variable de entorno y no devolver la contraseña.
+### A-03 · 🟠 Ruta `/api/setup-admin` exponía credenciales — ✅ CORREGIDO
+- **Qué:** `app/api/setup-admin/route.ts` tenía token, email y contraseña del admin **hardcodeados** y devolvía la contraseña en texto plano.
+- **Riesgo:** Cualquiera con el token (visible en el repo/git) podía resetear la contraseña del administrador.
+- **Acción:** Archivo **eliminado** (ya cumplió su propósito; el admin existe). También se eliminó `/api/admin/migrate` (sin autenticación, residual).
 
-### A-04 · 🟠 Validación de sede en `crear_pedido` — PENDIENTE (reportado)
-- **Qué:** La función `crear_pedido` aceptaría cualquier `p_sede_id` sin verificar que el asesor pertenezca a esa sede.
-- **Riesgo:** Un asesor podría crear pedidos en otra sede.
-- **Solución:** Validar en el RPC que `p_sede_id` coincida con la sede del asesor (admin exento).
+### A-04 · 🟠 Validación de sede al crear pedidos — ✅ CORREGIDO
+- **Qué:** El flujo de crear pedido (encargo) no verificaba que el asesor perteneciera a la sede del pedido.
+- **Acción:** Se agregó `puedeAccederSede` en `_crearPedidoConDatos`. (Venta inmediata y facturación ya validaban la sede.)
 
-### M-03 · 🟡 Crons sin protección si falta `CRON_SECRET` — PENDIENTE
-- **Qué:** `/api/cron/cierre-automatico` y `/api/cron/alertas` solo validan el secreto **si la variable existe**; si no está configurada, la ruta queda abierta.
-- **Solución:** Rechazar (503) cuando `CRON_SECRET` no esté configurado.
+### M-03 · 🟡 Crons sin protección si falta `CRON_SECRET` — ✅ CORREGIDO
+- **Qué:** `/api/cron/cierre-automatico` y `/api/cron/alertas` solo validaban el secreto **si la variable existía**; si no, la ruta quedaba abierta.
+- **Acción:** Ahora rechazan con **503** si `CRON_SECRET` no está configurado.
 
-### M-04 · 🟡 `/api/export/cuadre` no valida sede — PENDIENTE
-- **Qué:** Un asesor podría exportar el cuadre de otra sede pasando `?sede=<otra>`.
-- **Solución:** Validar que la sede solicitada sea la del usuario (admin exento).
+### M-04 · 🟡 `/api/export/cuadre` y la sede — ❎ FALSO POSITIVO
+- **Análisis:** Se verificó que `getCuadre` **ya fuerza** la sede del usuario para no-admin (`sedeFiltroCodigo = esAdmin ? filtros.sede : sedeForzadaCodigo`). El parámetro `?sede=` se ignora para asesores. **No es explotable.**
 
-### M-05 · 🟡 Faltan índices en llaves foráneas — PENDIENTE (reportado)
+### M-05 · 🟡 Faltan índices en llaves foráneas — 🟢 MIGRACIÓN LISTA
 - **Qué:** Sin índice en columnas muy usadas en sumas: `pagos.cuenta_id`, `pagos_factura.cuenta_id`, `pagos_factura.asesor_id`, `gastos.cuenta_id`, `traslados_caja.origen/destino_cuenta_id`, `pagos_mensajeria.factura_id`.
 - **Riesgo:** Consultas lentas de caja/cartera a medida que crecen los datos.
-- **Solución:** Migración con `CREATE INDEX` para esas columnas.
+- **Acción:** Migración **`083_indices_fk.sql`** creada (con `CREATE INDEX IF NOT EXISTS`). **Falta correrla en Supabase → SQL Editor.**
 
 ### M-06 · 🟡 Deriva de esquema (BD vs migraciones) — PARCIAL
 - **Qué:** Apareció un trigger (C-01) que no estaba en las migraciones. Esto indica que **producción puede tener objetos no reflejados en el repo**.

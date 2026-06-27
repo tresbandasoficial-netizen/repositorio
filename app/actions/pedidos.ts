@@ -45,6 +45,11 @@ async function _crearPedidoConDatos(
     .single()
   if (!sede) return { ok: false, error: `Sede "${datos.sede}" no encontrada en la base de datos` }
 
+  // El asesor solo puede crear pedidos en su propia sede (admin puede en cualquiera).
+  if (!puedeAccederSede(sesionPre, sede.id)) {
+    return { ok: false, error: 'No puedes crear pedidos en otra sede' }
+  }
+
   const numeroOrden = numeroOrdenManual.trim().toUpperCase()
   if (!numeroOrden) return { ok: false, error: 'El número de orden es obligatorio' }
   if (!numeroOrden.startsWith(datos.sede)) {
