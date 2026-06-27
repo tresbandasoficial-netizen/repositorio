@@ -46,6 +46,7 @@ export type PedidoDetalle = PedidoRow & {
     fecha: string
     notas: string | null
     asesor_nombre: string
+    origen?: 'pedido' | 'factura'   // 'factura' = abono hecho sobre la factura (venta local)
   }>
   historial: Array<{
     id: string
@@ -182,7 +183,37 @@ export async function getPedidoDetalle(id: string): Promise<PedidoDetalle | null
     fecha: p.fecha,
     notas: p.notas,
     asesor_nombre: p.usuarios?.nombre ?? '',
+    origen: 'pedido' as 'pedido' | 'factura',
   }))
+
+  // Si el pedido está facturado (incluye ventas locales VL), los abonos viven en
+  // pagos_factura, no en pagos. Se traen para que el detalle muestre el pago real
+  // y el saldo no aparezca pendiente cuando la factura ya está pagada.
+  const facturaId = (pedidoData as { factura_id?: string | null }).factura_id ?? null
+  let pagosFactura: typeof pagos = []
+  if (facturaId) {
+    const { data: pf } = await supabase
+      .from('pagos_factura')
+      .select('id, monto, metodo, fecha, notas, usuarios(nombre)')
+      .eq('factura_id', facturaId)
+      .eq('anulado', false)
+      .order('fecha', { ascending: true })
+    pagosFactura = (pf ?? []).map((p: any) => ({
+      id: p.id,
+      monto: p.monto,
+      metodo: p.metodo,
+      fecha: p.fecha,
+      notas: p.notas,
+      asesor_nombre: p.usuarios?.nombre ?? '',
+      origen: 'factura' as 'pedido' | 'factura',
+    }))
+  }
+
+  const pagosTodos = [...pagos, ...pagosFactura]
+  // total pagado real = lo del pedido (vista) + abonos de la factura (sin crédito)
+  const totalPagadoReal =
+    (pedidoData.total_pagado ?? 0) +
+    pagosFactura.reduce((s, p) => s + (p.metodo !== 'credito' ? p.monto : 0), 0)
 
   const historial = (historialRes.data ?? []).map((h: any) => ({
     id: h.id,
@@ -195,9 +226,10 @@ export async function getPedidoDetalle(id: string): Promise<PedidoDetalle | null
 
   return {
     ...pedidoData,
+    total_pagado: totalPagadoReal,
     cliente_cedula: clienteData?.cedula ?? null,
     items: itemsData,
-    pagos,
+    pagos: pagosTodos,
     historial,
   }
 }
