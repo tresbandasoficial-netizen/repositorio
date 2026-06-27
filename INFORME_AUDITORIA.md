@@ -19,7 +19,7 @@ Quedan pendientes principalmente temas de **seguridad de rutas API**, **rendimie
 | 🟡 Medio | 3 | 1 (índices — migración lista) |
 | 🔵 Bajo | 1 | 2 (informativos) |
 
-> **Actualización (misma fecha):** se corrigieron en código A-03, A-04 y M-03. M-04 resultó **falso positivo**. Para M-05 (índices) quedó lista la migración `083_indices_fk.sql`. Solo resta correr 2 migraciones SQL en Supabase y el diff de esquema (M-06).
+> **Cierre (misma fecha):** se corrigieron A-03, A-04, M-03 en código. M-04 fue **falso positivo**. Se aplicaron en producción las migraciones **083** (índices FK) y **084** (alineación de triggers). El diff de esquema (M-06) se completó: se encontraron **3 triggers fuera de las migraciones** (2 rotos → eliminados, 1 sano → documentado). **Auditoría cerrada.**
 
 ---
 
@@ -78,15 +78,18 @@ Quedan pendientes principalmente temas de **seguridad de rutas API**, **rendimie
 ### M-04 · 🟡 `/api/export/cuadre` y la sede — ❎ FALSO POSITIVO
 - **Análisis:** Se verificó que `getCuadre` **ya fuerza** la sede del usuario para no-admin (`sedeFiltroCodigo = esAdmin ? filtros.sede : sedeForzadaCodigo`). El parámetro `?sede=` se ignora para asesores. **No es explotable.**
 
-### M-05 · 🟡 Faltan índices en llaves foráneas — 🟢 MIGRACIÓN LISTA
+### M-05 · 🟡 Faltan índices en llaves foráneas — ✅ CORREGIDO
 - **Qué:** Sin índice en columnas muy usadas en sumas: `pagos.cuenta_id`, `pagos_factura.cuenta_id`, `pagos_factura.asesor_id`, `gastos.cuenta_id`, `traslados_caja.origen/destino_cuenta_id`, `pagos_mensajeria.factura_id`.
 - **Riesgo:** Consultas lentas de caja/cartera a medida que crecen los datos.
-- **Acción:** Migración **`083_indices_fk.sql`** creada (con `CREATE INDEX IF NOT EXISTS`). **Falta correrla en Supabase → SQL Editor.**
+- **Acción:** Migración **`083_indices_fk.sql`** creada y **aplicada en producción**.
 
-### M-06 · 🟡 Deriva de esquema (BD vs migraciones) — PARCIAL
-- **Qué:** Apareció un trigger (C-01) que no estaba en las migraciones. Esto indica que **producción puede tener objetos no reflejados en el repo**.
-- **Estado:** Se eliminó el trigger conocido. Falta el diff completo de triggers/funciones (requiere consulta SQL en el editor de Supabase).
-- **Solución:** Comparar `pg_trigger`/`pg_proc` contra las migraciones y documentar/migrar lo que falte. **El repo debe ser la fuente de verdad.**
+### M-06 · 🟡 Deriva de esquema (BD vs migraciones) — ✅ CORREGIDO
+- **Qué:** Producción tenía objetos no reflejados en el repo.
+- **Diff completo (triggers):** Se encontraron **3 triggers creados fuera de las migraciones**:
+  - `trg_compra_crea_gasto` (compras) — **ROTO** (usaba `compras.total`, inexistente) → eliminado. Bloqueaba TODA creación de compras.
+  - `trg_domicilio_gasto_regalado` (domicilios) — **ROTO** (usaba `cuentas.estado`, inexistente) → eliminado. Bloqueaba domicilios "regalados".
+  - `trg_compra_items_pedido_nullify` (compra_items) — **SANO** (al desasignar un ítem vuelve a 'sin_asignar') → documentado.
+- **Acción:** Migración **`084_alinear_triggers.sql`** creada y **aplicada en producción**. El repo vuelve a ser la fuente de verdad.
 
 ### B-02 · 🔵 145 errores de lint (mayormente `any`) — PENDIENTE
 - **Qué:** `npx eslint .` reporta 145 errores (no bloquean el build en Next 16, pero son deuda técnica).
