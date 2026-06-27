@@ -29,6 +29,33 @@ export type CompraItemInput = {
   costo_unitario_cop: number
   destino: 'pedido' | 'contoda' | 'sin_asignar'
   articulo_id?: string | null   // vínculo opcional al catálogo (para inventario)
+  pedido_ref?: string           // "TR6492" o "TR6492-1" — asigna al pedido al crear
+}
+
+// Busca un pedido por número de orden (para el lookup en vivo del formulario).
+export async function buscarPedidoPorOrdenAction(numeroOrden: string): Promise<
+  { id: string; numero_orden: string; estado: string; cliente_nombre: string | null } | null
+> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  // Acepta "TR6492" o "TR6492-1" → toma solo el número de orden
+  const ref = numeroOrden.trim().toUpperCase()
+  const orden = ref.match(/^(.+)-(\d+)$/)?.[1] ?? ref
+  if (!orden) return null
+
+  const { data } = await supabase
+    .from('pedidos')
+    .select('id, numero_orden, estado, cliente_id')
+    .eq('numero_orden', orden)
+    .maybeSingle()
+  if (!data) return null
+
+  const { data: cli } = await supabase
+    .from('clientes').select('nombre').eq('id', data.cliente_id).maybeSingle()
+
+  return { id: data.id, numero_orden: data.numero_orden, estado: data.estado, cliente_nombre: cli?.nombre ?? null }
 }
 
 export type CrearCompraInput = {
@@ -111,6 +138,31 @@ export async function crearCompraAction(data: CrearCompraInput): Promise<CrearCo
 
     if (errItem || !itemCreado) {
       return { ok: false, error: `Error creando item: ${errItem?.message}` }
+    }
+
+    // Asignación directa a pedido si viene el número (ej: "TR6492" o "TR6492-1").
+    if (item.destino === 'pedido' && item.pedido_ref?.trim()) {
+      const ref = item.pedido_ref.trim().toUpperCase()
+      const m = ref.match(/^(.+)-(\d+)$/)
+      const numeroOrden = m ? m[1] : ref
+      const indice = m ? parseInt(m[2], 10) : null
+
+      const { data: pedido } = await adminClient
+        .from('pedidos').select('id, estado').eq('numero_orden', numeroOrden).maybeSingle()
+
+      if (pedido) {
+        await adminClient.from('compra_items')
+          .update({ pedido_id: pedido.id, pedido_item_indice: indice })
+          .eq('id', itemCreado.id)
+        // El pedido avanza de pendiente → comprado al asignarle la compra.
+        if (pedido.estado === 'pendiente') {
+          await adminClient.from('pedidos')
+            .update({ estado: 'comprado', fecha_actualizacion: new Date().toISOString() })
+            .eq('id', pedido.id)
+        }
+        // Vincular el artículo del catálogo si aplica.
+        await _resolverArticuloCompraItem(itemCreado.id, pedido.id, indice, adminClient)
+      }
     }
 
     // Regla de inventario: si el ítem NO está asignado a un pedido y tiene

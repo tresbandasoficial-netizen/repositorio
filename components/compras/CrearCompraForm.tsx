@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { crearCompraAction, CrearCompraInput, CompraItemInput } from '@/app/actions/compras'
+import { crearCompraAction, CrearCompraInput, CompraItemInput, buscarPedidoPorOrdenAction } from '@/app/actions/compras'
 import { parsearFacturaAction, FacturaExtraida } from '@/app/actions/parsear-factura'
 import { buscarPorCodigoAction } from '@/app/actions/articulos'
 import { Button } from '@/components/ui/Button'
@@ -23,6 +23,10 @@ type ItemForm = {
   // estado del lookup de catálogo
   articuloId?: string | null
   articuloEncontrado?: boolean   // true=encontrado, false=nuevo, undefined=sin buscar
+  // asignación directa a pedido
+  pedidoRef?: string
+  pedidoOk?: boolean             // true=encontrado, false=no existe, undefined=sin buscar
+  pedidoCliente?: string | null
 }
 
 function facturaToItems(items: FacturaExtraida['items'], moneda: 'USD' | 'COP'): ItemForm[] {
@@ -115,6 +119,19 @@ export function CrearCompraForm({ cuentas }: { cuentas: CuentaOpc[] }) {
     setItems((prev) => prev.map((item, i) => (i === idx ? { ...item, [campo]: valor } : item)))
   }
 
+  // Busca el pedido por número para validar la asignación directa.
+  async function buscarPedidoRef(idx: number, ref: string) {
+    const r = ref.trim()
+    if (!r) {
+      setItems(prev => prev.map((item, i) => i === idx ? { ...item, pedidoOk: undefined, pedidoCliente: null } : item))
+      return
+    }
+    const pedido = await buscarPedidoPorOrdenAction(r)
+    setItems(prev => prev.map((item, i) => i === idx
+      ? { ...item, pedidoOk: !!pedido, pedidoCliente: pedido?.cliente_nombre ?? null }
+      : item))
+  }
+
   async function buscarPorCodigo(idx: number, codigo: string) {
     const cod = codigo.trim()
     if (!cod) {
@@ -205,6 +222,7 @@ export function CrearCompraForm({ cuentas }: { cuentas: CuentaOpc[] }) {
       costo_unitario_cop: parseInt(item.costo_unitario_cop.replace(/\D/g, ''), 10) || 0,
       destino:            item.destino,
       articulo_id:        item.articuloId ?? null,
+      pedido_ref:         item.destino === 'pedido' ? (item.pedidoRef?.trim() || undefined) : undefined,
     }))
 
     const payload: CrearCompraInput = {
@@ -661,6 +679,42 @@ export function CrearCompraForm({ cuentas }: { cuentas: CuentaOpc[] }) {
                     <option value="contoda">Para Contoda</option>
                   </select>
                 </div>
+
+                {/* N° de pedido cuando se asigna a un pedido */}
+                {item.destino === 'pedido' && (
+                  <div className="col-span-2">
+                    <label className="block text-xs text-gray-500 mb-1">
+                      N° de pedido <span className="text-gray-400">(ej: TR6492)</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={item.pedidoRef ?? ''}
+                        onChange={(e) => actualizarItem(idx, 'pedidoRef', e.target.value.toUpperCase())}
+                        onBlur={(e) => buscarPedidoRef(idx, e.target.value)}
+                        placeholder="TR6492"
+                        className={`w-full rounded-lg border px-3 py-2 text-sm font-mono bg-white focus:outline-none focus:ring-2 ${
+                          item.pedidoOk === true  ? 'border-green-400 focus:ring-green-400' :
+                          item.pedidoOk === false ? 'border-red-400 focus:ring-red-400' :
+                          'border-gray-300 focus:ring-blue-500'
+                        }`}
+                      />
+                      {item.pedidoOk === true && (
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+                          ✓ Encontrado
+                        </span>
+                      )}
+                      {item.pedidoOk === false && (
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium">
+                          No existe
+                        </span>
+                      )}
+                    </div>
+                    {item.pedidoOk === true && item.pedidoCliente && (
+                      <p className="text-xs text-green-600 mt-0.5">Cliente: {item.pedidoCliente}</p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           ))}
