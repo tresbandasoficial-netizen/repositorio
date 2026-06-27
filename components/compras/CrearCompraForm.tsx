@@ -119,7 +119,8 @@ export function CrearCompraForm({ cuentas, proveedores = [] }: { cuentas: Cuenta
     setItems((prev) => prev.map((item, i) => (i === idx ? { ...item, [campo]: valor } : item)))
   }
 
-  // Busca el pedido por número para validar la asignación directa.
+  // Busca el pedido por número, valida la asignación y autollena el artículo
+  // (código, descripción, marca, talla) con el producto que pidió el cliente.
   async function buscarPedidoRef(idx: number, ref: string) {
     const r = ref.trim()
     if (!r) {
@@ -127,9 +128,29 @@ export function CrearCompraForm({ cuentas, proveedores = [] }: { cuentas: Cuenta
       return
     }
     const pedido = await buscarPedidoPorOrdenAction(r)
-    setItems(prev => prev.map((item, i) => i === idx
-      ? { ...item, pedidoOk: !!pedido, pedidoCliente: pedido?.cliente_nombre ?? null }
-      : item))
+    // Índice del producto dentro del pedido: "TR6455-2" → 2º producto; si no, el 1º.
+    const m = r.toUpperCase().match(/-(\d+)$/)
+    const itemIdx = m ? parseInt(m[1], 10) - 1 : 0
+    const prod = pedido?.items?.[itemIdx] ?? pedido?.items?.[0] ?? null
+
+    setItems(prev => prev.map((item, i) => {
+      if (i !== idx) return item
+      if (!pedido) return { ...item, pedidoOk: false, pedidoCliente: null }
+      return {
+        ...item,
+        pedidoOk: true,
+        pedidoCliente: pedido.cliente_nombre,
+        // Autollenar con los datos del producto del pedido (si los tiene).
+        ...(prod ? {
+          codigo:      prod.codigo || item.codigo,
+          descripcion: prod.descripcion || item.descripcion,
+          marca:       prod.marca || item.marca,
+          talla:       prod.talla || item.talla,
+          articuloId:  prod.articulo_id ?? item.articuloId ?? null,
+          articuloEncontrado: prod.articulo_id ? true : item.articuloEncontrado,
+        } : {}),
+      }
+    }))
   }
 
   async function buscarPorCodigo(idx: number, codigo: string) {

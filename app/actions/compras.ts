@@ -32,9 +32,18 @@ export type CompraItemInput = {
   pedido_ref?: string           // "TR6492" o "TR6492-1" — asigna al pedido al crear
 }
 
+export type PedidoItemBusqueda = {
+  codigo: string
+  descripcion: string
+  marca: string
+  talla: string
+  articulo_id: string | null
+}
+
 // Busca un pedido por número de orden (para el lookup en vivo del formulario).
+// Devuelve también sus productos, para autollenar el artículo de la compra.
 export async function buscarPedidoPorOrdenAction(numeroOrden: string): Promise<
-  { id: string; numero_orden: string; estado: string; cliente_nombre: string | null } | null
+  { id: string; numero_orden: string; estado: string; cliente_nombre: string | null; items: PedidoItemBusqueda[] } | null
 > {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -52,10 +61,27 @@ export async function buscarPedidoPorOrdenAction(numeroOrden: string): Promise<
     .maybeSingle()
   if (!data) return null
 
-  const { data: cli } = await supabase
-    .from('clientes').select('nombre').eq('id', data.cliente_id).maybeSingle()
+  const [{ data: cli }, { data: itemsRaw }] = await Promise.all([
+    supabase.from('clientes').select('nombre').eq('id', data.cliente_id).maybeSingle(),
+    supabase
+      .from('pedido_items')
+      .select('marca, descripcion, talla, articulo_id, articulos(codigo)')
+      .eq('pedido_id', data.id)
+      .order('id'),
+  ])
 
-  return { id: data.id, numero_orden: data.numero_orden, estado: data.estado, cliente_nombre: cli?.nombre ?? null }
+  const items: PedidoItemBusqueda[] = (itemsRaw ?? []).map((it: Record<string, unknown>) => {
+    const art = Array.isArray(it.articulos) ? it.articulos[0] : it.articulos
+    return {
+      codigo:      (art as { codigo?: string } | null)?.codigo ?? '',
+      descripcion: (it.descripcion as string) ?? '',
+      marca:       (it.marca as string) ?? '',
+      talla:       (it.talla as string) ?? '',
+      articulo_id: (it.articulo_id as string) ?? null,
+    }
+  })
+
+  return { id: data.id, numero_orden: data.numero_orden, estado: data.estado, cliente_nombre: cli?.nombre ?? null, items }
 }
 
 export type CrearCompraInput = {
