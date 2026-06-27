@@ -1,6 +1,71 @@
 import { createClient } from '@/lib/supabase/server'
 import { getSesion } from '@/lib/auth/acceso'
 import { MetodoPago, METODO_PAGO_LABELS, labelMetodo } from '@/types'
+import { hoyBogota } from '@/lib/utils/format'
+
+// Efectivo acumulado que DEBE haber en la caja de cada sede:
+//   saldo_inicial + (efectivo que entró − efectivo que salió) desde el corte.
+// Es lo mismo que muestra el flujo de caja para las cuentas de efectivo, pero
+// accesible para los asesores en su cuadre (para saber cuánto deben tener).
+export type EfectivoEnCaja = { cuenta_id: string; nombre: string; sede_codigo: string; saldo: number }
+
+export async function getEfectivoEnCaja(filtroSedeCodigo?: string): Promise<EfectivoEnCaja[]> {
+  const supabase = await createClient()
+  const sesion = await getSesion()
+
+  const { data: sedesRaw } = await supabase.from('sedes').select('id, codigo')
+  const sedes = (sedesRaw ?? []) as Array<{ id: string; codigo: string }>
+  const codigoPorId = new Map(sedes.map(s => [s.id, s.codigo]))
+
+  const esAdmin = sesion.rol === 'admin'
+  const sedeForzadaId = !esAdmin && sesion.sede_id ? sesion.sede_id : null
+
+  // Cajas de efectivo OPERATIVAS (las que reciben ventas: metodo_pago='efectivo').
+  // Se excluye la caja del dueño (metodo_pago=null) — esa no la maneja el asesor.
+  let qc = supabase
+    .from('cuentas')
+    .select('id, nombre, sede_id, saldo_inicial, fecha_corte')
+    .eq('tipo', 'efectivo')
+    .eq('metodo_pago', 'efectivo')
+    .eq('activa', true)
+    .order('orden')
+  if (sedeForzadaId) qc = qc.eq('sede_id', sedeForzadaId)
+  else if (filtroSedeCodigo) {
+    const sid = sedes.find(s => s.codigo === filtroSedeCodigo)?.id
+    if (sid) qc = qc.eq('sede_id', sid)
+  }
+  const cuentas = ((await qc).data ?? []) as Array<{ id: string; nombre: string; sede_id: string; saldo_inicial: number; fecha_corte: string | null }>
+  if (cuentas.length === 0) return []
+
+  const ids = cuentas.map(c => c.id)
+  const cortes = cuentas.map(c => c.fecha_corte).filter(Boolean) as string[]
+  const corteMin = cortes.length ? cortes.sort()[0] : hoyBogota()
+
+  const [pagosR, pfR, gastosR, pmR, trR] = await Promise.all([
+    supabase.from('pagos').select('cuenta_id, monto, fecha').in('cuenta_id', ids).neq('metodo', 'credito').eq('anulado', false).gte('fecha', corteMin).limit(20000),
+    supabase.from('pagos_factura').select('cuenta_id, monto, fecha').in('cuenta_id', ids).neq('metodo', 'credito').eq('anulado', false).gte('fecha', corteMin).limit(20000),
+    supabase.from('gastos').select('cuenta_id, valor, fecha').in('cuenta_id', ids).gte('fecha', corteMin).limit(20000),
+    supabase.from('pagos_mensajeria').select('cuenta_id, monto, fecha, tipo').in('cuenta_id', ids).eq('tipo', 'pago').gte('fecha', corteMin).limit(20000),
+    supabase.from('traslados_caja').select('origen_cuenta_id, destino_cuenta_id, monto, fecha').gte('fecha', corteMin).limit(20000),
+  ])
+  const pagos    = (pagosR.data  ?? []) as Array<{ cuenta_id: string | null; monto: number; fecha: string }>
+  const pf       = (pfR.data     ?? []) as Array<{ cuenta_id: string | null; monto: number; fecha: string }>
+  const gastos   = (gastosR.data ?? []) as Array<{ cuenta_id: string | null; valor: number; fecha: string }>
+  const pm       = (pmR.data     ?? []) as Array<{ cuenta_id: string | null; monto: number; fecha: string }>
+  const tr       = (trR.data     ?? []) as Array<{ origen_cuenta_id: string | null; destino_cuenta_id: string; monto: number; fecha: string }>
+
+  return cuentas.map(c => {
+    const corte = c.fecha_corte || hoyBogota()
+    let ing = 0, eg = 0
+    for (const p of pagos)  if (p.cuenta_id === c.id && p.fecha >= corte) ing += p.monto
+    for (const p of pf)     if (p.cuenta_id === c.id && p.fecha >= corte) ing += p.monto
+    for (const p of pm)     if (p.cuenta_id === c.id && p.fecha >= corte) ing += p.monto
+    for (const t of tr)     if (t.destino_cuenta_id === c.id && t.fecha >= corte) ing += t.monto
+    for (const g of gastos) if (g.cuenta_id === c.id && g.fecha >= corte) eg += g.valor
+    for (const t of tr)     if (t.origen_cuenta_id === c.id && t.fecha >= corte) eg += t.monto
+    return { cuenta_id: c.id, nombre: c.nombre, sede_codigo: codigoPorId.get(c.sede_id) ?? '', saldo: c.saldo_inicial + ing - eg }
+  })
+}
 
 export type CuadreFiltros = {
   desde: string

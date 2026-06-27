@@ -1,4 +1,4 @@
-import { getCuadre } from '@/lib/queries/cuadre'
+import { getCuadre, getEfectivoEnCaja } from '@/lib/queries/cuadre'
 import { getSesion } from '@/lib/auth/acceso'
 import { createClient } from '@/lib/supabase/server'
 import { formatCOP, formatFecha, hoyBogota } from '@/lib/utils/format'
@@ -18,11 +18,13 @@ export default async function CuadrePage({
   const hasta = sp.hasta || desde
   const sede = sp.sede || ''
 
-  const [sesion, cuadre] = await Promise.all([
+  const [sesion, cuadre, efectivoCajas] = await Promise.all([
     getSesion(),
     getCuadre({ desde, hasta, sede: sede || undefined }),
+    getEfectivoEnCaja(sede || undefined),
   ])
   const esAdmin = sesion.rol === 'admin'
+  const totalEfectivoCaja = efectivoCajas.reduce((s, c) => s + c.saldo, 0)
 
   const supabase = await createClient()
   const { data: sedes } = await supabase.from('sedes').select('id, codigo, nombre').order('codigo')
@@ -89,6 +91,29 @@ export default async function CuadrePage({
               />
             )
           })}
+        </div>
+      )}
+
+      {/* Efectivo acumulado que DEBE haber en la caja (no solo el del día) */}
+      {efectivoCajas.length > 0 && (
+        <div className="mt-6 rounded-xl border border-green-200 bg-green-50 p-5">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <p className="text-xs text-green-700 uppercase font-semibold tracking-wide">Efectivo que debe haber en caja</p>
+              <p className="text-xs text-green-600 mt-0.5">Acumulado: saldo inicial + todo lo recogido − lo gastado</p>
+            </div>
+            <p className="text-3xl font-bold text-green-800">{formatCOP(totalEfectivoCaja)}</p>
+          </div>
+          {efectivoCajas.length > 1 && (
+            <div className="mt-3 pt-3 border-t border-green-200 grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {efectivoCajas.map(c => (
+                <div key={c.cuenta_id} className="flex items-center justify-between gap-2">
+                  <span className="text-sm text-green-700">{c.nombre}</span>
+                  <span className="text-sm font-bold text-green-800">{formatCOP(c.saldo)}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
