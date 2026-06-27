@@ -144,7 +144,7 @@ export async function crearCompraAction(data: CrearCompraInput): Promise<CrearCo
   }
 
   for (const item of data.items) {
-    const articuloId = item.articulo_id || null
+    let articuloId = item.articulo_id || null
 
     const { data: itemCreado, error: errItem } = await adminClient
       .from('compra_items')
@@ -191,21 +191,33 @@ export async function crearCompraAction(data: CrearCompraInput): Promise<CrearCo
       }
     }
 
-    // Regla de inventario: si el ítem NO está asignado a un pedido y tiene
-    // artículo de catálogo, entra al stock de Bucaramanga (centro de distribución).
-    if (item.destino === 'sin_asignar' && articuloId) {
-      const { error: errInv } = await adminClient.rpc('registrar_entrada_inventario', {
-        p_articulo_id:    articuloId,
-        p_talla:          item.talla.trim() || null,
-        p_cantidad:       item.cantidad,
-        p_costo_unitario: item.costo_unitario_cop,
-        p_usuario_id:     userId,
-        p_compra_item_id: itemCreado.id,
-        p_sede_id:        null,
-        p_notas:          `Compra ${numeroFactura ?? ''} — ${data.proveedor}`.trim(),
-      })
-      if (errInv) {
-        return { ok: false, error: `Error registrando inventario: ${errInv.message}` }
+    // Regla de inventario: si el ítem NO está asignado a un pedido, entra al
+    // stock de Bucaramanga (centro de distribución) con su costo de compra.
+    // Si trae código pero aún no está vinculado al catálogo, se resuelve/crea
+    // el artículo (igual que en el camino de pedido) para que el sobrante con
+    // código nuevo también quede en stock valorado. Sin código → no entra
+    // (no se puede valorar un producto sin identificar).
+    if (item.destino === 'sin_asignar') {
+      if (!articuloId) {
+        await _resolverArticuloCompraItem(itemCreado.id, null, null, adminClient)
+        const { data: itemAct } = await adminClient
+          .from('compra_items').select('articulo_id').eq('id', itemCreado.id).single()
+        articuloId = itemAct?.articulo_id ?? null
+      }
+      if (articuloId) {
+        const { error: errInv } = await adminClient.rpc('registrar_entrada_inventario', {
+          p_articulo_id:    articuloId,
+          p_talla:          item.talla.trim() || null,
+          p_cantidad:       item.cantidad,
+          p_costo_unitario: item.costo_unitario_cop,
+          p_usuario_id:     userId,
+          p_compra_item_id: itemCreado.id,
+          p_sede_id:        null,
+          p_notas:          `Compra ${numeroFactura ?? ''} — ${data.proveedor}`.trim(),
+        })
+        if (errInv) {
+          return { ok: false, error: `Error registrando inventario: ${errInv.message}` }
+        }
       }
     }
   }
