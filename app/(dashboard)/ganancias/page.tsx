@@ -59,8 +59,46 @@ export default async function GananciasPage({
         </p>
       )}
 
+      {/* Margen por producto (ranking) */}
+      {resumen.articulos.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-gray-100">
+            <h2 className="text-sm font-semibold text-gray-900">Margen por producto</h2>
+            <p className="text-xs text-gray-500">Ordenado por mayor margen. Agrupa las ventas con costo conocido por código.</p>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase">
+                <th className="text-left px-4 py-2.5">Código</th>
+                <th className="text-right px-4 py-2.5">Ventas</th>
+                <th className="text-right px-4 py-2.5">Venta</th>
+                <th className="text-right px-4 py-2.5">Costo</th>
+                <th className="text-right px-4 py-2.5">Utilidad</th>
+                <th className="text-right px-4 py-2.5">Margen</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {resumen.articulos.map(a => {
+                const ok = a.utilidad >= 0
+                return (
+                  <tr key={a.codigo} className="hover:bg-gray-50">
+                    <td className="px-4 py-2 font-mono text-xs text-gray-700">{a.codigo}</td>
+                    <td className="px-4 py-2 text-right text-gray-500">{a.ventas}</td>
+                    <td className="px-4 py-2 text-right text-gray-900">{formatCOP(a.venta)}</td>
+                    <td className="px-4 py-2 text-right text-gray-900">{formatCOP(a.costo)}</td>
+                    <td className={`px-4 py-2 text-right font-medium ${ok ? 'text-green-600' : 'text-red-600'}`}>{formatCOP(a.utilidad)}</td>
+                    <td className={`px-4 py-2 text-right font-semibold ${ok ? 'text-green-600' : 'text-red-600'}`}>{a.margen}%</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* Tabla por pedido */}
       <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+        <p className="px-4 pt-3 text-sm font-semibold text-gray-900">Detalle por pedido</p>
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase">

@@ -47,6 +47,16 @@ export async function getGananciaPedido(pedidoId: string): Promise<GananciaPedid
   return { ...(fila as GananciaPedido), compras: (compras ?? []) as CostoAsignado[] }
 }
 
+// Margen de utilidad agrupado por código de artículo (ranking de productos).
+export type GananciaArticulo = {
+  codigo: string
+  ventas: number      // cuántas ventas (pedidos) de ese código
+  venta: number
+  costo: number
+  utilidad: number
+  margen: number       // % sobre la venta
+}
+
 export type GananciasNegocio = {
   venta_total: number
   costo_total: number
@@ -55,6 +65,7 @@ export type GananciasNegocio = {
   utilidad_neta: number
   pedidos_sin_costo: number
   pedidos: GananciaPedido[]
+  articulos: GananciaArticulo[]
 }
 
 // Resumen de ganancias del negocio en un rango. Solo pedidos entregados (venta
@@ -95,6 +106,28 @@ export async function getGananciasNegocio(params: {
     .filter(g => g.categoria !== 'compras_mercancia')
     .reduce((s, g) => s + g.valor, 0)
 
+  // Ranking por producto: agrupa por código las ventas con costo conocido.
+  const porCodigo = new Map<string, { venta: number; costo: number; utilidad: number; ventas: number }>()
+  for (const p of pedidos) {
+    if (!p.codigo || !p.tiene_costo) continue
+    const a = porCodigo.get(p.codigo) ?? { venta: 0, costo: 0, utilidad: 0, ventas: 0 }
+    a.venta += p.venta
+    a.costo += p.costo
+    a.utilidad += p.utilidad
+    a.ventas += 1
+    porCodigo.set(p.codigo, a)
+  }
+  const articulos: GananciaArticulo[] = [...porCodigo.entries()]
+    .map(([codigo, a]) => ({
+      codigo,
+      ventas: a.ventas,
+      venta: a.venta,
+      costo: a.costo,
+      utilidad: a.utilidad,
+      margen: a.venta > 0 ? Math.round((a.utilidad / a.venta) * 100) : 0,
+    }))
+    .sort((x, y) => y.margen - x.margen)
+
   return {
     venta_total,
     costo_total,
@@ -103,5 +136,6 @@ export async function getGananciasNegocio(params: {
     utilidad_neta: utilidad_bruta - gastos_operativos,
     pedidos_sin_costo,
     pedidos,
+    articulos,
   }
 }
