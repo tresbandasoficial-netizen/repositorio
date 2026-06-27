@@ -16,7 +16,10 @@
 -- stock), así que sumar ambas fuentes no genera doble conteo.
 -- El % de margen se calcula en la app (evita división por cero).
 
-create or replace view vista_ganancia_pedidos as
+-- DROP + CREATE (no CREATE OR REPLACE): al agregar la columna `codigo` en medio
+-- cambia el orden de columnas, y REPLACE no permite reordenar/renombrar.
+drop view if exists vista_ganancia_pedidos cascade;
+create view vista_ganancia_pedidos as
 with venta as (
   select pedido_id, sum(precio_venta * cantidad)::int as venta
   from pedido_items
