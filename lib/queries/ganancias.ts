@@ -64,6 +64,7 @@ export type GananciasNegocio = {
   gastos_operativos: number
   utilidad_neta: number
   pedidos_sin_costo: number
+  venta_sin_costo: number
   pedidos: GananciaPedido[]
   articulos: GananciaArticulo[]
 }
@@ -97,10 +98,17 @@ export async function getGananciasNegocio(params: {
 
   const pedidos = (data ?? []) as GananciaPedido[]
 
-  const venta_total  = pedidos.reduce((s, p) => s + p.venta, 0)
-  const costo_total  = pedidos.reduce((s, p) => s + p.costo, 0)
+  // Solo las ventas con costo conocido entran a la utilidad (así Venta − Costo
+  // = Utilidad y no se infla con ventas sin costo). Las sin costo se reportan
+  // aparte como aviso.
+  const conCosto = pedidos.filter(p => p.tiene_costo)
+  const sinCosto = pedidos.filter(p => !p.tiene_costo && p.venta > 0)
+
+  const venta_total  = conCosto.reduce((s, p) => s + p.venta, 0)
+  const costo_total  = conCosto.reduce((s, p) => s + p.costo, 0)
   const utilidad_bruta = venta_total - costo_total
-  const pedidos_sin_costo = pedidos.filter(p => !p.tiene_costo && p.venta > 0).length
+  const pedidos_sin_costo = sinCosto.length
+  const venta_sin_costo = sinCosto.reduce((s, p) => s + p.venta, 0)
 
   const gastos_operativos = gastos
     .filter(g => g.categoria !== 'compras_mercancia')
@@ -135,6 +143,7 @@ export async function getGananciasNegocio(params: {
     gastos_operativos,
     utilidad_neta: utilidad_bruta - gastos_operativos,
     pedidos_sin_costo,
+    venta_sin_costo,
     pedidos,
     articulos,
   }

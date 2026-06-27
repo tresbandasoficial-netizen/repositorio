@@ -54,8 +54,9 @@ export default async function GananciasPage({
 
       {resumen.pedidos_sin_costo > 0 && (
         <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-          ⚠️ {resumen.pedidos_sin_costo} pedido(s) vendido(s) sin compra asignada — su costo no
-          está contado. Asigna la factura de compra para que la ganancia sea exacta.
+          ⚠️ {resumen.pedidos_sin_costo} venta(s) por {formatCOP(resumen.venta_sin_costo)} sin costo
+          conocido — no se incluyen en la utilidad (no se sabe en cuánto se compraron). Asigna la
+          compra o sube el producto al inventario con su costo para que cuenten.
         </p>
       )}
 

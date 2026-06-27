@@ -67,7 +67,10 @@ select
   (coalesce(v.venta, 0)
      - coalesce(cc.costo, 0)
      - coalesce(cs.costo, 0))                                       as utilidad,
-  (cc.pedido_id is not null or cs.pedido_id is not null)            as tiene_costo
+  -- tiene_costo solo si el costo es real (> 0). Un costo en 0 significa que no
+  -- se conoce (ej. venta de stock sin costo de inventario capturado): se trata
+  -- como "costo pendiente" para no inflar la utilidad.
+  ((coalesce(cc.costo, 0) + coalesce(cs.costo, 0)) > 0)            as tiene_costo
 from pedidos p
 left join venta        v    on v.pedido_id    = p.id
 left join costo_compra cc   on cc.pedido_id   = p.id
