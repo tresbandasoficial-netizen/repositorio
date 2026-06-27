@@ -20,6 +20,7 @@ import {
   FileText,
   HandCoins,
   Calculator,
+  TrendingUp,
   LucideProps,
 } from 'lucide-react'
 
@@ -54,6 +55,7 @@ const navItems: { href: string; label: string; icon: NavIcon; rol: string[] }[] 
   { href: '/cuadre',       label: 'Cuadre caja',  icon: Calculator,  rol: ['asesor', 'admin'] },
   { href: '/gastos',       label: 'Gastos',       icon: Wallet,      rol: ['asesor', 'admin'] },
   { href: '/flujo-caja',   label: 'Flujo de caja',icon: BarChart2,   rol: ['admin'] },
+  { href: '/ganancias',    label: 'Ganancias',    icon: TrendingUp,  rol: ['admin'] },
   { href: '/mensajerias',  label: 'Mensajerías', icon: Package,     rol: ['asesor', 'admin'] },
   { href: '/inventario',   label: 'Inventario',   icon: Boxes,       rol: ['admin'] },
   { href: '/cartera',      label: 'Cartera',      icon: Wallet,      rol: ['admin'] },

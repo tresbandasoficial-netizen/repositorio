@@ -11,6 +11,8 @@ import { CopiarResumen } from '@/components/pedidos/CopiarResumen'
 import { EliminarPedidoButton } from '@/components/pedidos/EliminarPedidoButton'
 import { SeguimientoBar } from '@/components/pedidos/SeguimientoBar'
 import { EditarPagoInline } from '@/components/pedidos/EditarPagoInline'
+import { BloqueGanancia } from '@/components/pedidos/BloqueGanancia'
+import { getGananciaPedido } from '@/lib/queries/ganancias'
 
 const CAMPO_LABELS: Record<string, string> = {
   estado:            'Estado',
@@ -36,6 +38,7 @@ export default async function PedidoDetallePage({
 
   const esAdmin = sesion.rol === 'admin'
   const saldo = pedido.total - pedido.total_pagado
+  const ganancia = esAdmin ? await getGananciaPedido(id) : null
 
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto">
@@ -306,6 +309,9 @@ export default async function PedidoDetallePage({
               />
             </CardContent>
           </Card>
+
+          {/* Ganancia (solo admin) */}
+          {esAdmin && ganancia && <BloqueGanancia g={ganancia} />}
 
           {/* Cliente */}
           <Card>
