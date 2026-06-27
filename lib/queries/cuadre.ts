@@ -87,9 +87,11 @@ export function tipoDeMetodo(m: MetodoPago): TipoRecaudo {
 }
 
 export type CuadreIngreso = {
+  id: string                  // id del pago (para confirmarlo)
   referencia: string          // número de pedido o de factura
   monto: number
   origen: string              // 'venta' | 'abono' | 'cartera'
+  confirmado: boolean         // ✓ verificado que el dinero entró
 }
 
 export type CuadreMetodo = {
@@ -221,7 +223,7 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
   // ── Recaudo (pagos + pagos_factura) por sede y método ───────────────────────
   let qRecaudo = supabase
     .from('vista_pagos_unificados')
-    .select('monto, metodo, sede_id, sede_codigo, asesor_id, asesor_nombre, referencia, origen')
+    .select('id, monto, metodo, sede_id, sede_codigo, asesor_id, asesor_nombre, referencia, origen, confirmado')
     .gte('fecha', filtros.desde)
     .lte('fecha', filtros.hasta)
     .limit(20000)
@@ -253,7 +255,7 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
   if (facturasRes.error) throw new Error(`Error cargando facturas del cuadre: ${facturasRes.error.message}`)
 
   const ventasRows  = (ventasRes.data ?? []) as Array<{ numero_orden: string; sede_codigo: string; total: number; estado: string; tipo: string; cliente_nombre: string; total_pagado: number; factura_id: string | null }>
-  const recaudoRows = (recaudoRes.data ?? []) as Array<{ monto: number; metodo: MetodoPago; sede_codigo: string; asesor_id: string; asesor_nombre: string; referencia: string | null; origen: string }>
+  const recaudoRows = (recaudoRes.data ?? []) as Array<{ id: string; monto: number; metodo: MetodoPago; sede_codigo: string; asesor_id: string; asesor_nombre: string; referencia: string | null; origen: string; confirmado: boolean }>
   const gastosRows  = (gastosRes.data ?? []) as Array<{ valor: number; sede_id: string }>
   const facturasRows = (facturasRes.data ?? []) as Array<{ id: string; numero_factura: string; cliente_nombre: string; sede_codigo: string; total: number; saldo: number; estado: string }>
 
@@ -296,7 +298,7 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
     a.metodos.set(r.metodo, (a.metodos.get(r.metodo) ?? 0) + (r.monto ?? 0))
     let det = a.detalles.get(r.metodo)
     if (!det) { det = []; a.detalles.set(r.metodo, det) }
-    det.push({ referencia: r.referencia ?? '—', monto: r.monto ?? 0, origen: r.origen })
+    det.push({ id: r.id, referencia: r.referencia ?? '—', monto: r.monto ?? 0, origen: r.origen, confirmado: r.confirmado })
   }
 
   for (const r of gastosRows) {

@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { cerrarCajaAction } from '@/app/actions/cierres'
 import { getFlujoDiaAction } from '@/app/actions/gastos'
+import { getPagosSinConfirmarAction, type PagoSinConfirmar } from '@/app/actions/cuadre'
 import { formatCOP } from '@/lib/utils/format'
 import type { FlujoDia } from '@/app/actions/gastos'
 import type { DetalleCuenta } from '@/app/actions/cierres'
@@ -21,6 +22,7 @@ export function CerrarCajaButton({
   const [sedeId, setSedeId] = useState('')
   const [notas, setNotas] = useState('')
   const [flujo, setFlujo] = useState<FlujoDia[]>([])
+  const [sinConfirmar, setSinConfirmar] = useState<PagoSinConfirmar[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [pending, start] = useTransition()
@@ -29,8 +31,13 @@ export function CerrarCajaButton({
   async function cargarFlujo(sid?: string) {
     setLoading(true)
     setFlujo([])
-    const data = await getFlujoDiaAction(sid)
+    setSinConfirmar([])
+    const [data, pendientes] = await Promise.all([
+      getFlujoDiaAction(sid),
+      getPagosSinConfirmarAction(sid),
+    ])
     setFlujo(data.filter(f => f.ingresos_hoy > 0 || f.egresos_hoy > 0))
+    setSinConfirmar(pendientes)
     setLoading(false)
   }
 
@@ -173,6 +180,27 @@ export function CerrarCajaButton({
                   </div>
                 </>
               ) : null}
+
+              {/* Pagos electrónicos sin confirmar */}
+              {!loading && (!esAdmin || sedeId) && sinConfirmar.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <p className="text-xs font-semibold text-amber-800">⚠️ Faltan {sinConfirmar.length} pago(s) por confirmar</p>
+                  <p className="text-[11px] text-amber-700 mb-1.5">Verifica que estas transferencias entraron (chuléalas en el cuadre):</p>
+                  <ul className="space-y-0.5">
+                    {sinConfirmar.map(p => (
+                      <li key={p.id} className="flex justify-between text-xs text-amber-800">
+                        <span className="font-mono">{p.referencia} · {p.metodo}</span>
+                        <span className="font-medium">{formatCOP(p.monto)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {!loading && (!esAdmin || sedeId) && sinConfirmar.length === 0 && flujo.length > 0 && (
+                <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                  ✓ Todas las transferencias del día están confirmadas
+                </p>
+              )}
 
               {/* Notas */}
               {(!esAdmin || sedeId) && (
