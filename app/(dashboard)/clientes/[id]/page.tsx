@@ -8,6 +8,7 @@ import { formatCOP, formatFecha } from '@/lib/utils/format'
 import { formatearTelefono, whatsappUrl } from '@/lib/utils/phone'
 import { EstadoPedido, METODO_PAGO_LABELS, MetodoPago } from '@/types'
 import { AbonarClienteButton } from '@/components/clientes/AbonarClienteButton'
+import { HistorialPagos } from '@/components/clientes/HistorialPagos'
 
 export default async function ClienteDetallePage({
   params,
@@ -20,10 +21,11 @@ export default async function ClienteDetallePage({
 
   const { data: usuario } = await supabase
     .from('usuarios')
-    .select('sedes(codigo)')
+    .select('rol, sedes(codigo)')
     .eq('id', user.id)
     .single()
   const sedeCodigo = (usuario?.sedes as { codigo?: string } | null)?.codigo
+  const esAdmin = usuario?.rol === 'admin'
 
   const { id } = await params
   const cliente = await getClienteDetalle(id)
@@ -142,53 +144,7 @@ export default async function ClienteDetallePage({
               <h2 className="text-sm font-semibold text-gray-900">Historial de pagos</h2>
             </CardHeader>
             <CardContent className="p-0">
-              {cliente.pagos.length === 0 ? (
-                <p className="px-6 py-4 text-sm text-gray-400">Sin pagos registrados.</p>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-100">
-                      <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">Fecha</th>
-                      <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">Monto</th>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Método</th>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Pedido</th>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Notas</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {cliente.pagos.map((pg) => (
-                      <tr key={pg.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-3 text-gray-600">{formatFecha(pg.fecha)}</td>
-                        <td className={`px-4 py-3 text-right font-semibold ${pg.metodo === 'credito' ? 'text-gray-400' : 'text-green-700'}`}>
-                          {pg.metodo === 'credito' ? `(${formatCOP(pg.monto)})` : formatCOP(pg.monto)}
-                        </td>
-                        <td className="px-4 py-3 text-gray-600">
-                          {METODO_PAGO_LABELS[pg.metodo as MetodoPago] ?? pg.metodo}
-                          {pg.metodo === 'credito' && <span className="ml-1 text-xs text-gray-400">(deuda)</span>}
-                        </td>
-                        <td className="px-4 py-3">
-                          <Link
-                            href={pg.origen === 'pedido' ? `/pedidos/${pg.referencia_id}` : `/facturacion/${pg.referencia_id}`}
-                            className="font-mono text-xs text-blue-600 hover:underline"
-                          >
-                            {pg.referencia}
-                          </Link>
-                        </td>
-                        <td className="px-4 py-3 text-gray-400 text-xs">{pg.notas ?? '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="border-t-2 border-gray-200 bg-gray-50">
-                    <tr>
-                      <td className="px-6 py-3 text-xs font-semibold text-gray-600 uppercase">Total pagado</td>
-                      <td className="px-4 py-3 text-right font-bold text-green-700">
-                        {formatCOP(cliente.pagos.filter((pg) => pg.metodo !== 'credito').reduce((s, pg) => s + pg.monto, 0))}
-                      </td>
-                      <td colSpan={3} />
-                    </tr>
-                  </tfoot>
-                </table>
-              )}
+              <HistorialPagos abonos={cliente.abonos} esAdmin={esAdmin} />
             </CardContent>
           </Card>
 

@@ -24,12 +24,24 @@ export type ClienteRow = {
 export type PagoCliente = {
   id: string
   fecha: string
+  creado_en: string
   monto: number
   metodo: string
   notas: string | null
   origen: 'pedido' | 'factura'
   referencia: string  // numero_orden o numero_factura
   referencia_id: string
+}
+
+// Un abono puede repartirse entre varios pedidos/facturas (abonar_cliente). Las
+// partes se agrupan por operación: comparten `creado_en` (misma transacción) y
+// método. El total del abono es la suma de sus partes.
+export type AbonoCliente = {
+  fecha: string
+  creado_en: string
+  metodo: string
+  total: number
+  partes: PagoCliente[]
 }
 
 export type ClienteDetalle = {
@@ -51,6 +63,7 @@ export type ClienteDetalle = {
     asesor_nombre: string
   }>
   pagos: PagoCliente[]
+  abonos: AbonoCliente[]
 }
 
 export async function getClientes(params?: {
@@ -127,8 +140,8 @@ export async function getClienteDetalle(id: string): Promise<ClienteDetalle | nu
       id, numero_orden, estado, total, fecha_creacion,
       sede:sedes(nombre),
       asesor:usuarios(nombre),
-      pagos(id, monto, metodo, fecha, notas, anulado),
-      facturas!factura_id(id, numero_factura, pagos_factura(id, monto, metodo, fecha, notas, anulado))
+      pagos(id, monto, metodo, fecha, notas, anulado, creado_en),
+      facturas!factura_id(id, numero_factura, pagos_factura(id, monto, metodo, fecha, notas, anulado, creado_en))
     `)
     .eq('cliente_id', id)
     .neq('estado', 'cancelado')
@@ -176,6 +189,7 @@ export async function getClienteDetalle(id: string): Promise<ClienteDetalle | nu
       pagos.push({
         id:            pg.id,
         fecha:         pg.fecha,
+        creado_en:     pg.creado_en,
         monto:         pg.monto,
         metodo:        pg.metodo,
         notas:         pg.notas ?? null,
@@ -192,6 +206,7 @@ export async function getClienteDetalle(id: string): Promise<ClienteDetalle | nu
         pagos.push({
           id:            pf.id,
           fecha:         pf.fecha,
+          creado_en:     pf.creado_en,
           monto:         pf.monto,
           metodo:        pf.metodo,
           notas:         pf.notas ?? null,
@@ -204,5 +219,17 @@ export async function getClienteDetalle(id: string): Promise<ClienteDetalle | nu
   }
   pagos.sort((a, b) => b.fecha.localeCompare(a.fecha))
 
-  return { ...cliente, pedidos, pagos }
+  // Agrupar las partes de un mismo abono (misma transacción = mismo creado_en).
+  // Así un abono de 500 repartido en 220 + 280 se muestra como un solo abono.
+  const grupos = new Map<string, AbonoCliente>()
+  for (const pg of pagos) {
+    const key = `${pg.creado_en}|${pg.metodo}`
+    let g = grupos.get(key)
+    if (!g) { g = { fecha: pg.fecha, creado_en: pg.creado_en, metodo: pg.metodo, total: 0, partes: [] }; grupos.set(key, g) }
+    g.total += pg.monto
+    g.partes.push(pg)
+  }
+  const abonos = [...grupos.values()].sort((a, b) => b.creado_en.localeCompare(a.creado_en))
+
+  return { ...cliente, pedidos, pagos, abonos }
 }
