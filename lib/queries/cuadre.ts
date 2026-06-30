@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getSesion } from '@/lib/auth/acceso'
 import { MetodoPago, METODO_PAGO_LABELS, labelMetodo } from '@/types'
 import { hoyBogota } from '@/lib/utils/format'
@@ -64,6 +65,86 @@ export async function getEfectivoEnCaja(filtroSedeCodigo?: string): Promise<Efec
     for (const g of gastos) if (g.cuenta_id === c.id && g.fecha >= corte) eg += g.valor
     for (const t of tr)     if (t.origen_cuenta_id === c.id && t.fecha >= corte) eg += t.monto
     return { cuenta_id: c.id, nombre: c.nombre, sede_codigo: codigoPorId.get(c.sede_id) ?? '', saldo: c.saldo_inicial + ing - eg }
+  })
+}
+
+// Saldo acumulado de TODAS las cuentas de dinero real (efectivo de la sede +
+// cuentas electrónicas globales: Nequi, Bancolombia, Bold, Addi…). Igual que
+// getEfectivoEnCaja pero sin limitarse al efectivo.
+//
+// Usa el admin client a propósito: las cuentas electrónicas son globales
+// (sede_id = null) y reciben dinero de varias sedes; con el cliente de usuario
+// (RLS) un asesor solo vería los movimientos de su sede y el saldo saldría
+// incompleto. Así el saldo de cada cuenta es el real y completo.
+export type SaldoCuenta = {
+  cuenta_id: string
+  nombre: string
+  tipo: string
+  sede_codigo: string | null   // null = cuenta global (no es de una sede)
+  es_efectivo: boolean
+  saldo: number
+}
+
+export async function getSaldosCuentas(filtroSedeCodigo?: string): Promise<SaldoCuenta[]> {
+  const admin = createAdminClient()
+  const sesion = await getSesion()
+
+  const { data: sedesRaw } = await admin.from('sedes').select('id, codigo')
+  const sedes = (sedesRaw ?? []) as Array<{ id: string; codigo: string }>
+  const codigoPorId = new Map(sedes.map(s => [s.id, s.codigo]))
+
+  const esAdmin = sesion.rol === 'admin'
+  const sedeForzadaId = !esAdmin && sesion.sede_id ? sesion.sede_id : null
+  const sid = sedeForzadaId ?? (filtroSedeCodigo ? sedes.find(s => s.codigo === filtroSedeCodigo)?.id ?? null : null)
+
+  // Cuentas de dinero real (excluye crédito). Si hay sede: el efectivo de esa
+  // sede + las cuentas globales (sede_id null). Sin sede: todas.
+  let qc = admin
+    .from('cuentas')
+    .select('id, nombre, tipo, sede_id, metodo_pago, saldo_inicial, fecha_corte')
+    .eq('activa', true)
+    .neq('tipo', 'credito')
+    .not('metodo_pago', 'is', null)
+    .order('orden')
+  if (sid) qc = qc.or(`sede_id.eq.${sid},sede_id.is.null`)
+
+  const cuentas = ((await qc).data ?? []) as Array<{ id: string; nombre: string; tipo: string; sede_id: string | null; metodo_pago: string | null; saldo_inicial: number; fecha_corte: string | null }>
+  if (cuentas.length === 0) return []
+
+  const ids = cuentas.map(c => c.id)
+  const cortes = cuentas.map(c => c.fecha_corte).filter(Boolean) as string[]
+  const corteMin = cortes.length ? cortes.sort()[0] : hoyBogota()
+
+  const [pagosR, pfR, gastosR, pmR, trR] = await Promise.all([
+    admin.from('pagos').select('cuenta_id, monto, fecha').in('cuenta_id', ids).neq('metodo', 'credito').eq('anulado', false).gte('fecha', corteMin).limit(50000),
+    admin.from('pagos_factura').select('cuenta_id, monto, fecha').in('cuenta_id', ids).neq('metodo', 'credito').eq('anulado', false).gte('fecha', corteMin).limit(50000),
+    admin.from('gastos').select('cuenta_id, valor, fecha').in('cuenta_id', ids).gte('fecha', corteMin).limit(50000),
+    admin.from('pagos_mensajeria').select('cuenta_id, monto, fecha, tipo').in('cuenta_id', ids).eq('tipo', 'pago').gte('fecha', corteMin).limit(50000),
+    admin.from('traslados_caja').select('origen_cuenta_id, destino_cuenta_id, monto, fecha').gte('fecha', corteMin).limit(50000),
+  ])
+  const pagos  = (pagosR.data  ?? []) as Array<{ cuenta_id: string | null; monto: number; fecha: string }>
+  const pf     = (pfR.data     ?? []) as Array<{ cuenta_id: string | null; monto: number; fecha: string }>
+  const gastos = (gastosR.data ?? []) as Array<{ cuenta_id: string | null; valor: number; fecha: string }>
+  const pm     = (pmR.data     ?? []) as Array<{ cuenta_id: string | null; monto: number; fecha: string }>
+  const tr     = (trR.data     ?? []) as Array<{ origen_cuenta_id: string | null; destino_cuenta_id: string; monto: number; fecha: string }>
+
+  return cuentas.map(c => {
+    const corte = c.fecha_corte || hoyBogota()
+    let ing = 0, eg = 0
+    for (const p of pagos)  if (p.cuenta_id === c.id && p.fecha >= corte) ing += p.monto
+    for (const p of pf)     if (p.cuenta_id === c.id && p.fecha >= corte) ing += p.monto
+    for (const p of pm)     if (p.cuenta_id === c.id && p.fecha >= corte) ing += p.monto
+    for (const t of tr)     if (t.destino_cuenta_id === c.id && t.fecha >= corte) ing += t.monto
+    for (const g of gastos) if (g.cuenta_id === c.id && g.fecha >= corte) eg += g.valor
+    for (const t of tr)     if (t.origen_cuenta_id === c.id && t.fecha >= corte) eg += t.monto
+    return {
+      cuenta_id: c.id,
+      nombre: c.nombre,
+      tipo: c.tipo,
+      sede_codigo: c.sede_id ? codigoPorId.get(c.sede_id) ?? null : null,
+      es_efectivo: c.metodo_pago === 'efectivo',
+      saldo: c.saldo_inicial + ing - eg,
+    }
   })
 }
 

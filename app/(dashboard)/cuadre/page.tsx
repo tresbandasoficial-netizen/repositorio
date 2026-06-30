@@ -1,4 +1,4 @@
-import { getCuadre, getEfectivoEnCaja } from '@/lib/queries/cuadre'
+import { getCuadre, getSaldosCuentas } from '@/lib/queries/cuadre'
 import { getSesion } from '@/lib/auth/acceso'
 import { createClient } from '@/lib/supabase/server'
 import { formatCOP, formatFecha, hoyBogota } from '@/lib/utils/format'
@@ -19,13 +19,17 @@ export default async function CuadrePage({
   const hasta = sp.hasta || desde
   const sede = sp.sede || ''
 
-  const [sesion, cuadre, efectivoCajas] = await Promise.all([
+  const [sesion, cuadre, saldosCuentas] = await Promise.all([
     getSesion(),
     getCuadre({ desde, hasta, sede: sede || undefined }),
-    getEfectivoEnCaja(sede || undefined),
+    getSaldosCuentas(sede || undefined),
   ])
   const esAdmin = sesion.rol === 'admin'
-  const totalEfectivoCaja = efectivoCajas.reduce((s, c) => s + c.saldo, 0)
+  const efectivoCajas  = saldosCuentas.filter(c => c.es_efectivo)
+  const cuentasBanco   = saldosCuentas.filter(c => !c.es_efectivo)
+  const totalEfectivo  = efectivoCajas.reduce((s, c) => s + c.saldo, 0)
+  const totalCuentas   = cuentasBanco.reduce((s, c) => s + c.saldo, 0)
+  const totalAcumulado = totalEfectivo + totalCuentas
 
   const supabase = await createClient()
   const { data: sedes } = await supabase.from('sedes').select('id, codigo, nombre').order('codigo')
@@ -95,24 +99,57 @@ export default async function CuadrePage({
         </div>
       )}
 
-      {/* Efectivo acumulado que DEBE haber en la caja (no solo el del día) */}
-      {efectivoCajas.length > 0 && (
-        <div className="mt-6 rounded-xl border border-green-200 bg-green-50 p-5">
+      {/* Dinero acumulado: efectivo de la caja + saldo de todas las cuentas
+          (no solo el del día). Saldo = inicial + lo que entró − lo que salió. */}
+      {saldosCuentas.length > 0 && (
+        <div className="mt-6 rounded-xl border border-gray-200 bg-white p-5">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
-              <p className="text-xs text-green-700 uppercase font-semibold tracking-wide">Efectivo que debe haber en caja</p>
-              <p className="text-xs text-green-600 mt-0.5">Acumulado: saldo inicial + todo lo recogido − lo gastado</p>
+              <p className="text-xs text-gray-500 uppercase font-semibold tracking-wide">Dinero acumulado (caja + cuentas)</p>
+              <p className="text-xs text-gray-400 mt-0.5">Saldo inicial + todo lo recogido − lo gastado, desde el corte</p>
             </div>
-            <p className="text-3xl font-bold text-green-800">{formatCOP(totalEfectivoCaja)}</p>
+            <p className="text-3xl font-bold text-gray-900">{formatCOP(totalAcumulado)}</p>
           </div>
-          {efectivoCajas.length > 1 && (
-            <div className="mt-3 pt-3 border-t border-green-200 grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {efectivoCajas.map(c => (
-                <div key={c.cuenta_id} className="flex items-center justify-between gap-2">
-                  <span className="text-sm text-green-700">{c.nombre}</span>
-                  <span className="text-sm font-bold text-green-800">{formatCOP(c.saldo)}</span>
-                </div>
-              ))}
+
+          {/* Subtotales */}
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-2.5">
+              <p className="text-[11px] text-green-700 uppercase">Efectivo en caja</p>
+              <p className="text-lg font-bold text-green-800">{formatCOP(totalEfectivo)}</p>
+            </div>
+            <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-2.5">
+              <p className="text-[11px] text-blue-700 uppercase">En cuentas</p>
+              <p className="text-lg font-bold text-blue-800">{formatCOP(totalCuentas)}</p>
+            </div>
+          </div>
+
+          {/* Efectivo por sede */}
+          {efectivoCajas.length > 0 && (
+            <div className="mt-4">
+              <p className="text-[11px] text-gray-400 uppercase font-semibold mb-1.5">Efectivo</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {efectivoCajas.map(c => (
+                  <div key={c.cuenta_id} className="flex items-center justify-between gap-2 rounded-lg bg-green-50/60 px-3 py-2">
+                    <span className="text-sm text-gray-700 truncate">{c.nombre}</span>
+                    <span className="text-sm font-bold text-green-700 shrink-0">{formatCOP(c.saldo)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Cuentas (Nequi, Bancolombia, Bold, Addi…) */}
+          {cuentasBanco.length > 0 && (
+            <div className="mt-4">
+              <p className="text-[11px] text-gray-400 uppercase font-semibold mb-1.5">Cuentas</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {cuentasBanco.map(c => (
+                  <div key={c.cuenta_id} className={`flex items-center justify-between gap-2 rounded-lg px-3 py-2 ${c.saldo < 0 ? 'bg-red-50' : 'bg-gray-50'}`}>
+                    <span className="text-sm text-gray-700 truncate">{c.nombre}</span>
+                    <span className={`text-sm font-bold shrink-0 ${c.saldo < 0 ? 'text-red-600' : 'text-gray-900'}`}>{formatCOP(c.saldo)}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
