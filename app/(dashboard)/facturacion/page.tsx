@@ -65,11 +65,37 @@ export default async function FacturacionPage({
         </div>
       </div>
 
+      {/* Búsqueda por N° de factura / cliente / teléfono */}
+      <form method="GET" action="/facturacion" className="flex gap-2 mb-4">
+        {estado && <input type="hidden" name="estado" value={estado} />}
+        <input
+          type="search"
+          name="q"
+          defaultValue={sp.q ?? ''}
+          placeholder="Buscar por N° de factura, cliente o teléfono…"
+          className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        <button type="submit" className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700">
+          Buscar
+        </button>
+        {sp.q && (
+          <Link
+            href={estado ? `/facturacion?estado=${estado}` : '/facturacion'}
+            className="px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 flex items-center"
+          >
+            Limpiar
+          </Link>
+        )}
+      </form>
+
       {/* Filtros */}
       <div className="flex flex-wrap gap-2 mb-4">
         {filtros.map(f => {
           const active = (f.key === 'todas' && !estado) || estado === f.key
-          const href = f.key === 'todas' ? '/facturacion' : `/facturacion?estado=${f.key}`
+          const qPart = sp.q ? `q=${encodeURIComponent(sp.q)}` : ''
+          const href = f.key === 'todas'
+            ? `/facturacion${qPart ? `?${qPart}` : ''}`
+            : `/facturacion?estado=${f.key}${qPart ? `&${qPart}` : ''}`
           return (
             <Link
               key={f.key}
