@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getSesion } from '@/lib/auth/acceso'
-import { MetodoPago, METODO_PAGO_LABELS, labelMetodo } from '@/types'
+import { MetodoPago, METODO_PAGO_LABELS, labelMetodo, metodosDeSede } from '@/types'
 import { hoyBogota } from '@/lib/utils/format'
 
 // Efectivo acumulado que DEBE haber en la caja de cada sede:
@@ -97,16 +97,30 @@ export async function getSaldosCuentas(filtroSedeCodigo?: string): Promise<Saldo
   const sedeForzadaId = !esAdmin && sesion.sede_id ? sesion.sede_id : null
   const sid = sedeForzadaId ?? (filtroSedeCodigo ? sedes.find(s => s.codigo === filtroSedeCodigo)?.id ?? null : null)
 
-  // Cuentas de dinero real (excluye crédito). Si hay sede: el efectivo de esa
-  // sede + las cuentas globales (sede_id null). Sin sede: todas.
   let qc = admin
     .from('cuentas')
     .select('id, nombre, tipo, sede_id, metodo_pago, saldo_inicial, fecha_corte')
     .eq('activa', true)
-    .neq('tipo', 'credito')
     .not('metodo_pago', 'is', null)
     .order('orden')
-  if (sid) qc = qc.or(`sede_id.eq.${sid},sede_id.is.null`)
+
+  if (sid) {
+    // Vista de una sede: solo las cuentas DE DINERO REAL que esa sede usa.
+    //   - tipos con saldo propio (efectivo/nequi/bancolombia/daviplata);
+    //     se excluyen financieras (addi, sistecrédito), datáfono (bold) y crédito,
+    //     que se liquidan aparte y no son plata que la sede tenga.
+    //   - métodos de la sede (metodosDeSede): así Santa Rosa solo ve su efectivo
+    //     y Nequi Luisa, no las cuentas de otras sedes/del dueño.
+    const sedeCodigo = codigoPorId.get(sid) ?? undefined
+    const metodos = metodosDeSede(sedeCodigo)
+    qc = qc
+      .or(`sede_id.eq.${sid},sede_id.is.null`)
+      .in('tipo', ['efectivo', 'nequi', 'bancolombia', 'daviplata'])
+      .in('metodo_pago', metodos)
+  } else {
+    // Vista consolidada (admin, todas las sedes): todas las cuentas de dinero real.
+    qc = qc.neq('tipo', 'credito')
+  }
 
   const cuentas = ((await qc).data ?? []) as Array<{ id: string; nombre: string; tipo: string; sede_id: string | null; metodo_pago: string | null; saldo_inicial: number; fecha_corte: string | null }>
   if (cuentas.length === 0) return []
@@ -146,6 +160,26 @@ export async function getSaldosCuentas(filtroSedeCodigo?: string): Promise<Saldo
       saldo: c.saldo_inicial + ing - eg,
     }
   })
+}
+
+// Total de gastos ACUMULADO (todos los días), no solo el del rango. El asesor
+// solo ve los de su sede; el admin todos (o los de la sede filtrada).
+export async function getGastosAcumulado(filtroSedeCodigo?: string): Promise<number> {
+  const admin = createAdminClient()
+  const sesion = await getSesion()
+
+  const { data: sedesRaw } = await admin.from('sedes').select('id, codigo')
+  const sedes = (sedesRaw ?? []) as Array<{ id: string; codigo: string }>
+
+  const esAdmin = sesion.rol === 'admin'
+  const sedeForzadaId = !esAdmin && sesion.sede_id ? sesion.sede_id : null
+  const sid = sedeForzadaId ?? (filtroSedeCodigo ? sedes.find(s => s.codigo === filtroSedeCodigo)?.id ?? null : null)
+
+  let q = admin.from('gastos').select('valor').limit(100000)
+  if (sid) q = q.eq('sede_id', sid)
+
+  const rows = ((await q).data ?? []) as Array<{ valor: number }>
+  return rows.reduce((s, g) => s + (g.valor ?? 0), 0)
 }
 
 export type CuadreFiltros = {
@@ -225,12 +259,22 @@ export type CuadrePedido = {
   estado: string
 }
 
+// Detalle: cada gasto del rango (para verlos en el cuadre, no solo el total).
+export type CuadreGasto = {
+  fecha: string
+  categoria: string
+  observacion: string | null
+  sede_codigo: string
+  valor: number
+}
+
 export type Cuadre = {
   filtros: CuadreFiltros
   sedes: CuadreSede[]
   porAsesor: FilaAsesor[]
   facturas: CuadreFactura[]
   pedidos: CuadrePedido[]
+  gastosDetalle: CuadreGasto[]
   totalFacturado: number
   totalPedidos: number
   totalVendido: number
@@ -311,23 +355,23 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
   if (sedeForzadaId) qRecaudo = qRecaudo.eq('sede_id', sedeForzadaId)
   else if (sedeFiltroCodigo) qRecaudo = qRecaudo.eq('sede_codigo', sedeFiltroCodigo)
 
-  // ── Gastos por sede (solo admin: el módulo de gastos es admin-only) ─────────
+  // ── Gastos del rango (visibles para todos; el asesor solo los de su sede) ───
   const idPorCodigo = new Map(sedes.map(s => [s.codigo, s.id]))
   const sedeFiltroId = sedeFiltroCodigo ? idPorCodigo.get(sedeFiltroCodigo) ?? null : null
-  let qGastos = esAdmin
-    ? supabase
-        .from('gastos')
-        .select('valor, sede_id')
-        .gte('fecha', filtros.desde)
-        .lte('fecha', filtros.hasta)
-        .limit(20000)
-    : null
-  if (qGastos && sedeFiltroId) qGastos = qGastos.eq('sede_id', sedeFiltroId)
+  let qGastos = supabase
+    .from('gastos')
+    .select('valor, sede_id, categoria, observacion, fecha')
+    .gte('fecha', filtros.desde)
+    .lte('fecha', filtros.hasta)
+    .order('fecha', { ascending: false })
+    .limit(20000)
+  const sedeGastosId = sedeForzadaId ?? sedeFiltroId
+  if (sedeGastosId) qGastos = qGastos.eq('sede_id', sedeGastosId)
 
   const [ventasRes, recaudoRes, gastosRes, facturasRes] = await Promise.all([
     qVentas,
     qRecaudo,
-    qGastos ?? Promise.resolve({ data: [] as Array<{ valor: number; sede_id: string }> }),
+    qGastos,
     qFacturas,
   ])
 
@@ -337,7 +381,7 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
 
   const ventasRows  = (ventasRes.data ?? []) as Array<{ numero_orden: string; sede_codigo: string; total: number; estado: string; tipo: string; cliente_nombre: string; total_pagado: number; factura_id: string | null }>
   const recaudoRows = (recaudoRes.data ?? []) as Array<{ id: string; monto: number; metodo: MetodoPago; sede_codigo: string; asesor_id: string; asesor_nombre: string; referencia: string | null; origen: string; confirmado: boolean }>
-  const gastosRows  = (gastosRes.data ?? []) as Array<{ valor: number; sede_id: string }>
+  const gastosRows  = (gastosRes.data ?? []) as Array<{ valor: number; sede_id: string; categoria: string; observacion: string | null; fecha: string }>
   const facturasRows = (facturasRes.data ?? []) as Array<{ id: string; numero_factura: string; cliente_nombre: string; sede_codigo: string; total: number; saldo: number; estado: string }>
 
   // Métodos de pago de cada factura (por dónde pagaron), desde sus abonos no anulados.
@@ -382,10 +426,18 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
     det.push({ id: r.id, referencia: r.referencia ?? '—', monto: r.monto ?? 0, origen: r.origen, confirmado: r.confirmado })
   }
 
+  const gastosDetalle: CuadreGasto[] = []
   for (const r of gastosRows) {
     const codigo = codigoPorId.get(r.sede_id)
     if (!codigo) continue
     ensure(codigo).gastos += r.valor ?? 0
+    gastosDetalle.push({
+      fecha: r.fecha,
+      categoria: r.categoria,
+      observacion: r.observacion,
+      sede_codigo: codigo,
+      valor: r.valor ?? 0,
+    })
   }
 
   // ── Construir filas por sede ────────────────────────────────────────────────
@@ -486,6 +538,7 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
     porAsesor,
     facturas,
     pedidos,
+    gastosDetalle,
     totalFacturado,
     totalPedidos,
     totalVendido,

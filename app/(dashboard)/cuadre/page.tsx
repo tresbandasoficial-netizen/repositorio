@@ -1,8 +1,8 @@
-import { getCuadre, getSaldosCuentas } from '@/lib/queries/cuadre'
+import { getCuadre, getSaldosCuentas, getGastosAcumulado } from '@/lib/queries/cuadre'
 import { getSesion } from '@/lib/auth/acceso'
 import { createClient } from '@/lib/supabase/server'
 import { formatCOP, formatFecha, hoyBogota } from '@/lib/utils/format'
-import { ESTADO_FACTURA_LABELS, ESTADO_FACTURA_COLORES, ESTADO_LABELS, ESTADO_COLORES, EstadoFactura, EstadoPedido } from '@/types'
+import { ESTADO_FACTURA_LABELS, ESTADO_FACTURA_COLORES, ESTADO_LABELS, ESTADO_COLORES, EstadoFactura, EstadoPedido, CATEGORIA_GASTO_LABELS, CategoriaGasto } from '@/types'
 import { CuadreFiltrosBar } from '@/components/cuadre/CuadreFiltrosBar'
 import { CuadreDescargable } from '@/components/cuadre/CuadreDescargable'
 import { MetodosCuadre } from '@/components/cuadre/MetodosCuadre'
@@ -19,10 +19,11 @@ export default async function CuadrePage({
   const hasta = sp.hasta || desde
   const sede = sp.sede || ''
 
-  const [sesion, cuadre, saldosCuentas] = await Promise.all([
+  const [sesion, cuadre, saldosCuentas, gastosAcumulado] = await Promise.all([
     getSesion(),
     getCuadre({ desde, hasta, sede: sede || undefined }),
     getSaldosCuentas(sede || undefined),
+    getGastosAcumulado(sede || undefined),
   ])
   const esAdmin = sesion.rol === 'admin'
   const efectivoCajas  = saldosCuentas.filter(c => c.es_efectivo)
@@ -30,6 +31,7 @@ export default async function CuadrePage({
   const totalEfectivo  = efectivoCajas.reduce((s, c) => s + c.saldo, 0)
   const totalCuentas   = cuentasBanco.reduce((s, c) => s + c.saldo, 0)
   const totalAcumulado = totalEfectivo + totalCuentas
+  const totalGastosRango = cuadre.gastosDetalle.reduce((s, g) => s + g.valor, 0)
 
   const supabase = await createClient()
   const { data: sedes } = await supabase.from('sedes').select('id, codigo, nombre').order('codigo')
@@ -112,7 +114,7 @@ export default async function CuadrePage({
           </div>
 
           {/* Subtotales */}
-          <div className="mt-3 grid grid-cols-2 gap-3">
+          <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
             <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-2.5">
               <p className="text-[11px] text-green-700 uppercase">Efectivo en caja</p>
               <p className="text-lg font-bold text-green-800">{formatCOP(totalEfectivo)}</p>
@@ -120,6 +122,11 @@ export default async function CuadrePage({
             <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-2.5">
               <p className="text-[11px] text-blue-700 uppercase">En cuentas</p>
               <p className="text-lg font-bold text-blue-800">{formatCOP(totalCuentas)}</p>
+            </div>
+            <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-2.5">
+              <p className="text-[11px] text-red-700 uppercase">Gastos acumulados</p>
+              <p className="text-lg font-bold text-red-800">{formatCOP(gastosAcumulado)}</p>
+              <p className="text-[10px] text-red-500">todos los días</p>
             </div>
           </div>
 
@@ -152,6 +159,38 @@ export default async function CuadrePage({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Detalle de gastos del rango (cada gasto, no solo el total) */}
+      {cuadre.gastosDetalle.length > 0 && (
+        <div className="mt-6 rounded-xl border border-red-200 bg-white overflow-hidden">
+          <div className="px-5 py-3 border-b border-red-100 bg-red-50/60 flex items-center justify-between">
+            <p className="text-sm font-semibold text-red-800">
+              Gastos {desde === hasta ? 'del día' : 'del rango'} <span className="text-xs text-red-500">({cuadre.gastosDetalle.length})</span>
+            </p>
+            <p className="text-xs text-red-700">Total <span className="font-bold">{formatCOP(totalGastosRango)}</span></p>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase">
+                <th className="text-left px-5 py-2">Categoría</th>
+                <th className="text-left px-3 py-2">Detalle</th>
+                {multiSede && <th className="text-left px-3 py-2">Sede</th>}
+                <th className="text-right px-5 py-2">Valor</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {cuadre.gastosDetalle.map((g, i) => (
+                <tr key={i}>
+                  <td className="px-5 py-2 text-gray-700">{CATEGORIA_GASTO_LABELS[g.categoria as CategoriaGasto] ?? g.categoria}</td>
+                  <td className="px-3 py-2 text-gray-500 text-xs">{g.observacion || '—'}</td>
+                  {multiSede && <td className="px-3 py-2 text-gray-500">{g.sede_codigo}</td>}
+                  <td className="px-5 py-2 text-right font-medium text-red-600">{formatCOP(g.valor)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
