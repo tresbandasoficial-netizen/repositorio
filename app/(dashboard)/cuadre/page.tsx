@@ -119,10 +119,12 @@ export default async function CuadrePage({
               <p className="text-[11px] text-green-700 uppercase">Efectivo en caja</p>
               <p className="text-lg font-bold text-green-800">{formatCOP(totalEfectivo)}</p>
             </div>
-            <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-2.5">
-              <p className="text-[11px] text-blue-700 uppercase">En cuentas</p>
-              <p className="text-lg font-bold text-blue-800">{formatCOP(totalCuentas)}</p>
-            </div>
+            {cuentasBanco.length > 0 && (
+              <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-2.5">
+                <p className="text-[11px] text-blue-700 uppercase">En cuentas</p>
+                <p className="text-lg font-bold text-blue-800">{formatCOP(totalCuentas)}</p>
+              </div>
+            )}
             <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-2.5">
               <p className="text-[11px] text-red-700 uppercase">Gastos acumulados</p>
               <p className="text-lg font-bold text-red-800">{formatCOP(gastosAcumulado)}</p>

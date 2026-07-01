@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getSesion } from '@/lib/auth/acceso'
-import { MetodoPago, METODO_PAGO_LABELS, labelMetodo, metodosDeSede } from '@/types'
+import { MetodoPago, METODO_PAGO_LABELS, labelMetodo, metodosDeSede, cuentasAcumuladoAsesor } from '@/types'
 import { hoyBogota } from '@/lib/utils/format'
 
 // Efectivo acumulado que DEBE haber en la caja de cada sede:
@@ -105,14 +105,16 @@ export async function getSaldosCuentas(filtroSedeCodigo?: string): Promise<Saldo
     .order('orden')
 
   if (sid) {
-    // Vista de una sede: solo las cuentas DE DINERO REAL que esa sede usa.
-    //   - tipos con saldo propio (efectivo/nequi/bancolombia/daviplata);
-    //     se excluyen financieras (addi, sistecrédito), datáfono (bold) y crédito,
-    //     que se liquidan aparte y no son plata que la sede tenga.
-    //   - métodos de la sede (metodosDeSede): así Santa Rosa solo ve su efectivo
-    //     y Nequi Luisa, no las cuentas de otras sedes/del dueño.
+    // Vista de una sede. Solo cuentas de DINERO REAL (efectivo/nequi/bancolombia/
+    // daviplata); se excluyen financieras (addi, sistecrédito), datáfono (bold)
+    // y crédito, que se liquidan aparte.
     const sedeCodigo = codigoPorId.get(sid) ?? undefined
-    const metodos = metodosDeSede(sedeCodigo)
+    // - Admin: todas las cuentas que usa la sede (ve el acumulado de todo).
+    // - Asesor: su efectivo + solo las cuentas cuyo acumulado tiene permitido ver
+    //   (Santa Rosa: Nequi Luisa; Bucaramanga/Cúcuta: ninguna → solo efectivo).
+    const metodos = esAdmin
+      ? metodosDeSede(sedeCodigo)
+      : ['efectivo' as MetodoPago, ...cuentasAcumuladoAsesor(sedeCodigo)]
     qc = qc
       .or(`sede_id.eq.${sid},sede_id.is.null`)
       .in('tipo', ['efectivo', 'nequi', 'bancolombia', 'daviplata'])

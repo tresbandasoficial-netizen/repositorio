@@ -114,6 +114,19 @@ export function metodosDeSede(sedeCodigo?: string | null): MetodoPago[] {
   return METODOS_PAGO
 }
 
+// Cuentas (métodos electrónicos) cuyo SALDO ACUMULADO puede ver un asesor de la
+// sede en el cuadre. El efectivo de su sede siempre lo ve; el acumulado de las
+// demás cuentas es solo para admin (a menos que la cuenta sea "de la sede").
+//   - Santa Rosa: la asesora maneja Nequi Luisa → puede ver su acumulado.
+//   - Bucaramanga / Cúcuta: las cuentas son del dueño → acumulado solo admin.
+export const CUENTAS_ACUMULADO_ASESOR: Record<string, MetodoPago[]> = {
+  SR: ['nequi_luisa'],
+}
+
+export function cuentasAcumuladoAsesor(sedeCodigo?: string | null): MetodoPago[] {
+  return (sedeCodigo && CUENTAS_ACUMULADO_ASESOR[sedeCodigo]) || []
+}
+
 // El efectivo se muestra con el nombre de la caja de su sede (ej: en Santa Rosa
 // aparece "Efectivo Santa Rosa", no solo "Efectivo").
 const EFECTIVO_LABEL_POR_SEDE: Record<string, string> = {
