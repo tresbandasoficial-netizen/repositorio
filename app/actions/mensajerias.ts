@@ -181,6 +181,37 @@ export async function liquidarMensajeriaAction(
   return { ok: true }
 }
 
+// ─── Liquidar mensajería POR DÍA ──────────────────────────────────────────────
+
+export type LiquidarDiaInput = {
+  mensajeria: TipoMensajeria
+  fecha: string
+  monto: number
+  cuenta_id: string | null
+  notas: string
+}
+
+export async function liquidarMensajeriaDiaAction(data: LiquidarDiaInput): Promise<LiquidarResult> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'No autenticado' }
+
+  const { error } = await supabase.rpc('liquidar_mensajeria_dia', {
+    p_mensajeria:     data.mensajeria,
+    p_fecha:          data.fecha,
+    p_monto:          data.monto,
+    p_cuenta_id:      data.cuenta_id || null,
+    p_responsable_id: user.id,
+    p_notas:          data.notas.trim() || null,
+  })
+
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/mensajerias')
+  revalidatePath('/flujo-caja')
+  return { ok: true }
+}
+
 // ─── Legacy (conservado para compatibilidad) ──────────────────────────────────
 
 export type RegistrarPagoMensajeriaInput = {

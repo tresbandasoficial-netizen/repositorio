@@ -3,7 +3,7 @@
 import { Fragment, useState, useTransition } from 'react'
 import { formatCOP } from '@/lib/utils/format'
 import { TipoMensajeria, MENSAJERIA_LABELS, Cuenta } from '@/types'
-import { liquidarMensajeriaAction } from '@/app/actions/mensajerias'
+import { liquidarMensajeriaAction, liquidarMensajeriaDiaAction } from '@/app/actions/mensajerias'
 import type {
   CuadreMensajeria,
   RecaudoPendiente,
@@ -30,6 +30,7 @@ export function MensajeriasClientPage({
   const [activa, setActiva] = useState<TipoMensajeria>(activaMensajeria)
   const [mostrarLiquidar, setMostrarLiquidar] = useState(false)
   const [diaAbierto, setDiaAbierto] = useState<string | null>(null)
+  const [diaLiquidando, setDiaLiquidando] = useState<string | null>(null)
   const [form, setForm] = useState({ monto: '', fecha: hoy(), cuenta_id: '', notas: '' })
   const [error, setError] = useState<string | null>(null)
   const [isPending, start] = useTransition()
@@ -62,6 +63,7 @@ export function MensajeriasClientPage({
 
   function abrirLiquidar() {
     setError(null)
+    setDiaLiquidando(null)
     setForm({
       monto: Math.abs(cuadreActivo.saldo_neto).toString(),
       fecha: hoy(),
@@ -71,21 +73,27 @@ export function MensajeriasClientPage({
     setMostrarLiquidar(true)
   }
 
+  function abrirLiquidarDia(fecha: string, neto: number) {
+    setError(null)
+    setDiaLiquidando(fecha)
+    setForm({ monto: Math.abs(neto).toString(), fecha, cuenta_id: '', notas: `Cuadre del día ${fecha}` })
+    setMostrarLiquidar(true)
+    // Llevar el panel a la vista
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   function handleLiquidar() {
     setError(null)
     const monto = parseInt(form.monto.replace(/\D/g, ''), 10)
     if (!monto || monto <= 0) { setError('Ingresa el monto liquidado'); return }
 
     start(async () => {
-      const r = await liquidarMensajeriaAction({
-        mensajeria: activa,
-        monto,
-        fecha:     form.fecha,
-        cuenta_id: form.cuenta_id || null,
-        notas:     form.notas,
-      })
+      const r = diaLiquidando
+        ? await liquidarMensajeriaDiaAction({ mensajeria: activa, fecha: diaLiquidando, monto, cuenta_id: form.cuenta_id || null, notas: form.notas })
+        : await liquidarMensajeriaAction({ mensajeria: activa, monto, fecha: form.fecha, cuenta_id: form.cuenta_id || null, notas: form.notas })
       if (!r.ok) { setError(r.error); return }
       setMostrarLiquidar(false)
+      setDiaLiquidando(null)
       setForm({ monto: '', fecha: hoy(), cuenta_id: '', notas: '' })
       window.location.reload()
     })
@@ -174,10 +182,14 @@ export function MensajeriasClientPage({
         <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
           <div>
             <h2 className="font-semibold text-gray-900">
-              Liquidar cuadre con {MENSAJERIA_LABELS[activa]}
+              {diaLiquidando
+                ? `Liquidar el día ${diaLiquidando} con ${MENSAJERIA_LABELS[activa]}`
+                : `Liquidar cuadre con ${MENSAJERIA_LABELS[activa]}`}
             </h2>
             <p className="text-sm text-gray-500 mt-1">
-              {cuadreActivo.saldo_neto > 0
+              {diaLiquidando
+                ? 'Se liquidan solo los recaudos y domicilios de ese día.'
+                : cuadreActivo.saldo_neto > 0
                 ? `${MENSAJERIA_LABELS[activa]} te entrega el neto y quedan en cero.`
                 : cuadreActivo.saldo_neto < 0
                 ? `TB le paga a ${MENSAJERIA_LABELS[activa]} el neto y quedan en cero.`
@@ -262,7 +274,7 @@ export function MensajeriasClientPage({
               {isPending ? 'Liquidando...' : 'Confirmar liquidación'}
             </button>
             <button
-              onClick={() => setMostrarLiquidar(false)}
+              onClick={() => { setMostrarLiquidar(false); setDiaLiquidando(null) }}
               className="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-600 hover:bg-gray-50"
             >
               Cancelar
@@ -314,32 +326,51 @@ export function MensajeriasClientPage({
                     {abierto && (
                       <tr className="bg-gray-50/60">
                         <td colSpan={4} className="px-5 py-3">
-                          {recDia.length > 0 && (
-                            <div className="mb-2">
-                              <p className="text-[11px] uppercase text-gray-400 font-semibold mb-1">Recaudos cobrados</p>
-                              <ul className="space-y-1">
-                                {recDia.map(r => (
-                                  <li key={r.id} className="flex justify-between gap-3 text-xs">
-                                    <span className="text-gray-600 truncate">{r.cliente_nombre ?? 'Cliente'}{r.numero_factura ? ` · Fac. ${r.numero_factura}` : ''}</span>
-                                    <span className="text-green-700 font-medium whitespace-nowrap">{formatCOP(r.monto)}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                          {domDia.length > 0 && (
-                            <div>
-                              <p className="text-[11px] uppercase text-gray-400 font-semibold mb-1">Domicilios asumidos por TB</p>
-                              <ul className="space-y-1">
-                                {domDia.map(x => (
-                                  <li key={x.id} className="flex justify-between gap-3 text-xs">
-                                    <span className="text-gray-600 truncate">{x.cliente_nombre ?? x.notas ?? 'Domicilio'}{x.numero_factura ? ` · Fac. ${x.numero_factura}` : ''}</span>
-                                    <span className="text-orange-600 font-medium whitespace-nowrap">{formatCOP(x.monto)}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {/* Recuadro: recaudos cobrados */}
+                            {recDia.length > 0 && (
+                              <div className="rounded-lg border border-green-200 bg-white overflow-hidden">
+                                <div className="px-3 py-2 bg-green-50 border-b border-green-100 flex justify-between">
+                                  <p className="text-[11px] uppercase text-green-700 font-semibold">Recaudos cobrados</p>
+                                  <p className="text-[11px] font-bold text-green-700">{formatCOP(d.recaudos)}</p>
+                                </div>
+                                <ul className="divide-y divide-gray-50">
+                                  {recDia.map(r => (
+                                    <li key={r.id} className="px-3 py-2 flex justify-between gap-3 text-xs">
+                                      <span className="text-gray-700 truncate">{r.cliente_nombre ?? 'Cliente'}{r.numero_factura ? ` · Fac. ${r.numero_factura}` : ''}</span>
+                                      <span className="text-green-700 font-semibold whitespace-nowrap">{formatCOP(r.monto)}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            {/* Recuadro: domicilios asumidos por TB */}
+                            {domDia.length > 0 && (
+                              <div className="rounded-lg border border-orange-200 bg-white overflow-hidden">
+                                <div className="px-3 py-2 bg-orange-50 border-b border-orange-100 flex justify-between">
+                                  <p className="text-[11px] uppercase text-orange-700 font-semibold">Domicilios asumidos por TB</p>
+                                  <p className="text-[11px] font-bold text-orange-600">{formatCOP(d.domicilios)}</p>
+                                </div>
+                                <ul className="divide-y divide-gray-50">
+                                  {domDia.map(x => (
+                                    <li key={x.id} className="px-3 py-2 flex justify-between gap-3 text-xs">
+                                      <span className="text-gray-700 truncate">{x.cliente_nombre ?? x.notas ?? 'Domicilio'}{x.numero_factura ? ` · Fac. ${x.numero_factura}` : ''}</span>
+                                      <span className="text-orange-600 font-semibold whitespace-nowrap">{formatCOP(x.monto)}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                          <div className="mt-3 flex items-center justify-end gap-3">
+                            <span className="text-xs text-gray-500">Neto del día: <span className={`font-bold ${d.neto >= 0 ? 'text-green-700' : 'text-orange-600'}`}>{formatCOP(d.neto)}</span></span>
+                            <button
+                              onClick={() => abrirLiquidarDia(d.fecha, d.neto)}
+                              className="px-3 py-1.5 rounded-lg bg-gray-900 text-white text-xs font-medium hover:bg-gray-700 transition-colors"
+                            >
+                              Liquidar este día
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     )}
