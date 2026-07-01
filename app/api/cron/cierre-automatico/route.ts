@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { hoyBogota } from '@/lib/utils/format'
+import { getCuadreDia } from '@/lib/queries/domicilios'
 
 // Cierre automático de caja a las 9:00 p.m. (hora Colombia).
 // Para cada sede que NO cerró caja hoy, crea el cierre con el snapshot del día.
@@ -98,5 +99,28 @@ export async function GET(req: NextRequest) {
     if (!error) creadas++
   }
 
-  return NextResponse.json({ cerradas: creadas })
+  // ── Cierre automático del cuadre de DOMICILIOS del día (uno por día) ────────
+  // Solo si hubo domicilios y no está ya cerrado. Así queda el registro diario
+  // aunque nadie lo cierre manualmente.
+  let domiciliosCerrados = 0
+  const { data: yaDom } = await supabase
+    .from('cuadres_domicilios').select('fecha').eq('fecha', hoy).maybeSingle()
+  if (!yaDom) {
+    try {
+      const cuadre = await getCuadreDia(hoy, supabase)
+      if (cuadre.total_domicilios > 0) {
+        const { error: errDom } = await supabase.from('cuadres_domicilios').insert({
+          fecha:       hoy,
+          cerrado_por: admin.id,
+          total_neto:  cuadre.total_neto,
+          resumen:     { automatico: true, por_mensajeria: cuadre.por_mensajeria, total_domicilios: cuadre.total_domicilios },
+        })
+        if (!errDom) domiciliosCerrados = 1
+      }
+    } catch (e) {
+      console.error('Cierre automático de domicilios falló:', e)
+    }
+  }
+
+  return NextResponse.json({ cerradas: creadas, domicilios: domiciliosCerrados })
 }

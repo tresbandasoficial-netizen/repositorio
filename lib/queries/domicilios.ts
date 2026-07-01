@@ -1,3 +1,4 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 
 export type DomicilioRow = {
@@ -53,8 +54,8 @@ export type CuadreDia = {
   por_asesor: { asesor_nombre: string; total: number; valor: number }[]
 }
 
-export async function getDomiciliosPorFecha(fecha: string): Promise<DomicilioRow[]> {
-  const supabase = await createClient()
+export async function getDomiciliosPorFecha(fecha: string, client?: SupabaseClient): Promise<DomicilioRow[]> {
+  const supabase = client ?? await createClient()
 
   const { data, error } = await supabase
     .from('domicilios')
@@ -105,8 +106,8 @@ function resumirMensajerias(domicilios: Array<{
   })
 }
 
-export async function getCuadreDia(fecha: string): Promise<CuadreDia> {
-  const domicilios = await getDomiciliosPorFecha(fecha)
+export async function getCuadreDia(fecha: string, client?: SupabaseClient): Promise<CuadreDia> {
+  const domicilios = await getDomiciliosPorFecha(fecha, client)
 
   const por_mensajeria = resumirMensajerias(domicilios)
 
