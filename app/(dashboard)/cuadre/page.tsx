@@ -108,7 +108,7 @@ export default async function CuadrePage({
       {/* Dinero recogido (del día) y acumulado (total) por cuenta.
           Hoy = lo que entró en el rango. Total = base + hoy (acumulado). */}
       {cuentasVisibles.length > 0 && (
-        <div className="mt-6 rounded-xl border border-gray-200 bg-white p-5">
+        <div className="mt-6 rounded-2xl border border-gray-100 shadow-sm bg-white p-5">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
               <p className="text-xs text-gray-500 uppercase font-semibold tracking-wide">Dinero por cuenta</p>
@@ -165,7 +165,7 @@ export default async function CuadrePage({
 
       {/* Detalle de gastos del rango (cada gasto, no solo el total) */}
       {cuadre.gastosDetalle.length > 0 && (
-        <div className="mt-6 rounded-xl border border-red-200 bg-white overflow-hidden">
+        <div className="mt-6 rounded-2xl border border-red-100 shadow-sm bg-white overflow-hidden">
           <div className="px-5 py-3 border-b border-red-100 bg-red-50/60 flex items-center justify-between">
             <p className="text-sm font-semibold text-red-800">
               Gastos {desde === hasta ? 'del día' : 'del rango'} <span className="text-xs text-red-500">({cuadre.gastosDetalle.length})</span>
@@ -208,20 +208,20 @@ export default async function CuadrePage({
 
       {/* Totales generales */}
       <div className={`grid grid-cols-2 ${esAdmin ? 'md:grid-cols-5' : 'md:grid-cols-3'} gap-3 mb-6`}>
-        <div className="bg-white rounded-xl border border-gray-100 p-4">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
           <p className="text-xs text-gray-500 uppercase">Vendido</p>
           <p className="text-base font-bold text-gray-900 mt-1">{formatCOP(cuadre.totalVendido)}</p>
         </div>
-        <div className="bg-white rounded-xl border border-gray-100 p-4">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
           <p className="text-xs text-gray-500 uppercase">Recaudado en caja</p>
           <p className="text-base font-bold text-green-600 mt-1">{formatCOP(cuadre.totalRecaudadoCaja)}</p>
         </div>
-        <div className="bg-white rounded-xl border border-gray-100 p-4">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
           <p className="text-xs text-gray-500 uppercase">Por cobrar mensajería</p>
           <p className="text-base font-bold text-amber-600 mt-1">{formatCOP(cuadre.totalPorCobrarMensajeria)}</p>
         </div>
         {esAdmin && (
-          <div className="bg-white rounded-xl border border-gray-100 p-4">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
             <p className="text-xs text-gray-500 uppercase">Gastos</p>
             <p className="text-base font-bold text-red-600 mt-1">{formatCOP(cuadre.totalGastos)}</p>
           </div>
@@ -239,7 +239,7 @@ export default async function CuadrePage({
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {cuadre.sedes.map(s => (
-            <div key={s.sede_codigo} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div key={s.sede_codigo} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
                 <p className="text-sm font-semibold text-gray-900">
                   {s.sede_nombre} <span className="text-xs text-gray-400">({s.sede_codigo})</span>
@@ -284,7 +284,7 @@ export default async function CuadrePage({
 
       {/* Por asesor */}
       {cuadre.porAsesor.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mt-4">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mt-5">
           <div className="px-5 py-3 border-b border-gray-100">
             <p className="text-sm font-semibold text-gray-900">Recaudo en caja por asesor</p>
           </div>
@@ -297,7 +297,7 @@ export default async function CuadrePage({
             </thead>
             <tbody className="divide-y divide-gray-50">
               {cuadre.porAsesor.map(a => (
-                <tr key={a.asesor_id}>
+                <tr key={a.asesor_id} className="hover:bg-gray-50/60">
                   <td className="px-5 py-2.5 text-gray-800">{a.asesor_nombre}</td>
                   <td className="px-5 py-2.5 text-right font-semibold text-gray-900">{formatCOP(a.recaudadoCaja)}</td>
                 </tr>
@@ -308,7 +308,7 @@ export default async function CuadrePage({
       )}
 
       {/* Facturas emitidas en el rango */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mt-4">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mt-5">
         <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
           <p className="text-sm font-semibold text-gray-900">
             Facturas emitidas <span className="text-xs text-gray-400">({cuadre.facturas.length})</span>
@@ -332,7 +332,7 @@ export default async function CuadrePage({
             </thead>
             <tbody className="divide-y divide-gray-50">
               {cuadre.facturas.map(f => (
-                <tr key={f.numero_factura}>
+                <tr key={f.numero_factura} className="hover:bg-gray-50/60">
                   <td className="px-5 py-2 font-mono text-gray-900">{f.numero_factura}</td>
                   <td className="px-3 py-2 text-gray-700">{f.cliente_nombre}</td>
                   {multiSede && <td className="px-3 py-2 text-gray-500">{f.sede_codigo}</td>}
@@ -352,7 +352,7 @@ export default async function CuadrePage({
       </div>
 
       {/* Pedidos (encargos) creados en el rango */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mt-4">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mt-5">
         <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
           <p className="text-sm font-semibold text-gray-900">
             Pedidos vendidos <span className="text-xs text-gray-400">({cuadre.pedidos.length})</span>
@@ -375,7 +375,7 @@ export default async function CuadrePage({
             </thead>
             <tbody className="divide-y divide-gray-50">
               {cuadre.pedidos.map(p => (
-                <tr key={p.numero_orden}>
+                <tr key={p.numero_orden} className="hover:bg-gray-50/60">
                   <td className="px-5 py-2 font-mono text-gray-900">{p.numero_orden}</td>
                   <td className="px-3 py-2 text-gray-700">{p.cliente_nombre}</td>
                   {multiSede && <td className="px-3 py-2 text-gray-500">{p.sede_codigo}</td>}
