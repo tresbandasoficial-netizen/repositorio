@@ -29,7 +29,14 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   const pathname = request.nextUrl.pathname
-  const isPublicPath = pathname === '/login' || pathname.startsWith('/_next') || pathname.startsWith('/api/auth')
+  // /api/cron/* se protege por su cuenta con CRON_SECRET (Bearer). No debe pasar
+  // por la sesión: los llama Vercel Cron sin cookie, y el middleware lo mandaría
+  // a /login, impidiendo que el cierre automático y las alertas se ejecuten.
+  const isPublicPath =
+    pathname === '/login' ||
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/api/auth') ||
+    pathname.startsWith('/api/cron')
 
   if (!user && !isPublicPath) {
     const url = request.nextUrl.clone()
