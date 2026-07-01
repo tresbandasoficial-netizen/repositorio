@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { Fragment, useState, useTransition } from 'react'
 import { formatCOP } from '@/lib/utils/format'
 import { TipoMensajeria, MENSAJERIA_LABELS, Cuenta } from '@/types'
 import { liquidarMensajeriaAction } from '@/app/actions/mensajerias'
@@ -29,6 +29,7 @@ export function MensajeriasClientPage({
 }: Props) {
   const [activa, setActiva] = useState<TipoMensajeria>(activaMensajeria)
   const [mostrarLiquidar, setMostrarLiquidar] = useState(false)
+  const [diaAbierto, setDiaAbierto] = useState<string | null>(null)
   const [form, setForm] = useState({ monto: '', fecha: hoy(), cuenta_id: '', notas: '' })
   const [error, setError] = useState<string | null>(null)
   const [isPending, start] = useTransition()
@@ -295,14 +296,56 @@ export function MensajeriasClientPage({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {porDia.map(d => (
-                <tr key={d.fecha} className="hover:bg-gray-50">
-                  <td className="px-5 py-2.5 text-gray-700">{d.fecha}</td>
-                  <td className="px-4 py-2.5 text-right text-green-700">{d.recaudos ? formatCOP(d.recaudos) : '—'}</td>
-                  <td className="px-4 py-2.5 text-right text-orange-600">{d.domicilios ? formatCOP(d.domicilios) : '—'}</td>
-                  <td className={`px-5 py-2.5 text-right font-bold ${d.neto >= 0 ? 'text-green-700' : 'text-orange-600'}`}>{formatCOP(d.neto)}</td>
-                </tr>
-              ))}
+              {porDia.map(d => {
+                const abierto = diaAbierto === d.fecha
+                const recDia = recaudos.filter(r => r.fecha === d.fecha)
+                const domDia = domiciliosTB.filter(x => x.fecha === d.fecha)
+                return (
+                  <Fragment key={d.fecha}>
+                    <tr className="hover:bg-gray-50 cursor-pointer" onClick={() => setDiaAbierto(abierto ? null : d.fecha)}>
+                      <td className="px-5 py-2.5 text-gray-700">
+                        <span className="text-gray-400 mr-1 inline-block w-3">{abierto ? '▾' : '▸'}</span>
+                        {d.fecha}
+                      </td>
+                      <td className="px-4 py-2.5 text-right text-green-700">{d.recaudos ? formatCOP(d.recaudos) : '—'}</td>
+                      <td className="px-4 py-2.5 text-right text-orange-600">{d.domicilios ? formatCOP(d.domicilios) : '—'}</td>
+                      <td className={`px-5 py-2.5 text-right font-bold ${d.neto >= 0 ? 'text-green-700' : 'text-orange-600'}`}>{formatCOP(d.neto)}</td>
+                    </tr>
+                    {abierto && (
+                      <tr className="bg-gray-50/60">
+                        <td colSpan={4} className="px-5 py-3">
+                          {recDia.length > 0 && (
+                            <div className="mb-2">
+                              <p className="text-[11px] uppercase text-gray-400 font-semibold mb-1">Recaudos cobrados</p>
+                              <ul className="space-y-1">
+                                {recDia.map(r => (
+                                  <li key={r.id} className="flex justify-between gap-3 text-xs">
+                                    <span className="text-gray-600 truncate">{r.cliente_nombre ?? 'Cliente'}{r.numero_factura ? ` · Fac. ${r.numero_factura}` : ''}</span>
+                                    <span className="text-green-700 font-medium whitespace-nowrap">{formatCOP(r.monto)}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {domDia.length > 0 && (
+                            <div>
+                              <p className="text-[11px] uppercase text-gray-400 font-semibold mb-1">Domicilios asumidos por TB</p>
+                              <ul className="space-y-1">
+                                {domDia.map(x => (
+                                  <li key={x.id} className="flex justify-between gap-3 text-xs">
+                                    <span className="text-gray-600 truncate">{x.cliente_nombre ?? x.notas ?? 'Domicilio'}{x.numero_factura ? ` · Fac. ${x.numero_factura}` : ''}</span>
+                                    <span className="text-orange-600 font-medium whitespace-nowrap">{formatCOP(x.monto)}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                )
+              })}
             </tbody>
             <tfoot className="border-t-2 border-gray-200 bg-gray-50">
               <tr>
