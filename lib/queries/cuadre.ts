@@ -82,12 +82,19 @@ export type SaldoCuenta = {
   tipo: string
   sede_codigo: string | null   // null = cuenta global (no es de una sede)
   es_efectivo: boolean
-  saldo: number
+  hoy: number       // recogido en el período (lo que entró por ventas)
+  total: number     // acumulado = base + hoy (saldo inicial + ingresos − egresos)
+  verTotal: boolean // si el usuario puede ver el acumulado de ESTA cuenta
 }
 
-export async function getSaldosCuentas(filtroSedeCodigo?: string): Promise<SaldoCuenta[]> {
+export async function getSaldosCuentas(
+  filtroSedeCodigo?: string,
+  rango?: { desde: string; hasta: string },
+): Promise<SaldoCuenta[]> {
   const admin = createAdminClient()
   const sesion = await getSesion()
+  const desde = rango?.desde ?? hoyBogota()
+  const hasta = rango?.hasta ?? hoyBogota()
 
   const { data: sedesRaw } = await admin.from('sedes').select('id, codigo')
   const sedes = (sedesRaw ?? []) as Array<{ id: string; codigo: string }>
@@ -96,6 +103,11 @@ export async function getSaldosCuentas(filtroSedeCodigo?: string): Promise<Saldo
   const esAdmin = sesion.rol === 'admin'
   const sedeForzadaId = !esAdmin && sesion.sede_id ? sesion.sede_id : null
   const sid = sedeForzadaId ?? (filtroSedeCodigo ? sedes.find(s => s.codigo === filtroSedeCodigo)?.id ?? null : null)
+  const sedeCodigoView = sid ? codigoPorId.get(sid) ?? undefined : undefined
+
+  // Cuentas cuyo ACUMULADO puede ver el asesor: su efectivo + las permitidas de
+  // su sede (SR: Nequi Luisa). El admin ve el total de todas.
+  const permitidasTotal = new Set<string>(esAdmin ? [] : cuentasAcumuladoAsesor(sedeCodigoView))
 
   let qc = admin
     .from('cuentas')
@@ -106,19 +118,12 @@ export async function getSaldosCuentas(filtroSedeCodigo?: string): Promise<Saldo
 
   if (sid) {
     // Vista de una sede. Solo cuentas de DINERO REAL (efectivo/nequi/bancolombia/
-    // daviplata); se excluyen financieras (addi, sistecrédito), datáfono (bold)
-    // y crédito, que se liquidan aparte.
-    const sedeCodigo = codigoPorId.get(sid) ?? undefined
-    // - Admin: todas las cuentas que usa la sede (ve el acumulado de todo).
-    // - Asesor: su efectivo + solo las cuentas cuyo acumulado tiene permitido ver
-    //   (Santa Rosa: Nequi Luisa; Bucaramanga/Cúcuta: ninguna → solo efectivo).
-    const metodos = esAdmin
-      ? metodosDeSede(sedeCodigo)
-      : ['efectivo' as MetodoPago, ...cuentasAcumuladoAsesor(sedeCodigo)]
+    // daviplata) que esa sede usa; se excluyen financieras (addi, sistecrédito),
+    // datáfono (bold) y crédito, que se liquidan aparte.
     qc = qc
       .or(`sede_id.eq.${sid},sede_id.is.null`)
       .in('tipo', ['efectivo', 'nequi', 'bancolombia', 'daviplata'])
-      .in('metodo_pago', metodos)
+      .in('metodo_pago', metodosDeSede(sedeCodigoView))
   } else {
     // Vista consolidada (admin, todas las sedes): todas las cuentas de dinero real.
     qc = qc.neq('tipo', 'credito')
@@ -144,24 +149,31 @@ export async function getSaldosCuentas(filtroSedeCodigo?: string): Promise<Saldo
   const pm     = (pmR.data     ?? []) as Array<{ cuenta_id: string | null; monto: number; fecha: string }>
   const tr     = (trR.data     ?? []) as Array<{ origen_cuenta_id: string | null; destino_cuenta_id: string; monto: number; fecha: string }>
 
+  const enRango = (f: string) => f >= desde && f <= hasta
+
   return cuentas.map(c => {
     const corte = c.fecha_corte || hoyBogota()
-    let ing = 0, eg = 0
-    for (const p of pagos)  if (p.cuenta_id === c.id && p.fecha >= corte) ing += p.monto
-    for (const p of pf)     if (p.cuenta_id === c.id && p.fecha >= corte) ing += p.monto
+    let ing = 0, eg = 0, hoy = 0
+    for (const p of pagos)  if (p.cuenta_id === c.id && p.fecha >= corte) { ing += p.monto; if (enRango(p.fecha)) hoy += p.monto }
+    for (const p of pf)     if (p.cuenta_id === c.id && p.fecha >= corte) { ing += p.monto; if (enRango(p.fecha)) hoy += p.monto }
     for (const p of pm)     if (p.cuenta_id === c.id && p.fecha >= corte) ing += p.monto
     for (const t of tr)     if (t.destino_cuenta_id === c.id && t.fecha >= corte) ing += t.monto
     for (const g of gastos) if (g.cuenta_id === c.id && g.fecha >= corte) eg += g.valor
     for (const t of tr)     if (t.origen_cuenta_id === c.id && t.fecha >= corte) eg += t.monto
+    const es_efectivo = c.metodo_pago === 'efectivo'
     return {
       cuenta_id: c.id,
       nombre: c.nombre,
       tipo: c.tipo,
       sede_codigo: c.sede_id ? codigoPorId.get(c.sede_id) ?? null : null,
-      es_efectivo: c.metodo_pago === 'efectivo',
-      saldo: c.saldo_inicial + ing - eg,
+      es_efectivo,
+      hoy,
+      total: c.saldo_inicial + ing - eg,
+      verTotal: esAdmin || es_efectivo || permitidasTotal.has(c.metodo_pago ?? ''),
     }
   })
+  // El filtrado (qué cuentas mostrar) se hace en la página: efectivo siempre,
+  // más las que tuvieron movimiento hoy o cuyo total es visible y no es cero.
 }
 
 // Total de gastos ACUMULADO (todos los días), no solo el del rango. El asesor
