@@ -39,6 +39,17 @@ export function MensajeriasClientPage({
 
   const hayPendientes = cuadreActivo.recaudos_pendientes > 0 || cuadreActivo.domicilios_tb > 0
 
+  // Desglose día por día: por cada fecha, lo que el mensajero nos debe (recaudos
+  // que cobró) menos lo que TB le debe (domicilios asumidos) = neto del día.
+  const porDia = (() => {
+    const m = new Map<string, { recaudos: number; domicilios: number }>()
+    for (const r of recaudos)     { const e = m.get(r.fecha) ?? { recaudos: 0, domicilios: 0 }; e.recaudos   += r.monto; m.set(r.fecha, e) }
+    for (const d of domiciliosTB) { const e = m.get(d.fecha) ?? { recaudos: 0, domicilios: 0 }; e.domicilios += d.monto; m.set(d.fecha, e) }
+    return [...m.entries()]
+      .map(([fecha, v]) => ({ fecha, recaudos: v.recaudos, domicilios: v.domicilios, neto: v.recaudos - v.domicilios }))
+      .sort((a, b) => b.fecha.localeCompare(a.fecha))
+  })()
+
   function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })) }
 
   function cambiarMensajeria(m: TipoMensajeria) {
@@ -264,6 +275,44 @@ export function MensajeriasClientPage({
         <div className="bg-green-50 rounded-xl border border-green-100 p-6 text-center">
           <p className="text-green-800 font-medium">Cuadre al día con {MENSAJERIA_LABELS[activa]}</p>
           <p className="text-green-600 text-sm mt-1">No hay recaudos ni domicilios pendientes</p>
+        </div>
+      )}
+
+      {/* Lo que nos deben por día */}
+      {porDia.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-5 py-3 border-b border-gray-100">
+            <p className="text-sm font-semibold text-gray-900">Lo que nos deben por día</p>
+            <p className="text-xs text-gray-400">Recaudos cobrados − domicilios asumidos por TB</p>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase">
+                <th className="text-left px-5 py-2">Fecha</th>
+                <th className="text-right px-4 py-2">Nos deben</th>
+                <th className="text-right px-4 py-2">Les debemos</th>
+                <th className="text-right px-5 py-2">Neto</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {porDia.map(d => (
+                <tr key={d.fecha} className="hover:bg-gray-50">
+                  <td className="px-5 py-2.5 text-gray-700">{d.fecha}</td>
+                  <td className="px-4 py-2.5 text-right text-green-700">{d.recaudos ? formatCOP(d.recaudos) : '—'}</td>
+                  <td className="px-4 py-2.5 text-right text-orange-600">{d.domicilios ? formatCOP(d.domicilios) : '—'}</td>
+                  <td className={`px-5 py-2.5 text-right font-bold ${d.neto >= 0 ? 'text-green-700' : 'text-orange-600'}`}>{formatCOP(d.neto)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot className="border-t-2 border-gray-200 bg-gray-50">
+              <tr>
+                <td className="px-5 py-2.5 text-xs font-semibold text-gray-600 uppercase">Total</td>
+                <td className="px-4 py-2.5 text-right font-bold text-green-700">{formatCOP(porDia.reduce((s, d) => s + d.recaudos, 0))}</td>
+                <td className="px-4 py-2.5 text-right font-bold text-orange-600">{formatCOP(porDia.reduce((s, d) => s + d.domicilios, 0))}</td>
+                <td className="px-5 py-2.5 text-right font-bold text-gray-900">{formatCOP(porDia.reduce((s, d) => s + d.neto, 0))}</td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
       )}
 
