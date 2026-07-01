@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment, useState, useTransition } from 'react'
+import Link from 'next/link'
 import { formatCOP } from '@/lib/utils/format'
 import { requiereConfirmacion } from '@/types'
 import type { CuadreMetodo } from '@/lib/queries/cuadre'
@@ -77,23 +78,28 @@ export function MetodosCuadre({ metodos }: { metodos: CuadreMetodo[] }) {
                 return (
                   <tr key={m.metodo + '-' + i} className={`text-xs ${ok ? 'bg-green-50' : 'bg-gray-50/60'}`}>
                     <td className="px-5 py-1.5 pl-10">
-                      {confirmable ? (
-                        <label className="flex items-center gap-2 cursor-pointer">
+                      <span className="flex items-center gap-2">
+                        {confirmable && (
                           <input
                             type="checkbox"
                             checked={ok}
                             onChange={() => toggle(d.id, d.origen)}
-                            className="w-4 h-4 accent-green-600"
+                            className="w-4 h-4 accent-green-600 cursor-pointer"
+                            title="Confirmar que el dinero entró"
                           />
+                        )}
+                        {d.origen === 'cartera' ? (
+                          <Link
+                            href={`/facturacion/n/${encodeURIComponent(d.referencia)}`}
+                            className={`font-mono hover:underline ${ok ? 'text-green-700 font-medium' : 'text-blue-600'}`}
+                          >
+                            {d.referencia}
+                          </Link>
+                        ) : (
                           <span className={`font-mono ${ok ? 'text-green-700 font-medium' : 'text-gray-600'}`}>{d.referencia}</span>
-                          <span className="text-gray-400">{ORIGEN_LABEL[d.origen] ?? d.origen}</span>
-                        </label>
-                      ) : (
-                        <span>
-                          <span className="font-mono text-gray-600">{d.referencia}</span>
-                          <span className="text-gray-400 ml-2">{ORIGEN_LABEL[d.origen] ?? d.origen}</span>
-                        </span>
-                      )}
+                        )}
+                        <span className="text-gray-400">{ORIGEN_LABEL[d.origen] ?? d.origen}</span>
+                      </span>
                     </td>
                     <td className={`px-5 py-1.5 text-right ${ok ? 'text-green-700 font-medium' : 'text-gray-700'}`}>{formatCOP(d.monto)}</td>
                   </tr>

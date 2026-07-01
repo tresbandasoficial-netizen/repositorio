@@ -94,11 +94,28 @@ export default async function FacturaDetallePage({
         </div>
         <div className="divide-y divide-gray-50">
           {factura.pedidos.map(p => (
-            <div key={p.id} className="px-5 py-3 flex items-center justify-between">
-              <Link href={`/pedidos/${p.id}`} className="font-mono text-sm text-blue-600 hover:underline">
-                {p.numero_orden}
-              </Link>
-              <span className="text-sm font-medium text-gray-700">{formatCOP(p.total)}</span>
+            <div key={p.id} className="px-5 py-3">
+              <div className="flex items-center justify-between">
+                <Link href={`/pedidos/${p.id}`} className="font-mono text-sm text-blue-600 hover:underline">
+                  {p.numero_orden}
+                </Link>
+                <span className="text-sm font-medium text-gray-700">{formatCOP(p.total)}</span>
+              </div>
+              {/* Artículos del pedido */}
+              {p.items.length > 0 && (
+                <ul className="mt-2 space-y-1 border-l-2 border-gray-100 pl-3">
+                  {p.items.map((it, i) => (
+                    <li key={i} className="flex items-center justify-between gap-3 text-xs">
+                      <span className="text-gray-600 truncate">
+                        {it.codigo && <span className="font-mono text-gray-400">{it.codigo} · </span>}
+                        {[it.descripcion, it.marca, it.talla, it.color].filter(Boolean).join(' · ')}
+                        {it.cantidad > 1 && <span className="text-gray-400"> ×{it.cantidad}</span>}
+                      </span>
+                      <span className="text-gray-500 whitespace-nowrap">{formatCOP(it.precio_venta * it.cantidad)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           ))}
         </div>

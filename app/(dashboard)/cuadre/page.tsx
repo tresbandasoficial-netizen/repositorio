@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { getCuadre, getSaldosCuentas, getGastosAcumulado, type SaldoCuenta } from '@/lib/queries/cuadre'
 import { getSesion } from '@/lib/auth/acceso'
 import { createClient } from '@/lib/supabase/server'
@@ -333,7 +334,11 @@ export default async function CuadrePage({
             <tbody className="divide-y divide-gray-50">
               {cuadre.facturas.map(f => (
                 <tr key={f.numero_factura} className="hover:bg-gray-50/60">
-                  <td className="px-5 py-2 font-mono text-gray-900">{f.numero_factura}</td>
+                  <td className="px-5 py-2 font-mono">
+                    <Link href={`/facturacion/n/${encodeURIComponent(f.numero_factura)}`} className="text-blue-600 hover:underline">
+                      {f.numero_factura}
+                    </Link>
+                  </td>
                   <td className="px-3 py-2 text-gray-700">{f.cliente_nombre}</td>
                   {multiSede && <td className="px-3 py-2 text-gray-500">{f.sede_codigo}</td>}
                   <td className="px-3 py-2 text-gray-600 text-xs">{f.metodos}</td>

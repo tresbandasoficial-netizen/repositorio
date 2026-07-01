@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment, useState, useTransition } from 'react'
+import Link from 'next/link'
 import { formatCOP } from '@/lib/utils/format'
 import { TipoMensajeria, MENSAJERIA_LABELS, Cuenta } from '@/types'
 import { liquidarMensajeriaAction, liquidarMensajeriaDiaAction } from '@/app/actions/mensajerias'
@@ -12,6 +13,15 @@ import type {
 } from '@/app/actions/mensajerias'
 
 function hoy() { return new Date().toISOString().slice(0, 10) }
+
+// Enlace a una factura por su número (lleva al detalle con sus artículos).
+function FacLink({ numero }: { numero: string }) {
+  return (
+    <Link href={`/facturacion/n/${encodeURIComponent(numero)}`} className="text-blue-600 hover:underline" onClick={e => e.stopPropagation()}>
+      Fac. {numero}
+    </Link>
+  )
+}
 
 const MENSAJERIAS: TipoMensajeria[] = ['exneider', 'servigo']
 
@@ -337,7 +347,7 @@ export function MensajeriasClientPage({
                                 <ul className="divide-y divide-gray-50">
                                   {recDia.map(r => (
                                     <li key={r.id} className="px-3 py-2 flex justify-between gap-3 text-xs">
-                                      <span className="text-gray-700 truncate">{r.cliente_nombre ?? 'Cliente'}{r.numero_factura ? ` · Fac. ${r.numero_factura}` : ''}</span>
+                                      <span className="text-gray-700 truncate">{r.cliente_nombre ?? 'Cliente'}{r.numero_factura && <> · <FacLink numero={r.numero_factura} /></>}</span>
                                       <span className="text-green-700 font-semibold whitespace-nowrap">{formatCOP(r.monto)}</span>
                                     </li>
                                   ))}
@@ -354,7 +364,7 @@ export function MensajeriasClientPage({
                                 <ul className="divide-y divide-gray-50">
                                   {domDia.map(x => (
                                     <li key={x.id} className="px-3 py-2 flex justify-between gap-3 text-xs">
-                                      <span className="text-gray-700 truncate">{x.cliente_nombre ?? x.notas ?? 'Domicilio'}{x.numero_factura ? ` · Fac. ${x.numero_factura}` : ''}</span>
+                                      <span className="text-gray-700 truncate">{x.cliente_nombre ?? x.notas ?? 'Domicilio'}{x.numero_factura && <> · <FacLink numero={x.numero_factura} /></>}</span>
                                       <span className="text-orange-600 font-semibold whitespace-nowrap">{formatCOP(x.monto)}</span>
                                     </li>
                                   ))}
@@ -404,7 +414,7 @@ export function MensajeriasClientPage({
                   <p className="text-sm font-medium text-gray-800 truncate">
                     {r.cliente_nombre ?? 'Cliente'}
                     {r.numero_factura && (
-                      <span className="ml-2 text-xs text-gray-400">· Fac. {r.numero_factura}</span>
+                      <span className="ml-2 text-xs">· <FacLink numero={r.numero_factura} /></span>
                     )}
                   </p>
                   <p className="text-xs text-gray-400">{r.fecha}</p>
@@ -430,7 +440,7 @@ export function MensajeriasClientPage({
                   <p className="text-sm font-medium text-gray-800 truncate">
                     {d.cliente_nombre ?? d.notas ?? 'Domicilio'}
                     {d.numero_factura && (
-                      <span className="ml-2 text-xs text-gray-400">· Fac. {d.numero_factura}</span>
+                      <span className="ml-2 text-xs">· <FacLink numero={d.numero_factura} /></span>
                     )}
                   </p>
                   <p className="text-xs text-gray-400">
