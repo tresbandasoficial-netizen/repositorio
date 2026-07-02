@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { formatCOP } from '@/lib/utils/format'
+import { formatCOP, formatHora } from '@/lib/utils/format'
 import {
   Gasto, Cuenta, CategoriaGasto, CATEGORIA_GASTO_LABELS, CATEGORIAS_GASTO,
 } from '@/types'
@@ -246,7 +246,10 @@ export function GastosClientPage({ gastos, cuentas, sedes, sedeRestringida, esAd
               <tbody className="divide-y divide-gray-50">
                 {gastos.map(g => (
                   <tr key={g.id} className="hover:bg-gray-50">
-                    <td className="px-5 py-2.5 text-gray-600 whitespace-nowrap">{g.fecha}</td>
+                    <td className="px-5 py-2.5 text-gray-600 whitespace-nowrap">
+                      {g.fecha}
+                      <span className="block text-xs text-gray-400">{formatHora(g.creado_en)}</span>
+                    </td>
                     <td className="px-3 py-2.5 text-gray-800 font-medium">{CATEGORIA_GASTO_LABELS[g.categoria]}</td>
                     <td className="px-3 py-2.5 text-gray-500">{(g.sede as any)?.codigo ?? '—'}</td>
                     <td className="px-3 py-2.5 text-gray-500">{(g.cuenta as any)?.nombre ?? '—'}</td>

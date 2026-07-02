@@ -25,7 +25,7 @@ function getInitials(name: string) {
 }
 
 function formatHora(iso: string) {
-  return new Intl.DateTimeFormat('es-CO', { hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(iso))
+  return new Intl.DateTimeFormat('es-CO', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Bogota' }).format(new Date(iso))
 }
 
 interface Props {

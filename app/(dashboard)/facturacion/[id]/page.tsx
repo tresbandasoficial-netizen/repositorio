@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getFacturaDetalle } from '@/lib/queries/facturas'
 import { getSesion } from '@/lib/auth/acceso'
-import { formatCOP, formatFecha } from '@/lib/utils/format'
+import { formatCOP, formatFecha, formatFechaHora } from '@/lib/utils/format'
 import { Badge } from '@/components/ui/Badge'
 import { ESTADO_FACTURA_LABELS, ESTADO_FACTURA_COLORES } from '@/types'
 import { RegistrarPagoFacturaForm } from '@/components/facturacion/RegistrarPagoFacturaForm'
@@ -30,6 +30,9 @@ export default async function FacturaDetallePage({
           <h1 className="text-xl font-bold text-gray-900 font-mono">{factura.numero_factura}</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {factura.cliente_nombre} · {factura.cliente_telefono}
+          </p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            Creada el {formatFechaHora(factura.creado_en)} · {factura.asesor_nombre}
           </p>
         </div>
         <Badge className={ESTADO_FACTURA_COLORES[factura.estado]}>{ESTADO_FACTURA_LABELS[factura.estado]}</Badge>

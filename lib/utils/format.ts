@@ -14,10 +14,17 @@ export function formatCOP(value: number): string {
 }
 
 export function formatFecha(iso: string): string {
+  // Fechas sin hora ('YYYY-MM-DD') se muestran tal cual: convertirlas de zona
+  // las correría un día (new Date las interpreta como medianoche UTC).
+  const soloFecha = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (soloFecha) return `${soloFecha[3]}/${soloFecha[2]}/${soloFecha[1]}`
+  // timeZone explícito: el servidor corre en UTC y sin esto las fechas
+  // renderizadas en servidor pueden salir corridas.
   return new Intl.DateTimeFormat('es-CO', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
+    timeZone: 'America/Bogota',
   }).format(new Date(iso))
 }
 
@@ -26,8 +33,19 @@ export function formatFechaHora(iso: string): string {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
-    hour: '2-digit',
+    hour: 'numeric',
     minute: '2-digit',
+    hour12: true,
+    timeZone: 'America/Bogota',
+  }).format(new Date(iso))
+}
+
+export function formatHora(iso: string): string {
+  return new Intl.DateTimeFormat('es-CO', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'America/Bogota',
   }).format(new Date(iso))
 }
 

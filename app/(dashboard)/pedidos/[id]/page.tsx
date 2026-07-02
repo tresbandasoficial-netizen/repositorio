@@ -369,11 +369,11 @@ export default async function PedidoDetallePage({
               )}
               <div className="flex justify-between">
                 <span className="text-gray-500">Creado</span>
-                <span className="text-gray-700">{formatFecha(pedido.fecha_creacion)}</span>
+                <span className="text-gray-700">{formatFechaHora(pedido.fecha_creacion)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Actualizado</span>
-                <span className="text-gray-700">{formatFecha(pedido.fecha_actualizacion)}</span>
+                <span className="text-gray-700">{formatFechaHora(pedido.fecha_actualizacion)}</span>
               </div>
             </CardContent>
           </Card>

@@ -4,7 +4,7 @@ import { useState, useTransition, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { PedidoRow } from '@/lib/queries/pedidos'
 import { EstadoBadge } from './EstadoBadge'
-import { formatCOP, formatFecha } from '@/lib/utils/format'
+import { formatCOP, formatFecha, formatHora } from '@/lib/utils/format'
 import { formatearTelefono } from '@/lib/utils/phone'
 import { ChevronRight, Loader2 } from 'lucide-react'
 import { EstadoPedido, ESTADO_LABELS, ESTADO_COLORES } from '@/types'
@@ -189,6 +189,7 @@ export function PedidoCard({ pedido, esAdmin }: PedidoCardProps) {
         )}
         <div className="w-24 shrink-0 text-right hidden lg:block">
           <p className="text-xs text-gray-400">{formatFecha(pedido.fecha_creacion)}</p>
+          <p className="text-xs text-gray-400">{formatHora(pedido.fecha_creacion)}</p>
         </div>
         <ChevronRight size={14} className="text-gray-300 ml-1 shrink-0" />
       </div>

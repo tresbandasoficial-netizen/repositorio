@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getFacturas } from '@/lib/queries/facturas'
 import { getResumenCxC } from '@/lib/queries/facturas'
-import { formatCOP, formatFecha } from '@/lib/utils/format'
+import { formatCOP, formatFecha, formatFechaHora } from '@/lib/utils/format'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { ESTADO_FACTURA_LABELS, ESTADO_FACTURA_COLORES, EstadoFactura, METODO_PAGO_LABELS, MetodoPago } from '@/types'
@@ -137,6 +137,7 @@ export default async function FacturacionPage({
                     {f.numeros_orden.length > 0 && (
                       <span className="block text-gray-400 mt-0.5">{f.numeros_orden.join(', ')}</span>
                     )}
+                    <span className="block text-gray-400 mt-0.5">{formatFechaHora(f.creado_en)}</span>
                   </td>
                   <td className="px-4 py-4">
                     <Link href={`/clientes/${f.cliente_id}`} className="font-medium text-gray-900 hover:text-blue-600 hover:underline">
