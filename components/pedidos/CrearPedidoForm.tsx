@@ -305,6 +305,11 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
       return
     }
     if (form.productos.find(p => !p.descripcion.trim())) { setErrorAccion('Todos los artículos deben tener nombre'); return }
+    const idxSinCodigo = form.productos.findIndex(p => !(p as any).articulo_id)
+    if (idxSinCodigo !== -1) {
+      setErrorAccion(`El artículo ${idxSinCodigo + 1} no tiene código de producto. Escribe el código y selecciónalo del catálogo, o guárdalo como artículo nuevo.`)
+      return
+    }
 
     const total = form.productos.reduce((s, p) => s + p.precio_venta * p.cantidad, 0)
     const abonosValidos = abonos.filter(a => a.monto > 0)

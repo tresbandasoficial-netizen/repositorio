@@ -59,6 +59,15 @@ async function _crearPedidoConDatos(
   const telefonoNormalizado = normalizarTelefono(datos.cliente_telefono)
   if (!telefonoNormalizado) return { ok: false, error: 'Teléfono del cliente inválido' }
 
+  // Todo artículo debe venir vinculado al catálogo (código de producto).
+  const productoSinCodigo = datos.productos.find(p => !(p as any).articulo_id)
+  if (productoSinCodigo) {
+    return {
+      ok: false,
+      error: `El artículo "${productoSinCodigo.descripcion || 'sin nombre'}" no tiene código de producto. Selecciónalo del catálogo antes de crear el pedido.`,
+    }
+  }
+
   const { data: clienteExistente } = await supabase
     .from('clientes')
     .select('id, nombre, cedula')
