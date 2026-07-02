@@ -42,7 +42,7 @@ export default async function AsistentePage() {
           Revisa pedidos pendientes, recibe alertas y haz preguntas en lenguaje natural
         </p>
       </div>
-      <AsistenteCliente />
+      <AsistenteCliente rol={usuario.rol} />
     </div>
   )
 }

@@ -30,7 +30,7 @@ function BotIcon() {
   )
 }
 
-export function AsistenteCliente() {
+export function AsistenteCliente({ rol }: { rol: string }) {
   const [tab, setTab] = useState<'resumen' | 'alertas' | 'chat' | 'factura'>('resumen')
   const [resumen, setResumen] = useState('')
   const [alertas, setAlertas] = useState('')
@@ -72,12 +72,13 @@ export function AsistenteCliente() {
     })
   }
 
-  const TABS = [
+  // La tab de facturas de proveedor expone costos de compra: solo admin.
+  const TABS = ([
     { key: 'resumen',  label: '📊 Resumen' },
     { key: 'alertas', label: '⚠️ Alertas' },
     { key: 'chat',    label: '💬 Chat' },
     { key: 'factura', label: '📄 Factura' },
-  ] as const
+  ] as const).filter(t => t.key !== 'factura' || rol === 'admin')
 
   return (
     <div className="max-w-3xl mx-auto space-y-4">
