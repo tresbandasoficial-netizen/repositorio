@@ -29,6 +29,18 @@ export type ArticuloResult =
 
 export async function crearArticuloAction(data: CrearArticuloInput): Promise<ArticuloResult> {
   await soloAdmin()
+  return _crearArticulo(data)
+}
+
+// Permite a cualquier asesor guardar artículos al catálogo desde pedidos/ventas
+export async function guardarArticuloCatalogoAction(data: CrearArticuloInput): Promise<ArticuloResult> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'No autenticado' }
+  return _crearArticulo(data)
+}
+
+async function _crearArticulo(data: CrearArticuloInput): Promise<ArticuloResult> {
   const supabase = await createClient()
 
   const nombre = data.nombre.trim()
@@ -37,7 +49,6 @@ export async function crearArticuloAction(data: CrearArticuloInput): Promise<Art
 
   if (!nombre || !marca) return { ok: false, error: 'Marca y nombre son obligatorios' }
 
-  // Si enviaron código, intentar encontrar por código primero.
   if (codigo) {
     const { data: existente } = await supabase
       .from('articulos')
@@ -64,7 +75,6 @@ export async function crearArticuloAction(data: CrearArticuloInput): Promise<Art
 
   if (error) {
     if (error.code === '23505') {
-      // Ya existe con misma marca+nombre+color+sexo.
       const { data: existente } = await supabase
         .from('articulos')
         .select('id')

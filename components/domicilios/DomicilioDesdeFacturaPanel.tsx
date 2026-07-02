@@ -4,26 +4,39 @@ import { useState, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { crearDomicilioAction } from '@/app/actions/domicilios'
 import { buscarDireccionPorTelefonoAction } from '@/app/actions/clientes'
+import { buildMensajeMensajeria, buildLineaExcel } from './parsearDomicilio'
+import { formatCOP, hoyBogota } from '@/lib/utils/format'
 
 const inputCls = 'w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
+
+const WA_NUMEROS: Record<string, string> = {
+  exneider: '573166579773',
+  servigo:  '573232501670',
+}
 
 interface Props {
   clienteNombre: string
   clienteTelefono: string
-  numeroFactura: string     // ej. FAC-TR-2026-0001
-  numerosOrden: string[]    // ej. ['TR5946', 'TR5947']
+  numeroFactura: string
+  numerosOrden: string[]
+  asesorNombre?: string
+  facturaId?: string
+  saldo?: number
 }
 
 export function DomicilioDesdeFacturaPanel({
-  clienteNombre, clienteTelefono, numeroFactura, numerosOrden,
+  clienteNombre, clienteTelefono, numeroFactura, numerosOrden, asesorNombre = '',
+  facturaId, saldo = 0,
 }: Props) {
   const router = useRouter()
   const [abierto, setAbierto] = useState(false)
   const [isPending, start] = useTransition()
   const [ok, setOk] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [copiado, setCopiado] = useState<'msg' | 'excel' | null>(null)
+  const [cobrarSaldo, setCobrarSaldo] = useState(false)
 
-  const hoy = new Date().toISOString().slice(0, 10)
+  const hoy = hoyBogota()
   const articuloSugerido = numerosOrden.join(' + ')
 
   const [form, setForm] = useState({
@@ -48,6 +61,11 @@ export function DomicilioDesdeFacturaPanel({
     setForm(f => ({ ...f, [k]: v }))
   }
 
+  function toggleCobrarSaldo(checked: boolean) {
+    setCobrarSaldo(checked)
+    setForm(f => ({ ...f, valor_pedido: checked ? String(saldo) : '' }))
+  }
+
   function submit() {
     if (!form.mensajeria) { setError('Selecciona la mensajería'); return }
     if (!form.direccion.trim()) { setError('La dirección es obligatoria'); return }
@@ -59,14 +77,17 @@ export function DomicilioDesdeFacturaPanel({
         cliente_nombre:    clienteNombre,
         cliente_telefono:  clienteTelefono,
         direccion:         form.direccion,
-        mensajeria:        form.mensajeria as 'exneider' | 'servigo',
+        mensajeria:        form.mensajeria as any,
+        tipo_cobro:        form.cobrar_al_cliente ? 'mensajero' : 'tb_cobra',
         cobrar_al_cliente: form.cobrar_al_cliente,
-        metodo_pago:       form.metodo_pago,
+        metodo_pago:       'efectivo',
         valor_pedido:      parseInt(form.valor_pedido) || 0,
         valor_domicilio:   parseInt(form.valor_domicilio) || 0,
+        cuenta_id:         null,
         articulo:          form.articulo,
         numero_pedido:     numeroFactura,
         notas:             form.notas,
+        factura_id:        cobrarSaldo && facturaId ? facturaId : null,
       })
       if (!r.ok) { setError(r.error); return }
       setOk(true)
@@ -87,13 +108,78 @@ export function DomicilioDesdeFacturaPanel({
   }
 
   if (ok) {
+    const hoy = hoyBogota()
+    const dataDomi = {
+      fecha:             hoy,
+      mensajeria:        form.mensajeria as 'exneider' | 'servigo',
+      cliente_nombre:    clienteNombre,
+      cliente_telefono:  clienteTelefono || null,
+      direccion:         form.direccion,
+      valor_pedido:      parseInt(form.valor_pedido) || 0,
+      valor_domicilio:   parseInt(form.valor_domicilio) || 0,
+      cobrar_al_cliente: form.cobrar_al_cliente,
+      metodo_pago:       form.metodo_pago,
+      articulo:          form.articulo || null,
+      numero_pedido:     numeroFactura,
+      notas:             form.notas || null,
+      asesor_nombre:     asesorNombre,
+    }
+
+    function copiar(tipo: 'msg' | 'excel') {
+      const texto = tipo === 'msg'
+        ? buildMensajeMensajeria(dataDomi as any)
+        : buildLineaExcel(dataDomi as any)
+      navigator.clipboard.writeText(texto).then(() => {
+        setCopiado(tipo)
+        setTimeout(() => setCopiado(null), 2000)
+      })
+    }
+
+    function abrirWhatsApp() {
+      const msg = encodeURIComponent(buildMensajeMensajeria(dataDomi as any))
+      const num = WA_NUMEROS[form.mensajeria] ?? ''
+      if (num) window.open(`https://wa.me/${num}?text=${msg}`, '_blank')
+    }
+
     return (
-      <div className="bg-green-50 border border-green-200 rounded-xl p-5">
-        <p className="text-sm font-semibold text-green-800">Domicilio creado</p>
-        <p className="text-sm text-green-700 mt-0.5">
-          Quedó registrado para {clienteNombre}.{' '}
-          <a href="/domicilios" className="underline font-medium">Ver domicilios →</a>
-        </p>
+      <div className="bg-green-50 border border-green-200 rounded-xl p-5 space-y-3">
+        <div>
+          <p className="text-sm font-semibold text-green-800">✓ Domicilio creado</p>
+          <p className="text-xs text-green-600 mt-0.5">
+            Registrado para {clienteNombre}.{' '}
+            <a href="/domicilios" className="underline font-medium">Ver domicilios →</a>
+          </p>
+          {cobrarSaldo && (
+            <p className="text-xs text-amber-700 mt-1">
+              Abono de {formatCOP(saldo)} registrado en la factura. El mensajero debe entregar ese dinero a TB.
+            </p>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {form.mensajeria && (
+            <button
+              type="button"
+              onClick={abrirWhatsApp}
+              className="text-xs px-3 py-1.5 rounded-lg bg-green-500 hover:bg-green-600 text-white font-medium transition-colors"
+            >
+              WA {form.mensajeria.charAt(0).toUpperCase() + form.mensajeria.slice(1)}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => copiar('msg')}
+            className="text-xs px-3 py-1.5 rounded-lg border border-green-300 bg-white hover:bg-green-50 text-green-800 font-medium transition-colors"
+          >
+            {copiado === 'msg' ? '✓ Copiado' : '📋 Copiar mensaje domicilio'}
+          </button>
+          <button
+            type="button"
+            onClick={() => copiar('excel')}
+            className="text-xs px-3 py-1.5 rounded-lg border border-green-300 bg-white hover:bg-green-50 text-green-800 font-medium transition-colors"
+          >
+            {copiado === 'excel' ? '✓ Copiado' : 'Línea Excel'}
+          </button>
+        </div>
       </div>
     )
   }
@@ -120,6 +206,28 @@ export function DomicilioDesdeFacturaPanel({
           <p className="text-sm font-mono text-gray-700">{numeroFactura}</p>
         </div>
       </div>
+
+      {/* Saldo pendiente: el mensajero lo cobra */}
+      {saldo > 0 && facturaId && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={cobrarSaldo}
+              onChange={e => toggleCobrarSaldo(e.target.checked)}
+              className="w-4 h-4 accent-amber-600"
+            />
+            <span className="text-sm font-medium text-amber-900">
+              El mensajero cobra el saldo pendiente ({formatCOP(saldo)})
+            </span>
+          </label>
+          {cobrarSaldo && (
+            <p className="text-xs text-amber-700 mt-1.5 ml-6">
+              Se registrará como abono en la factura y como deuda del mensajero con TB.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Dirección */}
       <div>
@@ -161,33 +269,23 @@ export function DomicilioDesdeFacturaPanel({
         </div>
       </div>
 
-      {/* Método de pago del pedido */}
-      <div>
-        <label className="block text-xs text-gray-500 mb-1.5">Método de pago del pedido</label>
-        <div className="flex gap-2">
-          <button type="button" onClick={() => campo('metodo_pago', 'efectivo')}
-            className={`flex-1 py-1.5 rounded-lg border text-sm font-medium ${form.metodo_pago === 'efectivo' ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400'}`}>
-            Efectivo
-          </button>
-          <button type="button" onClick={() => campo('metodo_pago', 'transferencia')}
-            className={`flex-1 py-1.5 rounded-lg border text-sm font-medium ${form.metodo_pago === 'transferencia' ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400'}`}>
-            Transferencia
-          </button>
-        </div>
-      </div>
-
       <div className="grid grid-cols-2 gap-3">
-        {/* Valor del pedido — solo si es efectivo */}
-        {form.metodo_pago === 'efectivo' && (
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Valor del pedido</label>
-            <input className={inputCls} inputMode="numeric" placeholder="0"
-              value={form.valor_pedido}
-              onChange={e => campo('valor_pedido', e.target.value.replace(/\D/g, ''))} />
-          </div>
-        )}
+        {/* Valor del pedido */}
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">
+            Valor del pedido {cobrarSaldo ? '(saldo factura)' : ''}
+          </label>
+          <input
+            className={inputCls}
+            inputMode="numeric"
+            placeholder="0"
+            value={form.valor_pedido}
+            readOnly={cobrarSaldo}
+            onChange={e => !cobrarSaldo && campo('valor_pedido', e.target.value.replace(/\D/g, ''))}
+          />
+        </div>
         {/* Valor del domicilio */}
-        <div className={form.metodo_pago === 'efectivo' ? '' : 'col-span-2'}>
+        <div>
           <label className={`block text-xs mb-1 ${!form.cobrar_al_cliente ? 'text-amber-600 font-medium' : 'text-gray-500'}`}>
             Valor del domicilio {!form.cobrar_al_cliente && '(lo pagamos nosotros)'}
           </label>

@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server'
 import { getCuadre } from '@/lib/queries/cuadre'
-import { METODO_PAGO_LABELS, MetodoPago } from '@/types'
 import { createClient } from '@/lib/supabase/server'
 
 function csvCell(value: string | number | null | undefined): string {
@@ -30,40 +29,41 @@ export async function GET(request: NextRequest) {
   }
 
   const lines: string[] = []
-  lines.push(`Cuadre de caja,${desde} a ${hasta}${sede ? ',Sede:,' + sede : ',Sede:,Consolidado'}`)
+  lines.push(`Cuadre de caja,${desde} a ${hasta}${sede ? ',Sede:,' + sede : ',Sede:,Todas'}`)
   lines.push('')
 
-  // Por método
-  lines.push('POR MÉTODO DE PAGO')
-  lines.push(['Método', 'Ventas', 'Abonos', 'Cartera', 'Total'].join(','))
-  for (const m of cuadre.porMetodo) {
-    lines.push([
-      csvCell(METODO_PAGO_LABELS[m.metodo as MetodoPago] ?? m.metodo),
-      fmt(m.venta), fmt(m.abono), fmt(m.cartera), fmt(m.total),
-    ].join(','))
-  }
-  lines.push(['Total', fmt(cuadre.totalVenta), fmt(cuadre.totalAbono), fmt(cuadre.totalCartera), fmt(cuadre.totalGeneral)].join(','))
-  lines.push('')
-
-  // Por asesor
-  lines.push('POR ASESOR')
-  lines.push(['Asesor', 'Ventas', 'Abonos', 'Cartera', 'Total'].join(','))
-  for (const a of cuadre.porAsesor) {
-    lines.push([csvCell(a.asesor_nombre), fmt(a.venta), fmt(a.abono), fmt(a.cartera), fmt(a.total)].join(','))
-  }
+  // Resumen general
+  lines.push('RESUMEN GENERAL')
+  lines.push(['Vendido', fmt(cuadre.totalVendido)].join(','))
+  lines.push(['Recaudado en caja', fmt(cuadre.totalRecaudadoCaja)].join(','))
+  lines.push(['Por cobrar mensajería', fmt(cuadre.totalPorCobrarMensajeria)].join(','))
+  lines.push(['A crédito', fmt(cuadre.totalCredito)].join(','))
+  lines.push(['Gastos', fmt(cuadre.totalGastos)].join(','))
+  lines.push(['Neto en caja', fmt(cuadre.totalNetoCaja)].join(','))
   lines.push('')
 
   // Por sede
-  if (cuadre.porSede.length > 1) {
-    lines.push('CONSOLIDADO POR SEDE')
-    lines.push(['Sede', 'Total'].join(','))
-    for (const s of cuadre.porSede) {
-      lines.push([csvCell(`${s.sede_nombre} (${s.sede_codigo})`), fmt(s.total)].join(','))
+  for (const s of cuadre.sedes) {
+    lines.push(`SEDE: ${csvCell(`${s.sede_nombre} (${s.sede_codigo})`)}`)
+    lines.push(['Vendido', fmt(s.vendido)].join(','))
+    lines.push(['Recaudado en caja', fmt(s.recaudadoCaja)].join(','))
+    lines.push(['Por cobrar mensajería', fmt(s.porCobrarMensajeria)].join(','))
+    lines.push(['A crédito', fmt(s.credito)].join(','))
+    lines.push(['Gastos', fmt(s.gastos)].join(','))
+    lines.push(['Neto en caja', fmt(s.netoCaja)].join(','))
+    lines.push(['Método', 'Recaudado'].join(','))
+    for (const m of s.porMetodo) {
+      lines.push([csvCell(m.label), fmt(m.monto)].join(','))
     }
     lines.push('')
   }
 
-  lines.push(['TOTAL RECAUDADO', fmt(cuadre.totalGeneral)].join(','))
+  // Por asesor
+  lines.push('RECAUDO EN CAJA POR ASESOR')
+  lines.push(['Asesor', 'Recaudado'].join(','))
+  for (const a of cuadre.porAsesor) {
+    lines.push([csvCell(a.asesor_nombre), fmt(a.recaudadoCaja)].join(','))
+  }
 
   const csv = '﻿' + lines.join('\n')
   return new Response(csv, {

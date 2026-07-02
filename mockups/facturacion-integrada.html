@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup · Facturación Integrada · Tres Bandas</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { background: #f3f4f6; }
+  .seg-active { background:#2563eb; color:#fff; }
+  .radio-card.active { border-color:#2563eb; background:#eff6ff; }
+  input[type=number]::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+</style>
+</head>
+<body class="text-gray-800">
+
+<div class="max-w-6xl mx-auto p-5">
+
+  <!-- Header -->
+  <div class="flex items-start justify-between gap-4 flex-wrap mb-5">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">Facturar</h1>
+      <p class="text-sm text-gray-500">Crea la factura, el domicilio y el recaudo en un solo paso</p>
+    </div>
+    <button onclick="emitir()" class="rounded-lg bg-blue-600 text-white px-4 py-2 text-sm font-semibold hover:bg-blue-700">
+      Emitir factura
+    </button>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+    <!-- ─── Columna izquierda ─── -->
+    <div class="lg:col-span-2 space-y-5">
+
+      <!-- Cliente (mock fijo) -->
+      <div class="bg-white rounded-xl border border-gray-100 p-5 flex items-center gap-4">
+        <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">👤</div>
+        <div class="flex-1">
+          <p class="text-[11px] font-semibold text-gray-400 uppercase">Cliente</p>
+          <p class="font-bold text-gray-900">Juana Pérez</p>
+          <p class="text-xs text-gray-500">320 555 1234 · TR</p>
+        </div>
+        <div class="border-l border-gray-100 pl-4">
+          <p class="text-[11px] font-semibold text-gray-400 uppercase">Pedido</p>
+          <p class="font-bold text-gray-900 font-mono">TR5946</p>
+        </div>
+      </div>
+
+      <!-- Productos (mock) -->
+      <div class="bg-white rounded-xl border border-gray-100 p-5">
+        <p class="text-sm font-bold text-gray-900 mb-3">Productos</p>
+        <div class="flex items-center justify-between text-sm py-2 border-b border-gray-50">
+          <span>Nike Air Max · Talla 40</span>
+          <span class="font-semibold">$100.000</span>
+        </div>
+      </div>
+
+      <!-- ════ TIPO DE ENTREGA ════ -->
+      <div class="bg-white rounded-xl border border-gray-100 p-5 space-y-4">
+        <p class="text-sm font-bold text-gray-900">Tipo de entrega</p>
+
+        <!-- Segmented control -->
+        <div class="grid grid-cols-3 gap-2 p-1 bg-gray-100 rounded-lg">
+          <button onclick="setEntrega('tienda')"  id="seg-tienda"   class="seg-active rounded-md py-2 text-sm font-medium transition">Recoge en tienda</button>
+          <button onclick="setEntrega('domicilio')" id="seg-domicilio" class="rounded-md py-2 text-sm font-medium transition">Domicilio</button>
+          <button onclick="setEntrega('envio')"    id="seg-envio"    class="rounded-md py-2 text-sm font-medium transition">Envío</button>
+        </div>
+
+        <!-- ── Panel DOMICILIO ── -->
+        <div id="panel-domicilio" class="hidden space-y-4 pt-1">
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Mensajería</label>
+              <select id="dom-mensajeria" onchange="recalcular()" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm">
+                <option value="servigo">Servigo</option>
+                <option value="exneider">Exneider</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Valor domicilio</label>
+              <input id="dom-valor" type="number" value="10000" oninput="recalcular()" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+            </div>
+          </div>
+          <div>
+            <p class="block text-xs text-gray-500 mb-2">¿Quién paga el domicilio?</p>
+            <div class="grid grid-cols-2 gap-2">
+              <label class="radio-card active border-2 rounded-lg p-3 cursor-pointer flex items-center gap-2" id="dompaga-cliente">
+                <input type="radio" name="dompaga" value="cliente" checked onchange="setDomPaga('cliente')" class="accent-blue-600">
+                <span class="text-sm">Cliente</span>
+              </label>
+              <label class="radio-card border-2 rounded-lg p-3 cursor-pointer flex items-center gap-2" id="dompaga-tb">
+                <input type="radio" name="dompaga" value="tb" onchange="setDomPaga('tb')" class="accent-blue-600">
+                <span class="text-sm">Tres Bandas</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Panel ENVÍO ── -->
+        <div id="panel-envio" class="hidden space-y-4 pt-1">
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Valor envío</label>
+            <input id="env-valor" type="number" value="15000" oninput="recalcular()" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <p class="block text-xs text-gray-500 mb-2">¿Quién paga el envío?</p>
+            <div class="grid grid-cols-3 gap-2">
+              <label class="radio-card active border-2 rounded-lg p-3 cursor-pointer flex flex-col items-center gap-1 text-center" id="envpaga-cliente">
+                <input type="radio" name="envpaga" value="cliente" checked onchange="setEnvPaga('cliente')" class="accent-blue-600">
+                <span class="text-xs">Cliente</span>
+              </label>
+              <label class="radio-card border-2 rounded-lg p-3 cursor-pointer flex flex-col items-center gap-1 text-center" id="envpaga-contra">
+                <input type="radio" name="envpaga" value="contra_entrega" onchange="setEnvPaga('contra_entrega')" class="accent-blue-600">
+                <span class="text-xs">Contra entrega</span>
+              </label>
+              <label class="radio-card border-2 rounded-lg p-3 cursor-pointer flex flex-col items-center gap-1 text-center" id="envpaga-tb">
+                <input type="radio" name="envpaga" value="tb" onchange="setEnvPaga('tb')" class="accent-blue-600">
+                <span class="text-xs">Tres Bandas</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── Columna derecha ─── -->
+    <div class="space-y-5">
+
+      <!-- Resumen -->
+      <div class="bg-white rounded-xl border border-gray-100 p-5 space-y-3">
+        <p class="text-sm font-bold text-gray-900">Resumen</p>
+        <div class="flex justify-between text-sm"><span class="text-gray-500">Subtotal</span><span class="font-medium">$100.000</span></div>
+        <div class="flex justify-between text-sm" id="row-entrega-cargo"><span class="text-gray-500" id="lbl-entrega-cargo">Entrega</span><span class="font-medium" id="val-entrega-cargo">$0</span></div>
+        <div class="flex justify-between pt-3 border-t border-gray-100">
+          <span class="text-sm font-bold">Total a facturar</span>
+          <span class="text-xl font-bold text-blue-600" id="total-factura">$100.000</span>
+        </div>
+      </div>
+
+      <!-- CUADRE MENSAJERÍA (en vivo) -->
+      <div id="card-cuadre" class="hidden bg-indigo-50/60 rounded-xl border border-indigo-100 p-5 space-y-3">
+        <p class="text-sm font-bold text-indigo-900 flex items-center gap-2">🚚 Cuadre mensajería</p>
+        <div class="flex justify-between text-sm"><span class="text-gray-600">Recaudo factura</span><span class="font-semibold" id="cu-recaudo">$0</span></div>
+        <div class="flex justify-between text-sm" id="cu-row-domcli"><span class="text-gray-600">+ Domicilio (cliente)</span><span class="font-semibold" id="cu-domcli">$0</span></div>
+        <div class="flex justify-between pt-2 border-t border-indigo-100">
+          <span class="text-sm font-bold text-indigo-900">El mensajero cobra</span>
+          <span class="text-lg font-bold text-indigo-700" id="cu-cobra">$0</span>
+        </div>
+        <div class="text-xs text-gray-600 bg-white rounded-lg p-3 space-y-1">
+          <p id="cu-debe-tb">Servigo debe a TB: <b>$0</b></p>
+          <p id="cu-tb-debe">TB debe a Servigo: <b>$0</b></p>
+        </div>
+      </div>
+
+      <!-- GASTO AUTO -->
+      <div id="card-gasto" class="hidden bg-amber-50 rounded-xl border border-amber-200 p-4">
+        <p class="text-sm font-bold text-amber-800 flex items-center gap-2">💸 Gasto automático</p>
+        <div class="flex justify-between text-sm mt-2">
+          <span class="text-gray-700" id="gasto-cat">Domicilio</span>
+          <span class="font-bold text-amber-700" id="gasto-val">$0</span>
+        </div>
+      </div>
+
+      <!-- IMPACTO FINANCIERO -->
+      <div class="bg-white rounded-xl border border-gray-100 p-5 space-y-2">
+        <p class="text-sm font-bold text-gray-900">Impacto financiero</p>
+        <div class="flex justify-between text-sm"><span class="text-gray-500">Ingreso</span><span class="font-medium text-green-600" id="imp-ingreso">$100.000</span></div>
+        <div class="flex justify-between text-sm"><span class="text-gray-500">Gasto</span><span class="font-medium text-red-600" id="imp-gasto">$0</span></div>
+        <div class="flex justify-between pt-2 border-t border-gray-100"><span class="text-sm font-bold">Margen neto</span><span class="font-bold" id="imp-neto">$100.000</span></div>
+      </div>
+
+      <button onclick="emitir()" class="w-full rounded-lg bg-blue-600 text-white py-3 text-sm font-semibold hover:bg-blue-700">
+        Emitir factura · <span id="btn-total">$100.000</span>
+      </button>
+
+      <!-- Resultado emisión -->
+      <div id="resultado" class="hidden bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-800 space-y-1"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const TOTAL = 100000;
+let entrega = 'tienda';
+let domPaga = 'cliente';
+let envPaga = 'cliente';
+
+const fmt = n => '$' + (n||0).toLocaleString('es-CO');
+const mensajeriaNombre = () => document.getElementById('dom-mensajeria').value === 'servigo' ? 'Servigo' : 'Exneider';
+
+function setEntrega(t){
+  entrega = t;
+  ['tienda','domicilio','envio'].forEach(k=>{
+    document.getElementById('seg-'+k).classList.toggle('seg-active', k===t);
+  });
+  document.getElementById('panel-domicilio').classList.toggle('hidden', t!=='domicilio');
+  document.getElementById('panel-envio').classList.toggle('hidden', t!=='envio');
+  recalcular();
+}
+
+function setDomPaga(v){
+  domPaga = v;
+  document.getElementById('dompaga-cliente').classList.toggle('active', v==='cliente');
+  document.getElementById('dompaga-tb').classList.toggle('active', v==='tb');
+  recalcular();
+}
+
+function setEnvPaga(v){
+  envPaga = v;
+  ['cliente','contra','tb'].forEach(k=>{
+    const val = k==='contra' ? 'contra_entrega' : k;
+    document.getElementById('envpaga-'+k).classList.toggle('active', val===v);
+  });
+  recalcular();
+}
+
+function recalcular(){
+  const domVal = parseInt(document.getElementById('dom-valor').value)||0;
+  const envVal = parseInt(document.getElementById('env-valor').value)||0;
+
+  let totalFactura = TOTAL;
+  let cargoEntregaLbl = 'Entrega', cargoEntrega = 0;
+  let ingreso = TOTAL, gasto = 0;
+  let mostrarCuadre=false, mostrarGasto=false;
+  let recaudo=0, domCli=0, cobra=0, debeTB=0, tbDebe=0;
+  let gastoCat='', gastoVal=0;
+
+  if(entrega==='domicilio'){
+    mostrarCuadre = true;
+    recaudo = TOTAL;
+    if(domPaga==='cliente'){
+      // cliente paga el domicilio → se suma a lo que cobra el mensajero
+      cargoEntregaLbl = 'Domicilio (cobra mensajero)';
+      cargoEntrega = 0; // no entra a la factura, lo cobra aparte el mensajero
+      domCli = domVal;
+      cobra = TOTAL + domVal;
+      debeTB = TOTAL;      // mensajería debe el recaudo a TB
+      tbDebe = 0;
+      ingreso = TOTAL; gasto = 0;
+    } else {
+      // TB paga el domicilio → gasto + deuda cruzada
+      cobra = TOTAL;
+      debeTB = TOTAL;
+      tbDebe = domVal;
+      mostrarGasto = true; gastoCat='Domicilio'; gastoVal=domVal;
+      ingreso = TOTAL; gasto = domVal;
+    }
+  } else if(entrega==='envio'){
+    if(envPaga==='cliente'){
+      cargoEntregaLbl='Envío'; cargoEntrega=envVal;
+      totalFactura = TOTAL + envVal;
+      mostrarGasto=true; gastoCat='Envío'; gastoVal=envVal;
+      ingreso = TOTAL+envVal; gasto = envVal;
+    } else if(envPaga==='tb'){
+      mostrarGasto=true; gastoCat='Envío'; gastoVal=envVal;
+      ingreso = TOTAL; gasto = envVal;
+    } else { // contra_entrega
+      ingreso = TOTAL; gasto = 0; // solo operativo
+    }
+  }
+
+  // Resumen
+  document.getElementById('lbl-entrega-cargo').textContent = cargoEntregaLbl;
+  document.getElementById('val-entrega-cargo').textContent = fmt(cargoEntrega);
+  document.getElementById('row-entrega-cargo').classList.toggle('hidden', cargoEntrega===0);
+  document.getElementById('total-factura').textContent = fmt(totalFactura);
+  document.getElementById('btn-total').textContent = fmt(totalFactura);
+
+  // Cuadre mensajería
+  document.getElementById('card-cuadre').classList.toggle('hidden', !mostrarCuadre);
+  if(mostrarCuadre){
+    const mn = mensajeriaNombre();
+    document.getElementById('cu-recaudo').textContent = fmt(recaudo);
+    document.getElementById('cu-row-domcli').classList.toggle('hidden', domCli===0);
+    document.getElementById('cu-domcli').textContent = fmt(domCli);
+    document.getElementById('cu-cobra').textContent = fmt(cobra);
+    document.getElementById('cu-debe-tb').innerHTML = `${mn} debe a TB: <b>${fmt(debeTB)}</b>`;
+    document.getElementById('cu-tb-debe').innerHTML = `TB debe a ${mn}: <b>${fmt(tbDebe)}</b>`;
+  }
+
+  // Gasto auto
+  document.getElementById('card-gasto').classList.toggle('hidden', !mostrarGasto);
+  if(mostrarGasto){
+    document.getElementById('gasto-cat').textContent = gastoCat;
+    document.getElementById('gasto-val').textContent = fmt(gastoVal);
+  }
+
+  // Impacto
+  document.getElementById('imp-ingreso').textContent = fmt(ingreso);
+  document.getElementById('imp-gasto').textContent = gasto>0 ? '-'+fmt(gasto) : '$0';
+  const neto = ingreso - gasto;
+  document.getElementById('imp-neto').textContent = fmt(neto);
+}
+
+function emitir(){
+  const r = document.getElementById('resultado');
+  r.classList.remove('hidden');
+  let lines = ['<b>✓ Factura creada</b>'];
+  if(entrega==='domicilio'){
+    const mn = mensajeriaNombre();
+    const domVal = parseInt(document.getElementById('dom-valor').value)||0;
+    lines.push('✓ Domicilio creado ('+mn+')');
+    if(domPaga==='cliente'){
+      lines.push('✓ Recaudo mensajería: '+fmt(TOTAL+domVal)+' (cobra el mensajero)');
+      lines.push('✓ '+mn+' debe a TB: '+fmt(TOTAL));
+    } else {
+      lines.push('✓ Recaudo mensajería: '+fmt(TOTAL));
+      lines.push('✓ Gasto domicilio creado: '+fmt(domVal));
+      lines.push('✓ TB debe a '+mn+': '+fmt(domVal));
+    }
+  } else if(entrega==='envio'){
+    const envVal = parseInt(document.getElementById('env-valor').value)||0;
+    if(envPaga==='cliente') lines.push('✓ Gasto envío: '+fmt(envVal)+' (cobrado al cliente)');
+    else if(envPaga==='tb') lines.push('✓ Gasto envío: '+fmt(envVal)+' (asume TB)');
+    else lines.push('✓ Envío contra entrega · solo registro operativo');
+  } else {
+    lines.push('✓ Entrega en tienda · sin domicilio');
+  }
+  lines.push('✓ Cuadre actualizado');
+  r.innerHTML = lines.join('<br>');
+  r.scrollIntoView({behavior:'smooth', block:'center'});
+}
+
+recalcular();
+</script>
+</body>
+</html>

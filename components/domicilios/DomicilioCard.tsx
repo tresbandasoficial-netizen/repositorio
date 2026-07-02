@@ -25,7 +25,7 @@ function getInitials(name: string) {
 }
 
 function formatHora(iso: string) {
-  return new Intl.DateTimeFormat('es-CO', { hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(iso))
+  return new Intl.DateTimeFormat('es-CO', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Bogota' }).format(new Date(iso))
 }
 
 interface Props {
@@ -41,8 +41,8 @@ export function DomicilioCard({ domicilio: d, isAdmin }: Props) {
 
   function copiar(tipo: 'msg' | 'excel') {
     const texto = tipo === 'msg'
-      ? buildMensajeMensajeria({ ...d, asesor_nombre: d.asesor_nombre })
-      : buildLineaExcel({ ...d, asesor_nombre: d.asesor_nombre })
+      ? buildMensajeMensajeria({ ...d, asesor_nombre: d.asesor_nombre } as any)
+      : buildLineaExcel({ ...d, asesor_nombre: d.asesor_nombre } as any)
     navigator.clipboard.writeText(texto).then(() => {
       setCopiado(tipo)
       setTimeout(() => setCopiado(null), 2000)
@@ -50,7 +50,7 @@ export function DomicilioCard({ domicilio: d, isAdmin }: Props) {
   }
 
   function abrirWhatsApp() {
-    const msg = encodeURIComponent(buildMensajeMensajeria({ ...d, asesor_nombre: d.asesor_nombre }))
+    const msg = encodeURIComponent(buildMensajeMensajeria({ ...d, asesor_nombre: d.asesor_nombre } as any))
     window.open(`https://wa.me/${WA_NUMEROS[d.mensajeria]}?text=${msg}`, '_blank')
   }
 

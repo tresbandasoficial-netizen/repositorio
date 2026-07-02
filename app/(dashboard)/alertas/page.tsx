@@ -95,7 +95,7 @@ export default async function AlertasPage() {
                       <span className="font-mono font-bold text-sm text-gray-900">{p.numero_orden}</span>
                       <EstadoBadge estado={p.estado as EstadoPedido} enAlerta={true} />
                     </div>
-                    <span className="text-xs text-blue-600 font-medium shrink-0">Ver →</span>
+                    <span className="inline-block px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg bg-white text-gray-700 shrink-0">Ver</span>
                   </div>
                   <p className="text-sm text-gray-700">{p.cliente_nombre}</p>
                   <p className="text-xs text-red-600 font-medium mt-0.5">{motivo}</p>
@@ -133,8 +133,11 @@ export default async function AlertasPage() {
                     </td>
                     <td className="px-4 py-3 text-gray-400 text-xs">{p.asesor_nombre}</td>
                     <td className="px-4 py-3 text-right">
-                      <Link href={`/pedidos/${p.id}`} className="text-xs text-blue-600 hover:text-blue-800 font-medium">
-                        Ver →
+                      <Link
+                        href={`/pedidos/${p.id}`}
+                        className="inline-block px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        Ver
                       </Link>
                     </td>
                   </tr>

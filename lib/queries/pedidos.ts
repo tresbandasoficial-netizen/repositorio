@@ -5,6 +5,7 @@ export type PedidoRow = {
   id: string
   numero_orden: string
   estado: EstadoPedido
+  tipo: 'pedido' | 'venta_inmediata'
   total: number
   total_pagado: number
   // en_alerta y es_zombie vienen calculados desde SQL (fuente de verdad)
@@ -24,6 +25,7 @@ export type PedidoRow = {
   asesor_id: string
   sede_id: string
   cliente_id: string
+  factura_id: string | null
 }
 
 export type PedidoDetalle = PedidoRow & {
@@ -44,6 +46,7 @@ export type PedidoDetalle = PedidoRow & {
     fecha: string
     notas: string | null
     asesor_nombre: string
+    origen?: 'pedido' | 'factura'   // 'factura' = abono hecho sobre la factura (venta local)
   }>
   historial: Array<{
     id: string
@@ -82,6 +85,7 @@ export async function getPedidos(filtros?: {
   let query = supabase
     .from('vista_pedidos_asesor')
     .select('*', { count: 'exact' })
+    .neq('tipo', 'venta_inmediata')
     .order('fecha_creacion', { ascending: false })
     .range(desde, hasta)
 
@@ -138,6 +142,7 @@ export async function getPedidoDetalle(id: string): Promise<PedidoDetalle | null
       .from('pagos')
       .select('id, monto, metodo, fecha, notas, usuarios(nombre)')
       .eq('pedido_id', id)
+      .eq('anulado', false)
       .order('fecha', { ascending: true }),
     supabase
       .from('historial_cambios')
@@ -178,7 +183,37 @@ export async function getPedidoDetalle(id: string): Promise<PedidoDetalle | null
     fecha: p.fecha,
     notas: p.notas,
     asesor_nombre: p.usuarios?.nombre ?? '',
+    origen: 'pedido' as 'pedido' | 'factura',
   }))
+
+  // Si el pedido está facturado (incluye ventas locales VL), los abonos viven en
+  // pagos_factura, no en pagos. Se traen para que el detalle muestre el pago real
+  // y el saldo no aparezca pendiente cuando la factura ya está pagada.
+  const facturaId = (pedidoData as { factura_id?: string | null }).factura_id ?? null
+  let pagosFactura: typeof pagos = []
+  if (facturaId) {
+    const { data: pf } = await supabase
+      .from('pagos_factura')
+      .select('id, monto, metodo, fecha, notas, usuarios(nombre)')
+      .eq('factura_id', facturaId)
+      .eq('anulado', false)
+      .order('fecha', { ascending: true })
+    pagosFactura = (pf ?? []).map((p: any) => ({
+      id: p.id,
+      monto: p.monto,
+      metodo: p.metodo,
+      fecha: p.fecha,
+      notas: p.notas,
+      asesor_nombre: p.usuarios?.nombre ?? '',
+      origen: 'factura' as 'pedido' | 'factura',
+    }))
+  }
+
+  const pagosTodos = [...pagos, ...pagosFactura]
+  // total pagado real = lo del pedido (vista) + abonos de la factura (sin crédito)
+  const totalPagadoReal =
+    (pedidoData.total_pagado ?? 0) +
+    pagosFactura.reduce((s, p) => s + (p.metodo !== 'credito' ? p.monto : 0), 0)
 
   const historial = (historialRes.data ?? []).map((h: any) => ({
     id: h.id,
@@ -191,9 +226,10 @@ export async function getPedidoDetalle(id: string): Promise<PedidoDetalle | null
 
   return {
     ...pedidoData,
+    total_pagado: totalPagadoReal,
     cliente_cedula: clienteData?.cedula ?? null,
     items: itemsData,
-    pagos,
+    pagos: pagosTodos,
     historial,
   }
 }
@@ -201,19 +237,25 @@ export async function getPedidoDetalle(id: string): Promise<PedidoDetalle | null
 export async function getSiguienteNumeroOrden(sedeCodigo: string): Promise<string> {
   const supabase = await createClient()
 
+  // Consecutivo COMPARTIDO entre sedes: el siguiente número es el más alto usado
+  // por cualquier sede + 1, así no se repiten números entre TR y SR (no quedan
+  // TR0001 y SR0001 a la vez). Se mira solo el bloque reciente para que un número
+  // viejo mal digitado (ej: TR59581) no dañe la sugerencia.
   const { data } = await supabase
     .from('pedidos')
     .select('numero_orden')
-    .ilike('numero_orden', `${sedeCodigo}%`)
-    .order('numero_orden', { ascending: false })
-    .limit(1)
+    .order('fecha_creacion', { ascending: false })
+    .limit(300)
 
-  if (!data || data.length === 0) return `${sedeCodigo}0001`
+  let max = 0
+  for (const p of (data ?? []) as Array<{ numero_orden: string }>) {
+    // Prefijo de 2 letras (TR/CR/SR) + número. Otros formatos (VL-…) se ignoran.
+    const m = /^[A-Za-z]{2}(\d+)$/.exec(p.numero_orden)
+    if (m) {
+      const n = parseInt(m[1], 10)
+      if (n > max) max = n
+    }
+  }
 
-  const ultimo = data[0].numero_orden
-  const prefixLen = sedeCodigo.length
-  const numPart = parseInt(ultimo.slice(prefixLen), 10)
-  const siguiente = isNaN(numPart) ? 1 : numPart + 1
-
-  return `${sedeCodigo}${siguiente}`
+  return `${sedeCodigo}${max + 1}`
 }

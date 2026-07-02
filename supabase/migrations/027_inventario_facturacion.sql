@@ -29,7 +29,7 @@ create table articulos (
   nombre    text not null,
   marca     text not null,
   talla     text,
-  categoria text check (categoria in ('tenis', 'ropa', 'accesorio', 'otro')),
+  categoria text check (categoria in ('ropa', 'tenis', 'accesorios')),
   activo    boolean not null default true,
   creado_en timestamptz not null default now()
 );

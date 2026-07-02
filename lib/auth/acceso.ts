@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 
 export type SesionUsuario = {
   id: string
-  rol: 'asesor' | 'admin'
+  rol: 'asesor' | 'admin' | 'visor'
   sede_id: string | null
 }
 
@@ -21,10 +21,16 @@ export async function getSesion(): Promise<SesionUsuario> {
 
   if (!usuario) redirect('/login')
 
-  return { id: user.id, rol: usuario.rol as 'asesor' | 'admin', sede_id: usuario.sede_id }
+  return { id: user.id, rol: usuario.rol as 'asesor' | 'admin' | 'visor', sede_id: usuario.sede_id }
 }
 
-// Todos los usuarios autenticados pueden acceder a pedidos de cualquier sede.
+// Admin y visor (solo lectura) ven todas las sedes. El asesor solo la suya.
 export function puedeAccederSede(sesion: SesionUsuario, sedePedido: string): boolean {
-  return true
+  if (sesion.rol === 'admin' || sesion.rol === 'visor') return true
+  return sesion.sede_id === sedePedido
+}
+
+// El rol 'visor' es de solo lectura: no puede crear, editar ni eliminar.
+export function esSoloLectura(sesion: SesionUsuario): boolean {
+  return sesion.rol === 'visor'
 }

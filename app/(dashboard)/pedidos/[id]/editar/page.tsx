@@ -24,11 +24,11 @@ export default async function EditarPedidoPage({
   if (!puedeAccederSede(sesion, pedido.sede_id)) notFound()
   if (pedido.estado === 'cancelado') notFound()
 
-  // Intentar con imagen_url; si la columna no existe, hacer fallback sin ella
+  // Intentar con imagen_url + artículo del catálogo; si la columna no existe, fallback
   let items: any[] = []
   const itemsRes = await supabase
     .from('pedido_items')
-    .select('id, marca, descripcion, talla, cantidad, precio_venta, imagen_url')
+    .select('id, marca, descripcion, talla, cantidad, precio_venta, imagen_url, articulo_id, articulos(codigo)')
     .eq('pedido_id', id)
     .order('id')
 
@@ -60,6 +60,7 @@ export default async function EditarPedidoPage({
         <CardContent>
           <EditarPedidoForm
             pedidoId={pedido.id}
+            sedeId={(pedido as any).sede_id ?? ''}
             sedeCodigo={(pedido as any).sede_codigo ?? ''}
             numeroOrden={pedido.numero_orden}
             clienteId={(pedido as any).cliente_id ?? ''}
@@ -75,6 +76,8 @@ export default async function EditarPedidoPage({
               cantidad:     it.cantidad ?? 1,
               precio_venta: it.precio_venta ?? 0,
               imagen_url:   it.imagen_url ?? null,
+              articulo_id:  it.articulo_id ?? null,
+              codigo:       Array.isArray(it.articulos) ? (it.articulos[0]?.codigo ?? '') : (it.articulos?.codigo ?? ''),
             }))}
           />
         </CardContent>

@@ -4,7 +4,12 @@ import { normalizarTelefono } from '@/lib/utils/phone'
 // ── Formato estructurado (===INICIO_PEDIDO===) ────────────────────────────────
 
 const SEDES_VALIDAS = ['TR', 'CR', 'SR'] as const
-const METODOS_PAGO: MetodoPago[] = ['efectivo', 'transferencia', 'datafono', 'addi', 'bold', 'sistecredito', 'credito', 'otro']
+const METODOS_PAGO: MetodoPago[] = [
+  'efectivo', 'nequi_johan', 'nequi_marisol', 'nequi_luisa',
+  'bancolombia_ronaldo', 'bancolombia_johan', 'bancolombia_carlos',
+  'bancolombia_cristian', 'bancolombia_huber',
+  'davivienda', 'addi', 'bold', 'sistecredito', 'credito',
+]
 const VERSION_SOPORTADA = '1'
 
 function extractField(lines: string[], key: string): string | null {
@@ -228,14 +233,26 @@ function parsearPreciosExpresion(raw: string): { individuales: number[], total: 
 
 function detectarMetodo(texto: string): MetodoPago {
   const n = texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
-  if (/bancolombia|nequi|daviplata|transferencia|pse|consignacion/.test(n)) return 'transferencia'
-  if (/datafono|tarjeta/.test(n)) return 'datafono'
-  if (/addi/.test(n)) return 'addi'
-  if (/bold/.test(n)) return 'bold'
+  // Nequis específicos (orden importa: más específico primero)
+  if (/nequi.*luisa|luisa.*nequi/.test(n))     return 'nequi_luisa'
+  if (/nequi.*marisol|marisol.*nequi/.test(n)) return 'nequi_marisol'
+  if (/nequi.*johan|johan.*nequi/.test(n))     return 'nequi_johan'
+  // Bancolombia específicos
+  if (/bancolombia.*ronaldo|ronaldo/.test(n))  return 'bancolombia_ronaldo'
+  if (/bancolombia.*carlos|carlos/.test(n))    return 'bancolombia_carlos'
+  if (/bancolombia.*cristian|cristian/.test(n))return 'bancolombia_cristian'
+  if (/bancolombia.*huber|huber/.test(n))      return 'bancolombia_huber'
+  if (/bancolombia.*johan|johan.*banco/.test(n))return 'bancolombia_johan'
+  // Otros
+  if (/davivienda|davipl/.test(n))  return 'davivienda'
+  if (/addi/.test(n))               return 'addi'
+  if (/bold/.test(n))               return 'bold'
   if (/sistecredito|siste/.test(n)) return 'sistecredito'
-  if (/credito/.test(n)) return 'credito'
-  if (/efectivo|cash/.test(n)) return 'efectivo'
-  return 'otro'
+  if (/credito/.test(n))            return 'credito'
+  if (/efectivo|cash/.test(n))      return 'efectivo'
+  if (/nequi/.test(n))              return 'nequi_johan'  // nequi sin especificar → Johan por defecto
+  if (/bancolombia/.test(n))        return 'bancolombia_johan'  // bancolombia sin especificar → Johan
+  return 'efectivo'
 }
 
 function parseMontoMetodo(texto: string): { monto: number; metodo: MetodoPago } {

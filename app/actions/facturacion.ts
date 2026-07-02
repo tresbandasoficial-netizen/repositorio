@@ -4,10 +4,12 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getSesion } from '@/lib/auth/acceso'
+import { bloqueoCajaCerrada } from '@/lib/auth/caja'
+import { cuentaIdPorMetodo } from '@/lib/queries/cuentas'
 import { getSiguienteNumeroOrden } from '@/lib/queries/pedidos'
 import { ItemVenta } from '@/app/actions/ventas'
 import { normalizarTelefono } from '@/lib/utils/phone'
-import { MetodoPago } from '@/types'
+import { MetodoPago, PagoFacturaInput, TipoMensajeria, TipoEntrega, QuienPagaEntrega } from '@/types'
 
 export type PedidoFacturable = {
   id: string
@@ -48,7 +50,7 @@ export async function getPedidosFacturablesAction(clienteId: string): Promise<Pe
   if (pedidos.length === 0) return []
 
   const ids = pedidos.map(p => p.id)
-  const { data: pagos } = await supabase.from('pagos').select('pedido_id, monto').in('pedido_id', ids)
+  const { data: pagos } = await supabase.from('pagos').select('pedido_id, monto').eq('anulado', false).in('pedido_id', ids)
   const abonado = new Map<string, number>()
   for (const pg of (pagos ?? []) as Array<{ pedido_id: string; monto: number }>) {
     abonado.set(pg.pedido_id, (abonado.get(pg.pedido_id) ?? 0) + pg.monto)
@@ -119,6 +121,7 @@ export type CrearFacturaInput = {
   notas: string
   abono_inicial: number
   metodo_abono: MetodoPago
+  cuenta_id?: string | null
 }
 
 export type CrearFacturaResult =
@@ -128,6 +131,8 @@ export type CrearFacturaResult =
 // Crea una factura agrupando 1..N pedidos entregados del mismo cliente y sede.
 export async function crearFacturaAction(data: CrearFacturaInput): Promise<CrearFacturaResult> {
   const sesion = await getSesion()
+  const bloqueo = await bloqueoCajaCerrada(sesion)
+  if (bloqueo) return { ok: false, error: bloqueo }
   const supabase = await createClient()
 
   if (data.pedido_ids.length === 0) return { ok: false, error: 'Selecciona al menos un pedido' }
@@ -162,6 +167,13 @@ export async function crearFacturaAction(data: CrearFacturaInput): Promise<Crear
     return { ok: false, error: 'Algún pedido ya está facturado' }
   }
 
+  let cuentaInicial = data.cuenta_id || null
+  const metodoInicial = data.metodo_abono || 'efectivo'
+  if (!cuentaInicial) cuentaInicial = await cuentaIdPorMetodo(supabase, metodoInicial, sedeId)
+  const abonos = data.abono_inicial > 0
+    ? [{ monto: data.abono_inicial, metodo: metodoInicial, cuenta_id: cuentaInicial }]
+    : null
+
   const { data: facturaId, error } = await supabase.rpc('crear_factura', {
     p_cliente_id:        data.cliente_id,
     p_sede_id:           sedeId,
@@ -169,8 +181,7 @@ export async function crearFacturaAction(data: CrearFacturaInput): Promise<Crear
     p_fecha_vencimiento: data.fecha_vencimiento,
     p_pedido_ids:        data.pedido_ids,
     p_notas:             data.notas.trim() || null,
-    p_abono_inicial:     data.abono_inicial || 0,
-    p_metodo_abono:      data.metodo_abono || null,
+    p_abonos:            abonos,
   })
 
   if (error) return { ok: false, error: error.message }
@@ -185,18 +196,29 @@ export type CrearFacturaUnificadaInput = {
   cliente_id: string | null
   cliente_nuevo?: { nombre: string; telefono: string; cedula: string } | null
   sede_id: string
-  pedido_ids: string[]              // pedidos existentes del cliente a incluir
-  productos_nuevos: ItemVenta[]     // productos sacados del inventario, se venden ahora
+  pedido_ids: string[]
+  productos_nuevos: ItemVenta[]
   fecha_vencimiento: string
-  abono_inicial: number
-  metodo_abono: MetodoPago
+  abonos: PagoFacturaInput[]
+  es_credito: boolean
+  envio: number
+  descuento: number
   notas: string
+  // Entrega integrada (domicilio / envío)
+  tipo_entrega: TipoEntrega
+  mensajeria_entrega: TipoMensajeria | null
+  valor_entrega: number
+  quien_paga_entrega: QuienPagaEntrega | null
+  direccion_entrega: string | null
+  articulo_entrega: string | null
 }
 
 export async function crearFacturaUnificadaAction(
   data: CrearFacturaUnificadaInput
 ): Promise<CrearFacturaResult> {
   const sesion = await getSesion()
+  const bloqueo = await bloqueoCajaCerrada(sesion)
+  if (bloqueo) return { ok: false, error: bloqueo }
   const supabase = await createClient()
 
   if (data.pedido_ids.length === 0 && data.productos_nuevos.length === 0) {
@@ -204,11 +226,44 @@ export async function crearFacturaUnificadaAction(
   }
   if (!data.fecha_vencimiento) return { ok: false, error: 'La fecha de vencimiento es obligatoria' }
 
+  // Regla: si NO es a crédito, el valor del pago es obligatorio. No se permite
+  // emitir con pago en $0 sin marcar explícitamente "A crédito" (evita facturas
+  // que entran como crédito implícito y descuadran el flujo de caja).
+  // EXCEPCIÓN: si el pedido ya está pagado por completo (no queda saldo por
+  // cobrar), se factura sin pago nuevo — el dinero ya entró antes.
+  const totalAbonos = data.abonos.reduce((s, a) => s + (a.monto || 0), 0)
+  if (!data.es_credito && totalAbonos <= 0) {
+    // Saldo real por cobrar = (total de pedidos − abonos previos) + productos + envío − descuento.
+    // Se calcula igual que el RPC crear_factura para que la validación coincida con el total resultante.
+    let saldoPedidos = 0
+    if (data.pedido_ids.length > 0) {
+      const [{ data: peds }, { data: pagosPrev }] = await Promise.all([
+        supabase.from('pedidos').select('total').in('id', data.pedido_ids),
+        supabase.from('pagos').select('monto').in('pedido_id', data.pedido_ids),
+      ])
+      const bruto = (peds ?? []).reduce((s, p) => s + (p.total ?? 0), 0)
+      const prepagado = (pagosPrev ?? []).reduce((s, pg) => s + (pg.monto ?? 0), 0)
+      saldoPedidos = Math.max(0, bruto - prepagado)
+    }
+    const totalProductosNuevos = data.productos_nuevos.reduce((s, it) => s + it.precio_venta * it.cantidad, 0)
+    const totalACobrar = Math.max(0, saldoPedidos + totalProductosNuevos + (data.envio || 0) - (data.descuento || 0))
+
+    if (totalACobrar > 0) {
+      return { ok: false, error: 'Registra cómo pagó el cliente (el valor del pago) o marca "A crédito".' }
+    }
+  }
+
   const sedeId = sesion.rol === 'admin' ? data.sede_id : sesion.sede_id
   if (!sedeId) return { ok: false, error: 'Selecciona una sede' }
   if (sesion.rol !== 'admin' && data.sede_id && data.sede_id !== sesion.sede_id) {
     return { ok: false, error: 'No puedes facturar en otra sede' }
   }
+
+  // Rutear cada abono a la cuenta de su método (efectivo → caja de la sede; demás
+  // → su cuenta global) para que el saldo se actualice solo en el flujo de caja.
+  const abonos = await Promise.all(data.abonos.map(async a =>
+    a.cuenta_id ? a : { ...a, cuenta_id: await cuentaIdPorMetodo(supabase, a.metodo, sedeId) }
+  ))
 
   // Resolver cliente: existente o crear uno nuevo.
   let clienteId = data.cliente_id
@@ -234,8 +289,9 @@ export async function crearFacturaUnificadaAction(
 
   const pedidoIds = [...data.pedido_ids]
 
-  // 1. Si hay productos nuevos, se crea una venta (entregada) que entra a la factura.
-  if (data.productos_nuevos.length > 0) {
+  // 1. Si hay productos nuevos Y hay pedidos previos, se crea una venta (entregada) que entra a la factura.
+  // Si solo hay productos nuevos (sin pedidos previos), NO crear número de pedido, solo factura.
+  if (data.productos_nuevos.length > 0 && data.pedido_ids.length > 0) {
     for (const it of data.productos_nuevos) {
       if (it.cantidad <= 0) return { ok: false, error: 'Cantidad inválida en un producto' }
       if (it.precio_venta < 0) return { ok: false, error: 'Precio inválido en un producto' }
@@ -243,7 +299,10 @@ export async function crearFacturaUnificadaAction(
     const { data: sede } = await supabase.from('sedes').select('codigo').eq('id', sedeId).single()
     if (!sede) return { ok: false, error: 'Sede no encontrada' }
 
-    const numeroOrden = await getSiguienteNumeroOrden(sede.codigo)
+    // Los productos agregados al facturar son una venta inmediata, NO un pedido.
+    // Se marcan con prefijo 'VL-' para que no aparezcan en el módulo de pedidos
+    // ni consuman la secuencia de numeración real (igual que crear_factura_venta_local).
+    const numeroOrden = 'VL-' + (await getSiguienteNumeroOrden(sede.codigo))
     const totalNuevos = data.productos_nuevos.reduce((s, it) => s + it.precio_venta * it.cantidad, 0)
 
     const { data: ventaPedidoId, error: errVenta } = await supabase.rpc('registrar_venta_inmediata', {
@@ -259,45 +318,112 @@ export async function crearFacturaUnificadaAction(
         talla: it.talla.trim(),
         cantidad: it.cantidad,
         precio_venta: it.precio_venta,
+        color: it.color,
+        sexo: it.sexo,
+        categoria: it.categoria,
       })),
       p_abono:       0,   // el pago se registra a nivel de factura
-      p_metodo_pago: 'efectivo',
+      p_cuenta_id:   null,
       p_notas:       'Productos agregados al facturar',
+      p_metodo:      'efectivo',
     })
     if (errVenta) return { ok: false, error: `Error creando la venta: ${errVenta.message}` }
     pedidoIds.push(ventaPedidoId)
+  } else if (data.productos_nuevos.length > 0 && data.pedido_ids.length === 0) {
+    // Solo venta del local (sin pedidos previos): guardar productos en la factura sin número de pedido
+    for (const it of data.productos_nuevos) {
+      if (it.cantidad <= 0) return { ok: false, error: 'Cantidad inválida en un producto' }
+      if (it.precio_venta < 0) return { ok: false, error: 'Precio inválido en un producto' }
+    }
+    // Los productos se guardarán directamente en la factura via un insert después
   }
 
-  // 2. Crear la factura agrupando todo.
-  const { data: facturaId, error } = await supabase.rpc('crear_factura', {
-    p_cliente_id:        clienteId,
-    p_sede_id:           sedeId,
-    p_asesor_id:         sesion.id,
-    p_fecha_vencimiento: data.fecha_vencimiento,
-    p_pedido_ids:        pedidoIds,
-    p_notas:             data.notas.trim() || null,
-    p_abono_inicial:     data.abono_inicial || 0,
-    p_metodo_abono:      data.metodo_abono || null,
-  })
+  // 2. Crear la factura
+  let facturaId: string
+  let error: any
+
+  if (pedidoIds.length === 0) {
+    // Venta del local sin pedidos previos
+    const { data: fId, error: err } = await supabase.rpc('crear_factura_venta_local', {
+      p_cliente_id:        clienteId,
+      p_sede_id:           sedeId,
+      p_asesor_id:         sesion.id,
+      p_fecha_vencimiento: data.fecha_vencimiento,
+      p_productos:         data.productos_nuevos.map(it => ({
+        articulo_id: it.articulo_id,
+        marca: it.marca.trim(),
+        descripcion: it.descripcion.trim(),
+        talla: it.talla.trim(),
+        cantidad: it.cantidad,
+        precio_venta: it.precio_venta,
+        color: it.color,
+        sexo: it.sexo,
+        categoria: it.categoria,
+      })),
+      p_abonos:            abonos.length > 0 ? abonos : null,
+      p_envio:             data.envio || 0,
+      p_descuento:         data.descuento || 0,
+      p_notas:             data.notas.trim() || null,
+      p_tipo_entrega:       data.tipo_entrega || 'tienda',
+      p_mensajeria_entrega: data.mensajeria_entrega,
+      p_valor_entrega:      data.valor_entrega || 0,
+      p_quien_paga_entrega: data.quien_paga_entrega,
+      p_direccion_entrega:  data.direccion_entrega,
+      p_articulo_entrega:   data.articulo_entrega,
+    })
+    facturaId = fId
+    error = err
+  } else {
+    // Factura con pedidos previos (y posiblemente productos nuevos)
+    const { data: fId, error: err } = await supabase.rpc('crear_factura', {
+      p_cliente_id:        clienteId,
+      p_sede_id:           sedeId,
+      p_asesor_id:         sesion.id,
+      p_fecha_vencimiento: data.fecha_vencimiento,
+      p_pedido_ids:        pedidoIds,
+      p_notas:             data.notas.trim() || null,
+      p_abonos:            abonos.length > 0 ? abonos : null,
+      p_envio:             data.envio || 0,
+      p_descuento:         data.descuento || 0,
+      p_tipo_entrega:       data.tipo_entrega || 'tienda',
+      p_mensajeria_entrega: data.mensajeria_entrega,
+      p_valor_entrega:      data.valor_entrega || 0,
+      p_quien_paga_entrega: data.quien_paga_entrega,
+      p_direccion_entrega:  data.direccion_entrega,
+      p_articulo_entrega:   data.articulo_entrega,
+    })
+    facturaId = fId
+    error = err
+  }
 
   if (error) return { ok: false, error: error.message }
+
+  // El recaudo de mensajería (líneas con metodo='recaudo_mensajeria') lo crea el
+  // RPC crear_factura / crear_factura_venta_local de forma atómica.
+  if (data.abonos.some(a => a.monto > 0 && a.metodo === 'recaudo_mensajeria')) {
+    revalidatePath('/mensajerias')
+  }
 
   revalidatePath('/facturacion')
   return { ok: true as const, facturaId }
 }
 
-export type PagoFacturaInput = {
+export type RegistrarPagoFacturaInput = {
   factura_id: string
   monto: number
   metodo: MetodoPago
   fecha: string
   notas: string
+  cuenta_id: string | null
+  mensajeria?: TipoMensajeria | null
 }
 
 export type SimpleResult = { ok: true } | { ok: false; error: string }
 
-export async function registrarPagoFacturaAction(data: PagoFacturaInput): Promise<SimpleResult> {
+export async function registrarPagoFacturaAction(data: RegistrarPagoFacturaInput): Promise<SimpleResult> {
   const sesion = await getSesion()
+  const bloqueo = await bloqueoCajaCerrada(sesion)
+  if (bloqueo) return { ok: false, error: bloqueo }
   const supabase = await createClient()
 
   if (data.monto <= 0) return { ok: false, error: 'El monto debe ser mayor a cero' }
@@ -313,19 +439,61 @@ export async function registrarPagoFacturaAction(data: PagoFacturaInput): Promis
     return { ok: false, error: 'Sin acceso a esta factura' }
   }
 
+  // Rutear el pago a la cuenta de su método (efectivo → caja de la sede de la
+  // factura; demás → su cuenta global) para que el saldo se actualice solo.
+  let cuentaId = data.cuenta_id || null
+  if (!cuentaId) cuentaId = await cuentaIdPorMetodo(supabase, data.metodo, factura.sede_id)
+
   const { error } = await supabase.rpc('registrar_pago_factura', {
     p_factura_id: data.factura_id,
     p_monto:      data.monto,
     p_metodo:     data.metodo,
     p_fecha:      data.fecha,
     p_asesor_id:  sesion.id,
+    p_cuenta_id:  cuentaId,
     p_notas:      data.notas.trim() || null,
   })
 
   if (error) return { ok: false, error: error.message }
 
+  // Recaudo Mensajería: la mensajería cobró este abono al cliente y se lo debe
+  // a TB. Crea la deuda (concepto='recaudo') para que aparezca en el cuadre.
+  if (data.metodo === 'recaudo_mensajeria' && data.mensajeria) {
+    await supabase.from('pagos_mensajeria').insert({
+      mensajeria:     data.mensajeria,
+      tipo:           'deuda',
+      monto:          data.monto,
+      fecha:          data.fecha,
+      factura_id:     data.factura_id,
+      concepto:       'recaudo',
+      estado:         'pendiente',
+      responsable_id: sesion.id,
+      notas:          `Recaudo mensajería · Factura`,
+    })
+    revalidatePath('/mensajerias')
+  }
+
   revalidatePath(`/facturacion/${data.factura_id}`)
   redirect(`/facturacion/${data.factura_id}`)
+}
+
+// Busca una factura por número para vincularla a un domicilio.
+export async function buscarFacturaPorNumeroAction(numero: string): Promise<{
+  id: string
+  saldo: number
+  cliente_nombre: string
+  numero_factura: string
+} | null> {
+  const num = numero.trim().toUpperCase()
+  if (!num) return null
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('vista_facturas')
+    .select('id, saldo, cliente_nombre, numero_factura')
+    .ilike('numero_factura', num)
+    .maybeSingle()
+  if (!data || (data as any).saldo <= 0) return null
+  return data as { id: string; saldo: number; cliente_nombre: string; numero_factura: string }
 }
 
 // Anular factura: libera los pedidos vinculados. Solo admin.
@@ -338,5 +506,99 @@ export async function anularFacturaAction(facturaId: string): Promise<SimpleResu
   if (error) return { ok: false, error: error.message }
 
   revalidatePath('/facturacion')
+  return { ok: true }
+}
+
+// ── Edición de facturas (solo admin) ─────────────────────────────────────────
+
+export type EditarFacturaDatosInput = {
+  cliente_id: string
+  fecha_vencimiento: string
+  notas: string
+  envio: number
+  descuento: number
+}
+
+// Edita los datos de la factura (cliente, vencimiento, notas, envío, descuento).
+// El RPC recalcula total y estado. Solo admin.
+export async function editarFacturaDatosAction(
+  facturaId: string,
+  data: EditarFacturaDatosInput,
+): Promise<SimpleResult> {
+  const sesion = await getSesion()
+  if (sesion.rol !== 'admin') return { ok: false, error: 'Solo el administrador puede editar facturas' }
+  if (!data.cliente_id) return { ok: false, error: 'Selecciona el cliente' }
+  if (!data.fecha_vencimiento) return { ok: false, error: 'La fecha de vencimiento es obligatoria' }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('editar_factura_datos', {
+    p_factura_id:        facturaId,
+    p_cliente_id:        data.cliente_id,
+    p_fecha_vencimiento: data.fecha_vencimiento,
+    p_notas:             data.notas.trim() || null,
+    p_envio:             data.envio || 0,
+    p_descuento:         data.descuento || 0,
+  })
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/facturacion')
+  revalidatePath(`/facturacion/${facturaId}`)
+  revalidatePath('/flujo-caja')
+  return { ok: true }
+}
+
+export type EditarAbonoInput = {
+  monto: number
+  metodo: MetodoPago
+  fecha: string
+}
+
+// Edita un abono de la factura: método (re-enruta la cuenta), monto y fecha.
+// El RPC recalcula el estado de la factura. Solo admin.
+export async function editarAbonoFacturaAction(
+  abonoId: string,
+  data: EditarAbonoInput,
+): Promise<SimpleResult> {
+  const sesion = await getSesion()
+  if (sesion.rol !== 'admin') return { ok: false, error: 'Solo el administrador puede editar abonos' }
+  if (data.monto <= 0) return { ok: false, error: 'El monto debe ser mayor a cero' }
+
+  const supabase = await createClient()
+
+  // Sede de la factura para enrutar el efectivo a la caja correcta.
+  const { data: abono } = await supabase
+    .from('pagos_factura')
+    .select('factura_id, facturas(sede_id)')
+    .eq('id', abonoId)
+    .maybeSingle()
+  const sedeId = (abono as any)?.facturas?.sede_id ?? null
+
+  const cuentaId = await cuentaIdPorMetodo(supabase, data.metodo, sedeId)
+
+  const { error } = await supabase.rpc('editar_abono_factura', {
+    p_abono_id:  abonoId,
+    p_monto:     data.monto,
+    p_metodo:    data.metodo,
+    p_cuenta_id: cuentaId,
+    p_fecha:     data.fecha,
+  })
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/facturacion')
+  revalidatePath('/flujo-caja')
+  return { ok: true }
+}
+
+// Anula un abono de la factura y recalcula su estado. Solo admin.
+export async function eliminarAbonoFacturaAction(abonoId: string): Promise<SimpleResult> {
+  const sesion = await getSesion()
+  if (sesion.rol !== 'admin') return { ok: false, error: 'Solo el administrador puede eliminar abonos' }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('eliminar_abono_factura', { p_abono_id: abonoId })
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/facturacion')
+  revalidatePath('/flujo-caja')
   return { ok: true }
 }

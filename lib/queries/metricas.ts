@@ -1,17 +1,27 @@
 import { createClient } from '@/lib/supabase/server'
 import { MetricasAdmin, MetricasAsesor, MetricasSede } from '@/types'
 import type { PedidoRow } from '@/lib/queries/pedidos'
+import { hoyBogota } from '@/lib/utils/format'
 
 function hace(dias: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() - dias)
+  const hoy = hoyBogota()
+  const d = new Date(hoy + 'T05:00:00.000Z')
+  d.setUTCDate(d.getUTCDate() - dias)
   return d.toISOString()
 }
 
 function hoyInicio(): string {
-  const d = new Date()
-  d.setHours(0, 0, 0, 0)
-  return d.toISOString()
+  const hoy = hoyBogota()
+  return hoy + 'T05:00:00.000Z'
+}
+
+// Inicio del mes calendario actual (día 1) en hora Bogotá. "Del mes" = este mes,
+// no los últimos 30 días: el 1° del mes las métricas arrancan de cero.
+function inicioMes(): string {
+  return hoyBogota().slice(0, 8) + '01T05:00:00.000Z'  // 'YYYY-MM-01T05:00…'
+}
+function inicioMesFecha(): string {
+  return hoyBogota().slice(0, 8) + '01'                // 'YYYY-MM-01'
 }
 
 export async function getMetricasAdmin(): Promise<MetricasAdmin> {
@@ -28,22 +38,26 @@ export async function getMetricasAdmin(): Promise<MetricasAdmin> {
     supabase
       .from('pedidos')
       .select('total', { count: 'exact' })
-      .gte('fecha_creacion', hoyInicio()),
+      .gte('fecha_creacion', hoyInicio())
+      .neq('estado', 'cancelado'),
     supabase
       .from('pedidos')
       .select('total', { count: 'exact' })
-      .gte('fecha_creacion', hace(7)),
+      .gte('fecha_creacion', hace(7))
+      .neq('estado', 'cancelado'),
     supabase
       .from('pedidos')
       .select('total', { count: 'exact' })
-      .gte('fecha_creacion', hace(30)),
+      .gte('fecha_creacion', inicioMes())
+      .neq('estado', 'cancelado'),
     supabase
       .from('vista_pedidos_asesor')
       .select('en_alerta, es_zombie'),
     supabase
       .from('pagos')
       .select('monto')
-      .gte('fecha', hace(30).slice(0, 10)),
+      .eq('anulado', false)
+      .gte('fecha', inicioMesFecha()),
     supabase
       .from('vista_cartera_clientes')
       .select('saldo'),
@@ -98,7 +112,7 @@ export async function getMetricasAsesor(asesorId: string): Promise<MetricasAseso
       .from('vista_pedidos_asesor')
       .select('total')
       .eq('asesor_id', asesorId)
-      .gte('fecha_creacion', hace(30)),
+      .gte('fecha_creacion', inicioMes()),
   ])
 
   const activosData = activos.data ?? []

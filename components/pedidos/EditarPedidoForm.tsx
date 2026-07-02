@@ -7,11 +7,19 @@ import { editarPedidoAction } from '@/app/actions/pedidos'
 import { formatCOP } from '@/lib/utils/format'
 import { ImagenProducto } from '@/components/pedidos/ImagenProducto'
 import { uploadPedidoImage } from '@/lib/utils/uploadPedidoImage'
+import { Linea, nuevaLinea, LineaProducto } from '@/components/ventas/LineaProducto'
 
-type Producto = { marca: string; descripcion: string; talla: string; cantidad: number; precio_venta: number; imagen_url?: string | null }
+type Producto = {
+  marca: string; descripcion: string; talla: string; cantidad: number; precio_venta: number
+  imagen_url?: string | null; articulo_id?: string | null; codigo?: string
+}
+
+// Línea del catálogo + foto del producto.
+type LineaEdit = Linea & { imagen_url?: string | null }
 
 interface Props {
   pedidoId: string
+  sedeId: string
   sedeCodigo: string
   numeroOrden: string
   clienteId: string
@@ -23,6 +31,21 @@ interface Props {
   productos: Producto[]
 }
 
+function productosALineas(productos: Producto[]): LineaEdit[] {
+  if (productos.length === 0) return [{ ...nuevaLinea() }]
+  return productos.map(p => ({
+    ...nuevaLinea(),
+    articulo_id:  p.articulo_id ?? null,
+    codigo:       p.codigo ?? '',
+    marca:        p.marca,
+    descripcion:  p.descripcion,
+    talla:        p.talla ?? '',
+    cantidad:     p.cantidad,
+    precio_venta: p.precio_venta,
+    imagen_url:   p.imagen_url ?? null,
+  }))
+}
+
 function propsAParsed(p: Props): ParsedPedido {
   const sede = p.sedeCodigo.slice(0, 2) as 'TR' | 'CR' | 'SR'
   return {
@@ -32,15 +55,8 @@ function propsAParsed(p: Props): ParsedPedido {
     cliente_nombre: p.clienteNombre,
     cliente_doc: null,
     cliente_telefono: p.clienteTelefono,
-    productos: p.productos.map(prod => ({
-      marca:        prod.marca,
-      descripcion:  prod.descripcion,
-      talla:        prod.talla || null,
-      cantidad:     prod.cantidad,
-      precio_venta: prod.precio_venta,
-      imagen_url:   prod.imagen_url ?? null,
-    })),
-    total: p.productos.reduce((s, prod) => s + prod.precio_venta * prod.cantidad, 0),
+    productos: [],
+    total: 0,
     abono: 0,
     metodo_pago_abono: 'efectivo',
     tipo_entrega: p.tipoEntrega,
@@ -68,20 +84,19 @@ function reconstruirTexto(p: Props): string {
 }
 
 export function EditarPedidoForm(props: Props) {
-  const { pedidoId, sedeCodigo, clienteId } = props
+  const { pedidoId, sedeId, sedeCodigo, clienteId } = props
 
   const [paso, setPaso]           = useState<'pegar' | 'preview'>('preview')
   const [texto, setTexto]         = useState(() => reconstruirTexto(props))
   const [errorParser, setErrorParser] = useState<string | null>(null)
-  const [parsed, setParsed]       = useState<ParsedPedido | null>(() => propsAParsed(props))
+  const [parsed, setParsed]       = useState<ParsedPedido>(() => propsAParsed(props))
+  const [lineas, setLineas]       = useState<LineaEdit[]>(() => productosALineas(props.productos))
   const [numero, setNumero]       = useState(props.numeroOrden)
   const [error, setError]         = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
-  // Paste global: al hacer click en una tarjeta de producto, esa se convierte en el destino
-  const activeProductIdxRef = useRef(0)
-  const updateProductoRef   = useRef(updateProducto)
-  useEffect(() => { updateProductoRef.current = updateProducto })
+  // Producto activo para pegar imagen (Ctrl+V).
+  const activeIdxRef = useRef(0)
 
   useEffect(() => {
     if (paso !== 'preview') return
@@ -91,7 +106,10 @@ export function EditarPedidoForm(props: Props) {
           const file = item.getAsFile()
           if (!file) continue
           const url = await uploadPedidoImage(file)
-          if (url) updateProductoRef.current(activeProductIdxRef.current, 'imagen_url', url)
+          if (url) {
+            const idx = activeIdxRef.current
+            setLineas(ls => ls.map((l, i) => i === idx ? { ...l, imagen_url: url } : l))
+          }
           break
         }
       }
@@ -107,6 +125,11 @@ export function EditarPedidoForm(props: Props) {
       return
     }
     setParsed(result.data)
+    setLineas(productosALineas(result.data.productos.map(pp => ({
+      marca: pp.marca, descripcion: pp.descripcion, talla: pp.talla ?? '',
+      cantidad: pp.cantidad, precio_venta: pp.precio_venta,
+      imagen_url: (pp as { imagen_url?: string | null }).imagen_url ?? null,
+    }))))
     if (result.data.numero_orden_sugerido?.startsWith(sedeCodigo)) {
       setNumero(result.data.numero_orden_sugerido)
     }
@@ -115,20 +138,18 @@ export function EditarPedidoForm(props: Props) {
   }
 
   function updateField<K extends keyof ParsedPedido>(field: K, value: ParsedPedido[K]) {
-    setParsed(prev => prev ? { ...prev, [field]: value } : null)
+    setParsed(prev => ({ ...prev, [field]: value }))
   }
 
-  function updateProducto(idx: number, field: string, value: string | number | null) {
-    setParsed(prev => {
-      if (!prev) return null
-      const productos = prev.productos.map((p, i) => i === idx ? { ...p, [field]: value } : p)
-      return { ...prev, productos }
-    })
+  function setLinea(i: number, patch: Partial<LineaEdit>) {
+    setLineas(ls => ls.map((l, j) => j === i ? { ...l, ...patch } : l))
   }
 
   function handleConfirmar() {
-    if (!parsed) return
     setError(null)
+    const productos = lineas.filter(l => l.descripcion.trim())
+    if (productos.length === 0) { setError('Debe haber al menos un producto'); return }
+
     startTransition(async () => {
       const result = await editarPedidoAction(pedidoId, {
         numero_orden:      numero,
@@ -138,20 +159,21 @@ export function EditarPedidoForm(props: Props) {
         cliente_nombre:    parsed.cliente_nombre,
         cliente_telefono:  parsed.cliente_telefono,
         cliente_id:        clienteId,
-        productos: parsed.productos.map(p => ({
-          marca:        p.marca,
-          descripcion:  p.descripcion,
-          talla:        p.talla ?? '',
-          cantidad:     p.cantidad,
-          precio_venta: p.precio_venta,
-          imagen_url:   (p as any).imagen_url ?? null,
+        productos: productos.map(l => ({
+          articulo_id:  l.articulo_id ?? null,
+          marca:        l.marca,
+          descripcion:  l.descripcion,
+          talla:        l.talla ?? '',
+          cantidad:     l.cantidad,
+          precio_venta: l.precio_venta,
+          imagen_url:   l.imagen_url ?? null,
         })),
       })
       if (!result.ok) setError(result.error)
     })
   }
 
-  const total = parsed?.productos.reduce((s, p) => s + p.precio_venta * p.cantidad, 0) ?? 0
+  const total = lineas.reduce((s, l) => s + l.precio_venta * l.cantidad, 0)
 
   // ── Paso 1: texto ──────────────────────────────────────────────────────────
   if (paso === 'pegar') {
@@ -177,7 +199,7 @@ export function EditarPedidoForm(props: Props) {
             type="button"
             onClick={handleParsear}
             disabled={texto.trim().length < 10}
-            className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 hover:-translate-y-0.5 hover:shadow-md hover:shadow-blue-300/50 active:translate-y-0 active:scale-95 disabled:opacity-50 disabled:transform-none text-white text-sm font-medium rounded-lg shadow-sm"
+            className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg shadow-sm"
           >
             Validar resumen →
           </button>
@@ -193,15 +215,13 @@ export function EditarPedidoForm(props: Props) {
   }
 
   // ── Paso 2: preview editable ───────────────────────────────────────────────
-  if (!parsed) return null
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <p className="text-xs text-gray-500">Edita los campos y guarda los cambios</p>
         <button
           type="button"
-          onClick={() => { setPaso('pegar'); }}
+          onClick={() => setPaso('pegar')}
           className="text-xs text-gray-400 hover:text-gray-600"
         >
           Editar como texto
@@ -271,56 +291,30 @@ export function EditarPedidoForm(props: Props) {
         )}
       </div>
 
-      {/* Productos */}
+      {/* Productos — módulo de catálogo (igual que al crear/facturar) + foto */}
       <div>
         <p className="text-sm font-medium text-gray-700 mb-2">Productos</p>
         <div className="space-y-3">
-          {parsed.productos.map((p, i) => (
-            <div key={i} className="border border-gray-200 rounded-lg p-3 space-y-2"
-              onMouseDown={() => { activeProductIdxRef.current = i }}>
-              <div className="flex gap-2">
-                <ImagenProducto
-                  value={(p as any).imagen_url ?? null}
-                  onChange={url => updateProducto(i, 'imagen_url', url ?? null)}
+          {lineas.map((l, i) => (
+            <div key={l.key} className="flex gap-2 items-start" onMouseDown={() => { activeIdxRef.current = i }}>
+              <ImagenProducto
+                value={l.imagen_url ?? null}
+                onChange={url => setLinea(i, { imagen_url: url ?? null })}
+              />
+              <div className="flex-1">
+                <LineaProducto
+                  linea={l}
+                  sedeId={sedeId}
+                  sedeCodigo={sedeCodigo}
+                  onChange={patch => setLinea(i, patch)}
+                  onRemove={lineas.length > 1 ? () => setLineas(ls => ls.filter((_, j) => j !== i)) : undefined}
                 />
-                <div className="flex-1 space-y-2">
-                  <div className="flex gap-2">
-                    <div className="flex-1">
-                      <label className="block text-xs text-gray-500 mb-0.5">Artículo</label>
-                      <input type="text"
-                        value={[p.marca, p.descripcion].filter(Boolean).join(' ')}
-                        onChange={e => { updateProducto(i, 'marca', ''); updateProducto(i, 'descripcion', e.target.value) }}
-                        className="w-full px-2.5 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    </div>
-                    <div className="w-20">
-                      <label className="block text-xs text-gray-500 mb-0.5">Talla</label>
-                      <input type="text"
-                        value={p.talla ?? ''}
-                        onChange={e => updateProducto(i, 'talla', e.target.value)}
-                        className="w-full px-2.5 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    </div>
-                  </div>
-                  <div className="max-w-[160px]">
-                    <label className="block text-xs text-gray-500 mb-0.5">Precio</label>
-                    <input type="number" min={0}
-                      value={p.precio_venta === 0 ? '' : p.precio_venta}
-                      onChange={e => updateProducto(i, 'precio_venta', parseInt(e.target.value) || 0)}
-                      className="w-full px-2.5 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  </div>
-                </div>
               </div>
-              {parsed.productos.length > 1 && (
-                <button type="button"
-                  onClick={() => setParsed(prev => prev ? { ...prev, productos: prev.productos.filter((_, j) => j !== i) } : null)}
-                  className="text-xs text-red-500 hover:text-red-700">
-                  Quitar producto
-                </button>
-              )}
             </div>
           ))}
         </div>
         <button type="button"
-          onClick={() => setParsed(prev => prev ? { ...prev, productos: [...prev.productos, { marca: '', descripcion: '', talla: null, cantidad: 1, precio_venta: 0 }] } : null)}
+          onClick={() => setLineas(ls => [...ls, { ...nuevaLinea() }])}
           className="mt-2 text-sm text-blue-600 hover:text-blue-800 font-medium">
           + Agregar producto
         </button>
@@ -345,7 +339,7 @@ export function EditarPedidoForm(props: Props) {
 
       <div className="flex gap-3 pt-1">
         <button type="button" onClick={handleConfirmar} disabled={isPending}
-          className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 hover:-translate-y-0.5 hover:shadow-md hover:shadow-blue-300/50 active:translate-y-0 active:scale-95 disabled:opacity-50 disabled:transform-none text-white text-sm font-medium rounded-lg shadow-sm">
+          className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg shadow-sm">
           {isPending ? 'Guardando...' : 'Guardar cambios'}
         </button>
         <a href={`/pedidos/${pedidoId}`}

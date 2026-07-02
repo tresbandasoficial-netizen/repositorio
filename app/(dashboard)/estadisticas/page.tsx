@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getEstadisticas } from '@/lib/queries/estadisticas'
+import { getSesion } from '@/lib/auth/acceso'
 
 function formatCOP(v: number) {
   return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(v)
@@ -38,6 +39,9 @@ export default async function EstadisticasPage({
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  const sesion = await getSesion()
+  if (sesion.rol === 'visor') redirect('/pedidos')
 
   const { dias: diasParam } = await searchParams
   const dias = PERIODOS.some(p => p.dias === Number(diasParam)) ? Number(diasParam) : 30

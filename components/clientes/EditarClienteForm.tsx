@@ -1,6 +1,7 @@
 'use client'
 
 import { useTransition, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { editarClienteAction } from '@/app/actions/clientes'
 import { ClienteDetalle } from '@/lib/queries/clientes'
 
@@ -9,8 +10,10 @@ interface EditarClienteFormProps {
 }
 
 export function EditarClienteForm({ cliente }: EditarClienteFormProps) {
+  const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const [guardado, setGuardado] = useState(false)
 
   // Display phone without +57 prefix for easier editing
   const telefonoDisplay = cliente.telefono_normalizado.startsWith('+57')
@@ -23,7 +26,12 @@ export function EditarClienteForm({ cliente }: EditarClienteFormProps) {
     const formData = new FormData(e.currentTarget)
     startTransition(async () => {
       const result = await editarClienteAction(cliente.id, formData)
-      if (!result.ok) setError(result.error)
+      if (!result.ok) {
+        setError(result.error)
+      } else {
+        setGuardado(true)
+        router.refresh()
+      }
     })
   }
 
@@ -32,6 +40,11 @@ export function EditarClienteForm({ cliente }: EditarClienteFormProps) {
       {error && (
         <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
           {error}
+        </div>
+      )}
+      {guardado && !error && (
+        <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">
+          Cambios guardados
         </div>
       )}
 

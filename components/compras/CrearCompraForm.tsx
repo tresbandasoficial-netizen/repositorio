@@ -1,23 +1,32 @@
 'use client'
 
-import { useState, useTransition, useRef } from 'react'
+import { useState, useTransition, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { crearCompraAction, CrearCompraInput, CompraItemInput } from '@/app/actions/compras'
+import { crearCompraAction, CrearCompraInput, CompraItemInput, buscarPedidoPorOrdenAction } from '@/app/actions/compras'
 import { parsearFacturaAction, FacturaExtraida } from '@/app/actions/parsear-factura'
+import { buscarPorCodigoAction } from '@/app/actions/articulos'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
-import { formatCOP } from '@/lib/utils/format'
+import { formatCOP, hoyBogota } from '@/lib/utils/format'
 
 type Paso = 'subir' | 'revisar' | 'guardando'
 
 type ItemForm = {
+  codigo: string
   descripcion: string
   marca: string
   talla: string
   cantidad: string
-  precio_usd?: number | null   // precio original de la factura, para calcular COP
+  precio_usd?: number | null
   costo_unitario_cop: string
   destino: 'pedido' | 'contoda' | 'sin_asignar'
+  // estado del lookup de catálogo
+  articuloId?: string | null
+  articuloEncontrado?: boolean   // true=encontrado, false=nuevo, undefined=sin buscar
+  // asignación directa a pedido
+  pedidoRef?: string
+  pedidoOk?: boolean             // true=encontrado, false=no existe, undefined=sin buscar
+  pedidoCliente?: string | null
 }
 
 function facturaToItems(items: FacturaExtraida['items'], moneda: 'USD' | 'COP'): ItemForm[] {
@@ -31,6 +40,7 @@ function facturaToItems(items: FacturaExtraida['items'], moneda: 'USD' | 'COP'):
       : ''
     for (let n = 0; n < cantidad; n++) {
       result.push({
+        codigo: i.codigo ?? '',
         descripcion: i.descripcion,
         marca: i.marca,
         talla: i.talla,
@@ -44,15 +54,18 @@ function facturaToItems(items: FacturaExtraida['items'], moneda: 'USD' | 'COP'):
   return result
 }
 
-export function CrearCompraForm() {
+type CuentaOpc = { id: string; nombre: string; tipo: string; sede_id: string | null }
+
+export function CrearCompraForm({ cuentas, proveedores = [] }: { cuentas: CuentaOpc[]; proveedores?: string[] }) {
   const [paso, setPaso] = useState<Paso>('subir')
   const [factura, setFactura] = useState<FacturaExtraida | null>(null)
 
   // Campos de la factura
   const [tipo, setTipo] = useState<'usa' | 'colombia'>('usa')
+  const [cuentaId, setCuentaId] = useState<string>('')
   const [proveedor, setProveedor] = useState('')
   const [numeroFactura, setNumeroFactura] = useState('')
-  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10))
+  const [fecha, setFecha] = useState(hoyBogota())
   const [totalUsd, setTotalUsd] = useState('')
   const [totalCopPagado, setTotalCopPagado] = useState('')
   const [subtotalUsd, setSubtotalUsd] = useState('')
@@ -94,7 +107,7 @@ export function CrearCompraForm() {
   function agregarItem() {
     setItems((prev) => [
       ...prev,
-      { descripcion: '', marca: '', talla: '', cantidad: '1', precio_usd: null, costo_unitario_cop: '', destino: 'sin_asignar' },
+      { codigo: '', descripcion: '', marca: '', talla: '', cantidad: '1', precio_usd: null, costo_unitario_cop: '', destino: 'sin_asignar' },
     ])
   }
 
@@ -104,6 +117,62 @@ export function CrearCompraForm() {
 
   function actualizarItem(idx: number, campo: keyof ItemForm, valor: string) {
     setItems((prev) => prev.map((item, i) => (i === idx ? { ...item, [campo]: valor } : item)))
+  }
+
+  // Busca el pedido por número, valida la asignación y autollena el artículo
+  // (código, descripción, marca, talla) con el producto que pidió el cliente.
+  async function buscarPedidoRef(idx: number, ref: string) {
+    const r = ref.trim()
+    if (!r) {
+      setItems(prev => prev.map((item, i) => i === idx ? { ...item, pedidoOk: undefined, pedidoCliente: null } : item))
+      return
+    }
+    const pedido = await buscarPedidoPorOrdenAction(r)
+    // Índice del producto dentro del pedido: "TR6455-2" → 2º producto; si no, el 1º.
+    const m = r.toUpperCase().match(/-(\d+)$/)
+    const itemIdx = m ? parseInt(m[1], 10) - 1 : 0
+    const prod = pedido?.items?.[itemIdx] ?? pedido?.items?.[0] ?? null
+
+    setItems(prev => prev.map((item, i) => {
+      if (i !== idx) return item
+      if (!pedido) return { ...item, pedidoOk: false, pedidoCliente: null }
+      return {
+        ...item,
+        pedidoOk: true,
+        pedidoCliente: pedido.cliente_nombre,
+        // Autollenar con los datos del producto del pedido (si los tiene).
+        ...(prod ? {
+          codigo:      prod.codigo || item.codigo,
+          descripcion: prod.descripcion || item.descripcion,
+          marca:       prod.marca || item.marca,
+          talla:       prod.talla || item.talla,
+          articuloId:  prod.articulo_id ?? item.articuloId ?? null,
+          articuloEncontrado: prod.articulo_id ? true : item.articuloEncontrado,
+        } : {}),
+      }
+    }))
+  }
+
+  async function buscarPorCodigo(idx: number, codigo: string) {
+    const cod = codigo.trim()
+    if (!cod) {
+      setItems(prev => prev.map((item, i) => i === idx ? { ...item, articuloId: null, articuloEncontrado: undefined } : item))
+      return
+    }
+    const articulo = await buscarPorCodigoAction(cod)
+    setItems(prev => prev.map((item, i) => {
+      if (i !== idx) return item
+      if (articulo) {
+        return {
+          ...item,
+          articuloId: articulo.id,
+          articuloEncontrado: true,
+          descripcion: articulo.nombre,
+          marca: articulo.marca,
+        }
+      }
+      return { ...item, articuloId: null, articuloEncontrado: false }
+    }))
   }
 
   function handleArchivo(e: React.ChangeEvent<HTMLInputElement>) {
@@ -166,12 +235,15 @@ export function CrearCompraForm() {
     }
 
     const itemsValidos: CompraItemInput[] = items.map((item) => ({
-      descripcion: item.descripcion.trim(),
-      marca: item.marca.trim(),
-      talla: item.talla.trim(),
-      cantidad: parseInt(item.cantidad, 10),
+      codigo:             item.codigo.trim() || undefined,
+      descripcion:        item.descripcion.trim(),
+      marca:              item.marca.trim(),
+      talla:              item.talla.trim(),
+      cantidad:           parseInt(item.cantidad, 10),
       costo_unitario_cop: parseInt(item.costo_unitario_cop.replace(/\D/g, ''), 10) || 0,
-      destino: item.destino,
+      destino:            item.destino,
+      articulo_id:        item.articuloId ?? null,
+      pedido_ref:         item.destino === 'pedido' ? (item.pedidoRef?.trim() || undefined) : undefined,
     }))
 
     const payload: CrearCompraInput = {
@@ -183,6 +255,7 @@ export function CrearCompraForm() {
       trm: tipo === 'usa' ? (trmCalculada ?? null) : null,
       total_cop: totalCopNum,
       notas,
+      cuenta_id: cuentaId || null,
       items: itemsValidos,
     }
 
@@ -263,7 +336,7 @@ export function CrearCompraForm() {
               También puedes{' '}
               <button
                 type="button"
-                onClick={() => { setItems([{ descripcion: '', marca: '', talla: '', cantidad: '1', costo_unitario_cop: '', destino: 'sin_asignar' }]); setPaso('revisar') }}
+                onClick={() => { setItems([{ codigo: '', descripcion: '', marca: '', talla: '', cantidad: '1', costo_unitario_cop: '', destino: 'sin_asignar' }]); setPaso('revisar') }}
                 className="underline hover:text-gray-600"
               >
                 ingresar los datos manualmente
@@ -302,11 +375,15 @@ export function CrearCompraForm() {
               <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Proveedor</label>
               <input
                 type="text"
+                list="lista-proveedores"
                 value={proveedor}
                 onChange={(e) => setProveedor(e.target.value)}
-                placeholder="Nombre del proveedor"
+                placeholder="Escribe o elige un proveedor"
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+              <datalist id="lista-proveedores">
+                {proveedores.map((p) => <option key={p} value={p} />)}
+              </datalist>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">N° Factura</label>
@@ -465,6 +542,22 @@ export function CrearCompraForm() {
             </div>
           )}
 
+          {/* Cuenta de pago */}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Cuenta de pago</label>
+            <select
+              value={cuentaId}
+              onChange={(e) => setCuentaId(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">— Sin especificar —</option>
+              {cuentas.map(c => (
+                <option key={c.id} value={c.id}>{c.nombre}</option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-400 mt-1">Cuenta desde la que salió el dinero de esta compra</p>
+          </div>
+
           {/* Notas */}
           <div>
             <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Notas (opcional)</label>
@@ -506,6 +599,45 @@ export function CrearCompraForm() {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
+                {/* Código SKU con lookup al catálogo */}
+                <div className="col-span-2">
+                  <label className="block text-xs text-gray-500 mb-1">Código del artículo (SKU)</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={item.codigo}
+                      onChange={(e) => actualizarItem(idx, 'codigo', e.target.value)}
+                      onBlur={(e) => buscarPorCodigo(idx, e.target.value)}
+                      placeholder="Ej: DV3337-100 — opcional"
+                      className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 bg-white font-mono ${
+                        item.articuloEncontrado === true  ? 'border-green-400 focus:ring-green-400' :
+                        item.articuloEncontrado === false ? 'border-amber-400 focus:ring-amber-400' :
+                        'border-gray-300 focus:ring-blue-500'
+                      }`}
+                    />
+                    {item.articuloEncontrado === true && (
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+                        ✓ En catálogo
+                      </span>
+                    )}
+                    {item.articuloEncontrado === false && (
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
+                        Artículo nuevo
+                      </span>
+                    )}
+                  </div>
+                  {item.articuloEncontrado === true && (
+                    <p className="text-xs text-green-600 mt-0.5">
+                      {item.marca} {item.descripcion} — datos cargados del catálogo
+                    </p>
+                  )}
+                  {item.articuloEncontrado === false && (
+                    <p className="text-xs text-amber-600 mt-0.5">
+                      Artículo nuevo — se creará en el catálogo al asignar el pedido
+                    </p>
+                  )}
+                </div>
+
                 <div className="col-span-2">
                   <label className="block text-xs text-gray-500 mb-1">Descripción *</label>
                   <input
@@ -572,6 +704,42 @@ export function CrearCompraForm() {
                     <option value="contoda">Para Contoda</option>
                   </select>
                 </div>
+
+                {/* N° de pedido cuando se asigna a un pedido */}
+                {item.destino === 'pedido' && (
+                  <div className="col-span-2">
+                    <label className="block text-xs text-gray-500 mb-1">
+                      N° de pedido <span className="text-gray-400">(ej: TR6492)</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={item.pedidoRef ?? ''}
+                        onChange={(e) => actualizarItem(idx, 'pedidoRef', e.target.value.toUpperCase())}
+                        onBlur={(e) => buscarPedidoRef(idx, e.target.value)}
+                        placeholder="TR6492"
+                        className={`w-full rounded-lg border px-3 py-2 text-sm font-mono bg-white focus:outline-none focus:ring-2 ${
+                          item.pedidoOk === true  ? 'border-green-400 focus:ring-green-400' :
+                          item.pedidoOk === false ? 'border-red-400 focus:ring-red-400' :
+                          'border-gray-300 focus:ring-blue-500'
+                        }`}
+                      />
+                      {item.pedidoOk === true && (
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+                          ✓ Encontrado
+                        </span>
+                      )}
+                      {item.pedidoOk === false && (
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium">
+                          No existe
+                        </span>
+                      )}
+                    </div>
+                    {item.pedidoOk === true && item.pedidoCliente && (
+                      <p className="text-xs text-green-600 mt-0.5">Cliente: {item.pedidoCliente}</p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           ))}

@@ -21,6 +21,29 @@ export type ClienteRow = {
   ultimo_pedido: string | null
 }
 
+export type PagoCliente = {
+  id: string
+  fecha: string
+  creado_en: string
+  monto: number
+  metodo: string
+  notas: string | null
+  origen: 'pedido' | 'factura'
+  referencia: string  // numero_orden o numero_factura
+  referencia_id: string
+}
+
+// Un abono puede repartirse entre varios pedidos/facturas (abonar_cliente). Las
+// partes se agrupan por operación: comparten `creado_en` (misma transacción) y
+// método. El total del abono es la suma de sus partes.
+export type AbonoCliente = {
+  fecha: string
+  creado_en: string
+  metodo: string
+  total: number
+  partes: PagoCliente[]
+}
+
 export type ClienteDetalle = {
   id: string
   nombre: string
@@ -39,6 +62,8 @@ export type ClienteDetalle = {
     sede_nombre: string
     asesor_nombre: string
   }>
+  pagos: PagoCliente[]
+  abonos: AbonoCliente[]
 }
 
 export async function getClientes(params?: {
@@ -109,14 +134,102 @@ export async function getClienteDetalle(id: string): Promise<ClienteDetalle | nu
 
   if (error || !cliente) return null
 
-  const { data: pedidos } = await supabase
-    .from('vista_pedidos_asesor')
-    .select('id, numero_orden, estado, total, total_pagado, fecha_creacion, sede_nombre, asesor_nombre')
+  const { data: pedidosRaw } = await supabase
+    .from('pedidos')
+    .select(`
+      id, numero_orden, estado, total, fecha_creacion,
+      sede:sedes(nombre),
+      asesor:usuarios(nombre),
+      pagos(id, monto, metodo, fecha, notas, anulado, creado_en),
+      facturas!factura_id(id, numero_factura, pagos_factura(id, monto, metodo, fecha, notas, anulado, creado_en))
+    `)
     .eq('cliente_id', id)
+    .neq('estado', 'cancelado')
     .order('fecha_creacion', { ascending: false })
 
-  return {
-    ...cliente,
-    pedidos: (pedidos ?? []) as ClienteDetalle['pedidos'],
+  // Una misma factura puede agrupar varios pedidos. Sus pagos_factura deben
+  // contarse UNA sola vez, no una vez por cada pedido vinculado (eso duplicaba
+  // el total pagado y dejaba el saldo en negativo).
+  const facturasContadas = new Set<string>()
+
+  // El crédito es deuda del cliente, no pago: no reduce el saldo (igual que cartera).
+  const esPago = (m: string) => m !== 'credito'
+
+  const pedidos = (pedidosRaw ?? []).map((p: any) => {
+    const pagos_activos = (p.pagos ?? []).filter((pg: any) => !pg.anulado && esPago(pg.metodo))
+    const pagado_directo = pagos_activos.reduce((s: number, pg: any) => s + pg.monto, 0)
+    const factura = Array.isArray(p.facturas) ? p.facturas[0] : p.facturas
+    let pagado_factura = 0
+    if (factura && !facturasContadas.has(factura.id)) {
+      facturasContadas.add(factura.id)
+      pagado_factura = (factura.pagos_factura ?? [])
+        .filter((pf: any) => !pf.anulado && esPago(pf.metodo))
+        .reduce((s: number, pf: any) => s + pf.monto, 0)
+    }
+    return {
+      id:             p.id,
+      numero_orden:   p.numero_orden,
+      estado:         p.estado,
+      total:          p.total,
+      total_pagado:   pagado_directo + pagado_factura,
+      fecha_creacion: p.fecha_creacion,
+      sede_nombre:    p.sede?.nombre ?? '',
+      asesor_nombre:  p.asesor?.nombre ?? '',
+    }
+  })
+
+  // Historial de pagos: pagos de pedidos + pagos de facturas, ordenados por fecha desc.
+  // Cada factura se procesa una sola vez aunque esté ligada a varios pedidos.
+  const pagos: PagoCliente[] = []
+  const facturasVistas = new Set<string>()
+  for (const _p of pedidosRaw ?? []) {
+    const p = _p as any
+    for (const pg of (p.pagos ?? [])) {
+      if (pg.anulado) continue
+      pagos.push({
+        id:            pg.id,
+        fecha:         pg.fecha,
+        creado_en:     pg.creado_en,
+        monto:         pg.monto,
+        metodo:        pg.metodo,
+        notas:         pg.notas ?? null,
+        origen:        'pedido',
+        referencia:    p.numero_orden,
+        referencia_id: p.id,
+      })
+    }
+    const factura = Array.isArray(p.facturas) ? p.facturas[0] : p.facturas
+    if (factura && !facturasVistas.has(factura.id)) {
+      facturasVistas.add(factura.id)
+      for (const pf of (factura.pagos_factura ?? [])) {
+        if (pf.anulado) continue
+        pagos.push({
+          id:            pf.id,
+          fecha:         pf.fecha,
+          creado_en:     pf.creado_en,
+          monto:         pf.monto,
+          metodo:        pf.metodo,
+          notas:         pf.notas ?? null,
+          origen:        'factura',
+          referencia:    factura.numero_factura ?? p.numero_orden,
+          referencia_id: factura.id,
+        })
+      }
+    }
   }
+  pagos.sort((a, b) => b.fecha.localeCompare(a.fecha))
+
+  // Agrupar las partes de un mismo abono (misma transacción = mismo creado_en).
+  // Así un abono de 500 repartido en 220 + 280 se muestra como un solo abono.
+  const grupos = new Map<string, AbonoCliente>()
+  for (const pg of pagos) {
+    const key = `${pg.creado_en}|${pg.metodo}`
+    let g = grupos.get(key)
+    if (!g) { g = { fecha: pg.fecha, creado_en: pg.creado_en, metodo: pg.metodo, total: 0, partes: [] }; grupos.set(key, g) }
+    g.total += pg.monto
+    g.partes.push(pg)
+  }
+  const abonos = [...grupos.values()].sort((a, b) => b.creado_en.localeCompare(a.creado_en))
+
+  return { ...cliente, pedidos, pagos, abonos }
 }

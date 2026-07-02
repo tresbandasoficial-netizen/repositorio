@@ -19,7 +19,7 @@ export const SOLO_ADMIN: EstadoPedido[] = []
 
 export function transicionesDisponibles(
   estadoActual: EstadoPedido,
-  rol: 'asesor' | 'admin'
+  rol: 'asesor' | 'admin' | 'visor'
 ): EstadoPedido[] {
   return TRANSICIONES[estadoActual] ?? []
 }
@@ -27,7 +27,7 @@ export function transicionesDisponibles(
 export function puedeTransicionar(
   desde: EstadoPedido,
   hacia: EstadoPedido,
-  rol: 'asesor' | 'admin'
+  rol: 'asesor' | 'admin' | 'visor'
 ): boolean {
   return transicionesDisponibles(desde, rol).includes(hacia)
 }
