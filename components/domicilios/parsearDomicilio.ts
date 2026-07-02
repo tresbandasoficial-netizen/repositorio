@@ -207,9 +207,9 @@ export function parsearDomicilio(texto: string): DomicilioParsed {
 
     // ── 1G. MENSAJERÍA ────────────────────────────────────────────────────
     if (/^exneider\s*$/i.test(ln)) { mensajeria = 'exneider'; usado.add(i); continue }
-    if (/^servigo\s*$/i.test(ln))  { mensajeria = 'servigo';  usado.add(i); continue }
+    if (/^servigo\s*$/i.test(ln)) { mensajeria = 'servigo'; usado.add(i); continue }
     if (/exneider/.test(ln) && line.length < 30) { mensajeria = 'exneider'; usado.add(i); continue }
-    if (/servigo/.test(ln)  && line.length < 30) { mensajeria = 'servigo';  usado.add(i); continue }
+    if (/servigo/.test(ln) && line.length < 30) { mensajeria = 'servigo'; usado.add(i); continue }
 
     // ── 1H. PAGO ──────────────────────────────────────────────────────────
     if (/no\s+cobrar|sin\s+cobro|gratis|ya\s+pag[oó]|ya\s+cancelo/.test(ln)) {

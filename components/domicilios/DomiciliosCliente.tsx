@@ -108,9 +108,10 @@ export function DomiciliosCliente({ fecha, domicilios, cuadre, cuadreSemana, isA
             <button
               type="button"
               onClick={() => setMostrarNuevo(v => !v)}
+              title="Domicilio sin factura (mandados, cambios, encargos)"
               className="h-10 px-4 rounded-xl bg-white text-blue-800 font-extrabold text-sm flex items-center gap-1.5 shadow-lg flex-none"
             >
-              {mostrarNuevo ? '✕ Cancelar' : '+ Nuevo'}
+              {mostrarNuevo ? '✕ Cancelar' : '+ Sin factura'}
             </button>
           </div>
 
@@ -147,12 +148,20 @@ export function DomiciliosCliente({ fecha, domicilios, cuadre, cuadreSemana, isA
         </select>
       </div>
 
-      {/* Nuevo panel */}
+      {/* Nuevo panel — domicilio sin factura (mandados, cambios, encargos) */}
       {mostrarNuevo && (
-        <NuevoDomicilioPanel
-          fecha={fecha}
-          onCreado={() => { setMostrarNuevo(false); router.refresh() }}
-        />
+        <div className="space-y-2">
+          <div className="flex items-center gap-2.5 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5">
+            <span className="w-2 h-2 rounded-full bg-blue-500 flex-none" />
+            <p className="text-xs font-semibold text-blue-800">
+              Domicilio sin factura — para mandados, cambios o encargos. Si es la entrega de una venta, hazlo desde la factura.
+            </p>
+          </div>
+          <NuevoDomicilioPanel
+            fecha={fecha}
+            onCreado={() => { setMostrarNuevo(false); router.refresh() }}
+          />
+        </div>
       )}
 
       {/* Yellow hint note */}

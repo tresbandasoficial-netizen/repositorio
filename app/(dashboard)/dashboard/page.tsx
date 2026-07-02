@@ -8,6 +8,7 @@ import { SedeDonutChart } from '@/components/dashboard/SedeDonutChart'
 import { EstadoBadge } from '@/components/pedidos/EstadoBadge'
 import { EstadoPedido } from '@/types'
 import { formatCOP } from '@/lib/utils/format'
+import { CerrarCajaButton } from '@/components/dashboard/CerrarCajaButton'
 import {
   ShoppingBag,
   TrendingUp,
@@ -123,7 +124,7 @@ export default async function DashboardPage() {
 
   const { data: usuario } = await supabase
     .from('usuarios')
-    .select('id, nombre, rol')
+    .select('id, nombre, rol, sede_id')
     .eq('id', user.id)
     .single()
 
@@ -133,6 +134,11 @@ export default async function DashboardPage() {
   const esAdmin = usuario.rol === 'admin'
 
   // ── Vista Admin ──────────────────────────────────────────────────────────────
+  const hoy = new Date().toISOString().slice(0, 10)
+  const cierreQuery = supabase.from('cierres_caja').select('id').eq('fecha', hoy)
+  if (usuario.sede_id) cierreQuery.eq('sede_id', usuario.sede_id)
+  const { data: cierreHoy } = await cierreQuery.maybeSingle()
+
   if (esAdmin) {
     const [m, sedes, asesores, stats] = await Promise.all([
       getMetricasAdmin(),
@@ -259,6 +265,7 @@ export default async function DashboardPage() {
           {/* Accesos rápidos */}
           <div className="space-y-3">
             <p className="text-xs font-bold text-gray-400 uppercase tracking-widest px-1">Accesos rápidos</p>
+            <CerrarCajaButton yaCerrada={!!cierreHoy} />
             <Link
               href="/pedidos/nuevo"
               className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-2xl py-3.5 transition-colors shadow-md shadow-blue-200 w-full"
@@ -331,8 +338,11 @@ export default async function DashboardPage() {
               {m.pedidos_en_alerta} {m.pedidos_en_alerta === 1 ? 'pedido requiere' : 'pedidos requieren'} atención
             </p>
           </div>
-          <Link href="/pedidos" className="text-sm font-bold text-amber-700 hover:text-amber-900">
-            Ver →
+          <Link
+            href="/pedidos"
+            className="inline-block px-3 py-1.5 text-xs font-medium border border-amber-300 rounded-lg bg-white text-amber-700 hover:bg-amber-50 transition-colors shrink-0"
+          >
+            Ver
           </Link>
         </div>
       )}
@@ -377,7 +387,7 @@ export default async function DashboardPage() {
         </TableCard>
       )}
 
-      <div className="flex gap-3">
+      <div className="flex flex-wrap gap-3">
         <Link
           href="/pedidos/nuevo"
           className="inline-flex items-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-2xl transition-colors shadow-md shadow-blue-200"
@@ -391,6 +401,7 @@ export default async function DashboardPage() {
         >
           Ver mis pedidos
         </Link>
+        <CerrarCajaButton yaCerrada={!!cierreHoy} />
       </div>
     </div>
   )

@@ -1,6 +1,7 @@
 'use server'
 
 import { redirect } from 'next/navigation'
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { parsearPedido } from '@/lib/parser'
@@ -9,6 +10,8 @@ import { getSiguienteNumeroOrden } from '@/lib/queries/pedidos'
 import { puedeTransicionar } from '@/lib/domain/estados'
 import { EstadoPedido, MetodoPago, ParsedPedido } from '@/types'
 import { getSesion, puedeAccederSede } from '@/lib/auth/acceso'
+import { bloqueoCajaCerrada } from '@/lib/auth/caja'
+import { cuentaIdPorMetodo } from '@/lib/queries/cuentas'
 
 export type CrearPedidoResult =
   | { ok: true; pedidoId: string }
@@ -19,6 +22,10 @@ async function _crearPedidoConDatos(
   datos: ParsedPedido,
   numeroOrdenManual: string
 ): Promise<CrearPedidoResult> {
+  const sesionPre = await getSesion()
+  if (sesionPre.rol === 'visor') return { ok: false, error: 'Sin permisos para crear pedidos' }
+  const bloqueo = await bloqueoCajaCerrada(sesionPre)
+  if (bloqueo) return { ok: false, error: bloqueo }
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -37,6 +44,11 @@ async function _crearPedidoConDatos(
     .eq('codigo', datos.sede)
     .single()
   if (!sede) return { ok: false, error: `Sede "${datos.sede}" no encontrada en la base de datos` }
+
+  // El asesor solo puede crear pedidos en su propia sede (admin puede en cualquiera).
+  if (!puedeAccederSede(sesionPre, sede.id)) {
+    return { ok: false, error: 'No puedes crear pedidos en otra sede' }
+  }
 
   const numeroOrden = numeroOrdenManual.trim().toUpperCase()
   if (!numeroOrden) return { ok: false, error: 'El número de orden es obligatorio' }
@@ -82,8 +94,27 @@ async function _crearPedidoConDatos(
     cantidad:     p.cantidad,
     precio_venta: p.precio_venta,
     imagen_url:   (p as any).imagen_url ?? null,
+    color:        (p as any).color ?? null,
+    sexo:         (p as any).sexo ?? null,
+    categoria:    (p as any).categoria ?? null,
   }))
   const total = datos.productos.reduce((s, p) => s + p.precio_venta * p.cantidad, 0)
+
+  // Abonos: si vienen múltiples (pago dividido por varias cuentas) usamos el
+  // primero al crear el pedido (atómico) y el resto se insertan después con el
+  // RPC validado registrar_pago_pedido. Si no, comportamiento clásico de un abono.
+  const abonosMultiples = (datos.abonos ?? []).filter(a => a.monto > 0)
+  const primerAbono = abonosMultiples.length > 0
+    ? abonosMultiples[0]
+    : { monto: datos.abono, metodo: datos.metodo_pago_abono }
+
+  // Rutear el abono a la cuenta que corresponde al método (efectivo → caja de la
+  // sede; bancolombia_carlos, nequi_johan… → su cuenta global). Así el saldo se
+  // actualiza solo en el flujo de caja.
+  let cuentaAbono = (datos as any).cuenta_id_abono ?? null
+  if (!cuentaAbono && primerAbono.monto > 0) {
+    cuentaAbono = await cuentaIdPorMetodo(supabase, primerAbono.metodo, sede.id)
+  }
 
   const { data: pedidoId, error: errPedido } = await supabase.rpc('crear_pedido', {
     p_numero_orden:     numeroOrden,
@@ -95,8 +126,9 @@ async function _crearPedidoConDatos(
     p_direccion_entrega: datos.direccion ?? null,
     p_notas:            datos.notas ?? null,
     p_items:            items,
-    p_abono:            datos.abono,
-    p_metodo_pago:      datos.metodo_pago_abono,
+    p_abono:            primerAbono.monto,
+    p_metodo_pago:      primerAbono.metodo,
+    p_cuenta_id:        cuentaAbono,
   })
 
   if (errPedido) {
@@ -105,6 +137,24 @@ async function _crearPedidoConDatos(
       return { ok: false, error: `El número "${numeroOrden}" ya está en uso.`, siguienteNumero }
     }
     return { ok: false, error: `Error creando pedido: ${errPedido.message}` }
+  }
+
+  // Abonos adicionales (del segundo en adelante) — RPC atómico con validación de saldo.
+  const hoy = new Date().toISOString().slice(0, 10)
+  for (const abono of abonosMultiples.slice(1)) {
+    const cuentaAdic = await cuentaIdPorMetodo(supabase, abono.metodo, sede.id)
+    const { error: errPago } = await supabase.rpc('registrar_pago_pedido', {
+      p_pedido_id: pedidoId,
+      p_monto:     abono.monto,
+      p_metodo:    abono.metodo,
+      p_fecha:     hoy,
+      p_asesor_id: usuario.id,
+      p_cuenta_id: cuentaAdic,
+      p_notas:     null,
+    })
+    if (errPago) {
+      return { ok: false, error: `Pedido creado, pero falló un abono adicional: ${errPago.message}` }
+    }
   }
 
   return { ok: true as const, pedidoId }
@@ -134,16 +184,16 @@ export type CambiarEstadoResult =
 
 export async function cambiarEstadoAction(
   pedidoId: string,
-  estadoActual: EstadoPedido,
+  _estadoActualIgnorado: EstadoPedido,
   nuevoEstado: EstadoPedido
 ): Promise<CambiarEstadoResult> {
   const sesion = await getSesion()
   const supabase = await createClient()
 
-  // Verificar que el pedido pertenece a la sede del usuario
+  // Leer el estado actual desde la BD — no confiar en el valor que manda el cliente.
   const { data: pedido } = await supabase
     .from('vista_pedidos_asesor')
-    .select('sede_id')
+    .select('sede_id, estado')
     .eq('id', pedidoId)
     .single()
 
@@ -151,6 +201,7 @@ export async function cambiarEstadoAction(
     return { ok: false, error: 'Sin acceso a este pedido' }
   }
 
+  const estadoActual = pedido.estado as EstadoPedido
   if (!puedeTransicionar(estadoActual, nuevoEstado, sesion.rol)) {
     return {
       ok: false,
@@ -182,7 +233,7 @@ export async function cambiarEstadoAction(
 // Igual que cambiarEstadoAction pero sin redirect (para cambio inline desde la lista)
 export async function cambiarEstadoInlineAction(
   pedidoId: string,
-  estadoActual: EstadoPedido,
+  _estadoActualIgnorado: EstadoPedido,
   nuevoEstado: EstadoPedido
 ): Promise<CambiarEstadoResult> {
   const sesion = await getSesion()
@@ -190,7 +241,7 @@ export async function cambiarEstadoInlineAction(
 
   const { data: pedido } = await supabase
     .from('vista_pedidos_asesor')
-    .select('sede_id')
+    .select('sede_id, estado')
     .eq('id', pedidoId)
     .single()
 
@@ -198,6 +249,7 @@ export async function cambiarEstadoInlineAction(
     return { ok: false, error: 'Sin acceso a este pedido' }
   }
 
+  const estadoActual = pedido.estado as EstadoPedido
   if (!puedeTransicionar(estadoActual, nuevoEstado, sesion.rol)) {
     return { ok: false, error: `Transición inválida: ${estadoActual} → ${nuevoEstado}` }
   }
@@ -228,34 +280,40 @@ export type RegistrarPagoResult =
 
 export async function registrarPagoAction(
   pedidoId: string,
-  data: { monto: number; metodo: MetodoPago; fecha: string; notas: string }
+  data: { monto: number; metodo: MetodoPago; fecha: string; notas: string; cuenta_id?: string | null }
 ): Promise<RegistrarPagoResult> {
   const sesion = await getSesion()
+  if (sesion.rol === 'visor') return { ok: false, error: 'Sin permisos para registrar pagos' }
+  const bloqueo = await bloqueoCajaCerrada(sesion)
+  if (bloqueo) return { ok: false, error: bloqueo }
   const supabase = await createClient()
 
+  // Verificar acceso a la sede antes de tocar datos financieros.
   const { data: pedido } = await supabase
     .from('vista_pedidos_asesor')
-    .select('estado, total, total_pagado, sede_id')
+    .select('sede_id')
     .eq('id', pedidoId)
     .single()
 
   if (!pedido) return { ok: false, error: 'Pedido no encontrado' }
   if (!puedeAccederSede(sesion, pedido.sede_id)) return { ok: false, error: 'Sin acceso a este pedido' }
-  if (pedido.estado === 'cancelado') return { ok: false, error: 'No se pueden registrar pagos en pedidos cancelados' }
-
-  const saldo = pedido.total - pedido.total_pagado
   if (data.monto <= 0) return { ok: false, error: 'El monto debe ser mayor a cero' }
-  if (data.monto > saldo) {
-    return { ok: false, error: `El monto supera el saldo pendiente (${saldo.toLocaleString('es-CO')} COP)` }
-  }
 
-  const { error } = await supabase.from('pagos').insert({
-    pedido_id: pedidoId,
-    monto:     data.monto,
-    metodo:    data.metodo,
-    fecha:     data.fecha,
-    notas:     data.notas || null,
-    asesor_id: sesion.id,
+  // Rutear el pago a la cuenta de su método (efectivo → caja de la sede; demás →
+  // su cuenta global), para que el saldo se actualice solo en el flujo de caja.
+  let cuentaId = data.cuenta_id || null
+  if (!cuentaId) cuentaId = await cuentaIdPorMetodo(supabase, data.metodo, pedido.sede_id)
+
+  // El RPC bloquea el pedido con FOR UPDATE antes de validar el saldo,
+  // evitando que dos asesores simultáneos sobreabonen el mismo pedido.
+  const { error } = await supabase.rpc('registrar_pago_pedido', {
+    p_pedido_id: pedidoId,
+    p_monto:     data.monto,
+    p_metodo:    data.metodo,
+    p_fecha:     data.fecha,
+    p_asesor_id: sesion.id,
+    p_cuenta_id: cuentaId,
+    p_notas:     data.notas.trim() || null,
   })
 
   if (error) return { ok: false, error: error.message }
@@ -280,7 +338,7 @@ export async function editarPedidoAction(
     cliente_nombre: string
     cliente_telefono: string
     cliente_id: string
-    productos: Array<{ marca: string; descripcion: string; talla: string; cantidad: number; precio_venta: number; imagen_url?: string | null }>
+    productos: Array<{ articulo_id?: string | null; marca: string; descripcion: string; talla: string; cantidad: number; precio_venta: number; imagen_url?: string | null }>
   }
 ): Promise<EditarPedidoResult> {
   const sesion = await getSesion()
@@ -288,11 +346,12 @@ export async function editarPedidoAction(
 
   const { data: pedidoCheck } = await supabase
     .from('vista_pedidos_asesor')
-    .select('sede_id, estado, sede_codigo, notas, tipo_entrega, direccion_entrega, numero_orden')
+    .select('sede_id, estado, sede_codigo')
     .eq('id', pedidoId)
     .single()
 
   if (!pedidoCheck) return { ok: false, error: 'Pedido no encontrado' }
+  if (sesion.rol === 'visor') return { ok: false, error: 'Sin permisos para editar pedidos' }
   if (!puedeAccederSede(sesion, pedidoCheck.sede_id)) return { ok: false, error: 'Sin acceso a este pedido' }
   if (pedidoCheck.estado === 'cancelado') return { ok: false, error: 'No se puede editar un pedido cancelado' }
 
@@ -308,7 +367,7 @@ export async function editarPedidoAction(
   if (!data.cliente_nombre.trim()) return { ok: false, error: 'El nombre del cliente es obligatorio' }
   if (data.productos.length === 0) return { ok: false, error: 'Debe haber al menos un producto' }
 
-  // Actualizar cliente
+  // Actualizar cliente (operación independiente — no afecta los items del pedido)
   const telefonoNormalizado = normalizarTelefono(data.cliente_telefono)
   if (!telefonoNormalizado) return { ok: false, error: 'Teléfono inválido' }
   await supabase
@@ -316,63 +375,81 @@ export async function editarPedidoAction(
     .update({ nombre: data.cliente_nombre.trim(), telefono_normalizado: telefonoNormalizado })
     .eq('id', data.cliente_id)
 
-  // Calcular nuevo total
   const nuevoTotal = data.productos.reduce((s, p) => s + p.precio_venta * p.cantidad, 0)
 
-  // Actualizar pedido
-  const { error: updateError } = await supabase
-    .from('pedidos')
-    .update({
-      numero_orden:      nuevoNumero,
-      notas:             data.notas.trim() || null,
-      tipo_entrega:      data.tipo_entrega,
-      direccion_entrega: data.tipo_entrega === 'domicilio' ? data.direccion_entrega.trim() : null,
-      total:             nuevoTotal,
-    })
-    .eq('id', pedidoId)
-
-  if (updateError) {
-    if (updateError.code === '23505') return { ok: false, error: `El número "${nuevoNumero}" ya está en uso.` }
-    return { ok: false, error: updateError.message }
-  }
-
-  // Reemplazar items (delete + insert) — se usa adminClient porque RLS no tiene policy DELETE
-  const adminClient = createAdminClient()
-  const { error: deleteError } = await adminClient.from('pedido_items').delete().eq('pedido_id', pedidoId)
-  if (deleteError) return { ok: false, error: `Error eliminando productos anteriores: ${deleteError.message}` }
-  const { error: itemsError } = await adminClient.from('pedido_items').insert(
-    data.productos.map(p => ({
-      pedido_id:    pedidoId,
+  // Actualizar pedido + reemplazar items en una sola transacción atómica.
+  // Si el insert de items falla, el delete ya efectuado se revierte automáticamente.
+  const { error } = await supabase.rpc('editar_pedido', {
+    p_pedido_id:         pedidoId,
+    p_numero_orden:      nuevoNumero,
+    p_notas:             data.notas.trim() || null,
+    p_tipo_entrega:      data.tipo_entrega,
+    p_direccion_entrega: data.tipo_entrega === 'domicilio' ? data.direccion_entrega.trim() : null,
+    p_total:             nuevoTotal,
+    p_usuario_id:        sesion.id,
+    p_items:             data.productos.map(p => ({
+      articulo_id:  p.articulo_id ?? null,
       marca:        p.marca.trim(),
       descripcion:  p.descripcion.trim(),
-      talla:        p.talla.trim() || null,
+      talla:        p.talla.trim(),
       cantidad:     p.cantidad,
       precio_venta: p.precio_venta,
-      imagen_url:   (p as any).imagen_url ?? null,
-    }))
-  )
-  if (itemsError) return { ok: false, error: `Error actualizando productos: ${itemsError.message}` }
+      imagen_url:   p.imagen_url ?? null,
+    })),
+  })
 
-  // Registrar cambios en historial
-  const previo = pedidoCheck as any
-  type CambioEntry = { tabla: string; registro_id: string; campo: string; valor_anterior: string | null; valor_nuevo: string | null; usuario_id: string }
-  const cambios: CambioEntry[] = []
-  const campos: Array<{ campo: string; anterior: string | null; nuevo: string | null }> = [
-    { campo: 'numero_orden',      anterior: previo.numero_orden,      nuevo: nuevoNumero },
-    { campo: 'notas',             anterior: previo.notas ?? null,     nuevo: data.notas.trim() || null },
-    { campo: 'tipo_entrega',      anterior: previo.tipo_entrega,      nuevo: data.tipo_entrega },
-    { campo: 'direccion_entrega', anterior: previo.direccion_entrega ?? null, nuevo: data.tipo_entrega === 'domicilio' ? data.direccion_entrega.trim() : null },
-  ]
-  for (const { campo, anterior, nuevo } of campos) {
-    if (anterior !== nuevo) {
-      cambios.push({ tabla: 'pedidos', registro_id: pedidoId, campo, valor_anterior: anterior, valor_nuevo: nuevo, usuario_id: sesion.id })
-    }
+  if (error) {
+    if (error.code === '23505') return { ok: false, error: `El número "${nuevoNumero}" ya está en uso.` }
+    return { ok: false, error: error.message }
   }
-  if (cambios.length > 0) {
-    await adminClient.from('historial_cambios').insert(cambios)
+
+  // Si el pedido pertenece a una factura, recalcular su total/estado para que no
+  // se descuadre al cambiar los productos.
+  const { data: ped } = await supabase.from('pedidos').select('factura_id').eq('id', pedidoId).maybeSingle()
+  if ((ped as any)?.factura_id) {
+    await supabase.rpc('recalcular_factura', { p_factura_id: (ped as any).factura_id })
+    revalidatePath(`/facturacion/${(ped as any).factura_id}`)
   }
 
   redirect(`/pedidos/${pedidoId}`)
+}
+
+// ─── Editar pago (solo admin) ─────────────────────────────────────────────────
+
+export async function editarPagoAction(
+  pagoId: string,
+  nuevoMonto: number
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const sesion = await getSesion()
+  if (sesion.rol !== 'admin') return { ok: false, error: 'Solo los administradores pueden editar pagos' }
+
+  const adminClient = createAdminClient()
+
+  const { data: pago } = await adminClient
+    .from('pagos')
+    .select('monto')
+    .eq('id', pagoId)
+    .single()
+
+  if (!pago) return { ok: false, error: 'Pago no encontrado' }
+
+  const { error } = await adminClient
+    .from('pagos')
+    .update({ monto: nuevoMonto })
+    .eq('id', pagoId)
+
+  if (error) return { ok: false, error: error.message }
+
+  await adminClient.from('historial_cambios').insert({
+    tabla:          'pagos',
+    registro_id:    pagoId,
+    campo:          'monto',
+    valor_anterior: String(pago.monto),
+    valor_nuevo:    String(nuevoMonto),
+    usuario_id:     sesion.id,
+  })
+
+  return { ok: true }
 }
 
 // ─── Eliminar pedido ──────────────────────────────────────────────────────────

@@ -2,18 +2,23 @@ import { createClient } from '@/lib/supabase/server'
 import { getSesion } from '@/lib/auth/acceso'
 import { FacturaRow, EstadoFactura } from '@/types'
 
+export type FacturaListRow = FacturaRow & { numeros_orden: string[]; metodos: string[] }
+
 export async function getFacturas(filtros?: {
   estado?: EstadoFactura
   sede?: string
   q?: string
-}): Promise<FacturaRow[]> {
+}): Promise<FacturaListRow[]> {
   const supabase = await createClient()
   const sesion = await getSesion()
 
   let query = supabase
     .from('vista_facturas')
     .select('*')
-    .order('fecha_factura', { ascending: false })
+    // Por creado_en (timestamp con hora): la última factura emitida queda de
+    // primera. fecha_factura es solo día → varias del mismo día quedaban en
+    // orden arbitrario.
+    .order('creado_en', { ascending: false })
     .limit(200)
 
   if (sesion.rol !== 'admin' && sesion.sede_id) query = query.eq('sede_id', sesion.sede_id)
@@ -26,7 +31,57 @@ export async function getFacturas(filtros?: {
 
   const { data, error } = await query
   if (error) throw new Error(`Error cargando facturas: ${error.message}`)
-  return (data ?? []) as FacturaRow[]
+  const facturas = (data ?? []) as FacturaRow[]
+  if (facturas.length === 0) return []
+
+  // Traer los números de pedido y los métodos de pago de cada factura.
+  const ids = facturas.map(f => f.id)
+  const [pedsRes, pagosRes] = await Promise.all([
+    supabase.from('pedidos').select('factura_id, numero_orden').in('factura_id', ids).order('numero_orden'),
+    supabase.from('pagos_factura').select('factura_id, metodo').in('factura_id', ids).eq('anulado', false),
+  ])
+
+  const porFactura = new Map<string, string[]>()
+  for (const p of (pedsRes.data ?? []) as Array<{ factura_id: string | null; numero_orden: string }>) {
+    if (!p.factura_id) continue
+    const arr = porFactura.get(p.factura_id) ?? []
+    arr.push(p.numero_orden)
+    porFactura.set(p.factura_id, arr)
+  }
+
+  // Métodos distintos por factura (una factura puede tener abonos por varias cuentas).
+  const metodosPorFactura = new Map<string, string[]>()
+  for (const pg of (pagosRes.data ?? []) as Array<{ factura_id: string | null; metodo: string }>) {
+    if (!pg.factura_id) continue
+    const arr = metodosPorFactura.get(pg.factura_id) ?? []
+    if (!arr.includes(pg.metodo)) arr.push(pg.metodo)
+    metodosPorFactura.set(pg.factura_id, arr)
+  }
+
+  return facturas.map(f => ({
+    ...f,
+    numeros_orden: porFactura.get(f.id) ?? [],
+    metodos: metodosPorFactura.get(f.id) ?? [],
+  }))
+}
+
+export type DomicilioFactura = {
+  id: string
+  fecha: string
+  mensajeria: 'exneider' | 'servigo'
+  direccion: string | null
+  valor_pedido: number
+  valor_domicilio: number
+  valor_a_cobrar: number
+  cobrar_al_cliente: boolean
+  tipo_cobro: string | null
+  metodo_pago: 'efectivo' | 'transferencia'
+  estado: string
+  articulo: string | null
+  numero_pedido: string | null
+  notas: string | null
+  cliente_nombre: string
+  cliente_telefono: string | null
 }
 
 export type FacturaDetalle = FacturaRow & {
@@ -35,6 +90,15 @@ export type FacturaDetalle = FacturaRow & {
     numero_orden: string
     total: number
     fecha_creacion: string
+    items: Array<{
+      codigo: string | null
+      descripcion: string
+      marca: string | null
+      talla: string | null
+      color: string | null
+      cantidad: number
+      precio_venta: number
+    }>
   }>
   abonos: Array<{
     id: string
@@ -44,6 +108,7 @@ export type FacturaDetalle = FacturaRow & {
     notas: string | null
     asesor_nombre: string
   }>
+  domicilio: DomicilioFactura | null
 }
 
 export async function getFacturaDetalle(id: string): Promise<FacturaDetalle | null> {
@@ -61,17 +126,25 @@ export async function getFacturaDetalle(id: string): Promise<FacturaDetalle | nu
   const sesion = await getSesion()
   if (sesion.rol !== 'admin' && factura.sede_id !== sesion.sede_id) return null
 
-  const [pedidosRes, abonosRes] = await Promise.all([
+  const [pedidosRes, abonosRes, domicilioRes] = await Promise.all([
     supabase
       .from('pedidos')
-      .select('id, numero_orden, total, fecha_creacion')
+      .select('id, numero_orden, total, fecha_creacion, pedido_items(codigo, descripcion, marca, talla, color, cantidad, precio_venta)')
       .eq('factura_id', id)
       .order('fecha_creacion'),
     supabase
       .from('pagos_factura')
       .select('id, monto, metodo, fecha, notas, usuarios(nombre)')
       .eq('factura_id', id)
+      .eq('anulado', false)
       .order('fecha'),
+    supabase
+      .from('domicilios')
+      .select('id, fecha, mensajeria, direccion, valor_pedido, valor_domicilio, valor_a_cobrar, cobrar_al_cliente, tipo_cobro, metodo_pago, estado, articulo, numero_pedido, notas, cliente_nombre, cliente_telefono')
+      .eq('factura_id', id)
+      .order('creado_en', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ])
 
   const abonos = (abonosRes.data ?? []).map((a: any) => ({
@@ -85,8 +158,15 @@ export async function getFacturaDetalle(id: string): Promise<FacturaDetalle | nu
 
   return {
     ...(factura as FacturaRow),
-    pedidos: (pedidosRes.data ?? []) as FacturaDetalle['pedidos'],
+    pedidos: (pedidosRes.data ?? []).map((p: any) => ({
+      id: p.id,
+      numero_orden: p.numero_orden,
+      total: p.total,
+      fecha_creacion: p.fecha_creacion,
+      items: (p.pedido_items ?? []) as FacturaDetalle['pedidos'][number]['items'],
+    })) as FacturaDetalle['pedidos'],
     abonos,
+    domicilio: (domicilioRes.data ?? null) as DomicilioFactura | null,
   }
 }
 
@@ -108,7 +188,7 @@ export async function getFacturaRecibo(id: string): Promise<ReciboFactura | null
 
   const [pedidosRes, abonosRes, sedeRes] = await Promise.all([
     supabase.from('pedidos').select('id').eq('factura_id', id),
-    supabase.from('pagos_factura').select('monto, metodo, fecha').eq('factura_id', id).order('fecha'),
+    supabase.from('pagos_factura').select('monto, metodo, fecha').eq('factura_id', id).eq('anulado', false).order('fecha'),
     supabase.from('sedes').select('direccion').eq('id', factura.sede_id).single(),
   ])
 
@@ -207,6 +287,7 @@ export async function getPedidosFacturables(clienteId: string, sedeId: string) {
   const { data: pagos } = await supabase
     .from('pagos')
     .select('pedido_id, monto')
+    .eq('anulado', false)
     .in('pedido_id', ids)
 
   const abonado = new Map<string, number>()

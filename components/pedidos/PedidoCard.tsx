@@ -17,6 +17,7 @@ function EstadoInline({ pedidoId, estadoActual, sedeCodigo }: { pedidoId: string
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [estadoLocal, setEstadoLocal] = useState<EstadoPedido>(estadoActual)
+  const [errorEstado, setErrorEstado] = useState<string | null>(null)
   const ref = useRef<HTMLDivElement>(null)
 
   const esSantaRosa = sedeCodigo === 'SR'
@@ -44,16 +45,24 @@ function EstadoInline({ pedidoId, estadoActual, sedeCodigo }: { pedidoId: string
     e.stopPropagation()
     setOpen(false)
     startTransition(async () => {
+      setErrorEstado(null)
       const result = await cambiarEstadoInlineAction(pedidoId, estadoLocal, nuevoEstado)
       if (result.ok) {
         setEstadoLocal(nuevoEstado)
         router.refresh()
+      } else {
+        setErrorEstado(result.error ?? 'No se pudo cambiar el estado')
       }
     })
   }
 
   return (
     <div ref={ref} className="relative" onClick={e => { e.preventDefault(); e.stopPropagation() }}>
+      {errorEstado && (
+        <div className="absolute z-50 top-full left-0 mt-1 bg-red-50 border border-red-200 rounded-lg px-2 py-1 text-xs text-red-700 whitespace-nowrap shadow">
+          {errorEstado}
+        </div>
+      )}
       <button
         onClick={handleBadgeClick}
         disabled={esTerminal || isPending}
@@ -106,8 +115,10 @@ export function PedidoCard({ pedido, esAdmin }: PedidoCardProps) {
     router.push(`/pedidos/${pedido.id}`)
   }
 
+  const facturado = !!pedido.factura_id
+
   return (
-    <div onClick={handleCardClick} className="cursor-pointer hover:bg-gray-50/60 transition-colors">
+    <div onClick={handleCardClick} className={cn('cursor-pointer transition-colors', facturado ? 'bg-green-50/50 hover:bg-green-50' : 'hover:bg-gray-50/60')}>
       {/* Móvil */}
       <div className="md:hidden px-4 py-3.5 space-y-2">
         <div className="flex items-center justify-between gap-2">
@@ -117,6 +128,7 @@ export function PedidoCard({ pedido, esAdmin }: PedidoCardProps) {
             )}
             <span className="font-mono font-bold text-sm text-gray-900">{pedido.numero_orden}</span>
             {pedido.es_zombie && <span className="text-xs text-orange-500" title="Pedido zombie">🧟</span>}
+            {facturado && <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full">Facturado</span>}
           </div>
           <EstadoInline pedidoId={pedido.id} estadoActual={pedido.estado} sedeCodigo={pedido.sede_codigo} />
         </div>
@@ -143,9 +155,14 @@ export function PedidoCard({ pedido, esAdmin }: PedidoCardProps) {
             <img src={imagen} alt="" className="w-9 h-9 rounded-lg object-cover border border-gray-200 shrink-0" />
           )}
           <div>
-            <span className="font-mono font-bold text-sm text-gray-900">{pedido.numero_orden}</span>
-            {pedido.es_zombie && (
-              <span className="ml-1 text-xs text-orange-500" title="Pedido zombie: más de 30 días pendiente">🧟</span>
+            <div className="flex items-center gap-1.5">
+              <span className="font-mono font-bold text-sm text-gray-900">{pedido.numero_orden}</span>
+              {pedido.es_zombie && (
+                <span className="text-xs text-orange-500" title="Pedido zombie: más de 30 días pendiente">🧟</span>
+              )}
+            </div>
+            {facturado && (
+              <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full">Facturado</span>
             )}
           </div>
         </div>

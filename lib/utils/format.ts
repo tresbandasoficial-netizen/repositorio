@@ -1,3 +1,9 @@
+/** Retorna la fecha de hoy en hora Bogotá (UTC−5) como string YYYY-MM-DD.
+ *  new Date().toISOString() da UTC y entre 19:00–00:00 Bogotá ya marca el día siguiente. */
+export function hoyBogota(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date())
+}
+
 export function formatCOP(value: number): string {
   return new Intl.NumberFormat('es-CO', {
     style: 'currency',

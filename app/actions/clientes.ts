@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { getSesion } from '@/lib/auth/acceso'
 import { normalizarTelefono } from '@/lib/utils/phone'
 
 export type ClienteBusqueda = {
@@ -47,6 +48,42 @@ export async function buscarClientesAction(busqueda: string): Promise<ClienteBus
   }))
 }
 
+export type ClientePorTelefono = {
+  id: string
+  nombre: string
+  telefono_normalizado: string
+  ultima_direccion: string | null
+} | null
+
+export async function buscarClientePorTelefonoAction(telefono: string): Promise<ClientePorTelefono> {
+  const digitos = telefono.replace(/\D/g, '')
+  if (digitos.length < 7) return null
+  // Comparar por los últimos 10 dígitos: ignora el indicativo (+57) y cualquier
+  // diferencia de formato entre lo escrito y lo guardado.
+  const ultimos = digitos.slice(-10)
+  const supabase = await createClient()
+  const { data: clientes } = await supabase
+    .from('clientes')
+    .select('id, nombre, telefono_normalizado')
+    .ilike('telefono_normalizado', `%${ultimos}`)
+    .limit(1)
+
+  const cliente = clientes?.[0]
+  if (!cliente) return null
+
+  const { data: pedido } = await supabase
+    .from('pedidos')
+    .select('direccion_entrega')
+    .eq('cliente_id', cliente.id)
+    .eq('tipo_entrega', 'domicilio')
+    .not('direccion_entrega', 'is', null)
+    .order('fecha_creacion', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  return { ...cliente, ultima_direccion: pedido?.direccion_entrega ?? null }
+}
+
 export async function buscarDireccionPorTelefonoAction(telefono: string): Promise<string | null> {
   const supabase = await createClient()
   const { data: cliente } = await supabase
@@ -78,6 +115,8 @@ export async function editarClienteAction(
   id: string,
   formData: FormData
 ): Promise<EditarClienteResult> {
+  const sesion = await getSesion()
+  if (sesion.rol === 'visor') return { ok: false, error: 'Sin permisos para editar clientes' }
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()

@@ -1,29 +1,24 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { MetodoPago, METODOS_PAGO, METODO_PAGO_LABELS } from '@/types'
+import { MetodoPago, metodosDeSede, labelMetodo } from '@/types'
 import { registrarPagoAction } from '@/app/actions/pedidos'
-import { formatCOP } from '@/lib/utils/format'
-
-const METODOS: { value: MetodoPago; label: string }[] =
-  METODOS_PAGO.map(v => ({ value: v, label: METODO_PAGO_LABELS[v] }))
-
-function hoy(): string {
-  return new Date().toISOString().slice(0, 10)
-}
+import { formatCOP, hoyBogota } from '@/lib/utils/format'
 
 interface Props {
   pedidoId: string
   total: number
   totalPagado: number
+  sedeCodigo?: string
 }
 
-export function RegistrarPagoForm({ pedidoId, total, totalPagado }: Props) {
+export function RegistrarPagoForm({ pedidoId, total, totalPagado, sedeCodigo }: Props) {
   const saldo = total - totalPagado
+  const METODOS = metodosDeSede(sedeCodigo).map(v => ({ value: v, label: labelMetodo(v, sedeCodigo) }))
 
   const [monto, setMonto] = useState(saldo.toString())
   const [metodo, setMetodo] = useState<MetodoPago>('efectivo')
-  const [fecha, setFecha] = useState(hoy())
+  const [fecha, setFecha] = useState(hoyBogota())
   const [notas, setNotas] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -44,6 +39,7 @@ export function RegistrarPagoForm({ pedidoId, total, totalPagado }: Props) {
         metodo,
         fecha,
         notas,
+        cuenta_id: null,
       })
       if (!result.ok) setError(result.error)
     })

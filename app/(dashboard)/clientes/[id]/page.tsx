@@ -6,7 +6,9 @@ import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { EstadoBadge } from '@/components/pedidos/EstadoBadge'
 import { formatCOP, formatFecha } from '@/lib/utils/format'
 import { formatearTelefono, whatsappUrl } from '@/lib/utils/phone'
-import { EstadoPedido } from '@/types'
+import { EstadoPedido, METODO_PAGO_LABELS, MetodoPago } from '@/types'
+import { AbonarClienteButton } from '@/components/clientes/AbonarClienteButton'
+import { HistorialPagos } from '@/components/clientes/HistorialPagos'
 
 export default async function ClienteDetallePage({
   params,
@@ -16,6 +18,14 @@ export default async function ClienteDetallePage({
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  const { data: usuario } = await supabase
+    .from('usuarios')
+    .select('rol, sedes(codigo)')
+    .eq('id', user.id)
+    .single()
+  const sedeCodigo = (usuario?.sedes as { codigo?: string } | null)?.codigo
+  const esAdmin = usuario?.rol === 'admin'
 
   const { id } = await params
   const cliente = await getClienteDetalle(id)
@@ -34,17 +44,22 @@ export default async function ClienteDetallePage({
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
-        <Link href="/clientes" className="text-gray-400 hover:text-gray-600 text-sm">
+        <Link
+          href="/clientes"
+          className="px-4 py-2 text-sm font-medium border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 transition-colors inline-flex items-center gap-1.5 whitespace-nowrap"
+        >
           ← Clientes
         </Link>
-        <span className="text-gray-300">/</span>
         <h1 className="text-lg font-bold text-gray-900 flex-1">{cliente.nombre}</h1>
-        <Link
-          href={`/clientes/${id}/editar`}
-          className="px-4 py-2 text-sm font-medium border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 transition-colors"
-        >
-          Editar
-        </Link>
+        <div className="flex items-center gap-2">
+          <AbonarClienteButton clienteId={id} deudaTotal={saldoTotal} sedeCodigo={sedeCodigo} />
+          <Link
+            href={`/clientes/${id}/editar`}
+            className="px-4 py-2 text-sm font-medium border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            Editar
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -107,8 +122,11 @@ export default async function ClienteDetallePage({
                         </td>
                         <td className="px-4 py-3 text-gray-500">{formatFecha(p.fecha_creacion)}</td>
                         <td className="px-4 py-3 text-right">
-                          <Link href={`/pedidos/${p.id}`} className="text-xs text-blue-600 hover:underline">
-                            Ver →
+                          <Link
+                            href={`/pedidos/${p.id}`}
+                            className="inline-block px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
+                            Ver
                           </Link>
                         </td>
                       </tr>
@@ -119,6 +137,16 @@ export default async function ClienteDetallePage({
             </CardContent>
           </Card>
         </div>
+
+          {/* Historial de pagos */}
+          <Card>
+            <CardHeader>
+              <h2 className="text-sm font-semibold text-gray-900">Historial de pagos</h2>
+            </CardHeader>
+            <CardContent className="p-0">
+              <HistorialPagos abonos={cliente.abonos} esAdmin={esAdmin} />
+            </CardContent>
+          </Card>
 
         {/* Columna lateral — info del cliente */}
         <div className="space-y-4">

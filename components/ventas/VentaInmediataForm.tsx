@@ -6,7 +6,7 @@ import { buscarClientesAction, ClienteBusqueda } from '@/app/actions/clientes'
 import { registrarVentaInmediataAction } from '@/app/actions/ventas'
 import { Button } from '@/components/ui/Button'
 import { formatCOP } from '@/lib/utils/format'
-import { MetodoPago, METODOS_PAGO, METODO_PAGO_LABELS } from '@/types'
+import { MetodoPago, labelMetodo, metodosDeSede } from '@/types'
 import { Linea, nuevaLinea, LineaProducto } from '@/components/ventas/LineaProducto'
 
 type SedeOpcion = { id: string; codigo: string; nombre: string }
@@ -14,11 +14,9 @@ type SedeOpcion = { id: string; codigo: string; nombre: string }
 export function VentaInmediataForm({ sedes }: { sedes: SedeOpcion[] }) {
   const router = useRouter()
 
-  // Sede de venta (el admin elige; el asesor tiene una sola)
   const [sedeId, setSedeId] = useState(sedes[0]?.id ?? '')
   const sedeCodigo = sedes.find(s => s.id === sedeId)?.codigo ?? ''
 
-  // Cliente
   const [busqueda, setBusqueda] = useState('')
   const [resultados, setResultados] = useState<ClienteBusqueda[]>([])
   const [cliente, setCliente] = useState<ClienteBusqueda | null>(null)
@@ -26,10 +24,8 @@ export function VentaInmediataForm({ sedes }: { sedes: SedeOpcion[] }) {
   const [telefono, setTelefono] = useState('')
   const [cedula, setCedula] = useState('')
 
-  // Items
   const [lineas, setLineas] = useState<Linea[]>([nuevaLinea()])
 
-  // Pago
   const [abono, setAbono] = useState('')
   const [metodo, setMetodo] = useState<MetodoPago>('efectivo')
   const [notas, setNotas] = useState('')
@@ -81,11 +77,12 @@ export function VentaInmediataForm({ sedes }: { sedes: SedeOpcion[] }) {
         cliente_nombre: nombre,
         cliente_telefono: telefono,
         cliente_cedula: cedula,
-        items: items.map(({ articulo_id, marca, descripcion, talla, cantidad, precio_venta }) => ({
-          articulo_id, marca, descripcion, talla, cantidad, precio_venta,
+        items: items.map(({ articulo_id, marca, descripcion, talla, cantidad, precio_venta, color, sexo, categoria }) => ({
+          articulo_id, marca, descripcion, talla, cantidad, precio_venta, color, sexo, categoria,
         })),
         abono: abonoNum,
-        metodo_pago: metodo,
+        metodo,
+        cuenta_id: null,
         notas,
       })
       if (!r.ok) { setError(r.error); return }
@@ -95,7 +92,6 @@ export function VentaInmediataForm({ sedes }: { sedes: SedeOpcion[] }) {
 
   return (
     <div className="space-y-5">
-      {/* Sede (solo si hay más de una opción, p.ej. admin) */}
       {sedes.length > 1 && (
         <div className="bg-white rounded-xl border border-gray-100 p-5">
           <label className="block text-sm font-semibold text-gray-900 mb-2">Sede de venta</label>
@@ -110,7 +106,6 @@ export function VentaInmediataForm({ sedes }: { sedes: SedeOpcion[] }) {
         </div>
       )}
 
-      {/* Cliente */}
       <div className="bg-white rounded-xl border border-gray-100 p-5">
         <label className="block text-sm font-semibold text-gray-900 mb-2">Cliente</label>
         {!cliente && (
@@ -150,7 +145,6 @@ export function VentaInmediataForm({ sedes }: { sedes: SedeOpcion[] }) {
         )}
       </div>
 
-      {/* Productos */}
       <div className="bg-white rounded-xl border border-gray-100 p-5">
         <label className="block text-sm font-semibold text-gray-900 mb-3">Productos</label>
         <div className="space-y-3">
@@ -171,7 +165,6 @@ export function VentaInmediataForm({ sedes }: { sedes: SedeOpcion[] }) {
         </button>
       </div>
 
-      {/* Pago */}
       <div className="bg-white rounded-xl border border-gray-100 p-5 space-y-3">
         <div className="flex items-center justify-between pb-2 border-b border-gray-100">
           <span className="text-sm text-gray-500">Total</span>
@@ -192,9 +185,14 @@ export function VentaInmediataForm({ sedes }: { sedes: SedeOpcion[] }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Método de pago</label>
-            <select value={metodo} onChange={e => setMetodo(e.target.value as MetodoPago)}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-              {METODOS_PAGO.map(m => <option key={m} value={m}>{METODO_PAGO_LABELS[m]}</option>)}
+            <select
+              value={metodo}
+              onChange={e => setMetodo(e.target.value as MetodoPago)}
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {metodosDeSede(sedeCodigo).map(m => (
+                <option key={m} value={m}>{labelMetodo(m, sedeCodigo)}</option>
+              ))}
             </select>
           </div>
           <div>
@@ -213,4 +211,3 @@ export function VentaInmediataForm({ sedes }: { sedes: SedeOpcion[] }) {
     </div>
   )
 }
-

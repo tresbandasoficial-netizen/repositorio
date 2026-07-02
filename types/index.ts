@@ -40,37 +40,120 @@ export type EstadoPedido =
   | 'cancelado'
 
 export type MetodoPago =
+  // Métodos activos
   | 'efectivo'
+  | 'recaudo_mensajeria'
+  | 'nequi_johan'
+  | 'nequi_marisol'
+  | 'nequi_luisa'
+  | 'bancolombia_ronaldo'
+  | 'bancolombia_johan'
+  | 'bancolombia_carlos'
+  | 'bancolombia_cristian'
+  | 'bancolombia_huber'
+  | 'davivienda'
+  | 'addi'
+  | 'bold'
+  | 'sistecredito'
+  | 'credito'
+  // Históricos (registros anteriores)
+  | 'contra_entrega'
   | 'bancolombia'
   | 'nequi'
   | 'daviplata'
   | 'transferencia'
   | 'datafono'
-  | 'addi'
-  | 'bold'
-  | 'sistecredito'
-  | 'credito'
   | 'otro'
 
 // Etiquetas y orden canónico de los métodos de pago (fuente única para selectores y cuadre).
 export const METODO_PAGO_LABELS: Record<MetodoPago, string> = {
-  efectivo:      'Efectivo',
-  bancolombia:   'Bancolombia',
-  nequi:         'Nequi',
-  daviplata:     'Daviplata',
-  transferencia: 'Transferencia (otra)',
-  datafono:      'Datáfono / Tarjeta',
-  addi:          'Addi',
-  bold:          'Bold',
-  sistecredito:  'Sistecrédito',
-  credito:       'Crédito',
-  otro:          'Otro',
+  efectivo:              'Efectivo',
+  recaudo_mensajeria:    'Recaudo Mensajería',
+  nequi_johan:           'Nequi Johan',
+  nequi_marisol:         'Nequi Marisol',
+  nequi_luisa:           'Nequi Luisa Santa Rosa',
+  bancolombia_ronaldo:   'Bancolombia Ronaldo',
+  bancolombia_johan:     'Bancolombia Johan',
+  bancolombia_carlos:    'Bancolombia Carlos',
+  bancolombia_cristian:  'Bancolombia Cristian',
+  bancolombia_huber:     'Bancolombia Huber',
+  davivienda:            'Davivienda',
+  addi:                  'Addi',
+  bold:                  'Bold',
+  sistecredito:          'Sistecrédito',
+  credito:               'Crédito',
+  // Históricos
+  contra_entrega:        'Contra entrega (antiguo)',
+  bancolombia:           'Bancolombia (antiguo)',
+  nequi:                 'Nequi (antiguo)',
+  daviplata:             'Daviplata',
+  transferencia:         'Transferencia',
+  datafono:              'Datáfono',
+  otro:                  'Otro',
 }
 
+// Métodos activos que aparecen en los selectores de la app.
 export const METODOS_PAGO: MetodoPago[] = [
-  'efectivo', 'bancolombia', 'nequi', 'daviplata', 'transferencia',
-  'datafono', 'addi', 'bold', 'sistecredito', 'credito', 'otro',
+  'efectivo',
+  'nequi_johan', 'nequi_marisol', 'nequi_luisa',
+  'bancolombia_ronaldo', 'bancolombia_johan', 'bancolombia_carlos',
+  'bancolombia_cristian', 'bancolombia_huber',
+  'davivienda', 'addi', 'bold', 'sistecredito', 'credito',
 ]
+
+// Métodos permitidos por sede (código). Si una sede no está aquí, se muestran
+// todos. Santa Rosa solo maneja estos: efectivo (Caja/Efectivo Santa Rosa),
+// Nequi Luisa, Addi, Sistecrédito, Bold y Crédito.
+export const METODOS_PAGO_POR_SEDE: Record<string, MetodoPago[]> = {
+  SR: ['efectivo', 'nequi_luisa', 'addi', 'sistecredito', 'bold', 'credito'],
+}
+
+// Devuelve los métodos de pago que debe mostrar el selector para una sede.
+export function metodosDeSede(sedeCodigo?: string | null): MetodoPago[] {
+  if (sedeCodigo && METODOS_PAGO_POR_SEDE[sedeCodigo]) return METODOS_PAGO_POR_SEDE[sedeCodigo]
+  return METODOS_PAGO
+}
+
+// Cuentas (métodos electrónicos) cuyo SALDO ACUMULADO puede ver un asesor de la
+// sede en el cuadre. El efectivo de su sede siempre lo ve; el acumulado de las
+// demás cuentas es solo para admin (a menos que la cuenta sea "de la sede").
+//   - Santa Rosa: la asesora maneja Nequi Luisa → puede ver su acumulado.
+//   - Bucaramanga / Cúcuta: las cuentas son del dueño → acumulado solo admin.
+export const CUENTAS_ACUMULADO_ASESOR: Record<string, MetodoPago[]> = {
+  SR: ['nequi_luisa'],
+}
+
+export function cuentasAcumuladoAsesor(sedeCodigo?: string | null): MetodoPago[] {
+  return (sedeCodigo && CUENTAS_ACUMULADO_ASESOR[sedeCodigo]) || []
+}
+
+// El efectivo se muestra con el nombre de la caja de su sede (ej: en Santa Rosa
+// aparece "Efectivo Santa Rosa", no solo "Efectivo").
+const EFECTIVO_LABEL_POR_SEDE: Record<string, string> = {
+  SR: 'Efectivo Santa Rosa',
+  CR: 'Efectivo Cúcuta',
+}
+
+// Etiqueta de un método de pago, ajustada a la sede cuando aplica.
+export function labelMetodo(metodo: MetodoPago, sedeCodigo?: string | null): string {
+  if (metodo === 'efectivo' && sedeCodigo && EFECTIVO_LABEL_POR_SEDE[sedeCodigo]) {
+    return EFECTIVO_LABEL_POR_SEDE[sedeCodigo]
+  }
+  return METODO_PAGO_LABELS[metodo] ?? metodo
+}
+
+// Métodos que NO se confirman en el cuadre: no son transferencias a verificar en
+// el banco. Efectivo (se cuenta físico), crédito (deuda, no entró plata),
+// recaudo/contra-entrega (lo cobra la mensajería, aún no recibido) y las
+// financieras Addi/Sistecrédito (se concilian aparte con la plataforma).
+export const METODOS_SIN_CONFIRMAR = new Set<string>([
+  'efectivo', 'credito', 'recaudo_mensajeria', 'contra_entrega', 'addi', 'sistecredito',
+])
+
+// ¿Este método requiere confirmación (es una transferencia/tarjeta a verificar)?
+export function requiereConfirmacion(metodo: string): boolean {
+  return !METODOS_SIN_CONFIRMAR.has(metodo)
+}
 
 export type PedidoItem = {
   id: string
@@ -166,11 +249,18 @@ export type ParsedPedido = {
     cantidad: number
     precio_venta: number
     imagen_url?: string | null
-    articulo_id?: string | null   // enlace al catálogo (opcional)
+    articulo_id?: string | null
+    color?: string | null
+    sexo?: 'hombre' | 'mujer' | 'nino' | null
+    categoria?: 'ropa' | 'tenis' | 'accesorios' | null
   }>
   total: number
   abono: number
   metodo_pago_abono: MetodoPago
+  cuenta_id_abono?: string | null
+  // Abonos múltiples (cliente paga una parte por una cuenta y otra por otra).
+  // Si está presente, reemplaza a `abono`/`metodo_pago_abono`.
+  abonos?: Array<{ monto: number; metodo: MetodoPago }>
   tipo_entrega: 'domicilio' | 'sede'
   direccion: string | null
   notas: string | null
@@ -279,15 +369,13 @@ export const DIAS_ZOMBIE_DOC = 30
 
 // ─── Inventario / Artículos ──────────────────────────────────────────────────
 
-export type CategoriaArticulo = 'tenis' | 'ropa' | 'accesorio' | 'otro'
-export type SexoArticulo = 'hombre' | 'mujer' | 'unisex' | 'nino' | 'nina'
+export type CategoriaArticulo = 'ropa' | 'tenis' | 'accesorios'
+export type SexoArticulo = 'hombre' | 'mujer' | 'nino'
 
 export const SEXO_LABELS: Record<SexoArticulo, string> = {
-  hombre:  'Hombre',
-  mujer:   'Mujer',
-  unisex:  'Unisex',
-  nino:    'Niño',
-  nina:    'Niña',
+  hombre: 'Hombre',
+  mujer:  'Mujer',
+  nino:   'Niño',
 }
 
 export type Articulo = {
@@ -335,6 +423,107 @@ export type StockSede = {
   stock: number
 }
 
+// ─── Cuentas financieras ─────────────────────────────────────────────────────
+
+export type TipoCuenta = 'bancolombia' | 'nequi' | 'daviplata' | 'efectivo' | 'addi' | 'sistecredito' | 'bold' | 'credito' | 'otro'
+
+export type Cuenta = {
+  id: string
+  nombre: string
+  tipo: TipoCuenta
+  metodo_pago: string | null
+  sede_id: string | null
+  activa: boolean
+  orden: number
+  creado_en: string
+  sede?: Pick<Sede, 'codigo' | 'nombre'>
+}
+
+// ─── Gastos ──────────────────────────────────────────────────────────────────
+
+export type CategoriaGasto =
+  | 'compras_mercancia'
+  | 'domicilios'
+  | 'publicidad'
+  | 'nomina'
+  | 'arriendo'
+  | 'servicios'
+  | 'transporte'
+  | 'papeleria'
+  | 'otros'
+
+export const CATEGORIA_GASTO_LABELS: Record<CategoriaGasto, string> = {
+  compras_mercancia: 'Compras de mercancía',
+  domicilios:        'Domicilios',
+  publicidad:        'Publicidad',
+  nomina:            'Nómina',
+  arriendo:          'Arriendo',
+  servicios:         'Servicios',
+  transporte:        'Transporte',
+  papeleria:         'Papelería',
+  otros:             'Otros',
+}
+
+export const CATEGORIAS_GASTO: CategoriaGasto[] = [
+  'compras_mercancia','domicilios','publicidad','nomina',
+  'arriendo','servicios','transporte','papeleria','otros',
+]
+
+export type Gasto = {
+  id: string
+  fecha: string
+  valor: number
+  categoria: CategoriaGasto
+  sede_id: string
+  cuenta_id: string | null
+  responsable_id: string
+  observacion: string | null
+  origen: 'manual' | 'compra' | 'domicilio' | null
+  origen_id: string | null
+  creado_en: string
+  sede?: Pick<Sede, 'codigo' | 'nombre'>
+  cuenta?: Pick<Cuenta, 'nombre' | 'tipo'>
+  responsable?: Pick<Usuario, 'nombre'>
+}
+
+// ─── Mensajerías ─────────────────────────────────────────────────────────────
+
+export type TipoMensajeria = 'exneider' | 'servigo'
+
+export const MENSAJERIA_LABELS: Record<TipoMensajeria, string> = {
+  exneider: 'Exneider',
+  servigo:  'Servigo',
+}
+
+// ─── Tipo de entrega al facturar ──────────────────────────────────────────────
+export type TipoEntrega = 'tienda' | 'domicilio' | 'envio'
+export type QuienPagaEntrega = 'cliente' | 'tb' | 'contra_entrega'
+
+export type PagoMensajeria = {
+  id: string
+  mensajeria: TipoMensajeria
+  tipo: 'deuda' | 'pago'
+  monto: number
+  fecha: string
+  domicilio_id: string | null
+  cuenta_id: string | null
+  notas: string | null
+  responsable_id: string
+  creado_en: string
+  cuenta?: Pick<Cuenta, 'nombre'>
+  responsable?: Pick<Usuario, 'nombre'>
+}
+
+// ─── Domicilios (tipo de cobro) ───────────────────────────────────────────────
+
+export type TipoCobroDomicilio = 'regalado' | 'mensajero' | 'tb_cobra'
+
+export const TIPO_COBRO_LABELS: Record<TipoCobroDomicilio, string> = {
+  regalado:  'Tres Bandas asume el domicilio',
+  mensajero: 'El cliente paga al mensajero',
+  tb_cobra:  'El cliente paga a Tres Bandas',
+}
+
 // ─── Facturación ──────────────────────────────────────────────────────────────
 
 export type EstadoFactura = 'pendiente' | 'pagada' | 'vencida' | 'anulada'
@@ -375,6 +564,13 @@ export type FacturaRow = {
   estado: EstadoFactura
   notas: string | null
   creado_en: string
+}
+
+export type PagoFacturaInput = {
+  monto: number
+  metodo: MetodoPago
+  cuenta_id: string | null
+  mensajeria?: TipoMensajeria | null
 }
 
 export type PagoFactura = {

@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { getSesion } from '@/lib/auth/acceso'
 import { createClient } from '@/lib/supabase/server'
 import { NuevaFacturaForm } from '@/components/facturacion/NuevaFacturaForm'
@@ -16,14 +15,15 @@ export default async function NuevaFacturaPage() {
     if (data) sedes = [data]
   }
 
+  const { data: usuario } = await supabase
+    .from('usuarios')
+    .select('nombre')
+    .eq('id', sesion.id)
+    .single()
+
   return (
-    <div className="p-6 max-w-2xl mx-auto">
-      <Link href="/facturacion" className="text-sm text-blue-600 hover:underline">Ver facturas emitidas →</Link>
-      <h1 className="text-xl font-bold text-gray-900 mt-3 mb-1">Facturar / Vender</h1>
-      <p className="text-sm text-gray-500 mb-6">
-        Si es un pedido, búscalo por su número. Si no, busca el cliente y agrégale artículos del inventario.
-      </p>
-      <NuevaFacturaForm sedes={sedes} />
+    <div className="p-6 max-w-6xl mx-auto">
+      <NuevaFacturaForm sedes={sedes} asesorNombre={usuario?.nombre ?? ''} />
     </div>
   )
 }

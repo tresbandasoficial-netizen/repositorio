@@ -2,9 +2,10 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { getSesion } from '@/lib/auth/acceso'
+import { bloqueoCajaCerrada } from '@/lib/auth/caja'
+import { cuentaIdPorMetodo } from '@/lib/queries/cuentas'
 import { getSiguienteNumeroOrden } from '@/lib/queries/pedidos'
 import { normalizarTelefono } from '@/lib/utils/phone'
-import { MetodoPago } from '@/types'
 
 export type ItemVenta = {
   articulo_id: string | null
@@ -13,16 +14,20 @@ export type ItemVenta = {
   talla: string
   cantidad: number
   precio_venta: number
+  color?: string
+  sexo?: string
+  categoria?: string
 }
 
 export type VentaInmediataInput = {
-  sede_id: string          // sede desde la que se vende (el admin la elige; el asesor usa la suya)
+  sede_id: string
   cliente_nombre: string
   cliente_telefono: string
   cliente_cedula: string
   items: ItemVenta[]
   abono: number
-  metodo_pago: MetodoPago
+  metodo: string
+  cuenta_id: string | null
   notas: string
 }
 
@@ -30,16 +35,15 @@ export type VentaResult =
   | { ok: true; pedidoId: string }
   | { ok: false; error: string }
 
-// Venta inmediata: crea un pedido ya ENTREGADO, descuenta inventario de la sede
-// indicada (automático, CPP) y registra el pago. El asesor no toca lotes.
 export async function registrarVentaInmediataAction(data: VentaInmediataInput): Promise<VentaResult> {
   const sesion = await getSesion()
+  const bloqueo = await bloqueoCajaCerrada(sesion)
+  if (bloqueo) return { ok: false, error: bloqueo }
   const supabase = await createClient()
 
   if (data.items.length === 0) return { ok: false, error: 'Debe haber al menos un producto' }
   if (!data.cliente_nombre.trim()) return { ok: false, error: 'El nombre del cliente es obligatorio' }
 
-  // Sede de la venta: el asesor está atado a la suya; el admin puede elegir cualquiera.
   const sedeId = sesion.rol === 'admin' ? data.sede_id : sesion.sede_id
   if (!sedeId) return { ok: false, error: 'Debes seleccionar una sede para la venta' }
   if (sesion.rol !== 'admin' && data.sede_id && data.sede_id !== sesion.sede_id) {
@@ -51,7 +55,6 @@ export async function registrarVentaInmediataAction(data: VentaInmediataInput): 
     if (it.precio_venta < 0) return { ok: false, error: 'El precio no puede ser negativo' }
   }
 
-  // Sede (para numero_orden y descuento de stock).
   const { data: sede } = await supabase
     .from('sedes')
     .select('id, codigo')
@@ -59,7 +62,6 @@ export async function registrarVentaInmediataAction(data: VentaInmediataInput): 
     .single()
   if (!sede) return { ok: false, error: 'Sede no encontrada' }
 
-  // Cliente: buscar por teléfono o crear.
   const telefono = normalizarTelefono(data.cliente_telefono)
   if (!telefono) return { ok: false, error: 'Teléfono del cliente inválido' }
 
@@ -103,6 +105,14 @@ export async function registrarVentaInmediataAction(data: VentaInmediataInput): 
     precio_venta: it.precio_venta,
   }))
 
+  // Rutear el pago a la cuenta de su método (efectivo → caja de la sede; demás →
+  // su cuenta global) para que el saldo se actualice solo en el flujo de caja.
+  const metodoVenta = data.abono > 0 ? (data.metodo || 'efectivo') : 'efectivo'
+  let cuentaVenta = data.cuenta_id || null
+  if (!cuentaVenta && data.abono > 0) {
+    cuentaVenta = await cuentaIdPorMetodo(supabase, metodoVenta, sede.id)
+  }
+
   const { data: pedidoId, error } = await supabase.rpc('registrar_venta_inmediata', {
     p_numero_orden: numeroOrden,
     p_sede_id:      sede.id,
@@ -111,8 +121,9 @@ export async function registrarVentaInmediataAction(data: VentaInmediataInput): 
     p_total:        total,
     p_items:        items,
     p_abono:        data.abono,
-    p_metodo_pago:  data.metodo_pago,
+    p_cuenta_id:    cuentaVenta,
     p_notas:        data.notas.trim() || null,
+    p_metodo:       metodoVenta,
   })
 
   if (error) {

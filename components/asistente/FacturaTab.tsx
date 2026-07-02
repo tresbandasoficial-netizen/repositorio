@@ -133,6 +133,7 @@ export function FacturaTab() {
         trm: tipo === 'usa' ? trmCalc : null,
         total_cop: totalCopNum,
         notas,
+        cuenta_id: null,
         items: itemsInput,
       })
       if (!result.ok) { setError(result.error); return }

@@ -1,13 +1,19 @@
 # PROJECT_STATUS.md — Tres Bandas App
-> Auditoría técnica generada el 2026-06-21
+> Última actualización: 2026-06-21
 
 ---
 
 ## 1. ARQUITECTURA GENERAL
 
-La aplicación es un **ERP interno** para una cadena de ropa y calzado (Tres Bandas, Bucaramanga, Colombia) con 3 sedes: TR (Bucaramanga), CR (Cúcuta), SR (Santa Rosa).
+**ERP interno** para una cadena de ropa y calzado (Tres Bandas, Bucaramanga, Colombia) con 3 sedes:
 
-**Patrón arquitectónico:** Next.js App Router con Server Components + Server Actions. No hay API REST propia expuesta al público; toda la lógica de backend vive en Server Actions (`'use server'`). La base de datos es Supabase (PostgreSQL con RLS).
+| Código | Ciudad | Rol |
+|--------|--------|-----|
+| **TR** | Bucaramanga | Sede principal / bodega |
+| **CR** | Cúcuta | Sede regional |
+| **SR** | Santa Rosa | Sede regional |
+
+**Patrón arquitectónico:** Next.js App Router con Server Components + Server Actions. No hay API REST pública; toda la lógica de negocio vive en Server Actions (`'use server'`). Base de datos en Supabase (PostgreSQL con RLS).
 
 ```
 Cliente (browser)
@@ -35,7 +41,6 @@ Row-Level Security por rol/sede
 | IA secundaria (facturas) | OpenAI SDK | 6.39.0 |
 | Email | Resend | 6.12.3 |
 | Gráficas | Recharts | 3.8.1 |
-| Iconos | lucide-react | latest |
 | Deploy | Vercel | — |
 
 ---
@@ -54,16 +59,20 @@ Row-Level Security por rol/sede
 │   │   ├── dashboard/
 │   │   ├── domicilios/
 │   │   ├── estadisticas/
+│   │   ├── facturacion/        # ✅ NUEVO — Facturas y pagos
+│   │   ├── inventario/         # ✅ NUEVO — Catálogo + stock
 │   │   ├── pedidos/
 │   │   ├── perfil/
 │   │   └── usuarios/           # Admin-only
 │   ├── actions/                # Server Actions (toda la lógica de negocio)
+│   │   ├── articulos.ts        # ✅ NUEVO — Catálogo, buscar, entrada, transferencia
 │   │   ├── asistente.ts
 │   │   ├── clientes.ts
 │   │   ├── compras.ts
 │   │   ├── domicilios.ts
 │   │   ├── parsear-factura.ts
 │   │   ├── pedidos.ts
+│   │   ├── ventas.ts           # ✅ NUEVO — Venta inmediata
 │   │   └── usuarios.ts
 │   ├── api/
 │   │   ├── cron/alertas/       # Vercel Cron Job
@@ -75,8 +84,12 @@ Row-Level Security por rol/sede
 │   ├── clientes/
 │   ├── compras/
 │   ├── domicilios/
+│   │   └── DomicilioDesdeFacturaPanel.tsx  # ✅ NUEVO
+│   ├── facturacion/            # ✅ NUEVO
+│   ├── inventario/             # ✅ NUEVO — InventarioPanel.tsx
 │   ├── layout/                 # Sidebar, MobileNav
 │   ├── pedidos/
+│   ├── ventas/                 # ✅ NUEVO — LineaProducto.tsx
 │   └── ui/                     # Button, Card, Badge, etc.
 ├── lib/
 │   ├── auth/                   # getSesion(), puedeAccederSede()
@@ -84,153 +97,150 @@ Row-Level Security por rol/sede
 │   ├── email/                  # Templates Resend
 │   ├── parser/                 # Parser de texto libre → ParsedPedido
 │   ├── queries/                # Data fetching (read-only)
+│   │   └── inventario.ts       # ✅ NUEVO — getStockPorSede, getStockArticuloSede
 │   ├── supabase/               # client.ts, server.ts, admin.ts
 │   └── utils/                  # phone.ts, format.ts, cn.ts
 ├── types/
 │   └── index.ts                # Todos los tipos TypeScript
 └── supabase/
-    └── migrations/             # 26 migraciones SQL
+    └── migrations/             # 31 migraciones SQL (ver detalle abajo)
 ```
 
 ---
 
-## 4. TABLAS DE SUPABASE
+## 4. BASE DE DATOS — TABLAS PRINCIPALES
 
-### Tablas principales
+### Tablas del negocio
 
-| Tabla | Filas estimadas | Descripción |
-|-------|----------------|-------------|
-| `sedes` | 3 | TR, CR, SR (hardcoded) |
-| `usuarios` | ~10-20 | Empleados con rol y sede |
-| `clientes` | Creciente | Base de clientes únicos por teléfono |
-| `pedidos` | Alto volumen | Tabla central del negocio |
-| `pedido_items` | Alto volumen | Productos por pedido |
-| `pagos` | Alto volumen | Abonos registrados |
-| `alertas` | Moderado | Alertas activas/resueltas |
-| `notificaciones` | Moderado | Notificaciones por usuario |
-| `historial_cambios` | Alto volumen | Auditoría de todos los cambios |
-| `compras` | Moderado | Facturas de proveedores |
-| `compra_items` | Moderado | Productos de cada compra |
-| `domicilios` | Moderado | Registro de envíos diarios |
+| Tabla | Descripción |
+|-------|-------------|
+| `sedes` | TR, CR, SR — 3 registros fijos |
+| `usuarios` | Empleados con rol (admin/asesor/visor) y sede |
+| `clientes` | Base de clientes únicos, identificados por teléfono |
+| `pedidos` | **Tabla central.** Todo gira alrededor del pedido |
+| `pedido_items` | Líneas de producto por pedido |
+| `pagos` | Abonos registrados contra cada pedido |
+| `alertas` | Pedidos con tiempo excedido o zombies |
+| `notificaciones` | Notificaciones por usuario (badge pendiente) |
+| `historial_cambios` | Auditoría completa de todos los cambios |
+| `compras` | Facturas de proveedores (USA/Colombia) |
+| `compra_items` | Productos de cada compra, con destino (pedido/bodega) |
+| `domicilios` | Envíos diarios a clientes |
+| `facturas` | ✅ Facturas emitidas a clientes (numeradas) |
+| `factura_items` | ✅ No existe aún — facturas usan pedidos directamente |
+| `pagos_factura` | ✅ Abonos a facturas (separado de pagos de pedidos) |
 
-### Schema detallado
+### Catálogo e inventario (Migración 031 — Junio 2026)
 
-#### `sedes`
-```sql
-id uuid PK, codigo ('TR'|'CR'|'SR'), nombre, direccion
-```
+| Tabla | Descripción |
+|-------|-------------|
+| `articulos` | **Catálogo de modelos.** Código SKU, marca, nombre, referencia, color, sexo, fotos[], descripcion. **Sin talla** — la talla vive en el inventario |
+| `movimientos_inventario` | Libro mayor del inventario. `delta` = cantidad (+ entrada, - salida). Incluye campo `talla` para identificar la talla específica |
 
-#### `usuarios`
-```sql
-id uuid PK (FK auth.users), email, nombre,
-rol ('asesor'|'admin'|'visor'), sede_id FK, activo bool
-```
-
-#### `clientes`
-```sql
-id uuid PK, telefono_normalizado text UNIQUE, nombre,
-cedula, email, notas, creado_en, actualizado_en
--- Índice: GIN trigram para búsqueda difusa por nombre
-```
-
-#### `pedidos`
-```sql
-id uuid PK, numero_orden text UNIQUE, sede_id FK, cliente_id FK,
-asesor_id FK, estado EstadoPedido, total int,
-tipo_entrega ('sede'|'domicilio'), direccion_entrega text,
-notas text, numero_guia text,
-fecha_creacion timestamptz, fecha_actualizacion timestamptz
--- Trigger: actualiza fecha_actualizacion automáticamente
--- Índices: sede+fecha, asesor, cliente, estado, numero_orden
-```
-
-#### `pedido_items`
-```sql
-id uuid PK, pedido_id FK CASCADE, marca, descripcion, talla,
-cantidad int, precio_venta int, imagen_url text
-```
-
-#### `pagos`
-```sql
-id uuid PK, pedido_id FK CASCADE, monto int, metodo MetodoPago,
-fecha date, asesor_id FK, notas text
--- MetodoPago: efectivo|transferencia|datafono|addi|bold|
---             sistecredito|credito|otro
-```
-
-#### `alertas`
-```sql
-id uuid PK, pedido_id FK, tipo ('tiempo_excedido'|'zombie'),
-creada_en timestamptz, resuelta_en timestamptz
--- UNIQUE: (pedido_id, tipo) WHERE resuelta_en IS NULL
-```
-
-#### `compras`
-```sql
-id uuid PK, tipo ('usa'|'colombia'), proveedor, fecha date,
-numero_factura text UNIQUE, total_usd numeric, trm numeric,
-total_cop int, notas, creado_por FK usuarios
-```
-
-#### `compra_items`
-```sql
-id uuid PK, compra_id FK CASCADE, descripcion, marca, talla,
-cantidad int, costo_unitario_cop int,
-destino ('pedido'|'contoda'|'sin_asignar'),
-pedido_id FK (opcional), pedido_item_indice smallint,
-transferido_contoda bool, transferido_en timestamptz
-```
-
-#### `domicilios`
-```sql
-id uuid PK, fecha date, asesor_id FK, cliente_nombre,
-cliente_telefono, direccion, mensajeria ('exneider'|'servigo'),
-valor_pedido int, valor_domicilio int, cobrar_al_cliente bool,
-metodo_pago text, articulo text, numero_pedido text,
-notas text, estado ('pendiente'|'entregado')
-```
+**Principio clave:** Un código de producto (ej. "VOMERO5-WB") representa un modelo único (Nike Vomero 5 White/Black) sin importar la talla. El stock se lleva por `(articulo_id, talla, sede_id)`.
 
 ---
 
-## 5. RELACIONES ENTRE TABLAS
+## 5. SCHEMA DETALLADO
 
+### `articulos` (catálogo — post migración 031)
+```sql
+id          uuid PK
+codigo      text UNIQUE (sparse, solo si se especifica) -- ej. "VOMERO5-WB"
+nombre      text NOT NULL
+marca       text NOT NULL
+referencia  text                                        -- referencia del proveedor
+color       text
+sexo        text CHECK IN ('hombre','mujer','unisex','nino','nina')
+categoria   text                                        -- enum CategoriaArticulo
+fotos       text[] NOT NULL DEFAULT '{}'
+descripcion text
+talla       text  -- OBSOLETO: solo en registros anteriores a migración 031
+activo      bool
+creado_en   timestamptz
+-- Índice único: (lower(marca), lower(nombre), lower(color), lower(sexo))
+-- Índice trigram: codigo (para autocompletar)
 ```
-sedes ──< usuarios
-sedes ──< pedidos
 
-clientes ──< pedidos
-usuarios (asesor) ──< pedidos
-pedidos ──< pedido_items
-pedidos ──< pagos
-pedidos ──< alertas
-pedidos ──< historial_cambios (por registro_id)
+### `movimientos_inventario` (post migración 031)
+```sql
+id                uuid PK
+articulo_id       uuid FK articulos
+talla             text   -- ej. '42', 'M', 'XL' — NULL para registros anteriores
+sede_id           uuid FK sedes
+delta             integer   -- positivo = entrada, negativo = salida
+tipo              text      -- 'entrada'|'salida'|'transferencia'|'asignacion'
+costo_unitario_cop integer
+compra_item_id    uuid FK compra_items (opcional)
+pedido_id         uuid FK pedidos (opcional, para salidas por venta)
+transferencia_id  uuid  -- agrupa los dos movimientos de una transferencia
+usuario_id        uuid FK usuarios
+notas             text
+creado_en         timestamptz
+```
 
-alertas ──< notificaciones
-usuarios ──< notificaciones
+### `pedidos`
+```sql
+id                uuid PK
+numero_orden      text UNIQUE         -- ej. 'TR5946'
+sede_id           uuid FK sedes
+cliente_id        uuid FK clientes
+asesor_id         uuid FK usuarios
+estado            text  -- ver flujos de estados
+tipo              text  -- 'pedido'|'venta_inmediata'
+total             int
+tipo_entrega      text  -- 'sede'|'domicilio'
+direccion_entrega text
+notas             text
+numero_guia       text
+factura_id        uuid FK facturas    -- si fue facturado
+fecha_creacion    timestamptz
+fecha_actualizacion timestamptz       -- auto-actualizada por trigger
+```
 
-usuarios (admin) ──< compras
-compras ──< compra_items
-compra_items >── pedidos (opcional, destino=pedido)
+### `pedido_items`
+```sql
+id           uuid PK
+pedido_id    uuid FK pedidos CASCADE
+articulo_id  uuid FK articulos (opcional)  -- vinculado al catálogo si se seleccionó
+marca        text
+descripcion  text
+talla        text
+cantidad     int
+precio_venta int
+imagen_url   text
+```
 
-usuarios (asesor) ──< domicilios
+### `facturas` (implementado)
+```sql
+id               uuid PK
+numero_factura   text UNIQUE  -- formato: FAC-TR-2026-0001
+sede_id          uuid FK sedes
+cliente_id       uuid FK clientes
+fecha_factura    date
+fecha_vencimiento date
+estado           text CHECK IN ('pendiente','pagada','vencida','anulada')
+notas            text
+creado_en        timestamptz
+-- Relación: pedidos.factura_id apunta a esta tabla
+-- Pagos: tabla pagos_factura separada de pagos de pedidos
 ```
 
 ---
 
 ## 6. VISTAS DE BASE DE DATOS
 
-| Vista | Uso principal |
-|-------|--------------|
-| `vista_pedidos_asesor` | Pedidos con datos de cliente, asesor, sede, total_pagado, en_alerta, es_zombie |
+| Vista | Descripción |
+|-------|-------------|
+| `vista_pedidos_asesor` | Pedidos con cliente, asesor, sede, total_pagado, en_alerta, es_zombie |
 | `vista_zombies` | Pedidos con es_zombie = true |
-| `vista_cartera_clientes` | Clientes con saldo pendiente > 0 |
+| `vista_cartera_clientes` | Clientes con saldo pendiente > 0 (basado en pedidos) |
+| `vista_stock_por_sede` | Stock por `(articulo_id, talla, sede_id)` — agrupa movimientos_inventario |
+| `vista_costo_promedio` | CPP por `(articulo_id, talla)` — promedio ponderado de entradas |
+| `vista_utilidad_pedidos` | Ingreso, costo (CPP) y utilidad por pedido |
+| `vista_utilidad_facturas` | Utilidad agregada por factura |
 
-**Umbrales de alerta (hardcoded en SQL migración 025):**
-- `pendiente`: 2 días sin cambio
-- `comprado`: 8 días sin cambio
-- `usa`: 6 días sin cambio
-- `bucaramanga` / `santa_rosa`: 1 día sin cambio
-- Zombie: `pendiente` por más de 30 días desde creación
+**Nota de compatibilidad:** `vista_stock_por_sede` usa `coalesce(m.talla, a.talla)` para que registros anteriores a la migración 031 (donde la talla estaba en `articulos.talla`) sigan funcionando correctamente.
 
 ---
 
@@ -238,341 +248,235 @@ usuarios (asesor) ──< domicilios
 
 | Función | Descripción |
 |---------|-------------|
-| `crear_pedido()` | Transaccional: inserta pedido + items + pago inicial + historial |
+| `crear_pedido()` | Transaccional: pedido + items + pago inicial + historial |
 | `cambiar_estado_pedido()` | Cambia estado + registra en historial_cambios |
-| `procesar_alertas()` | Materializa alertas + crea notificaciones + retorna data para emails |
+| `procesar_alertas()` | Materializa alertas + crea notificaciones + data para emails |
+| `registrar_entrada_inventario(p_articulo_id, p_talla, ...)` | ✅ Entrada al inventario por talla y sede |
+| `transferir_stock(p_articulo_id, p_talla, p_sede_origen, p_sede_destino, ...)` | ✅ Transferencia entre sedes por talla |
+| `registrar_venta_inmediata(...)` | ✅ Crea pedido de tipo venta_inmediata + descuenta stock |
 | `auth_es_admin()` | Helper RLS — verifica si el usuario activo es admin |
 | `auth_sede_id()` | Helper RLS — retorna sede_id del usuario activo |
 
 ---
 
-## 8. APIS Y RUTAS ESPECIALES
+## 8. MIGRACIONES SQL (historial)
 
-| Ruta | Método | Propósito |
-|------|--------|-----------|
-| `/api/cron/alertas` | GET | Vercel Cron: procesar alertas + enviar emails (Resend) |
-| `/api/export/pedidos` | GET | Exportar CSV con filtros (fecha, sede, estado) |
-| `/api/setup-admin` | POST | Setup inicial del sistema |
+| # | Descripción |
+|---|-------------|
+| 001-010 | Schema inicial: sedes, usuarios, clientes, pedidos, pagos, alertas |
+| 011-015 | Mejoras: historial_cambios, notificaciones, parser, RLS |
+| 016-020 | Domicilios, compras, compra_items, parser IA facturas |
+| 021-025 | Alertas cron, umbrales, vista_zombies, exportación |
+| 026-027 | Estadísticas, vista_utilidad, dashboard admin |
+| 028 | Facturación: tablas facturas + pagos_factura |
+| 029 | Venta inmediata (registrar_venta_inmediata, pedidos.tipo) |
+| 030 | Inventario inicial: articulos + movimientos_inventario |
+| **031** | **✅ Reestructura catálogo:** codigo/referencia/color/sexo en articulos; talla pasa a movimientos_inventario; vistas y funciones actualizadas |
 
 ---
 
 ## 9. SERVER ACTIONS (Backend)
 
-| Acción | Módulo | Descripción |
-|--------|--------|-------------|
-| `crearPedidoAction()` | Pedidos | Parse texto libre → crear pedido completo |
-| `crearPedidoDesdeDataAction()` | Pedidos | Crear desde datos ya estructurados |
-| `cambiarEstadoAction()` | Pedidos | Validar transición + RPC (con redirect) |
-| `cambiarEstadoInlineAction()` | Pedidos | Igual pero sin redirect |
-| `registrarPagoAction()` | Pedidos | Validar saldo + insertar pago |
-| `editarPedidoAction()` | Pedidos | Actualizar pedido + items (delete+insert) |
-| `eliminarPedidoAction()` | Pedidos | Solo admin |
-| `buscarClientesAction()` | Clientes | Búsqueda ilike + última dirección de domicilio |
-| `buscarDireccionPorTelefonoAction()` | Clientes | Lookup dirección por teléfono |
-| `editarClienteAction()` | Clientes | Actualizar datos de cliente |
-| `crearCompraAction()` | Compras | Crear compra + items (verifica numero_factura único) |
-| `asignarItemAction()` | Compras | Vincular item a pedido (actualiza estado si pendiente) |
-| `eliminarCompraAction()` | Compras | Solo admin |
-| `parsearFacturaAction()` | Compras | IA (Claude) → extrae JSON estructurado de foto/PDF de factura |
-| `crearDomicilioAction()` | Domicilios | Insertar registro de domicilio |
-| `editarDomicilioAction()` | Domicilios | Actualizar domicilio |
-| `invitarUsuarioAction()` | Usuarios | Crear usuario + enviar email de invitación |
-| `toggleActivoAction()` | Usuarios | Activar/desactivar usuario |
-| `eliminarUsuarioAction()` | Usuarios | Eliminar (no admin, no self) |
-| `resumenAsistenteAction()` | Asistente | IA: resumen ejecutivo de pedidos pendientes |
-| `alertasAsistenteAction()` | Asistente | IA: lista de casos urgentes |
-| `chatAsistenteAction()` | Asistente | IA: chat con tool-use (cambiar estado, pago, nota) |
+### Pedidos
+| Acción | Descripción |
+|--------|-------------|
+| `crearPedidoAction()` | Parse texto libre → crear pedido completo |
+| `crearPedidoDesdeDataAction()` | Crear desde datos ya estructurados |
+| `cambiarEstadoAction()` | Validar transición + RPC (con redirect) |
+| `cambiarEstadoInlineAction()` | Igual pero sin redirect |
+| `registrarPagoAction()` | Validar saldo + insertar pago |
+| `editarPedidoAction()` | Actualizar pedido + items (delete+insert) |
+| `eliminarPedidoAction()` | Solo admin |
+
+### Artículos e Inventario (✅ NUEVO)
+| Acción | Descripción |
+|--------|-------------|
+| `crearArticuloAction(data)` | Crear nuevo artículo en el catálogo |
+| `buscarPorCodigoAction(codigo)` | Buscar artículo por código SKU |
+| `registrarEntradaAction(data)` | Registrar entrada de stock (articulo_id + talla + sede) |
+| `transferirStockAction(data)` | Transferencia entre sedes (por articulo + talla) |
+| `buscarArticulosAction(q, sedeId)` | Búsqueda con stock por sede; devuelve `tallaStock[]` |
+
+### Ventas (✅ NUEVO)
+| Acción | Descripción |
+|--------|-------------|
+| `registrarVentaInmediataAction()` | Venta en tienda: crea pedido entregado + descuenta stock |
+
+### Clientes
+| Acción | Descripción |
+|--------|-------------|
+| `buscarClientesAction()` | Búsqueda ilike + última dirección de domicilio |
+| `buscarDireccionPorTelefonoAction()` | Lookup dirección por teléfono |
+| `editarClienteAction()` | Actualizar datos de cliente |
+
+### Compras
+| Acción | Descripción |
+|--------|-------------|
+| `crearCompraAction()` | Crear compra + items |
+| `asignarItemAction()` | Vincular item a pedido (actualiza estado si pendiente) |
+| `eliminarCompraAction()` | Solo admin |
+| `parsearFacturaAction()` | IA (Claude) → extrae JSON de foto/PDF de factura |
+
+### Domicilios
+| Acción | Descripción |
+|--------|-------------|
+| `crearDomicilioAction()` | Insertar registro de domicilio |
+| `editarDomicilioAction()` | Actualizar domicilio |
+
+### Facturación
+| Acción | Descripción |
+|--------|-------------|
+| `crearFacturaAction()` | Agrupar pedidos en una factura numerada |
+| `registrarPagoFacturaAction()` | Abono a factura |
+| `anularFacturaAction()` | Solo admin |
+
+### Usuarios y Asistente IA
+| Acción | Descripción |
+|--------|-------------|
+| `invitarUsuarioAction()` | Crear usuario + email de invitación |
+| `toggleActivoAction()` | Activar/desactivar usuario |
+| `resumenAsistenteAction()` | IA: resumen ejecutivo de pendientes |
+| `alertasAsistenteAction()` | IA: lista de casos urgentes |
+| `chatAsistenteAction()` | IA: chat con tool-use (cambiar estado, pago, nota) |
 
 ---
 
-## 10. MÓDULOS — ESTADO DE COMPLETITUD
+## 10. COMPONENTES CLAVE
+
+### Formularios de venta/pedido
+| Componente | Descripción |
+|-----------|-------------|
+| `CrearPedidoForm.tsx` | Crear pedido desde texto libre o búsqueda en catálogo. Campo "Código SKU" auto-completa marca/nombre/color desde el catálogo |
+| `EditarPedidoForm.tsx` | Editar pedido existente con misma estructura |
+| `LineaProducto.tsx` | Fila de producto con búsqueda en catálogo por nombre/marca. Muestra stock por sede. Expande por talla (un resultado por talla disponible) |
+
+### Inventario
+| Componente | Descripción |
+|-----------|-------------|
+| `InventarioPanel.tsx` | Panel completo: crear artículo, registrar entrada, transferir stock, ver tabla de stock por (talla, sede) |
+
+### Facturación y domicilios
+| Componente | Descripción |
+|-----------|-------------|
+| `RegistrarPagoFacturaForm.tsx` | Form para registrar abono a una factura |
+| `AnularFacturaButton.tsx` | Botón de anulación (solo admin) |
+| `DomicilioDesdeFacturaPanel.tsx` | ✅ NUEVO — Botón "🛵 Crear domicilio" dentro del detalle de factura. Pre-llena datos del cliente y auto-completa dirección por teléfono |
+
+---
+
+## 11. MÓDULOS — ESTADO DE COMPLETITUD
 
 | Módulo | Estado | Completitud | Notas |
 |--------|--------|-------------|-------|
-| Pedidos | ✅ Completo | 100% | Núcleo del negocio, bien estructurado |
+| Pedidos | ✅ Completo | 100% | Núcleo del negocio; crea/edita/cambia estado/paga |
 | Clientes | ✅ Completo | 100% | Búsqueda, historial, edición |
 | Dashboard | ✅ Completo | 100% | KPIs diferenciados por rol |
 | Alertas | ✅ Completo | 100% | Cron automático + emails |
-| Estadísticas | ✅ Completo | 100% | Gráficas, períodos, desglose |
+| Estadísticas | ✅ Completo | 100% | Gráficas, períodos, desglose por asesor/sede |
 | Cartera | ✅ Completo | 100% | Vista de saldo por cliente (lectura) |
-| Compras | ✅ Completo | 100% | Parser IA de facturas, asignación |
-| Usuarios | ✅ Completo | 100% | Invitación, roles, sedes |
-| Domicilios | ⚠️ Parcial | 80% | Schema inconsistente entre migraciones |
+| Compras | ✅ Completo | 100% | Parser IA de facturas, asignación a pedidos |
+| Usuarios | ✅ Completo | 100% | Invitación, roles, sedes, activar/desactivar |
+| Domicilios | ✅ Completo | 95% | CRUD completo + botón desde facturación |
 | Perfil | ⚠️ Básico | 50% | Solo ver datos y cambiar contraseña |
-| Asistente IA | ✅ Completo | 100% | Requiere ANTHROPIC_API_KEY |
-| **Facturación** | ❌ No existe | 0% | Propuesto abajo |
-| **Cuentas por Cobrar** | ❌ No existe | 0% | Propuesto abajo |
+| Asistente IA | ✅ Completo | 100% | Resumen, alertas, chat con tool-use |
+| **Facturación** | ✅ Completo | 90% | Listado, detalle, abonos, anular, imagen para cliente |
+| **Inventario / Catálogo** | ✅ Completo | 90% | Catálogo separado de inventario; stock por talla y sede |
+| Venta Inmediata | ✅ Completo | 95% | Flujo completo con descuento de inventario por talla |
 
 ---
 
-## 11. PROBLEMAS DETECTADOS
+## 12. FLUJOS DE NEGOCIO IMPLEMENTADOS
 
-### Schema / Base de datos
+### Estados de pedido y sus transiciones
+```
+pendiente
+  → comprado        (al asignar compra_item al pedido)
+  → listo           (el producto llegó y está listo para entrega)
+  → enviado         (enviado por domiciliario — sedes CR/SR)
+  → santa_rosa      (en tránsito a Santa Rosa)
+  → entregado       (cliente recibió el producto)
+  → cancelado       (pedido cancelado — requiere admin)
+```
 
-1. **Domicilios: schema inconsistente entre migraciones** — La migración 016 define la tabla base, pero migraciones posteriores (017-018) agregan columnas que en algunos ambientes pueden no existir. Riesgo de errores en nuevos deploys.
+### Modalidades de venta
+1. **Pedido:** Cliente encarga, paga abonos, producto llega, se entrega
+2. **Venta inmediata:** Producto en stock → pedido `tipo=venta_inmediata`, estado=`entregado`, se descuenta inventario por talla
 
-2. **Umbrales de alerta duplicados** — Los días de alerta están definidos tanto en `types/index.ts` (como documentación) como en la migración SQL (como lógica real). Si se cambia uno sin el otro, hay desincronización silenciosa.
+### Compras a proveedores
+- **USA:** Factura en USD + TRM → calcula total COP; parser IA extrae productos
+- **Colombia:** Directamente en COP; parser IA extrae productos
+- Cada ítem → asignar a pedido (pedido pasa a `comprado`) o a bodega TR
 
-3. **Estados de pedido en múltiples lugares** — `EstadoPedido` se define en `types/index.ts`, en `lib/domain/estados.ts`, en la vista SQL y en los server actions. Agregar un estado nuevo requiere editar al menos 4 archivos.
-
-4. **Métodos de pago hard-coded en varios archivos** — `MetodoPago` definido en tipos, en el parser, en el export CSV y en formularios. Misma fragmentación que los estados.
-
-### Código
-
-5. **`editarPedidoAction()` no es atómico** — Borra todos los items con `adminClient` y luego los re-inserta. Si falla el insert después del delete, se pierden los productos del pedido. Debería estar en una transacción.
-
-6. **Notificaciones sin UI de lectura** — La tabla `notificaciones` existe, el cron las crea, pero no hay ningún componente en la app que las marque como leídas.
-
-7. **RLS en domicilios inconsistente** — La política de `DELETE` en domicilios excluye a `visor`, pero las de `INSERT` y `UPDATE` permiten a cualquier usuario autenticado. Un visor puede crear domicilios pero no eliminarlos.
-
-### Riesgos de datos
-
-8. **`numero_factura` en compras es UNIQUE pero nullable** — Permite múltiples compras sin número de factura (intencional) pero puede confundir al equipo si se espera unicidad total.
-
-9. **`pedido_item_indice` en compra_items sin validación** — El campo existe para referenciar qué item del pedido se compró, pero no hay FK ni check que valide que el índice sea válido.
+### Inventario
+- Stock = suma de `delta` en `movimientos_inventario` por (articulo_id, talla, sede_id)
+- CPP = promedio ponderado de costos en entradas por (articulo_id, talla)
+- Transferencias entre sedes: doble movimiento (-origen, +destino) con mismo `transferencia_id`
 
 ---
 
-## 12. RIESGOS TÉCNICOS
+## 13. REGLAS DE NEGOCIO IMPLEMENTADAS EN CÓDIGO
 
-| Riesgo | Probabilidad | Impacto | Mitigación |
-|--------|-------------|---------|------------|
-| Pérdida de items en edición de pedido | Baja | Alto | Envolver delete+insert en transacción |
-| Desincronización de estados en código vs DB | Media | Medio | Crear single source of truth en DB (enum) |
-| Schema de domicilios roto en nuevo deploy | Media | Alto | Consolidar migraciones en una sola |
-| Agotamiento de créditos API Claude | Media | Bajo | Try/catch ya implementado, mensajes claros |
-| Cron de alertas sin retry | Baja | Medio | Agregar idempotencia en procesar_alertas() |
+1. **Código SKU = modelo, no talla** — El mismo código aplica para todas las tallas del producto. La talla vive en el inventario, no en el catálogo.
 
----
+2. **Stock puede ser negativo** — El sistema permite ventas sin stock (advertencia visual pero no bloqueo). El inventario se debe reponer después.
 
-## 13. RECOMENDACIONES GENERALES
+3. **Compra sin pedido_id → bodega TR** — Si un compra_item no tiene destino asignado, el stock va a la sede TR (Bucaramanga) por defecto.
 
-1. **Consolidar estados de pedido** — Mover la definición a un enum PostgreSQL como source of truth. Los tipos TS se generarían desde ahí.
+4. **CPP por (articulo, talla)** — El costo promedio ponderado se calcula independientemente por cada combinación de artículo + talla.
 
-2. **Hacer `editarPedidoAction` atómico** — Usar una función PL/pgSQL similar a `crear_pedido()` para el UPDATE + DELETE + INSERT de items.
+5. **Factura agrupa pedidos** — Una factura puede contener uno o varios pedidos del mismo cliente. Numeración: FAC-[SEDE]-[YYYY]-[NNNN].
 
-3. **Limpiar migraciones de domicilios** — Crear una migración de "consolidación" que garantice el estado final del schema.
+6. **Mensajes WhatsApp sin datos internos** — Los campos código, referencia, sexo, CPP e inventario son internos y NO se incluyen en mensajes para clientes.
 
-4. **Agregar lectura de notificaciones en UI** — Un badge en el sidebar con el count de notificaciones no leídas + marcar como leídas al acceder a Alertas.
-
-5. **Single API key para IA** — El sistema usa Anthropic para el asistente y lectura de facturas. OpenAI SDK ya puede eliminarse dado que parsear-factura.ts fue migrado a Claude.
+7. **Asesor ve solo su sede, admin ve todo** — Control de acceso por RLS en PostgreSQL + helpers `auth_es_admin()` y `auth_sede_id()`.
 
 ---
 
-## 14. PROPUESTA: MÓDULO DE FACTURACIÓN Y CUENTAS POR COBRAR
+## 14. DEUDA TÉCNICA CONOCIDA
 
-### Contexto del negocio
-
-El flujo actual de Tres Bandas tiene:
-- **Pedidos** que se crean y transicionan entre estados
-- **Pagos** registrados contra cada pedido (abonos)
-- **Cartera** como vista de saldo pendiente (lectura)
-
-Lo que **no existe**: un sistema de facturación formal con documentos numerados, vencimientos, planes de pago, historial de cobranza y reportes.
-
-### Flujo propuesto
-
-```
-Pedido (estado: entregado)
-        ↓ [acción: generar factura]
-Factura (numerada, con fecha de vencimiento)
-        ↓ [cliente abona]
-Pago de factura (abonos múltiples)
-        ↓ [si supera vencimiento]
-Alerta de cartera vencida
-        ↓ [reporte]
-Cuentas por cobrar (por cliente, por vencimiento, por asesor)
-```
-
-### Tablas nuevas a crear
-
-#### `facturas`
-```sql
-id uuid PK DEFAULT uuid_generate_v4()
-numero_factura text UNIQUE NOT NULL      -- Auto-generado: FAC-0001
-pedido_id uuid REFERENCES pedidos(id)   -- Origen
-cliente_id uuid REFERENCES clientes(id) NOT NULL
-asesor_id uuid REFERENCES usuarios(id)  -- Quien facturó
-sede_id uuid REFERENCES sedes(id)
-
--- Fechas
-fecha_factura date NOT NULL DEFAULT current_date
-fecha_vencimiento date NOT NULL          -- Calculada: +30/60/90 días según config
-
--- Montos
-subtotal int NOT NULL                   -- Antes de descuento
-descuento int NOT NULL DEFAULT 0
-total int NOT NULL                      -- subtotal - descuento
-total_pagado int NOT NULL DEFAULT 0     -- Sumatoria de pagos_factura
-
--- Estado
-estado text NOT NULL DEFAULT 'emitida'
-  CHECK (estado IN ('borrador','emitida','pagada','vencida','anulada'))
-
-notas text
-creado_en timestamptz NOT NULL DEFAULT now()
-actualizado_en timestamptz NOT NULL DEFAULT now()
-```
-
-#### `factura_items`
-```sql
-id uuid PK
-factura_id uuid REFERENCES facturas(id) ON DELETE CASCADE NOT NULL
-descripcion text NOT NULL
-cantidad int NOT NULL DEFAULT 1
-valor_unitario int NOT NULL
-descuento_item int NOT NULL DEFAULT 0
-subtotal int NOT NULL                   -- (cantidad * valor_unitario) - descuento_item
--- Referencia opcional al pedido origen
-pedido_item_id uuid REFERENCES pedido_items(id)
-```
-
-#### `pagos_factura`
-```sql
-id uuid PK
-factura_id uuid REFERENCES facturas(id) ON DELETE CASCADE NOT NULL
-monto int NOT NULL
-metodo text NOT NULL                    -- Reutilizar MetodoPago
-fecha date NOT NULL DEFAULT current_date
-asesor_id uuid REFERENCES usuarios(id) NOT NULL
-referencia text                         -- Número de transferencia, etc.
-notas text
-creado_en timestamptz NOT NULL DEFAULT now()
-```
-
-#### `planes_pago` (opcional — para crédito en cuotas)
-```sql
-id uuid PK
-factura_id uuid REFERENCES facturas(id) ON DELETE CASCADE NOT NULL
-numero_cuota smallint NOT NULL
-fecha_vencimiento date NOT NULL
-monto_cuota int NOT NULL
-estado text NOT NULL DEFAULT 'pendiente'
-  CHECK (estado IN ('pendiente','pagada','vencida'))
-pagada_en timestamptz
-```
-
-### Vistas nuevas a crear
-
-#### `vista_cuentas_por_cobrar`
-```sql
--- Por cliente: todas las facturas con saldo pendiente
--- Campos: cliente, factura, fecha, vencimiento, total, pagado, saldo, dias_atraso
--- Ordenada por dias_atraso DESC
-```
-
-#### `vista_facturas_vencidas`
-```sql
--- Facturas cuya fecha_vencimiento < hoy AND estado != 'pagada'
--- Usada por cron de alertas de cartera
-```
-
-### Server Actions nuevos
-
-| Acción | Descripción |
-|--------|-------------|
-| `crearFacturaAction()` | Desde pedido entregado: genera numero_factura, copia items, calcula vencimiento |
-| `crearFacturaManualAction()` | Sin pedido previo: items libres, cliente seleccionable |
-| `editarFacturaAction()` | Solo en estado 'borrador': cambiar items, vencimiento, notas |
-| `anularFacturaAction()` | Cambiar estado a 'anulada' (solo admin) |
-| `registrarPagoFacturaAction()` | Insertar en pagos_factura + actualizar total_pagado + cambiar estado si saldo=0 |
-| `crearPlanPagoAction()` | Generar cuotas automáticas (monto/nCuotas, fechas escalonadas) |
-| `generarPDFFacturaAction()` | Generar HTML/PDF de factura para imprimir o descargar |
-
-### Páginas nuevas
-
-```
-/facturacion                    — Listado con filtros (estado, cliente, fecha, sede)
-/facturacion/nueva              — Crear factura manual o desde pedido
-/facturacion/[id]               — Detalle: items, pagos, plan de cuotas, PDF
-/facturacion/[id]/pago          — Registrar abono
-/cuentas-por-cobrar             — Dashboard de cartera vencida y por vencer
-/cuentas-por-cobrar/cliente/[id] — Historial de crédito de un cliente específico
-```
-
-### Integración con módulos existentes
-
-1. **Pedidos** — En la página de detalle del pedido (estado: entregado), agregar botón "Generar Factura" que pre-llena los datos.
-
-2. **Clientes** — En el perfil del cliente, agregar sección "Crédito activo" con saldo total y facturas pendientes.
-
-3. **Cartera** — La vista actual de cartera (basada en pedidos) puede coexistir con la nueva vista de CxC (basada en facturas). A futuro se unificarían.
-
-4. **Alertas / Cron** — Extender `procesar_alertas()` o crear un `procesar_alertas_cxc()` que detecte facturas vencidas y envíe recordatorios de pago.
-
-5. **Dashboard admin** — Agregar KPI de "Cartera total vencida" y "Facturas por cobrar este mes".
-
-6. **Asistente IA** — El chat ya puede responder sobre pedidos. Se puede extender para responder "¿qué clientes tienen facturas vencidas?" pasando el contexto de CxC.
-
-### Generación de PDF
-
-Opciones según stack actual:
-- **HTML + `window.print()`** — Más simple, ya existe `/pedidos/[id]/imprimir` como patrón.
-- **@react-pdf/renderer** — Genera PDFs desde componentes React (recomendado para PDF descargable).
-- **Puppeteer (en Vercel)** — Más pesado, no recomendado en serverless.
-
-**Recomendación:** Reutilizar el patrón de la página `/pedidos/[id]/imprimir` (HTML optimizado para print) + agregar un botón de descarga PDF con `@react-pdf/renderer`.
-
-### Numeración de facturas
-
-```
-FAC-[SEDE]-[YYYY]-[NNNN]
-Ejemplo: FAC-TR-2026-0001
-```
-
-Implementar con una función PL/pgSQL que obtenga el siguiente número de forma atómica (usando `SELECT ... FOR UPDATE` sobre una tabla de secuencias o `sequence` de PostgreSQL).
-
-### Control de acceso (RLS)
-
-| Rol | Puede crear | Puede ver | Puede editar | Puede anular |
-|-----|-------------|-----------|--------------|--------------|
-| admin | Sí (todas las sedes) | Sí (todas) | Sí (estado: borrador) | Sí |
-| asesor | Sí (solo su sede) | Sí (solo su sede) | No | No |
-| visor | No | Sí (solo su sede) | No | No |
-
-### Orden de implementación sugerido
-
-1. **Fase 1 — Schema** (1-2 sesiones)
-   - Migración con tablas `facturas`, `factura_items`, `pagos_factura`
-   - Vistas `vista_cuentas_por_cobrar` y `vista_facturas_vencidas`
-   - Función de numeración automática
-
-2. **Fase 2 — Backend** (1 sesión)
-   - `crearFacturaAction()`, `registrarPagoFacturaAction()`, `anularFacturaAction()`
-   - Tipos TypeScript correspondientes
-
-3. **Fase 3 — UI básica** (1-2 sesiones)
-   - `/facturacion` (listado)
-   - `/facturacion/nueva` (crear desde pedido)
-   - `/facturacion/[id]` (detalle + registrar pago)
-
-4. **Fase 4 — CxC y reportes** (1 sesión)
-   - `/cuentas-por-cobrar` (dashboard)
-   - Integración en cliente y dashboard admin
-
-5. **Fase 5 — PDF** (1 sesión)
-   - Plantilla HTML de factura
-   - Botón de impresión/descarga
-
-6. **Fase 6 — Alertas automáticas** (1 sesión)
-   - Cron de facturas vencidas
-   - Emails de recordatorio de pago
+| Problema | Impacto | Prioridad |
+|----------|---------|-----------|
+| `editarPedidoAction` no es atómico (delete+insert separados) | Si falla el insert, el pedido pierde sus items | Alta |
+| Notificaciones sin UI de lectura | Badge de notificaciones no implementado en sidebar | Media |
+| Umbrales de alerta duplicados (tipos TS vs SQL) | Desincronización silenciosa si se cambia uno | Media |
+| Schema de domicilios inconsistente entre migraciones | Riesgo en nuevos deploys | Media |
+| `pedido_item_indice` en compra_items sin FK ni validación | Índice puede quedar inválido | Baja |
 
 ---
 
-## 15. RESUMEN EJECUTIVO
+## 15. CONFIGURACIÓN Y DEPLOYMENT
 
-**El proyecto está en muy buen estado.** Los módulos core (pedidos, clientes, alertas, compras) están completos y bien estructurados. La arquitectura es sólida y consistente.
-
-**Deuda técnica prioritaria:**
-1. Hacer atómica la edición de pedidos (item delete+insert)
-2. Limpiar schema de domicilios
-3. Unificar source of truth de estados y métodos de pago
-
-**Próxima gran funcionalidad:** El módulo de Facturación y Cuentas por Cobrar es la extensión natural del sistema. El 70% de la infraestructura necesaria ya existe (clientes, pedidos, pagos como patrón, alertas, RLS, cron). Solo se necesita construir la capa de facturación encima.
-
-**Estimado de implementación completa del módulo CxC:** 6-8 sesiones de trabajo, implementando por fases para no interrumpir la operación actual.
+- **Plataforma:** Vercel (Next.js optimizado)
+- **Cron:** `/api/cron/alertas` — se ejecuta diariamente vía Vercel Cron
+- **Variables de entorno requeridas:**
+  - `NEXT_PUBLIC_SUPABASE_URL`
+  - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+  - `SUPABASE_SERVICE_ROLE_KEY`
+  - `ANTHROPIC_API_KEY`
+  - `RESEND_API_KEY`
+  - `CRON_SECRET`
+- **Ramas Git:**
+  - `claude/beautiful-thompson-CrYqb` — producción
+  - `claude/nifty-volta-WTurm` — desarrollo activo
 
 ---
 
-*Documento generado por análisis estático del código. Para actualizar, ejecutar nueva auditoría.*
+## 16. RESUMEN EJECUTIVO
+
+El sistema está **funcionalmente completo** para las operaciones diarias de Tres Bandas. Los módulos core (pedidos, clientes, compras, alertas, facturación, inventario) están implementados y en producción.
+
+**Cambio más reciente (Junio 2026 — Migración 031):**
+- Catálogo separado del inventario: artículos describen el modelo, el inventario registra el stock por talla y sede
+- Código SKU como identificador único de modelo
+- CPP y stock calculados por (articulo, talla)
+- Botón "Crear domicilio" integrado en el detalle de factura
+
+**Próximas mejoras sugeridas:**
+1. Hacer atómica la edición de pedidos
+2. Badge de notificaciones en el sidebar
+3. Conectar formulario de compras con el catálogo de artículos (selección desde catálogo en lugar de texto libre)
+4. Carga inicial de inventario histórico
+
+---
+
+*Documento de estado del proyecto. Actualizado manualmente al finalizar cada sesión de desarrollo.*
