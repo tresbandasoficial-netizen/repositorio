@@ -409,6 +409,8 @@ async function _sincronizarGastoCompra(
   })
 }
 
+export type EditarCompraItemInput = CompraItemInput & { id?: string }
+
 export type EditarCompraInput = {
   proveedor: string
   fecha: string
@@ -419,6 +421,7 @@ export type EditarCompraInput = {
   total_cop: number
   notas: string
   cuenta_id: string | null
+  items: EditarCompraItemInput[]
 }
 
 export type EditarCompraResult =
@@ -460,6 +463,99 @@ export async function editarCompraAction(compraId: string, data: EditarCompraInp
     .eq('id', compraId)
 
   if (error) return { ok: false, error: error.message }
+
+  // ── Sincronizar items: eliminar los quitados, actualizar los existentes,
+  //    insertar los nuevos ──────────────────────────────────────────────────
+  const { data: existentes } = await adminClient
+    .from('compra_items').select('id').eq('compra_id', compraId)
+
+  const idsEnPayload = new Set(data.items.filter(i => i.id).map(i => i.id as string))
+  const idsAEliminar = (existentes ?? []).map(e => e.id).filter(id => !idsEnPayload.has(id))
+
+  if (idsAEliminar.length > 0) {
+    const { error: errDel } = await adminClient
+      .from('compra_items').delete().in('id', idsAEliminar)
+    if (errDel) {
+      return {
+        ok: false,
+        error: 'No se pudo eliminar un artículo porque ya tiene movimientos de inventario asociados. Quita primero esos movimientos desde Inventario.',
+      }
+    }
+  }
+
+  for (const item of data.items) {
+    // Resolver pedido si el destino es 'pedido' y viene la referencia
+    let pedidoId: string | null = null
+    let pedidoItemIndice: number | null = null
+    let pedidoEstado: string | null = null
+    if (item.destino === 'pedido' && item.pedido_ref?.trim()) {
+      const ref = item.pedido_ref.trim().toUpperCase()
+      const m = ref.match(/^(.+)-(\d+)$/)
+      const numeroOrden = m ? m[1] : ref
+      pedidoItemIndice = m ? parseInt(m[2], 10) : null
+      const { data: pedido } = await adminClient
+        .from('pedidos').select('id, estado').eq('numero_orden', numeroOrden).maybeSingle()
+      if (!pedido) return { ok: false, error: `Pedido "${numeroOrden}" no encontrado` }
+      pedidoId = pedido.id
+      pedidoEstado = pedido.estado
+    }
+
+    const campos = {
+      codigo:             item.codigo?.trim() || null,
+      descripcion:        item.descripcion.trim(),
+      marca:              item.marca.trim() || null,
+      talla:              item.talla.trim() || null,
+      cantidad:           item.cantidad,
+      costo_unitario_cop: item.costo_unitario_cop,
+      destino:            item.destino,
+      articulo_id:        item.articulo_id || null,
+      pedido_id:          pedidoId,
+      pedido_item_indice: pedidoItemIndice,
+    }
+
+    let itemId: string
+    if (item.id) {
+      const { error: errUpd } = await adminClient
+        .from('compra_items').update(campos).eq('id', item.id).eq('compra_id', compraId)
+      if (errUpd) return { ok: false, error: `Error actualizando item: ${errUpd.message}` }
+      itemId = item.id
+    } else {
+      const { data: creado, error: errIns } = await adminClient
+        .from('compra_items').insert({ compra_id: compraId, ...campos }).select('id').single()
+      if (errIns || !creado) return { ok: false, error: `Error creando item: ${errIns?.message}` }
+      itemId = creado.id
+
+      // Solo los items NUEVOS sin asignar entran al inventario (los existentes
+      // ya entraron cuando se creó la compra; no se duplica la entrada).
+      if (item.destino === 'sin_asignar') {
+        await _resolverArticuloCompraItem(itemId, null, null, adminClient)
+        const { data: itemAct } = await adminClient
+          .from('compra_items').select('articulo_id').eq('id', itemId).single()
+        if (itemAct?.articulo_id) {
+          await adminClient.rpc('registrar_entrada_inventario', {
+            p_articulo_id:    itemAct.articulo_id,
+            p_talla:          item.talla.trim() || null,
+            p_cantidad:       item.cantidad,
+            p_costo_unitario: item.costo_unitario_cop,
+            p_usuario_id:     userId,
+            p_compra_item_id: itemId,
+            p_sede_id:        null,
+            p_notas:          `Compra ${numeroFactura ?? ''} — ${data.proveedor.trim()}`.trim(),
+          })
+        }
+      }
+    }
+
+    // Avanzar el pedido y vincular artículo del catálogo si se asignó a pedido
+    if (pedidoId) {
+      if (pedidoEstado === 'pendiente') {
+        await adminClient.from('pedidos')
+          .update({ estado: 'comprado', fecha_actualizacion: new Date().toISOString() })
+          .eq('id', pedidoId)
+      }
+      await _resolverArticuloCompraItem(itemId, pedidoId, pedidoItemIndice, adminClient)
+    }
+  }
 
   // El egreso en flujo de caja es secundario: si falla, la compra ya se guardó.
   try {
