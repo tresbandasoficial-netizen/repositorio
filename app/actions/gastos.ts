@@ -25,6 +25,8 @@ export async function crearGastoAction(data: GastoInput): Promise<GastoResult> {
 
   const sesion = await getSesion()
   if (sesion.rol === 'visor') return { ok: false, error: 'Sin permisos para crear gastos' }
+  if (sesion.rol !== 'admin' && data.categoria === 'compras_mercancia')
+    return { ok: false, error: 'Solo un administrador puede registrar compras de mercancía' }
   const bloqueo = await bloqueoCajaCerrada(sesion)
   if (bloqueo) return { ok: false, error: bloqueo }
   const supabase = await createClient()
@@ -63,6 +65,7 @@ export type GastosFiltros = {
 }
 
 export async function getGastosAction(filtros: GastosFiltros): Promise<Gasto[]> {
+  const sesion = await getSesion()
   const supabase = await createClient()
 
   let q = supabase
@@ -73,6 +76,9 @@ export async function getGastosAction(filtros: GastosFiltros): Promise<Gasto[]> 
     .order('fecha', { ascending: false })
     .order('creado_en', { ascending: false })
     .limit(500)
+
+  // Los costos de compra de mercancía son información solo de admin.
+  if (sesion.rol !== 'admin') q = q.neq('categoria', 'compras_mercancia')
 
   if (filtros.categoria) q = q.eq('categoria', filtros.categoria)
   if (filtros.sede_id)   q = q.eq('sede_id', filtros.sede_id)

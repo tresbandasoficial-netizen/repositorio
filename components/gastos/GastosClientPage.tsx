@@ -37,6 +37,11 @@ export function GastosClientPage({ gastos, cuentas, sedes, sedeRestringida, esAd
   const [error, setError] = useState<string | null>(null)
   const [isPending, start] = useTransition()
 
+  // Los costos de compra de mercancía son información solo de admin.
+  const categoriasVisibles = esAdmin
+    ? CATEGORIAS_GASTO
+    : CATEGORIAS_GASTO.filter(c => c !== 'compras_mercancia')
+
   function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })) }
 
   function handleGuardar() {
@@ -119,7 +124,7 @@ export function GastosClientPage({ gastos, cuentas, sedes, sedeRestringida, esAd
               <select value={form.categoria} onChange={e => set('categoria', e.target.value)}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="">Seleccionar...</option>
-                {CATEGORIAS_GASTO.map(c => (
+                {categoriasVisibles.map(c => (
                   <option key={c} value={c}>{CATEGORIA_GASTO_LABELS[c]}</option>
                 ))}
               </select>
@@ -188,7 +193,7 @@ export function GastosClientPage({ gastos, cuentas, sedes, sedeRestringida, esAd
         <select defaultValue={filtros.categoria ?? ''} onChange={e => aplicarFiltro('categoria', e.target.value)}
           className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Todas las categorías</option>
-          {CATEGORIAS_GASTO.map(c => <option key={c} value={c}>{CATEGORIA_GASTO_LABELS[c]}</option>)}
+          {categoriasVisibles.map(c => <option key={c} value={c}>{CATEGORIA_GASTO_LABELS[c]}</option>)}
         </select>
         {!sedeRestringida && (
           <select defaultValue={filtros.sede_id ?? ''} onChange={e => aplicarFiltro('sede', e.target.value)}
