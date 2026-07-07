@@ -42,12 +42,15 @@ export async function getEfectivoEnCaja(filtroSedeCodigo?: string): Promise<Efec
   const cortes = cuentas.map(c => c.fecha_corte).filter(Boolean) as string[]
   const corteMin = cortes.length ? cortes.sort()[0] : hoyBogota()
 
+  // Admin client: el saldo esperado de la caja debe sumar TODOS los movimientos,
+  // aunque el RLS le oculte algunas filas al asesor (ej. gastos de compras).
+  const adminMov = createAdminClient()
   const [pagosR, pfR, gastosR, pmR, trR] = await Promise.all([
-    supabase.from('pagos').select('cuenta_id, monto, fecha').in('cuenta_id', ids).neq('metodo', 'credito').eq('anulado', false).gte('fecha', corteMin).limit(20000),
-    supabase.from('pagos_factura').select('cuenta_id, monto, fecha').in('cuenta_id', ids).neq('metodo', 'credito').eq('anulado', false).gte('fecha', corteMin).limit(20000),
-    supabase.from('gastos').select('cuenta_id, valor, fecha').in('cuenta_id', ids).gte('fecha', corteMin).limit(20000),
-    supabase.from('pagos_mensajeria').select('cuenta_id, monto, fecha, tipo').in('cuenta_id', ids).eq('tipo', 'pago').gte('fecha', corteMin).limit(20000),
-    supabase.from('traslados_caja').select('origen_cuenta_id, destino_cuenta_id, monto, fecha').gte('fecha', corteMin).limit(20000),
+    adminMov.from('pagos').select('cuenta_id, monto, fecha').in('cuenta_id', ids).neq('metodo', 'credito').eq('anulado', false).gte('fecha', corteMin).limit(20000),
+    adminMov.from('pagos_factura').select('cuenta_id, monto, fecha').in('cuenta_id', ids).neq('metodo', 'credito').eq('anulado', false).gte('fecha', corteMin).limit(20000),
+    adminMov.from('gastos').select('cuenta_id, valor, fecha').in('cuenta_id', ids).gte('fecha', corteMin).limit(20000),
+    adminMov.from('pagos_mensajeria').select('cuenta_id, monto, fecha, tipo').in('cuenta_id', ids).eq('tipo', 'pago').gte('fecha', corteMin).limit(20000),
+    adminMov.from('traslados_caja').select('origen_cuenta_id, destino_cuenta_id, monto, fecha').gte('fecha', corteMin).limit(20000),
   ])
   const pagos    = (pagosR.data  ?? []) as Array<{ cuenta_id: string | null; monto: number; fecha: string }>
   const pf       = (pfR.data     ?? []) as Array<{ cuenta_id: string | null; monto: number; fecha: string }>
