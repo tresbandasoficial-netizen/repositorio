@@ -15,7 +15,8 @@ export function EntregaEfectivoButton({ cuentas }: { cuentas: CuentaOpcion[] }) 
   const [pending, start] = useTransition()
   const [error, setError] = useState('')
 
-  const defaultOrigen = cuentas.find(c => c.nombre.toLowerCase() === 'efectivo')?.id
+  const defaultOrigen = cuentas.find(c => c.nombre.toLowerCase() === 'efectivo bucaramanga')?.id
+    ?? cuentas.find(c => c.nombre.toLowerCase() === 'efectivo')?.id
     ?? cuentas.find(c => c.tipo === 'efectivo')?.id ?? ''
   const defaultDestino = cuentas.find(c => c.nombre.toLowerCase().includes('caja bucaramanga'))?.id ?? ''
 

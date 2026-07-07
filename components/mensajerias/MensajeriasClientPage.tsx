@@ -41,7 +41,9 @@ export function MensajeriasClientPage({
   const [mostrarLiquidar, setMostrarLiquidar] = useState(false)
   const [diaAbierto, setDiaAbierto] = useState<string | null>(null)
   const [diaLiquidando, setDiaLiquidando] = useState<string | null>(null)
-  const [form, setForm] = useState({ monto: '', fecha: hoy(), cuenta_id: '', notas: '' })
+  // Las liquidaciones entran por defecto al efectivo de Bucaramanga (hub de domicilios).
+  const cuentaEfectivoTR = cuentas.find(c => c.metodo_pago === 'efectivo' && c.sede?.codigo === 'TR')?.id ?? ''
+  const [form, setForm] = useState({ monto: '', fecha: hoy(), cuenta_id: cuentaEfectivoTR, notas: '' })
   const [error, setError] = useState<string | null>(null)
   const [isPending, start] = useTransition()
 
@@ -77,7 +79,7 @@ export function MensajeriasClientPage({
     setForm({
       monto: Math.abs(cuadreActivo.saldo_neto).toString(),
       fecha: hoy(),
-      cuenta_id: '',
+      cuenta_id: cuentaEfectivoTR,
       notas: '',
     })
     setMostrarLiquidar(true)
@@ -86,7 +88,7 @@ export function MensajeriasClientPage({
   function abrirLiquidarDia(fecha: string, neto: number) {
     setError(null)
     setDiaLiquidando(fecha)
-    setForm({ monto: Math.abs(neto).toString(), fecha, cuenta_id: '', notas: `Cuadre del día ${fecha}` })
+    setForm({ monto: Math.abs(neto).toString(), fecha, cuenta_id: cuentaEfectivoTR, notas: `Cuadre del día ${fecha}` })
     setMostrarLiquidar(true)
     // Llevar el panel a la vista
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -105,7 +107,7 @@ export function MensajeriasClientPage({
       if (!r.ok) { setError(r.error); return }
       setMostrarLiquidar(false)
       setDiaLiquidando(null)
-      setForm({ monto: '', fecha: hoy(), cuenta_id: '', notas: '' })
+      setForm({ monto: '', fecha: hoy(), cuenta_id: cuentaEfectivoTR, notas: '' })
       window.location.reload()
     })
   }
