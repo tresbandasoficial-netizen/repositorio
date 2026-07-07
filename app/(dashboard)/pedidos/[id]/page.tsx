@@ -44,11 +44,13 @@ export default async function PedidoDetallePage({
     <div className="p-4 md:p-6 max-w-4xl mx-auto">
       {/* Cabecera */}
       <div className="mb-4 md:mb-6 space-y-4">
-        <div className="flex items-center gap-2 text-sm">
-          <Link href="/pedidos" className="text-gray-400 hover:text-gray-600 transition-colors">
+        <div className="flex items-center gap-3 text-sm">
+          <Link
+            href="/pedidos"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 font-medium hover:bg-gray-50 transition-colors shadow-sm"
+          >
             ← Pedidos
           </Link>
-          <span className="text-gray-300">/</span>
           <span className="font-mono font-bold text-gray-900">{pedido.numero_orden}</span>
           <EstadoBadge estado={pedido.estado} enAlerta={pedido.en_alerta} />
         </div>
