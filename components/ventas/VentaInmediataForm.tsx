@@ -68,6 +68,11 @@ export function VentaInmediataForm({ sedes }: { sedes: SedeOpcion[] }) {
     if (!telefono.trim()) { setError('El teléfono del cliente es obligatorio'); return }
     const items = lineas.filter(l => l.descripcion.trim() && l.precio_venta > 0)
     if (items.length === 0) { setError('Agrega al menos un producto con precio'); return }
+    const idxSinCodigo = items.findIndex(l => !l.articulo_id)
+    if (idxSinCodigo !== -1) {
+      setError(`El producto ${idxSinCodigo + 1} no tiene código: búscalo en el catálogo o guárdalo como artículo nuevo antes de vender.`)
+      return
+    }
     if (abonoNum > total) { setError('El abono no puede superar el total'); return }
     setError('')
 

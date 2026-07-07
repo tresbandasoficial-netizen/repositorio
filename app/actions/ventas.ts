@@ -53,6 +53,10 @@ export async function registrarVentaInmediataAction(data: VentaInmediataInput): 
   for (const it of data.items) {
     if (it.cantidad <= 0) return { ok: false, error: 'La cantidad debe ser mayor a cero' }
     if (it.precio_venta < 0) return { ok: false, error: 'El precio no puede ser negativo' }
+    // Todo producto vendido debe venir vinculado al catálogo (código).
+    if (!it.articulo_id) {
+      return { ok: false, error: `El producto "${it.descripcion || 'sin nombre'}" no tiene código de producto. Selecciónalo del catálogo antes de registrar la venta.` }
+    }
   }
 
   const { data: sede } = await supabase
