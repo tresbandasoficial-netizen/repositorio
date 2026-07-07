@@ -96,6 +96,7 @@ export function MensajeriasClientPage({
     setError(null)
     const monto = parseInt(form.monto.replace(/\D/g, ''), 10)
     if (!monto || monto <= 0) { setError('Ingresa el monto liquidado'); return }
+    if (!form.cuenta_id) { setError('Selecciona la cuenta donde entró el dinero (ej: Efectivo Bucaramanga) para que se sume al flujo de caja'); return }
 
     start(async () => {
       const r = diaLiquidando
@@ -255,7 +256,7 @@ export function MensajeriasClientPage({
                 onChange={e => set('cuenta_id', e.target.value)}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
               >
-                <option value="">Sin especificar</option>
+                <option value="">— Selecciona la cuenta —</option>
                 {cuentas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
               </select>
             </div>
