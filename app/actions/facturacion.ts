@@ -239,7 +239,7 @@ export async function crearFacturaUnificadaAction(
     if (data.pedido_ids.length > 0) {
       const [{ data: peds }, { data: pagosPrev }] = await Promise.all([
         supabase.from('pedidos').select('total').in('id', data.pedido_ids),
-        supabase.from('pagos').select('monto').in('pedido_id', data.pedido_ids),
+        supabase.from('pagos').select('monto').in('pedido_id', data.pedido_ids).eq('anulado', false),
       ])
       const bruto = (peds ?? []).reduce((s, p) => s + (p.total ?? 0), 0)
       const prepagado = (pagosPrev ?? []).reduce((s, pg) => s + (pg.monto ?? 0), 0)

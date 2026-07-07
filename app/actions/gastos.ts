@@ -165,12 +165,16 @@ export type DomicilioDeudaPendiente = {
 }
 
 export async function getSaldosCuentasAction(): Promise<SaldoCuenta[]> {
+  const sesion = await getSesion()
+  if (sesion.rol !== 'admin') return []
   const supabase = await createClient()
   const { data } = await supabase.from('saldos_cuentas').select('*')
   return (data ?? []) as SaldoCuenta[]
 }
 
 export async function getFlujoDiaAction(sedeId?: string): Promise<FlujoDia[]> {
+  const sesion = await getSesion()
+  if (sesion.rol === 'visor') return []
   const supabase = await createClient()
   const hoy = hoyBogota()
   let q = supabase.from('flujo_caja_diario').select('*').eq('fecha', hoy)
@@ -180,6 +184,8 @@ export async function getFlujoDiaAction(sedeId?: string): Promise<FlujoDia[]> {
 }
 
 export async function getVentasDiaAction(): Promise<VentaDia[]> {
+  const sesion = await getSesion()
+  if (sesion.rol !== 'admin') return []
   const supabase = await createClient()
   const hoy = hoyBogota()
   const { data } = await supabase
@@ -190,6 +196,8 @@ export async function getVentasDiaAction(): Promise<VentaDia[]> {
 }
 
 export async function getDeudaMensajeriasAction(): Promise<DeudaMensajeria[]> {
+  const sesion = await getSesion()
+  if (sesion.rol !== 'admin') return []
   const supabase = await createClient()
   const { data } = await supabase
     .from('mensajeria_deuda')
@@ -199,6 +207,8 @@ export async function getDeudaMensajeriasAction(): Promise<DeudaMensajeria[]> {
 }
 
 export async function getDomiciliosDeudaPendienteAction(): Promise<DomicilioDeudaPendiente[]> {
+  const sesion = await getSesion()
+  if (sesion.rol !== 'admin') return []
   const supabase = await createClient()
   const { data } = await supabase
     .from('domicilios_deuda_pendiente')

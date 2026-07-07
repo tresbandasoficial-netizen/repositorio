@@ -68,6 +68,7 @@ export async function getEstadisticas(dias: number): Promise<Estadisticas> {
     supabase
       .from('pagos')
       .select('metodo, monto, fecha')
+      .eq('anulado', false)
       .gte('fecha', desdeFecha),
   ])
 
