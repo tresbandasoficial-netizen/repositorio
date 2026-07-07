@@ -7,7 +7,7 @@ import { PedidosAreaChart } from '@/components/dashboard/PedidosAreaChart'
 import { SedeDonutChart } from '@/components/dashboard/SedeDonutChart'
 import { EstadoBadge } from '@/components/pedidos/EstadoBadge'
 import { EstadoPedido } from '@/types'
-import { formatCOP } from '@/lib/utils/format'
+import { formatCOP, hoyBogota } from '@/lib/utils/format'
 import { CerrarCajaButton } from '@/components/dashboard/CerrarCajaButton'
 import {
   ShoppingBag,
@@ -134,7 +134,7 @@ export default async function DashboardPage() {
   const esAdmin = usuario.rol === 'admin'
 
   // ── Vista Admin ──────────────────────────────────────────────────────────────
-  const hoy = new Date().toISOString().slice(0, 10)
+  const hoy = hoyBogota()
   const cierreQuery = supabase.from('cierres_caja').select('id').eq('fecha', hoy)
   if (usuario.sede_id) cierreQuery.eq('sede_id', usuario.sede_id)
   const { data: cierreHoy } = await cierreQuery.maybeSingle()

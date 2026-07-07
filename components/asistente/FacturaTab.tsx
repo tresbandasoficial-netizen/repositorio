@@ -3,7 +3,7 @@
 import { useState, useTransition, useRef } from 'react'
 import { parsearFacturaAction } from '@/app/actions/parsear-factura'
 import { crearCompraAction, CompraItemInput } from '@/app/actions/compras'
-import { formatCOP } from '@/lib/utils/format'
+import { formatCOP, hoyBogota } from '@/lib/utils/format'
 
 type Fase = 'subir' | 'revisar' | 'exito'
 
@@ -19,7 +19,7 @@ export function FacturaTab() {
   const [fase, setFase] = useState<Fase>('subir')
   const [tipo, setTipo] = useState<'colombia' | 'usa'>('colombia')
   const [proveedor, setProveedor] = useState('')
-  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10))
+  const [fecha, setFecha] = useState(hoyBogota())
   const [numeroFactura, setNumeroFactura] = useState('')
   const [totalCop, setTotalCop] = useState('')
   const [totalUsd, setTotalUsd] = useState('')
@@ -53,7 +53,7 @@ export function FacturaTab() {
         if (!result.ok) { setError(result.error); return }
         const d = result.data
         setProveedor(d.proveedor || '')
-        setFecha(d.fecha || new Date().toISOString().slice(0, 10))
+        setFecha(d.fecha || hoyBogota())
         setNumeroFactura(d.numero_factura || '')
         if (tipo === 'colombia') {
           setTotalCop(String(Math.round(d.total_usd)))
@@ -94,7 +94,7 @@ export function FacturaTab() {
   function resetForm() {
     setFase('subir')
     setProveedor('')
-    setFecha(new Date().toISOString().slice(0, 10))
+    setFecha(hoyBogota())
     setNumeroFactura('')
     setTotalCop('')
     setTotalUsd('')

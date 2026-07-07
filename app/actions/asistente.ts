@@ -173,8 +173,9 @@ async function ejecutarCrearFactura(numeroOrden: string, diasVencimiento: number
   if (!busqueda.ok) return `No se puede facturar: ${busqueda.error}`
 
   const dias = Math.max(1, diasVencimiento || 30)
-  const fechaVenc = new Date()
-  fechaVenc.setDate(fechaVenc.getDate() + dias)
+  // Anclado a mediodía UTC para que sumar días no corra la fecha por zona horaria.
+  const fechaVenc = new Date(hoyBogota() + 'T12:00:00Z')
+  fechaVenc.setUTCDate(fechaVenc.getUTCDate() + dias)
   const fecha_vencimiento = fechaVenc.toISOString().slice(0, 10)
 
   const result = await crearFacturaAction({

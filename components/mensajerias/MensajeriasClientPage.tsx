@@ -2,7 +2,7 @@
 
 import { Fragment, useState, useTransition } from 'react'
 import Link from 'next/link'
-import { formatCOP } from '@/lib/utils/format'
+import { formatCOP, hoyBogota } from '@/lib/utils/format'
 import { TipoMensajeria, MENSAJERIA_LABELS, Cuenta } from '@/types'
 import { liquidarMensajeriaAction, liquidarMensajeriaDiaAction } from '@/app/actions/mensajerias'
 import type {
@@ -12,7 +12,7 @@ import type {
   LiquidacionEntry,
 } from '@/app/actions/mensajerias'
 
-function hoy() { return new Date().toISOString().slice(0, 10) }
+function hoy() { return hoyBogota() }
 
 // Enlace a una factura por su número (lleva al detalle con sus artículos).
 function FacLink({ numero }: { numero: string }) {

@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { NuevoDomicilioPanel } from './NuevoDomicilioPanel'
 import { DomicilioCard } from './DomicilioCard'
 import type { DomicilioRow, CuadreDia, CuadreSemana } from '@/lib/queries/domicilios'
+import { hoyBogota } from '@/lib/utils/format'
 
 const MENSAJERIA_LABELS = { exneider: 'Exneider', servigo: 'Servigo' }
 const WA_NUMEROS = { exneider: '573166579773', servigo: '573232501670' }
@@ -142,7 +143,7 @@ export function DomiciliosCliente({ fecha, domicilios, cuadre, cuadreSemana, isA
         >
           {fechasDisponibles.map(f => (
             <option key={f} value={f}>
-              {f === new Date().toISOString().slice(0, 10) ? `Hoy (${f})` : f}
+              {f === hoyBogota() ? `Hoy (${f})` : f}
             </option>
           ))}
         </select>

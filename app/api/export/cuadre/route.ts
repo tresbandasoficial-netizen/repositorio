@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { getCuadre } from '@/lib/queries/cuadre'
+import { hoyBogota } from '@/lib/utils/format'
 import { createClient } from '@/lib/supabase/server'
 
 function csvCell(value: string | number | null | undefined): string {
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
   if (!user) return new Response('No autorizado', { status: 401 })
 
   const url = request.nextUrl
-  const desde = url.searchParams.get('desde') || new Date().toISOString().slice(0, 10)
+  const desde = url.searchParams.get('desde') || hoyBogota()
   const hasta = url.searchParams.get('hasta') || desde
   const sede = url.searchParams.get('sede') || undefined
 

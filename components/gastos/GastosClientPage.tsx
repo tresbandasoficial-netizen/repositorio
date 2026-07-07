@@ -1,13 +1,13 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { formatCOP, formatHora } from '@/lib/utils/format'
+import { formatCOP, formatHora, hoyBogota } from '@/lib/utils/format'
 import {
   Gasto, Cuenta, CategoriaGasto, CATEGORIA_GASTO_LABELS, CATEGORIAS_GASTO,
 } from '@/types'
 import { crearGastoAction, eliminarGastoAction } from '@/app/actions/gastos'
 
-function hoy() { return new Date().toISOString().slice(0, 10) }
+function hoy() { return hoyBogota() }
 function inicioMes() {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`

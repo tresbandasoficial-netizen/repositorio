@@ -2,15 +2,12 @@ import { redirect } from 'next/navigation'
 import { getSesion } from '@/lib/auth/acceso'
 import { createClient } from '@/lib/supabase/server'
 import { getGastosAction } from '@/app/actions/gastos'
-import { formatCOP } from '@/lib/utils/format'
+import { formatCOP, hoyBogota } from '@/lib/utils/format'
 import { CATEGORIA_GASTO_LABELS, CategoriaGasto, CATEGORIAS_GASTO, metodosDeSede } from '@/types'
 import { GastosClientPage } from '@/components/gastos/GastosClientPage'
 
-function hoy() { return new Date().toISOString().slice(0, 10) }
-function inicioMes() {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
-}
+function hoy() { return hoyBogota() }
+function inicioMes() { return hoyBogota().slice(0, 8) + '01' }
 
 export default async function GastosPage({
   searchParams,

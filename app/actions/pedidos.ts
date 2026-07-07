@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { parsearPedido } from '@/lib/parser'
 import { normalizarTelefono } from '@/lib/utils/phone'
+import { hoyBogota } from '@/lib/utils/format'
 import { getSiguienteNumeroOrden } from '@/lib/queries/pedidos'
 import { puedeTransicionar } from '@/lib/domain/estados'
 import { EstadoPedido, MetodoPago, ParsedPedido } from '@/types'
@@ -149,7 +150,7 @@ async function _crearPedidoConDatos(
   }
 
   // Abonos adicionales (del segundo en adelante) — RPC atómico con validación de saldo.
-  const hoy = new Date().toISOString().slice(0, 10)
+  const hoy = hoyBogota()
   for (const abono of abonosMultiples.slice(1)) {
     const cuentaAdic = await cuentaIdPorMetodo(supabase, abono.metodo, sede.id)
     const { error: errPago } = await supabase.rpc('registrar_pago_pedido', {
