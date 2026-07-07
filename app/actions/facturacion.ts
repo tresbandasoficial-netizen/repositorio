@@ -226,6 +226,12 @@ export async function crearFacturaUnificadaAction(
   }
   if (!data.fecha_vencimiento) return { ok: false, error: 'La fecha de vencimiento es obligatoria' }
 
+  // Todo producto vendido directo debe venir vinculado al catálogo (código).
+  const productoSinCodigo = data.productos_nuevos.find(it => !it.articulo_id)
+  if (productoSinCodigo) {
+    return { ok: false, error: `El producto "${productoSinCodigo.descripcion || 'sin nombre'}" no tiene código de producto. Selecciónalo del catálogo antes de facturar.` }
+  }
+
   // Regla: si NO es a crédito, el valor del pago es obligatorio. No se permite
   // emitir con pago en $0 sin marcar explícitamente "A crédito" (evita facturas
   // que entran como crédito implícito y descuadran el flujo de caja).

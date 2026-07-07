@@ -214,6 +214,12 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
     if (!esCredito && abonos.some(a => a.monto > 0 && a.metodo === 'recaudo_mensajeria' && !a.mensajeria)) {
       setError('Selecciona la mensajería que recauda en cada línea de Recaudo Mensajería'); return
     }
+    // Todo producto vendido directo debe estar vinculado al catálogo (código).
+    const idxSinCodigo = lineasValidas.findIndex(l => !l.articulo_id)
+    if (idxSinCodigo !== -1) {
+      setError(`El producto ${idxSinCodigo + 1} no tiene código: búscalo en el catálogo o guárdalo como artículo nuevo antes de facturar.`)
+      return
+    }
     setError('')
 
     const notasFinal = mensajeria.trim()
