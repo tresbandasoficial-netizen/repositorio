@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button'
 import { ImagenProducto } from '@/components/pedidos/ImagenProducto'
 import { uploadPedidoImage } from '@/lib/utils/uploadPedidoImage'
 import { PedidoSuccessOverlay } from '@/components/pedidos/PedidoSuccessOverlay'
+import { TallaSelect } from '@/components/ui/TallaSelect'
 
 type OpcionCatalogo = {
   articulo_id: string
@@ -19,6 +20,7 @@ type OpcionCatalogo = {
   nombre: string
   color: string | null
   sexo: string | null
+  categoria: string | null
   talla: string | null
 }
 
@@ -26,10 +28,10 @@ function aplanarOpciones(arts: ArticuloBusqueda[]): OpcionCatalogo[] {
   const result: OpcionCatalogo[] = []
   for (const a of arts) {
     if (a.tallaStock.length === 0) {
-      result.push({ articulo_id: a.id, codigo: a.codigo, marca: a.marca, nombre: a.nombre, color: a.color, sexo: a.sexo, talla: null })
+      result.push({ articulo_id: a.id, codigo: a.codigo, marca: a.marca, nombre: a.nombre, color: a.color, sexo: a.sexo, categoria: a.categoria, talla: null })
     } else {
       for (const ts of a.tallaStock) {
-        result.push({ articulo_id: a.id, codigo: a.codigo, marca: a.marca, nombre: a.nombre, color: a.color, sexo: a.sexo, talla: ts.talla })
+        result.push({ articulo_id: a.id, codigo: a.codigo, marca: a.marca, nombre: a.nombre, color: a.color, sexo: a.sexo, categoria: a.categoria, talla: ts.talla })
       }
     }
   }
@@ -247,6 +249,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
       talla:       opt.talla ?? form.productos[idx].talla,
       color:       opt.color ?? null,
       sexo:        (opt.sexo as any) ?? null,
+      categoria:   (opt.categoria as any) ?? null,
     })
   }
 
@@ -547,13 +550,13 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
                     <button
                       type="button"
                       onClick={() => crearEnCatalogo(i)}
-                      disabled={catalogSaving.has(i) || !p.descripcion.trim() || !p.marca.trim()}
+                      disabled={catalogSaving.has(i) || !p.descripcion.trim() || !p.marca.trim() || !(p as any).categoria || ((p as any).categoria !== 'accesorios' && !(p as any).sexo)}
                       className="text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg px-2.5 py-1 hover:bg-green-100 disabled:opacity-40 transition-colors"
                     >
                       {catalogSaving.has(i) ? 'Guardando...' : 'Guardar'}
                     </button>
-                    {(!p.descripcion.trim() || !p.marca.trim()) && (
-                      <span className="text-xs text-gray-400">Completa nombre y marca primero</span>
+                    {(!p.descripcion.trim() || !p.marca.trim() || !(p as any).categoria || ((p as any).categoria !== 'accesorios' && !(p as any).sexo)) && (
+                      <span className="text-xs text-gray-400">Completa nombre, marca, categoría y hombre/mujer primero</span>
                     )}
                     {catalogError[i] && <span className="text-xs text-red-600">{catalogError[i]}</span>}
                   </div>
@@ -573,12 +576,11 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
                     placeholder="Marca"
                     className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                  <input
-                    type="text"
+                  <TallaSelect
+                    categoria={(p as any).categoria ?? ''}
                     value={p.talla ?? ''}
-                    onChange={e => patchProducto(i, { talla: e.target.value || null })}
-                    placeholder="Talla"
-                    className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onChange={talla => patchProducto(i, { talla: talla || null })}
+                    className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                   />
                   <input
                     type="number"

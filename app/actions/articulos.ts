@@ -48,6 +48,10 @@ async function _crearArticulo(data: CrearArticuloInput): Promise<ArticuloResult>
   const codigo = data.codigo.trim() || null
 
   if (!nombre || !marca) return { ok: false, error: 'Marca y nombre son obligatorios' }
+  if (!data.categoria) return { ok: false, error: 'Indica si es ropa, tenis o accesorio' }
+  if (data.categoria !== 'accesorios' && !data.sexo) {
+    return { ok: false, error: 'Indica si es de hombre, de mujer o de niño' }
+  }
 
   if (codigo) {
     const { data: existente } = await supabase
@@ -120,11 +124,16 @@ export async function registrarEntradaAction(data: EntradaInput): Promise<Simple
 
   if (data.cantidad <= 0) return { ok: false, error: 'La cantidad debe ser mayor a cero' }
   if (data.costo_unitario_cop < 0) return { ok: false, error: 'El costo no puede ser negativo' }
-  if (!data.talla.trim()) return { ok: false, error: 'La talla es obligatoria' }
+
+  // La talla es obligatoria salvo para accesorios (no llevan talla).
+  const { data: art } = await supabase.from('articulos').select('categoria').eq('id', data.articulo_id).maybeSingle()
+  if (art?.categoria !== 'accesorios' && !data.talla.trim()) {
+    return { ok: false, error: 'La talla es obligatoria' }
+  }
 
   const { error } = await supabase.rpc('registrar_entrada_inventario', {
     p_articulo_id:    data.articulo_id,
-    p_talla:          data.talla.trim(),
+    p_talla:          data.talla.trim() || null,
     p_cantidad:       data.cantidad,
     p_costo_unitario: data.costo_unitario_cop,
     p_usuario_id:     sesion.id,
@@ -152,14 +161,19 @@ export async function transferirStockAction(data: TransferirInput): Promise<Simp
   const supabase = await createClient()
 
   if (data.cantidad <= 0) return { ok: false, error: 'La cantidad debe ser mayor a cero' }
-  if (!data.talla.trim()) return { ok: false, error: 'La talla es obligatoria' }
   if (data.sede_origen === data.sede_destino) {
     return { ok: false, error: 'El origen y el destino no pueden ser iguales' }
   }
 
+  // La talla es obligatoria salvo para accesorios (no llevan talla).
+  const { data: art } = await supabase.from('articulos').select('categoria').eq('id', data.articulo_id).maybeSingle()
+  if (art?.categoria !== 'accesorios' && !data.talla.trim()) {
+    return { ok: false, error: 'La talla es obligatoria' }
+  }
+
   const { error } = await supabase.rpc('transferir_stock', {
     p_articulo_id:  data.articulo_id,
-    p_talla:        data.talla.trim(),
+    p_talla:        data.talla.trim() || null,
     p_sede_origen:  data.sede_origen,
     p_sede_destino: data.sede_destino,
     p_cantidad:     data.cantidad,
@@ -210,6 +224,7 @@ export type ArticuloBusqueda = {
   marca: string
   color: string | null
   sexo: string | null
+  categoria: string | null
   tallaStock: { talla: string | null; stock: number }[]
 }
 
@@ -220,12 +235,12 @@ export async function buscarArticulosAction(q: string, sedeId: string | null): P
 
   const { data: articulos } = await supabase
     .from('articulos')
-    .select('id, codigo, nombre, marca, color, sexo')
+    .select('id, codigo, nombre, marca, color, sexo, categoria')
     .eq('activo', true)
     .or(`nombre.ilike.%${t}%,marca.ilike.%${t}%,codigo.ilike.%${t}%,referencia.ilike.%${t}%,color.ilike.%${t}%`)
     .limit(15)
 
-  const lista = (articulos ?? []) as Array<{ id: string; codigo: string | null; nombre: string; marca: string; color: string | null; sexo: string | null }>
+  const lista = (articulos ?? []) as Array<{ id: string; codigo: string | null; nombre: string; marca: string; color: string | null; sexo: string | null; categoria: string | null }>
   if (lista.length === 0) return []
 
   const ids = lista.map(a => a.id)

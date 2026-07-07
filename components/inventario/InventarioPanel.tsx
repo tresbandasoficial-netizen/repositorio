@@ -8,6 +8,7 @@ import {
 import { Button } from '@/components/ui/Button'
 import { StockAgrupado } from '@/lib/queries/inventario'
 import { Articulo, CategoriaArticulo, SexoArticulo } from '@/types'
+import { TallaSelect } from '@/components/ui/TallaSelect'
 
 type Sede = { id: string; codigo: string; nombre: string }
 
@@ -125,6 +126,8 @@ function CrearArticulo({ onClose }: { onClose: () => void }) {
 
   function submit() {
     if (!marca.trim() || !nombre.trim()) { setError('Marca y nombre son obligatorios'); return }
+    if (!categoria) { setError('Indica si es ropa, tenis o accesorio'); return }
+    if (categoria !== 'accesorios' && !sexo) { setError('Indica si es de hombre, de mujer o de niño'); return }
     setError('')
     start(async () => {
       const r = await crearArticuloAction({ codigo, nombre, marca, referencia, color, sexo, categoria, descripcion: '' })
@@ -144,17 +147,17 @@ function CrearArticulo({ onClose }: { onClose: () => void }) {
         <input className={inputCls} placeholder="Nombre / modelo" value={nombre} onChange={e => setNombre(e.target.value)} />
         <input className={inputCls} placeholder="Referencia técnica (opcional)" value={referencia} onChange={e => setReferencia(e.target.value)} />
         <input className={inputCls} placeholder="Color (ej. White/Black)" value={color} onChange={e => setColor(e.target.value)} />
-        <select className={inputCls} value={sexo} onChange={e => setSexo(e.target.value as SexoArticulo | '')}>
-          <option value="">Sexo…</option>
-          <option value="hombre">Hombre</option>
-          <option value="mujer">Mujer</option>
-          <option value="nino">Niño</option>
-        </select>
         <select className={inputCls} value={categoria} onChange={e => setCategoria(e.target.value as CategoriaArticulo | '')}>
-          <option value="">Categoría…</option>
+          <option value="">Categoría… *</option>
           <option value="ropa">Ropa</option>
           <option value="tenis">Tenis</option>
           <option value="accesorios">Accesorios</option>
+        </select>
+        <select className={inputCls} value={sexo} onChange={e => setSexo(e.target.value as SexoArticulo | '')} disabled={categoria === 'accesorios'}>
+          <option value="">{categoria === 'accesorios' ? 'Sexo (no aplica)' : 'Hombre / Mujer… *'}</option>
+          <option value="hombre">Hombre</option>
+          <option value="mujer">Mujer</option>
+          <option value="nino">Niño</option>
         </select>
       </div>
       {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
@@ -192,7 +195,8 @@ function Entrada({ articulos, sedes, onClose }: { articulos: Articulo[]; sedes: 
     const c = parseInt(cantidad.replace(/\D/g, ''), 10)
     const co = parseInt(costo.replace(/\D/g, ''), 10)
     if (!articuloId) { setError('Selecciona un artículo'); return }
-    if (!talla.trim()) { setError('La talla es obligatoria'); return }
+    const esAccesorio = articulos.find(a => a.id === articuloId)?.categoria === 'accesorios'
+    if (!esAccesorio && !talla.trim()) { setError('La talla es obligatoria'); return }
     if (!c || c <= 0) { setError('Cantidad inválida'); return }
     if (isNaN(co) || co < 0) { setError('Costo inválido'); return }
     setError('')
@@ -210,7 +214,12 @@ function Entrada({ articulos, sedes, onClose }: { articulos: Articulo[]; sedes: 
     <Panel title="Entrada de stock" onClose={onClose}>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <SelectArticulo articulos={articulos} value={articuloId} onChange={setArticuloId} />
-        <input className={inputCls} placeholder="Talla (ej. 9, M, 38)" value={talla} onChange={e => setTalla(e.target.value)} />
+        <TallaSelect
+          categoria={articulos.find(a => a.id === articuloId)?.categoria ?? ''}
+          value={talla}
+          onChange={setTalla}
+          className={inputCls}
+        />
         <select className={inputCls} value={sedeId} onChange={e => setSedeId(e.target.value)}>
           {sedes.map(s => (
             <option key={s.id} value={s.id}>{s.nombre}{s.codigo === 'TR' ? ' (centro de distribución)' : ''}</option>
@@ -242,7 +251,8 @@ function Transferencia({ articulos, sedes, onClose }: { articulos: Articulo[]; s
   function submit() {
     const c = parseInt(cantidad.replace(/\D/g, ''), 10)
     if (!articuloId) { setError('Selecciona un artículo'); return }
-    if (!talla.trim()) { setError('La talla es obligatoria'); return }
+    const esAccesorio = articulos.find(a => a.id === articuloId)?.categoria === 'accesorios'
+    if (!esAccesorio && !talla.trim()) { setError('La talla es obligatoria'); return }
     if (!origen || !destino) { setError('Selecciona sede de origen y destino'); return }
     if (origen === destino) { setError('El origen y el destino no pueden ser iguales'); return }
     if (!c || c <= 0) { setError('Cantidad inválida'); return }
@@ -261,7 +271,12 @@ function Transferencia({ articulos, sedes, onClose }: { articulos: Articulo[]; s
     <Panel title="Transferir stock entre sedes" onClose={onClose}>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <SelectArticulo articulos={articulos} value={articuloId} onChange={setArticuloId} />
-        <input className={inputCls} placeholder="Talla (ej. 9, M, 38)" value={talla} onChange={e => setTalla(e.target.value)} />
+        <TallaSelect
+          categoria={articulos.find(a => a.id === articuloId)?.categoria ?? ''}
+          value={talla}
+          onChange={setTalla}
+          className={inputCls}
+        />
         <input className={inputCls} inputMode="numeric" placeholder="Cantidad" value={cantidad} onChange={e => setCantidad(e.target.value)} />
         <div />
         <select className={inputCls} value={origen} onChange={e => setOrigen(e.target.value)}>

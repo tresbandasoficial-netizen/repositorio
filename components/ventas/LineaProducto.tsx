@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { buscarArticulosAction, guardarArticuloCatalogoAction, ArticuloBusqueda } from '@/app/actions/articulos'
 import { ItemVenta } from '@/app/actions/ventas'
+import { TallaSelect } from '@/components/ui/TallaSelect'
+import type { CategoriaArticulo } from '@/types'
 
 export type Linea = ItemVenta & { stock?: number | null; key: number; codigo?: string }
 
@@ -28,6 +30,7 @@ type OpcionCatalogo = {
   nombre: string
   color: string | null
   sexo: string | null
+  categoria: string | null
   talla: string | null
   stock: number
 }
@@ -36,10 +39,10 @@ function aplanarOpciones(articulos: ArticuloBusqueda[], sedeId: string | null): 
   const result: OpcionCatalogo[] = []
   for (const a of articulos) {
     if (a.tallaStock.length === 0) {
-      result.push({ articulo_id: a.id, codigo: a.codigo, marca: a.marca, nombre: a.nombre, color: a.color, sexo: a.sexo, talla: null, stock: 0 })
+      result.push({ articulo_id: a.id, codigo: a.codigo, marca: a.marca, nombre: a.nombre, color: a.color, sexo: a.sexo, categoria: a.categoria, talla: null, stock: 0 })
     } else {
       for (const ts of a.tallaStock) {
-        result.push({ articulo_id: a.id, codigo: a.codigo, marca: a.marca, nombre: a.nombre, color: a.color, sexo: a.sexo, talla: ts.talla, stock: ts.stock })
+        result.push({ articulo_id: a.id, codigo: a.codigo, marca: a.marca, nombre: a.nombre, color: a.color, sexo: a.sexo, categoria: a.categoria, talla: ts.talla, stock: ts.stock })
       }
     }
   }
@@ -85,7 +88,8 @@ export function LineaProducto({
       descripcion: item.nombre,
       talla:       item.talla ?? linea.talla,
       color:       item.color ?? linea.color,
-      sexo:        item.sexo  ?? linea.sexo,
+      sexo:        (item.sexo ?? linea.sexo) as any,
+      categoria:   (item.categoria ?? linea.categoria) as any,
       stock:       item.stock,
     })
     setAbierto(false)
@@ -116,7 +120,10 @@ export function LineaProducto({
     }
   }
 
-  const puedeGuardar = !!(linea.descripcion.trim() && linea.marca.trim())
+  const puedeGuardar = !!(
+    linea.descripcion.trim() && linea.marca.trim() && linea.categoria &&
+    (linea.categoria === 'accesorios' || linea.sexo)
+  )
 
   return (
     <div className="border border-gray-100 rounded-lg p-3 space-y-2">
@@ -178,7 +185,7 @@ export function LineaProducto({
           >
             {guardando ? 'Guardando...' : 'Guardar'}
           </button>
-          {!puedeGuardar && <span className="text-xs text-gray-400">Completa nombre y marca primero</span>}
+          {!puedeGuardar && <span className="text-xs text-gray-400">Completa nombre, marca, categoría y hombre/mujer primero</span>}
           {errorGuardar && <span className="text-xs text-red-600">{errorGuardar}</span>}
         </div>
       )}
@@ -197,12 +204,11 @@ export function LineaProducto({
           placeholder="Marca"
           className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
-        <input
-          type="text"
+        <TallaSelect
+          categoria={linea.categoria as CategoriaArticulo | ''}
           value={linea.talla}
-          onChange={e => onChange({ talla: e.target.value })}
-          placeholder="Talla"
-          className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          onChange={talla => onChange({ talla })}
+          className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
         />
         <input
           type="number"

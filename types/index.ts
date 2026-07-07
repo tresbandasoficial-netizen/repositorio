@@ -372,6 +372,16 @@ export const DIAS_ZOMBIE_DOC = 30
 export type CategoriaArticulo = 'ropa' | 'tenis' | 'accesorios'
 export type SexoArticulo = 'hombre' | 'mujer' | 'nino'
 
+// Tallas permitidas por categoría. Los accesorios no llevan talla.
+export const TALLAS_ROPA  = ['2XS', 'XS', 'S', 'M', 'L', 'XL', '2XL']
+export const TALLAS_TENIS = ['5', '5.5', '6', '6.5', '7', '7.5', '8', '8.5', '9', '9.5', '10', '10.5', '11', '11.5', '12']
+
+export function tallasDeCategoria(cat?: CategoriaArticulo | '' | null): string[] {
+  if (cat === 'ropa') return TALLAS_ROPA
+  if (cat === 'tenis') return TALLAS_TENIS
+  return []
+}
+
 export const SEXO_LABELS: Record<SexoArticulo, string> = {
   hombre: 'Hombre',
   mujer:  'Mujer',
