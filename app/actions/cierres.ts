@@ -5,6 +5,22 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getSesion } from '@/lib/auth/acceso'
 import { hoyBogota } from '@/lib/utils/format'
+import { getEfectivoEnCaja } from '@/lib/queries/cuadre'
+
+// Efectivo que el sistema espera que haya en la caja de la sede (para el arqueo).
+export async function getEfectivoEsperadoAction(sedeId?: string): Promise<{ esperado: number } | { esperado: null }> {
+  const sesion = await getSesion()
+  if (sesion.rol === 'visor') return { esperado: null }
+
+  let codigo: string | undefined
+  if (sesion.rol === 'admin' && sedeId) {
+    const supabase = await createClient()
+    const { data: sede } = await supabase.from('sedes').select('codigo').eq('id', sedeId).maybeSingle()
+    codigo = sede?.codigo
+  }
+  const cajas = await getEfectivoEnCaja(codigo)
+  return { esperado: cajas.reduce((s, c) => s + c.saldo, 0) }
+}
 
 export type DetalleCuenta = {
   cuenta_id: string
@@ -40,11 +56,18 @@ export async function cerrarCajaAction(data: {
   total_egresos: number
   neto: number
   sede_id?: string
+  efectivo_contado: number
+  efectivo_esperado: number
 }): Promise<CierreCajaResult> {
   const sesion = await getSesion()
   if (sesion.rol === 'visor') return { ok: false, error: 'Sin permisos para cerrar caja' }
   const sedeId = sesion.rol === 'admin' ? (data.sede_id || sesion.sede_id) : sesion.sede_id
   if (!sedeId) return { ok: false, error: 'Selecciona una sede para cerrar caja.' }
+
+  // Arqueo obligatorio: hay que contar el efectivo físico antes de cerrar.
+  if (!Number.isFinite(data.efectivo_contado) || data.efectivo_contado < 0) {
+    return { ok: false, error: 'Cuenta el efectivo de la caja y digita el valor para poder cerrar.' }
+  }
 
   const supabase = await createClient()
 
@@ -70,6 +93,9 @@ export async function cerrarCajaAction(data: {
       total_ingresos:   data.total_ingresos,
       total_egresos:    data.total_egresos,
       neto:             data.neto,
+      efectivo_esperado: data.efectivo_esperado,
+      efectivo_contado:  data.efectivo_contado,
+      diferencia:        data.efectivo_contado - data.efectivo_esperado,
     })
     .select('id')
     .single()

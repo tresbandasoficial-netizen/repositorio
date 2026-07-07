@@ -74,6 +74,13 @@ export default async function CuadrePage({
             sedes={sesion.rol === 'admin' ? (sedes ?? []).map(s => ({ id: s.id, nombre: s.nombre, codigo: s.codigo })) : undefined}
           />
           <a
+            href={`/cuadre/imprimir?${params.toString()}`}
+            target="_blank"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 text-white px-4 py-2 text-sm font-medium hover:bg-gray-700"
+          >
+            🖨 PDF carta
+          </a>
+          <a
             href={`/api/export/cuadre?${params.toString()}`}
             className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 text-white px-4 py-2 text-sm font-medium hover:bg-green-700"
           >

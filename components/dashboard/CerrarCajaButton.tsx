@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { cerrarCajaAction } from '@/app/actions/cierres'
+import { cerrarCajaAction, getEfectivoEsperadoAction } from '@/app/actions/cierres'
 import { getFlujoDiaAction } from '@/app/actions/gastos'
 import { getPagosSinConfirmarAction, type PagoSinConfirmar } from '@/app/actions/cuadre'
 import { formatCOP } from '@/lib/utils/format'
@@ -27,17 +27,26 @@ export function CerrarCajaButton({
   const [error, setError] = useState('')
   const [pending, start] = useTransition()
   const [cerrado, setCerrado] = useState(yaCerrada)
+  const [esperado, setEsperado] = useState<number | null>(null)
+  const [contado, setContado] = useState('')
+
+  const contadoNum = contado === '' ? null : (parseInt(contado.replace(/\D/g, ''), 10) || 0)
+  const diferencia = contadoNum !== null && esperado !== null ? contadoNum - esperado : null
 
   async function cargarFlujo(sid?: string) {
     setLoading(true)
     setFlujo([])
     setSinConfirmar([])
-    const [data, pendientes] = await Promise.all([
+    setEsperado(null)
+    setContado('')
+    const [data, pendientes, arqueo] = await Promise.all([
       getFlujoDiaAction(sid),
       getPagosSinConfirmarAction(sid),
+      getEfectivoEsperadoAction(sid),
     ])
     setFlujo(data.filter(f => f.ingresos_hoy > 0 || f.egresos_hoy > 0))
     setSinConfirmar(pendientes)
+    setEsperado(arqueo.esperado)
     setLoading(false)
   }
 
@@ -66,6 +75,10 @@ export function CerrarCajaButton({
 
   function handleConfirmar() {
     if (esAdmin && !sedeId) { setError('Selecciona una sede'); return }
+    if (contadoNum === null || esperado === null) {
+      setError('Cuenta el efectivo de la caja y digita el valor para poder cerrar.')
+      return
+    }
     const detalle: DetalleCuenta[] = flujo.map(f => ({
       cuenta_id:     f.cuenta_id,
       cuenta_nombre: f.cuenta_nombre,
@@ -86,6 +99,8 @@ export function CerrarCajaButton({
         total_egresos,
         neto,
         sede_id: sedeId || undefined,
+        efectivo_contado: contadoNum!,
+        efectivo_esperado: esperado!,
       })
       if (!r.ok) { setError(r.error); return }
       setCerrado(!esAdmin) // solo marcar cerrado automáticamente para asesores
@@ -202,6 +217,40 @@ export function CerrarCajaButton({
                 </p>
               )}
 
+              {/* Arqueo de efectivo */}
+              {!loading && (!esAdmin || sedeId) && esperado !== null && (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-2">
+                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Arqueo de efectivo</p>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">El sistema espera en caja</span>
+                    <span className="font-bold text-gray-900">{formatCOP(esperado)}</span>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Efectivo contado (físico) *</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={contado}
+                      onChange={e => setContado(e.target.value.replace(/\D/g, ''))}
+                      placeholder="Cuenta el dinero del cajón y digítalo aquí"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    />
+                    {contadoNum !== null && <p className="text-xs text-gray-400 mt-1">{formatCOP(contadoNum)}</p>}
+                  </div>
+                  {diferencia !== null && (
+                    <div className={`rounded-lg px-3 py-2 text-sm font-semibold text-center ${
+                      diferencia === 0 ? 'bg-green-100 text-green-800'
+                      : diferencia > 0 ? 'bg-amber-100 text-amber-800'
+                      : 'bg-red-100 text-red-800'
+                    }`}>
+                      {diferencia === 0 ? '✓ La caja cuadra exacto'
+                        : diferencia > 0 ? `Sobran ${formatCOP(diferencia)}`
+                        : `Faltan ${formatCOP(-diferencia)}`}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Notas */}
               {(!esAdmin || sedeId) && (
                 <div>
@@ -231,7 +280,7 @@ export function CerrarCajaButton({
               </button>
               <button
                 onClick={handleConfirmar}
-                disabled={pending || loading || (esAdmin && !sedeId)}
+                disabled={pending || loading || (esAdmin && !sedeId) || contadoNum === null}
                 className="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold disabled:opacity-50 transition-colors"
               >
                 {pending ? 'Cerrando...' : '🔒 Confirmar cierre'}
