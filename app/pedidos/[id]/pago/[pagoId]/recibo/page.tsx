@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getSesion, puedeAccederSede } from '@/lib/auth/acceso'
 import { formatCOP, formatFecha, formatFechaHora } from '@/lib/utils/format'
 import { formatearTelefono } from '@/lib/utils/phone'
+import { PrintButton } from '@/components/pedidos/PrintButton'
 
 const METODO_LABELS: Record<string, string> = {
   efectivo: 'Efectivo',
@@ -44,12 +45,7 @@ export default async function ReciboPagoPage({
   return (
     <>
       <div className="no-print fixed top-4 right-4 z-10 flex gap-2">
-        <button
-          onClick={() => window.print()}
-          className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors"
-        >
-          Imprimir
-        </button>
+        <PrintButton />
         <a
           href={`/pedidos/${pedidoId}`}
           className="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
