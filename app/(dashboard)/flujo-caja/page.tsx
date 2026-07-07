@@ -118,8 +118,12 @@ export default async function FlujoCajaPage({
           </thead>
           <tbody className="divide-y divide-gray-50">
             {filas.map(f => (
-              <tr key={f.id}>
-                <td className="px-5 py-2.5 text-gray-800">{f.nombre}</td>
+              <tr key={f.id} className="hover:bg-gray-50">
+                <td className="px-5 py-2.5">
+                  <Link href={`/flujo-caja/${f.id}`} className="text-gray-800 hover:text-blue-600 hover:underline">
+                    {f.nombre}
+                  </Link>
+                </td>
                 <td className="px-3 py-2.5 text-right text-gray-500">{formatCOP(f.saldo_inicial)}</td>
                 <td className="px-3 py-2.5 text-right text-green-700">{f.ingresos ? '+' + formatCOP(f.ingresos) : '—'}</td>
                 <td className="px-3 py-2.5 text-right text-red-600">{f.egresos ? '−' + formatCOP(f.egresos) : '—'}</td>
