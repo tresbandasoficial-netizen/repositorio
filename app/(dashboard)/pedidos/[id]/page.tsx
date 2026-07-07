@@ -102,6 +102,7 @@ export default async function PedidoDetallePage({
                       <img src={item.imagen_url} alt="Producto" className="w-12 h-12 object-cover rounded-lg border border-gray-200 flex-shrink-0" />
                     )}
                     <div className="min-w-0 flex-1">
+                      {item.codigo && <span className="font-mono text-xs text-blue-600 mr-1.5">{item.codigo}</span>}
                       <span className="font-medium text-gray-900">{item.marca}</span>
                       <span className="text-gray-500 ml-1 text-sm">{item.descripcion}</span>
                       <div className="text-xs text-gray-400 mt-0.5">
@@ -136,6 +137,7 @@ export default async function PedidoDetallePage({
                             <img src={item.imagen_url} alt="Producto" className="w-10 h-10 object-cover rounded-lg border border-gray-200 flex-shrink-0" />
                           )}
                           <div>
+                            {item.codigo && <span className="font-mono text-xs text-blue-600 mr-2">{item.codigo}</span>}
                             <span className="font-medium text-gray-900">{item.marca}</span>
                             <span className="text-gray-500 ml-2">{item.descripcion}</span>
                           </div>

@@ -32,6 +32,7 @@ export type PedidoDetalle = PedidoRow & {
   cliente_cedula: string | null
   items: Array<{
     id: string
+    codigo: string | null
     marca: string
     descripcion: string
     talla: string | null
@@ -135,7 +136,7 @@ export async function getPedidoDetalle(id: string): Promise<PedidoDetalle | null
     supabase.from('vista_pedidos_asesor').select('*').eq('id', id).single(),
     supabase
       .from('pedido_items')
-      .select('id, marca, descripcion, talla, cantidad, precio_venta, imagen_url')
+      .select('id, marca, descripcion, talla, cantidad, precio_venta, imagen_url, codigo, articulos(codigo)')
       .eq('pedido_id', id)
       .order('id'),
     supabase
@@ -171,9 +172,13 @@ export async function getPedidoDetalle(id: string): Promise<PedidoDetalle | null
       .select('id, marca, descripcion, talla, cantidad, precio_venta')
       .eq('pedido_id', id)
       .order('id')
-    itemsData = (fallback.data ?? []).map(it => ({ ...it, imagen_url: null }))
+    itemsData = (fallback.data ?? []).map(it => ({ ...it, imagen_url: null, codigo: null }))
   } else {
-    itemsData = itemsRes.data ?? []
+    // El código puede venir del item o del artículo del catálogo vinculado.
+    itemsData = (itemsRes.data ?? []).map((it: any) => {
+      const art = Array.isArray(it.articulos) ? it.articulos[0] : it.articulos
+      return { ...it, codigo: it.codigo ?? art?.codigo ?? null, articulos: undefined }
+    })
   }
 
   const pagos = (pagosRes.data ?? []).map((p: any) => ({
