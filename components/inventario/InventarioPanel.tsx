@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button'
 import { StockAgrupado } from '@/lib/queries/inventario'
 import { Articulo, CategoriaArticulo, SexoArticulo } from '@/types'
 import { TallaSelect } from '@/components/ui/TallaSelect'
+import { formatMiles } from '@/lib/utils/format'
 
 type Sede = { id: string; codigo: string; nombre: string }
 
@@ -226,7 +227,7 @@ function Entrada({ articulos, sedes, onClose }: { articulos: Articulo[]; sedes: 
           ))}
         </select>
         <input className={inputCls} inputMode="numeric" placeholder="Cantidad" value={cantidad} onChange={e => setCantidad(e.target.value)} />
-        <input className={inputCls} inputMode="numeric" placeholder="Costo unitario (COP)" value={costo} onChange={e => setCosto(e.target.value)} />
+        <input className={inputCls} inputMode="numeric" placeholder="Costo unitario (COP)" value={formatMiles(costo)} onChange={e => setCosto(e.target.value.replace(/\D/g, ''))} />
         <input className={`${inputCls} sm:col-span-2`} placeholder="Notas (opcional)" value={notas} onChange={e => setNotas(e.target.value)} />
       </div>
       <p className="text-xs text-gray-400 mt-2">El costo alimenta el promedio ponderado (CPP) por talla.</p>

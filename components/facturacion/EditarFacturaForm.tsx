@@ -9,7 +9,7 @@ import {
   eliminarAbonoFacturaAction,
 } from '@/app/actions/facturacion'
 import { MetodoPago, metodosDeSede, labelMetodo } from '@/types'
-import { formatCOP, formatFecha } from '@/lib/utils/format'
+import { formatCOP, formatFecha, formatMiles } from '@/lib/utils/format'
 
 type Factura = {
   id: string
@@ -103,13 +103,13 @@ function DatosFactura({ factura, onSaved }: { factura: Factura; onSaved: () => v
         <div></div>
         <div>
           <label className="block text-xs text-gray-500 mb-1">Envío</label>
-          <input type="text" inputMode="numeric" value={envio} onChange={e => setEnvio(e.target.value.replace(/\D/g, ''))}
+          <input type="text" inputMode="numeric" value={formatMiles(envio)} onChange={e => setEnvio(e.target.value.replace(/\D/g, ''))}
             placeholder="0"
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
         <div>
           <label className="block text-xs text-gray-500 mb-1">Descuento</label>
-          <input type="text" inputMode="numeric" value={descuento} onChange={e => setDescuento(e.target.value.replace(/\D/g, ''))}
+          <input type="text" inputMode="numeric" value={formatMiles(descuento)} onChange={e => setDescuento(e.target.value.replace(/\D/g, ''))}
             placeholder="0"
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
@@ -201,7 +201,7 @@ function AbonoRow({ abono, sedeCodigo, onChanged }: { abono: Abono; sedeCodigo?:
       <div className="grid grid-cols-3 gap-2">
         <div>
           <label className="block text-xs text-gray-500 mb-1">Monto</label>
-          <input type="text" inputMode="numeric" value={monto} onChange={e => setMonto(e.target.value.replace(/\D/g, ''))}
+          <input type="text" inputMode="numeric" value={formatMiles(monto)} onChange={e => setMonto(e.target.value.replace(/\D/g, ''))}
             className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
         <div>

@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { editarDomicilioAction } from '@/app/actions/domicilios'
 import type { DomicilioRow } from '@/lib/queries/domicilios'
+import { formatMiles } from '@/lib/utils/format'
 
 const MENSAJERIA_LABELS = { exneider: 'Exneider', servigo: 'Servigo' }
 
@@ -160,7 +161,7 @@ export function EditarDomicilioPanel({ domicilio: d, onGuardado, onCancelar }: P
           <input
             type="text"
             inputMode="numeric"
-            value={form.valor_pedido}
+            value={formatMiles(form.valor_pedido)}
             onChange={e => set('valor_pedido', e.target.value.replace(/\D/g, ''))}
             placeholder="110000"
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
@@ -184,7 +185,7 @@ export function EditarDomicilioPanel({ domicilio: d, onGuardado, onCancelar }: P
         <input
           type="text"
           inputMode="numeric"
-          value={form.valor_domicilio}
+          value={formatMiles(form.valor_domicilio)}
           onChange={e => set('valor_domicilio', e.target.value.replace(/\D/g, ''))}
           placeholder={form.cobrar_al_cliente ? 'Valor del domicilio (opcional)' : 'Valor del domicilio que pagamos nosotros'}
           className={`mt-2 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 ${

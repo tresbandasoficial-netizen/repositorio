@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { buscarClientesAction, ClienteBusqueda } from '@/app/actions/clientes'
 import { registrarVentaInmediataAction } from '@/app/actions/ventas'
 import { Button } from '@/components/ui/Button'
-import { formatCOP } from '@/lib/utils/format'
+import { formatCOP, formatMiles } from '@/lib/utils/format'
 import { MetodoPago, labelMetodo, metodosDeSede } from '@/types'
 import { Linea, nuevaLinea, LineaProducto } from '@/components/ventas/LineaProducto'
 
@@ -182,7 +182,7 @@ export function VentaInmediataForm({ sedes }: { sedes: SedeOpcion[] }) {
         {!pagaTodo && (
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Abono (deja saldo en cartera)</label>
-            <input type="text" inputMode="numeric" value={abono} onChange={e => setAbono(e.target.value)} placeholder="0"
+            <input type="text" inputMode="numeric" value={formatMiles(abono)} onChange={e => setAbono(e.target.value.replace(/\D/g, ''))} placeholder="0"
               className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             <p className="text-xs text-gray-400 mt-1">Saldo pendiente: {formatCOP(Math.max(0, total - abonoNum))}</p>
           </div>

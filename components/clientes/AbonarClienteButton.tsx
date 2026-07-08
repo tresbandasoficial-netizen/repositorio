@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { abonarClienteAction } from '@/app/actions/abonos'
-import { formatCOP } from '@/lib/utils/format'
+import { formatCOP, formatMiles } from '@/lib/utils/format'
 import { MetodoPago, metodosDeSede, labelMetodo } from '@/types'
 
 export function AbonarClienteButton({
@@ -86,8 +86,8 @@ export function AbonarClienteButton({
                 <input
                   type="text"
                   inputMode="numeric"
-                  value={monto}
-                  onChange={e => setMonto(e.target.value)}
+                  value={formatMiles(monto)}
+                  onChange={e => setMonto(e.target.value.replace(/\D/g, ''))}
                   placeholder={`Máx. ${formatCOP(deudaTotal)}`}
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />

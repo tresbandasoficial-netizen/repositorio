@@ -7,7 +7,7 @@ import { buscarClientesAction, ClienteBusqueda } from '@/app/actions/clientes'
 import {
   getPedidosFacturablesAction, crearFacturaUnificadaAction, buscarPedidoFacturableAction, PedidoFacturable,
 } from '@/app/actions/facturacion'
-import { formatCOP, formatFecha, hoyBogota } from '@/lib/utils/format'
+import { formatCOP, formatFecha, formatMiles, hoyBogota } from '@/lib/utils/format'
 import { MetodoPago, PagoFacturaInput, TipoEntrega, QuienPagaEntrega, TipoMensajeria, MENSAJERIA_LABELS, metodosDeSede, labelMetodo, METODO_PAGO_LABELS } from '@/types'
 import { Linea, nuevaLinea, LineaProducto } from '@/components/ventas/LineaProducto'
 
@@ -494,12 +494,12 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-500">Envío</span>
-                <input type="text" inputMode="numeric" value={envio} onChange={e => setEnvio(e.target.value.replace(/\D/g, ''))}
+                <input type="text" inputMode="numeric" value={formatMiles(envio)} onChange={e => setEnvio(e.target.value.replace(/\D/g, ''))}
                   placeholder="0" className="w-28 text-right rounded-lg border border-gray-200 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-500">Descuento</span>
-                <input type="text" inputMode="numeric" value={descuento} onChange={e => setDescuento(e.target.value.replace(/\D/g, ''))}
+                <input type="text" inputMode="numeric" value={formatMiles(descuento)} onChange={e => setDescuento(e.target.value.replace(/\D/g, ''))}
                   placeholder="0" className="w-28 text-right rounded-lg border border-gray-200 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div className="flex items-center justify-between pt-3 border-t border-gray-100">
@@ -554,7 +554,7 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
                                 <input
                                   type="text"
                                   inputMode="numeric"
-                                  value={abono.monto || ''}
+                                  value={formatMiles(abono.monto || '')}
                                   onChange={e => actualizarAbono(idx, {monto: parseInt(e.target.value.replace(/\D/g, ''), 10) || 0})}
                                   placeholder="0"
                                   className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -714,7 +714,7 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
                     </div>
                     <div>
                       <label className="block text-xs text-gray-500 mb-1">Valor domicilio</label>
-                      <input type="text" inputMode="numeric" value={valorEntrega}
+                      <input type="text" inputMode="numeric" value={formatMiles(valorEntrega)}
                         onChange={e => setValorEntrega(e.target.value.replace(/\D/g, ''))}
                         placeholder="0" className={inputCls} />
                     </div>
@@ -760,7 +760,7 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
                 <div className="space-y-3">
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">Valor envío</label>
-                    <input type="text" inputMode="numeric" value={valorEntrega}
+                    <input type="text" inputMode="numeric" value={formatMiles(valorEntrega)}
                       onChange={e => setValorEntrega(e.target.value.replace(/\D/g, ''))}
                       placeholder="0" className={inputCls} />
                   </div>

@@ -4,6 +4,14 @@ export function hoyBogota(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date())
 }
 
+/** Formatea lo digitado en un campo de dinero con puntos de miles (es-CO):
+ *  "1000000" → "1.000.000". Acepta el valor con o sin puntos previos. */
+export function formatMiles(valor: string | number | null | undefined): string {
+  const limpio = String(valor ?? '').replace(/\D/g, '')
+  if (!limpio) return ''
+  return parseInt(limpio, 10).toLocaleString('es-CO')
+}
+
 export function formatCOP(value: number): string {
   return new Intl.NumberFormat('es-CO', {
     style: 'currency',

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { formatCOP, formatHora, hoyBogota } from '@/lib/utils/format'
+import { formatCOP, formatHora, formatMiles, hoyBogota } from '@/lib/utils/format'
 import {
   Gasto, Cuenta, CategoriaGasto, CATEGORIA_GASTO_LABELS, CATEGORIAS_GASTO,
 } from '@/types'
@@ -113,7 +113,7 @@ export function GastosClientPage({ gastos, cuentas, sedes, sedeRestringida, esAd
               <label className="block text-xs text-gray-500 mb-1">Valor *</label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
-                <input type="text" inputMode="numeric" value={form.valor}
+                <input type="text" inputMode="numeric" value={formatMiles(form.valor)}
                   onChange={e => set('valor', e.target.value.replace(/\D/g, ''))}
                   placeholder="50000"
                   className="w-full pl-7 pr-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />

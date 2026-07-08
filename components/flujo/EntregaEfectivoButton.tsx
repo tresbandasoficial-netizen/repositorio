@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { registrarTrasladoAction } from '@/app/actions/traslados'
-import { formatCOP } from '@/lib/utils/format'
+import { formatCOP, formatMiles } from '@/lib/utils/format'
 
 type CuentaOpcion = { id: string; nombre: string; tipo: string }
 
@@ -75,7 +75,7 @@ export function EntregaEfectivoButton({ cuentas }: { cuentas: CuentaOpcion[] }) 
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">Monto</label>
-                <input type="text" inputMode="numeric" value={monto}
+                <input type="text" inputMode="numeric" value={formatMiles(monto)}
                   onChange={e => setMonto(e.target.value.replace(/\D/g, ''))}
                   placeholder="0"
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />

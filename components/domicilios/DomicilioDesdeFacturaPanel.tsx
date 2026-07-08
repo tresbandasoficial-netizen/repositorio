@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { crearDomicilioAction } from '@/app/actions/domicilios'
 import { buscarDireccionPorTelefonoAction } from '@/app/actions/clientes'
 import { buildMensajeMensajeria, buildLineaExcel } from './parsearDomicilio'
-import { formatCOP, hoyBogota } from '@/lib/utils/format'
+import { formatCOP, formatMiles, hoyBogota } from '@/lib/utils/format'
 
 const inputCls = 'w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
 
@@ -279,7 +279,7 @@ export function DomicilioDesdeFacturaPanel({
             className={inputCls}
             inputMode="numeric"
             placeholder="0"
-            value={form.valor_pedido}
+            value={formatMiles(form.valor_pedido)}
             readOnly={cobrarSaldo}
             onChange={e => !cobrarSaldo && campo('valor_pedido', e.target.value.replace(/\D/g, ''))}
           />
@@ -291,7 +291,7 @@ export function DomicilioDesdeFacturaPanel({
           </label>
           <input className={`${inputCls} ${!form.cobrar_al_cliente ? 'border-amber-300 focus:ring-amber-400' : ''}`}
             inputMode="numeric" placeholder="0"
-            value={form.valor_domicilio}
+            value={formatMiles(form.valor_domicilio)}
             onChange={e => campo('valor_domicilio', e.target.value.replace(/\D/g, ''))} />
         </div>
       </div>

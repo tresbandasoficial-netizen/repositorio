@@ -3,7 +3,7 @@
 import { useState, useTransition, useRef } from 'react'
 import { parsearFacturaAction } from '@/app/actions/parsear-factura'
 import { crearCompraAction, CompraItemInput } from '@/app/actions/compras'
-import { formatCOP, hoyBogota } from '@/lib/utils/format'
+import { formatCOP, formatMiles, hoyBogota } from '@/lib/utils/format'
 
 type Fase = 'subir' | 'revisar' | 'exito'
 
@@ -266,7 +266,7 @@ export function FacturaTab() {
             <label className="block text-xs text-gray-500 mb-1">
               {tipo === 'usa' ? 'Total COP pagado *' : 'Total COP *'}
             </label>
-            <input type="text" inputMode="numeric" value={totalCop}
+            <input type="text" inputMode="numeric" value={formatMiles(totalCop)}
               onChange={e => setTotalCop(e.target.value.replace(/\D/g, ''))}
               className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
             {totalCopNum > 0 && <p className="text-xs text-gray-400 mt-0.5">{formatCOP(totalCopNum)}</p>}
@@ -318,7 +318,7 @@ export function FacturaTab() {
                 placeholder="Talla"
                 className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
               <div className="col-span-2">
-                <input type="text" inputMode="numeric" value={item.costo_cop}
+                <input type="text" inputMode="numeric" value={formatMiles(item.costo_cop)}
                   onChange={e => updateItem(idx, 'costo_cop', e.target.value.replace(/\D/g, ''))}
                   placeholder="Costo unitario COP"
                   className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />

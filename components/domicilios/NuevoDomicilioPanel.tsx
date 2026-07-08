@@ -7,7 +7,7 @@ import { buscarClientesAction, buscarDireccionPorTelefonoAction, ClienteBusqueda
 
 import { TipoCobroDomicilio, TipoMensajeria } from '@/types'
 import { buscarFacturaPorNumeroAction } from '@/app/actions/facturacion'
-import { formatCOP } from '@/lib/utils/format'
+import { formatCOP, formatMiles } from '@/lib/utils/format'
 
 const MENSAJERIA_LABELS: Record<string, string> = {
   exneider: 'Exneider',
@@ -438,7 +438,7 @@ export function NuevoDomicilioPanel({ fecha, onCreado }: Props) {
               <input
                 type="text"
                 inputMode="numeric"
-                value={form.valor_pedido}
+                value={formatMiles(form.valor_pedido)}
                 onChange={e => set('valor_pedido', e.target.value.replace(/\D/g, ''))}
                 placeholder="110000"
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
@@ -457,7 +457,7 @@ export function NuevoDomicilioPanel({ fecha, onCreado }: Props) {
             <input
               type="text"
               inputMode="numeric"
-              value={form.valor_domicilio}
+              value={formatMiles(form.valor_domicilio)}
               onChange={e => set('valor_domicilio', e.target.value.replace(/\D/g, ''))}
               placeholder="12000"
               className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 ${

@@ -2,7 +2,7 @@
 
 import { Fragment, useState, useTransition } from 'react'
 import Link from 'next/link'
-import { formatCOP, hoyBogota } from '@/lib/utils/format'
+import { formatCOP, formatMiles, hoyBogota } from '@/lib/utils/format'
 import { TipoMensajeria, MENSAJERIA_LABELS, Cuenta } from '@/types'
 import { liquidarMensajeriaAction, liquidarMensajeriaDiaAction } from '@/app/actions/mensajerias'
 import type {
@@ -243,7 +243,7 @@ export function MensajeriasClientPage({
                 <input
                   type="text"
                   inputMode="numeric"
-                  value={form.monto}
+                  value={formatMiles(form.monto)}
                   onChange={e => set('monto', e.target.value.replace(/\D/g, ''))}
                   className="w-full pl-7 pr-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
                 />

@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { cerrarCajaAction, getEfectivoEsperadoAction } from '@/app/actions/cierres'
 import { getFlujoDiaAction } from '@/app/actions/gastos'
 import { getPagosSinConfirmarAction, type PagoSinConfirmar } from '@/app/actions/cuadre'
-import { formatCOP } from '@/lib/utils/format'
+import { formatCOP, formatMiles } from '@/lib/utils/format'
 import type { FlujoDia } from '@/app/actions/gastos'
 import type { DetalleCuenta } from '@/app/actions/cierres'
 
@@ -230,7 +230,7 @@ export function CerrarCajaButton({
                     <input
                       type="text"
                       inputMode="numeric"
-                      value={contado}
+                      value={formatMiles(contado)}
                       onChange={e => setContado(e.target.value.replace(/\D/g, ''))}
                       placeholder="Cuenta el dinero del cajón y digítalo aquí"
                       className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"

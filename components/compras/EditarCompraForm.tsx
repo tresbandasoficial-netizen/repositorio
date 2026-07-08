@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { editarCompraAction, EditarCompraInput, EditarCompraItemInput, buscarPedidoPorOrdenAction } from '@/app/actions/compras'
 import { buscarPorCodigoAction } from '@/app/actions/articulos'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
-import { formatCOP } from '@/lib/utils/format'
+import { formatCOP, formatMiles } from '@/lib/utils/format'
 
 type CuentaOpc = { id: string; nombre: string }
 
@@ -249,7 +249,7 @@ export function EditarCompraForm({ compraId, inicial, itemsIniciales, cuentas }:
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Total COP pagado *</label>
-                <input type="text" inputMode="numeric" value={totalCopPagado}
+                <input type="text" inputMode="numeric" value={formatMiles(totalCopPagado)}
                   onChange={e => setTotalCopPagado(e.target.value.replace(/\D/g, ''))}
                   placeholder="0" className={inputCls} />
                 {totalCopNum > 0 && <p className="text-xs text-gray-400 mt-1">{formatCOP(totalCopNum)}</p>}
@@ -264,7 +264,7 @@ export function EditarCompraForm({ compraId, inicial, itemsIniciales, cuentas }:
           ) : (
             <div className="max-w-xs">
               <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Total COP *</label>
-              <input type="text" inputMode="numeric" value={totalCopPagado}
+              <input type="text" inputMode="numeric" value={formatMiles(totalCopPagado)}
                 onChange={e => setTotalCopPagado(e.target.value.replace(/\D/g, ''))}
                 placeholder="0" className={inputCls} />
               {totalCopNum > 0 && <p className="text-xs text-gray-400 mt-1">{formatCOP(totalCopNum)}</p>}
@@ -383,7 +383,7 @@ export function EditarCompraForm({ compraId, inicial, itemsIniciales, cuentas }:
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Costo unit. COP</label>
-                  <input type="text" inputMode="numeric" value={item.costo_unitario_cop}
+                  <input type="text" inputMode="numeric" value={formatMiles(item.costo_unitario_cop)}
                     onChange={e => actualizarItem(idx, 'costo_unitario_cop', e.target.value.replace(/\D/g, ''))}
                     placeholder="opcional"
                     className={`${inputCls} bg-white`} />

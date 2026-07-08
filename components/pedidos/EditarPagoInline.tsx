@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { editarPagoAction } from '@/app/actions/pedidos'
-import { formatCOP } from '@/lib/utils/format'
+import { formatCOP, formatMiles } from '@/lib/utils/format'
 
 export function EditarPagoInline({ pagoId, monto }: { pagoId: string; monto: number }) {
   const [editando, setEditando] = useState(false)
@@ -53,7 +53,7 @@ export function EditarPagoInline({ pagoId, monto }: { pagoId: string; monto: num
         type="text"
         inputMode="numeric"
         autoFocus
-        value={valor}
+        value={formatMiles(valor)}
         onChange={e => setValor(e.target.value.replace(/\D/g, ''))}
         onKeyDown={e => { if (e.key === 'Enter') guardar(); if (e.key === 'Escape') cancelar() }}
         className={`w-28 rounded border px-2 py-0.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500 ${error ? 'border-red-400' : 'border-gray-300'}`}

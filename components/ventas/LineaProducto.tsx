@@ -5,6 +5,7 @@ import { buscarArticulosAction, guardarArticuloCatalogoAction, ArticuloBusqueda 
 import { ItemVenta } from '@/app/actions/ventas'
 import { TallaSelect } from '@/components/ui/TallaSelect'
 import type { CategoriaArticulo } from '@/types'
+import { formatMiles } from '@/lib/utils/format'
 
 export type Linea = ItemVenta & { stock?: number | null; key: number; codigo?: string }
 
@@ -257,7 +258,7 @@ export function LineaProducto({
       <input
         type="text"
         inputMode="numeric"
-        value={linea.precio_venta ? String(linea.precio_venta) : ''}
+        value={formatMiles(linea.precio_venta || '')}
         onChange={e => onChange({ precio_venta: parseInt(e.target.value.replace(/\D/g, '')) || 0 })}
         placeholder="Precio de venta"
         className="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"

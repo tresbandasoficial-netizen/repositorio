@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { registrarPagoFacturaAction } from '@/app/actions/facturacion'
 import { Button } from '@/components/ui/Button'
-import { formatCOP, hoyBogota } from '@/lib/utils/format'
+import { formatCOP, formatMiles, hoyBogota } from '@/lib/utils/format'
 import { MetodoPago, metodosDeSede, labelMetodo, METODO_PAGO_LABELS, MENSAJERIA_LABELS, TipoMensajeria } from '@/types'
 
 export function RegistrarPagoFacturaForm({ facturaId, saldo, sedeCodigo }: { facturaId: string; saldo: number; sedeCodigo?: string }) {
@@ -49,8 +49,8 @@ export function RegistrarPagoFacturaForm({ facturaId, saldo, sedeCodigo }: { fac
           <input
             type="text"
             inputMode="numeric"
-            value={monto}
-            onChange={e => setMonto(e.target.value)}
+            value={formatMiles(monto)}
+            onChange={e => setMonto(e.target.value.replace(/\D/g, ''))}
             placeholder={`Saldo: ${formatCOP(saldo)}`}
             className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />

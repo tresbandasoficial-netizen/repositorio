@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { MetodoPago, metodosDeSede, labelMetodo } from '@/types'
 import { registrarPagoAction } from '@/app/actions/pedidos'
-import { formatCOP, hoyBogota } from '@/lib/utils/format'
+import { formatCOP, formatMiles, hoyBogota } from '@/lib/utils/format'
 
 interface Props {
   pedidoId: string
@@ -79,14 +79,13 @@ export function RegistrarPagoForm({ pedidoId, total, totalPagado, sedeCodigo }: 
         <div className="relative">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
           <input
-            type="number"
-            min={1}
-            max={saldo}
-            value={monto}
-            onChange={(e) => setMonto(e.target.value)}
+            type="text"
+            inputMode="numeric"
+            value={formatMiles(monto)}
+            onChange={(e) => setMonto(e.target.value.replace(/\D/g, ''))}
             required
             className="w-full pl-7 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder={saldo.toString()}
+            placeholder={formatMiles(saldo)}
           />
         </div>
         {saldo > 0 && (

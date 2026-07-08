@@ -3,7 +3,7 @@
 import { useState, useTransition, useEffect, useRef } from 'react'
 import { parsearPedido } from '@/lib/parser'
 import { ParsedPedido, MetodoPago, metodosDeSede, labelMetodo } from '@/types'
-import { formatCOP } from '@/lib/utils/format'
+import { formatCOP, formatMiles } from '@/lib/utils/format'
 import { crearPedidoDesdeDataAction } from '@/app/actions/pedidos'
 import { buscarClientesAction, buscarDireccionPorTelefonoAction, buscarClientePorTelefonoAction, ClienteBusqueda, ClientePorTelefono } from '@/app/actions/clientes'
 import { buscarArticulosAction, guardarArticuloCatalogoAction, ArticuloBusqueda } from '@/app/actions/articulos'
@@ -633,7 +633,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
                   <input
                     type="text"
                     inputMode="numeric"
-                    value={p.precio_venta ? String(p.precio_venta) : ''}
+                    value={formatMiles(p.precio_venta || '')}
                     onChange={e => patchProducto(i, { precio_venta: parseInt(e.target.value.replace(/\D/g, '')) || 0 })}
                     placeholder="Precio de venta"
                     className="flex-1 rounded-lg border border-gray-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -669,7 +669,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
                     <input
                       type="text"
                       inputMode="numeric"
-                      value={a.monto ? String(a.monto) : ''}
+                      value={formatMiles(a.monto || '')}
                       onChange={e => actualizarAbono(idx, { monto: parseInt(e.target.value.replace(/\D/g, '')) || 0 })}
                       placeholder="0"
                       className="w-full border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"

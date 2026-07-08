@@ -7,7 +7,7 @@ import { parsearFacturaAction, FacturaExtraida } from '@/app/actions/parsear-fac
 import { buscarPorCodigoAction } from '@/app/actions/articulos'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
-import { formatCOP, hoyBogota } from '@/lib/utils/format'
+import { formatCOP, formatMiles, hoyBogota } from '@/lib/utils/format'
 
 type Paso = 'subir' | 'revisar' | 'guardando'
 
@@ -428,7 +428,7 @@ export function CrearCompraForm({ cuentas, proveedores = [] }: { cuentas: Cuenta
                   <input
                     type="text"
                     inputMode="numeric"
-                    value={totalCopPagado}
+                    value={formatMiles(totalCopPagado)}
                     onChange={(e) => {
                       const cop = e.target.value.replace(/\D/g, '')
                       setTotalCopPagado(cop)
@@ -533,7 +533,7 @@ export function CrearCompraForm({ cuentas, proveedores = [] }: { cuentas: Cuenta
               <input
                 type="text"
                 inputMode="numeric"
-                value={totalCopPagado}
+                value={formatMiles(totalCopPagado)}
                 onChange={(e) => setTotalCopPagado(e.target.value.replace(/\D/g, ''))}
                 placeholder="0"
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -683,7 +683,7 @@ export function CrearCompraForm({ cuentas, proveedores = [] }: { cuentas: Cuenta
                   <input
                     type="text"
                     inputMode="numeric"
-                    value={item.costo_unitario_cop}
+                    value={formatMiles(item.costo_unitario_cop)}
                     onChange={(e) => actualizarItem(idx, 'costo_unitario_cop', e.target.value.replace(/\D/g, ''))}
                     placeholder="opcional"
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
