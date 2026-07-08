@@ -79,13 +79,22 @@ async function _crearArticulo(data: CrearArticuloInput): Promise<ArticuloResult>
 
   if (error) {
     if (error.code === '23505') {
-      const { data: existente } = await supabase
+      // Ya existe (índice único por marca+nombre+color+sexo): reusar el existente.
+      // Puede haber varios con la misma marca/nombre (colores distintos), así que
+      // se compara también color y sexo.
+      const { data: candidatos } = await supabase
         .from('articulos')
-        .select('id')
+        .select('id, color, sexo')
         .ilike('marca', marca)
         .ilike('nombre', nombre)
-        .maybeSingle()
+        .limit(20)
+      const colorKey = data.color.trim().toLowerCase()
+      const sexoKey  = (data.sexo || '').toLowerCase()
+      const existente = (candidatos ?? []).find(a =>
+        (a.color ?? '').toLowerCase() === colorKey && (a.sexo ?? '').toLowerCase() === sexoKey
+      ) ?? (candidatos ?? [])[0]
       if (existente) return { ok: true as const, articuloId: existente.id }
+      return { ok: false, error: 'Ya existe un artículo con esa marca, nombre, color y sexo. Búscalo por código o nombre para usarlo.' }
     }
     return { ok: false, error: error.message }
   }
