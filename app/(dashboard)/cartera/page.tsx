@@ -5,6 +5,7 @@ import { getCartera, getTotalCartera } from '@/lib/queries/cartera'
 import { formatCOP } from '@/lib/utils/format'
 import { formatearTelefono } from '@/lib/utils/phone'
 import { ClientesBusqueda } from '@/components/clientes/ClientesBusqueda'
+import { CargarSaldoButton } from '@/components/cartera/CargarSaldoButton'
 
 export default async function CarteraPage({
   searchParams,
@@ -22,6 +23,9 @@ export default async function CarteraPage({
     .single()
 
   if (!usuario || usuario.rol !== 'admin') redirect('/dashboard')
+
+  const { data: sedesRaw } = await supabase.from('sedes').select('id, codigo, nombre').order('codigo')
+  const sedes = (sedesRaw ?? []) as { id: string; codigo: string; nombre: string }[]
 
   const { q, pagina: paginaParam } = await searchParams
   const pagina = Math.max(1, parseInt(paginaParam ?? '1', 10) || 1)
@@ -55,6 +59,7 @@ export default async function CarteraPage({
             {q && ` para "${q}"`}
           </p>
         </div>
+        <CargarSaldoButton sedes={sedes} />
       </div>
 
       {/* Resumen */}
