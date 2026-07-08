@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useTransition } from 'react'
 import { resumenAsistenteAction, alertasAsistenteAction, chatAsistenteAction, MensajeChat } from '@/app/actions/asistente'
+import { analistaChatAction } from '@/app/actions/analista'
 import { FacturaTab } from './FacturaTab'
 
 function Markdown({ texto }: { texto: string }) {
@@ -31,7 +32,7 @@ function BotIcon() {
 }
 
 export function AsistenteCliente({ rol }: { rol: string }) {
-  const [tab, setTab] = useState<'resumen' | 'alertas' | 'chat' | 'factura'>('resumen')
+  const [tab, setTab] = useState<'resumen' | 'alertas' | 'chat' | 'factura' | 'analista'>('resumen')
   const [resumen, setResumen] = useState('')
   const [alertas, setAlertas] = useState('')
   const [historial, setHistorial] = useState<MensajeChat[]>([])
@@ -72,13 +73,33 @@ export function AsistenteCliente({ rol }: { rol: string }) {
     })
   }
 
-  // La tab de facturas de proveedor expone costos de compra: solo admin.
+  // ── Analista de datos (solo admin) ──
+  const [historialAnalista, setHistorialAnalista] = useState<MensajeChat[]>([])
+  const [preguntaAnalista, setPreguntaAnalista] = useState('')
+  const [isPendingAnalista, startAnalista] = useTransition()
+
+  function enviarPreguntaAnalista() {
+    if (!preguntaAnalista.trim() || isPendingAnalista) return
+    const preguntaActual = preguntaAnalista.trim()
+    setPreguntaAnalista('')
+    const previo = historialAnalista
+    setHistorialAnalista(h => [...h, { role: 'user', content: preguntaActual }])
+
+    startAnalista(async () => {
+      const r = await analistaChatAction(preguntaActual, previo)
+      setHistorialAnalista(h => [...h, { role: 'assistant', content: r.texto }])
+    })
+  }
+
+  // Facturas de proveedor y analista de datos exponen información financiera: solo admin.
+  const SOLO_ADMIN = ['factura', 'analista']
   const TABS = ([
     { key: 'resumen',  label: '📊 Resumen' },
     { key: 'alertas', label: '⚠️ Alertas' },
     { key: 'chat',    label: '💬 Chat' },
     { key: 'factura', label: '📄 Factura' },
-  ] as const).filter(t => t.key !== 'factura' || rol === 'admin')
+    { key: 'analista', label: '📈 Analista' },
+  ] as const).filter(t => !SOLO_ADMIN.includes(t.key) || rol === 'admin')
 
   return (
     <div className="max-w-3xl mx-auto space-y-4">
@@ -177,6 +198,93 @@ export function AsistenteCliente({ rol }: { rol: string }) {
           </div>
           <div className="p-5">
             <FacturaTab />
+          </div>
+        </div>
+      )}
+
+      {/* ── ANALISTA DE DATOS (solo admin) ── */}
+      {tab === 'analista' && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col" style={{ minHeight: 480 }}>
+          <div className="px-5 py-4 border-b border-gray-100"
+            style={{ background: 'linear-gradient(135deg,#7c3aed,#4c1d95)' }}>
+            <p className="text-xs font-bold text-purple-200 uppercase tracking-wider">Analista de datos</p>
+            <p className="text-white font-bold text-lg mt-0.5">Pregunta lo que quieras sobre el negocio</p>
+            <p className="text-purple-200 text-xs mt-0.5">Consulta en vivo ventas, finanzas, productos, gastos, ganancias y cartera</p>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4" style={{ maxHeight: 420 }}>
+            {historialAnalista.length === 0 && (
+              <div className="text-center py-8 space-y-3">
+                <BotIcon />
+                <p className="text-sm text-gray-500 max-w-sm mx-auto">
+                  Soy tu analista de datos. Tengo acceso de lectura a toda la información del negocio. ¿Qué quieres saber?
+                </p>
+                <div className="flex flex-col gap-2">
+                  {[
+                    '¿Cuáles fueron los 10 productos más vendidos este mes?',
+                    '¿Cuánta ganancia dejó cada sede este mes?',
+                    '¿Cómo van las ventas de este mes contra el mes pasado?',
+                    '¿Qué marca deja mejor margen?',
+                    '¿Quiénes son mis 10 mejores clientes del año?',
+                  ].map(s => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => { setPreguntaAnalista(s) }}
+                      className="text-xs text-purple-700 border border-purple-200 rounded-lg px-3 py-1.5 hover:bg-purple-50 transition-colors mx-auto"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {historialAnalista.map((m, i) => (
+              <div key={i} className={`flex gap-2.5 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                {m.role === 'assistant' && <BotIcon />}
+                <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 ${
+                  m.role === 'user'
+                    ? 'bg-purple-700 text-white text-sm'
+                    : 'bg-gray-50 border border-gray-100'
+                }`}>
+                  {m.role === 'user'
+                    ? <p className="text-sm">{m.content}</p>
+                    : <Markdown texto={m.content} />}
+                </div>
+              </div>
+            ))}
+
+            {isPendingAnalista && (
+              <div className="flex gap-2.5 justify-start">
+                <BotIcon />
+                <div className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3">
+                  <p className="text-xs text-gray-400">Consultando la base de datos…</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="px-4 py-3 border-t border-gray-100 flex gap-2">
+            <input
+              type="text"
+              value={preguntaAnalista}
+              onChange={e => setPreguntaAnalista(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && !e.shiftKey && enviarPreguntaAnalista()}
+              placeholder="¿Cuál fue mi mejor semana de ventas?"
+              className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              disabled={isPendingAnalista}
+            />
+            <button
+              type="button"
+              onClick={enviarPreguntaAnalista}
+              disabled={isPendingAnalista || !preguntaAnalista.trim()}
+              className="h-10 w-10 rounded-xl bg-purple-700 text-white flex items-center justify-center hover:bg-purple-800 disabled:opacity-40 transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"/>
+              </svg>
+            </button>
           </div>
         </div>
       )}
