@@ -51,13 +51,14 @@ function aplanarOpciones(articulos: ArticuloBusqueda[], sedeId: string | null): 
 }
 
 export function LineaProducto({
-  linea, sedeId, sedeCodigo, onChange, onRemove,
+  linea, sedeId, sedeCodigo, onChange, onRemove, numero,
 }: {
   linea: Linea
   sedeId: string
   sedeCodigo: string
   onChange: (patch: Partial<Linea>) => void
   onRemove?: () => void
+  numero?: number
 }) {
   const [opciones, setOpciones]         = useState<OpcionCatalogo[]>([])
   const [abierto, setAbierto]           = useState(false)
@@ -127,7 +128,22 @@ export function LineaProducto({
   )
 
   return (
-    <div className="border border-gray-100 rounded-lg p-3 space-y-2">
+    <div className="border border-gray-200 rounded-xl p-3 space-y-2 bg-gray-50/40">
+      {/* Encabezado: número del producto + quitar */}
+      <div className="flex items-center justify-between">
+        <span className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-600 uppercase tracking-wide">
+          <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[11px] font-bold normal-case">
+            {numero ?? '•'}
+          </span>
+          Producto {numero ?? ''}
+        </span>
+        {onRemove && (
+          <button type="button" onClick={onRemove} className="text-xs text-red-500 hover:text-red-700" title="Quitar producto">
+            ✕ Quitar
+          </button>
+        )}
+      </div>
+
       {linea.articulo_id != null && linea.stock != null && linea.stock <= 0 && (
         <p className="text-xs text-amber-600">⚠ Sin stock en {sedeCodigo}. Dejará el inventario en negativo.</p>
       )}
@@ -196,8 +212,8 @@ export function LineaProducto({
         <p className="text-xs text-green-600 font-medium">✓ Enlazado al catálogo</p>
       )}
 
-      {/* Fila 2: Marca · Talla · Cant · X */}
-      <div className="grid grid-cols-[2fr_1fr_auto_auto] gap-2 items-center">
+      {/* Fila 2: Marca · Talla · Cant */}
+      <div className="grid grid-cols-[2fr_1fr_auto] gap-2 items-center">
         <input
           type="text"
           value={linea.marca}
@@ -218,9 +234,6 @@ export function LineaProducto({
           onChange={e => onChange({ cantidad: Math.max(1, parseInt(e.target.value) || 1) })}
           className="w-16 rounded-lg border border-gray-200 px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
-        {onRemove
-          ? <button type="button" onClick={onRemove} className="text-red-400 hover:text-red-600 px-1" title="Quitar">✕</button>
-          : <div className="w-6" />}
       </div>
 
       {/* Fila 3: Color · Sexo · Categoría */}

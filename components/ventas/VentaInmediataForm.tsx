@@ -153,12 +153,13 @@ export function VentaInmediataForm({ sedes }: { sedes: SedeOpcion[] }) {
       <div className="bg-white rounded-xl border border-gray-100 p-5">
         <label className="block text-sm font-semibold text-gray-900 mb-3">Productos</label>
         <div className="space-y-3">
-          {lineas.map(l => (
+          {lineas.map((l, idx) => (
             <LineaProducto
               key={l.key}
               linea={l}
               sedeId={sedeId}
               sedeCodigo={sedeCodigo}
+              numero={idx + 1}
               onChange={patch => setLinea(l.key, patch)}
               onRemove={lineas.length > 1 ? () => setLineas(ls => ls.filter(x => x.key !== l.key)) : undefined}
             />

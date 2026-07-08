@@ -414,8 +414,9 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
                 <p className="text-sm text-gray-400">Agrega productos del inventario que se vendan en el momento.</p>
               ) : (
                 <div className="space-y-3">
-                  {lineas.map(l => (
+                  {lineas.map((l, idx) => (
                     <LineaProducto key={l.key} linea={l} sedeId={sedeId} sedeCodigo={sedeCodigo}
+                      numero={idx + 1}
                       onChange={patch => setLinea(l.key, patch)}
                       onRemove={() => setLineas(ls => ls.filter(x => x.key !== l.key))} />
                   ))}

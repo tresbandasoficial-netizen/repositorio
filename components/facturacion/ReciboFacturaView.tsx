@@ -110,6 +110,7 @@ export function ReciboFacturaView({ data }: { data: ReciboFactura }) {
             {items.map((it, i) => (
               <tr key={i} className="border-b border-gray-50">
                 <td className="py-1.5 text-gray-800">
+                  <span className="text-gray-400 mr-1">{i + 1}.</span>
                   {it.marca} {it.descripcion}{it.talla ? ` · T${it.talla}` : ''}
                 </td>
                 <td className="py-1.5 text-center text-gray-600">{it.cantidad}</td>

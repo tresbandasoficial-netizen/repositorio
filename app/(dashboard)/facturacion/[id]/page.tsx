@@ -110,6 +110,7 @@ export default async function FacturaDetallePage({
                   {p.items.map((it, i) => (
                     <li key={i} className="flex items-center justify-between gap-3 text-xs">
                       <span className="text-gray-600 truncate">
+                        <span className="text-gray-400 font-medium">{i + 1}.</span>{' '}
                         {it.codigo && <span className="font-mono text-gray-400">{it.codigo} · </span>}
                         {[it.descripcion, it.marca, it.talla, it.color].filter(Boolean).join(' · ')}
                         {it.cantidad > 1 && <span className="text-gray-400"> ×{it.cantidad}</span>}
