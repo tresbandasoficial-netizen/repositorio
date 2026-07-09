@@ -9,6 +9,25 @@ import { formatearTelefono, whatsappUrl } from '@/lib/utils/phone'
 import { EstadoPedido, METODO_PAGO_LABELS, MetodoPago } from '@/types'
 import { AbonarClienteButton } from '@/components/clientes/AbonarClienteButton'
 import { HistorialPagos } from '@/components/clientes/HistorialPagos'
+import { ComprasChart, MesCompra } from '@/components/clientes/ComprasChart'
+
+// Agrupa los pedidos por mes (hora Bogotá) para el flujo de compras.
+function comprasPorMes(pedidos: { fecha_creacion: string; total: number; estado: string }[]): MesCompra[] {
+  const fmtClave = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota', year: 'numeric', month: '2-digit' })
+  const fmtLabel = new Intl.DateTimeFormat('es-CO', { timeZone: 'America/Bogota', month: 'short', year: '2-digit' })
+  const mapa = new Map<string, MesCompra>()
+  for (const p of pedidos) {
+    if (p.estado === 'cancelado') continue
+    const d = new Date(p.fecha_creacion)
+    const clave = fmtClave.format(d).slice(0, 7)           // 'YYYY-MM'
+    const label = fmtLabel.format(d).replace('.', '')       // 'jul 26'
+    const actual = mapa.get(clave) ?? { clave, label, total: 0, pedidos: 0 }
+    actual.total += p.total
+    actual.pedidos += 1
+    mapa.set(clave, actual)
+  }
+  return [...mapa.values()].sort((a, b) => a.clave.localeCompare(b.clave))
+}
 
 export default async function ClienteDetallePage({
   params,
@@ -40,17 +59,19 @@ export default async function ClienteDetallePage({
     .reduce((sum, p) => sum + p.total_pagado, 0)
 
   const saldoTotal = totalComprado - totalPagado
+  const meses = comprasPorMes(cliente.pedidos)
+  const ticketPromedio = cliente.pedidos.length > 0 ? Math.round(totalComprado / cliente.pedidos.length) : 0
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <div className="flex items-center gap-3 mb-6">
+    <div className="p-4 md:p-6 max-w-[1400px] mx-auto">
+      <div className="flex items-center gap-3 mb-6 flex-wrap">
         <Link
           href="/clientes"
           className="px-4 py-2 text-sm font-medium border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 transition-colors inline-flex items-center gap-1.5 whitespace-nowrap"
         >
           ← Clientes
         </Link>
-        <h1 className="text-lg font-bold text-gray-900 flex-1">{cliente.nombre}</h1>
+        <h1 className="text-xl font-bold text-gray-900 flex-1">{cliente.nombre}</h1>
         <div className="flex items-center gap-2">
           <AbonarClienteButton clienteId={id} deudaTotal={saldoTotal} sedeCodigo={sedeCodigo} />
           <Link
@@ -62,32 +83,51 @@ export default async function ClienteDetallePage({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Columna principal — pedidos */}
-        <div className="md:col-span-2 space-y-4">
-          {/* Resumen financiero */}
-          <div className="grid grid-cols-3 gap-3">
-            <Card>
-              <CardContent className="py-4 text-center">
-                <p className="text-2xl font-bold text-gray-900">{cliente.pedidos.length}</p>
-                <p className="text-xs text-gray-500 mt-1">Pedidos totales</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="py-4 text-center">
-                <p className="text-lg font-bold text-gray-900">{formatCOP(totalComprado)}</p>
-                <p className="text-xs text-gray-500 mt-1">Total comprado</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="py-4 text-center">
-                <p className={`text-lg font-bold ${saldoTotal > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                  {formatCOP(saldoTotal)}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">Saldo pendiente</p>
-              </CardContent>
-            </Card>
-          </div>
+      {/* Resumen financiero — fila completa */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        <Card>
+          <CardContent className="py-4 text-center">
+            <p className="text-2xl font-bold text-gray-900">{cliente.pedidos.length}</p>
+            <p className="text-xs text-gray-500 mt-1">Pedidos totales</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="py-4 text-center">
+            <p className="text-lg font-bold text-gray-900">{formatCOP(totalComprado)}</p>
+            <p className="text-xs text-gray-500 mt-1">Total comprado</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="py-4 text-center">
+            <p className="text-lg font-bold text-gray-700">{formatCOP(ticketPromedio)}</p>
+            <p className="text-xs text-gray-500 mt-1">Ticket promedio</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="py-4 text-center">
+            <p className={`text-lg font-bold ${saldoTotal > 0 ? 'text-red-600' : 'text-green-600'}`}>
+              {formatCOP(saldoTotal)}
+            </p>
+            <p className="text-xs text-gray-500 mt-1">Saldo pendiente</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Columna principal — gráfica + pedidos */}
+        <div className="lg:col-span-2 space-y-4">
+          {/* Flujo de compras (gráfica de barras por mes) */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-gray-900">Flujo de compras por mes</h2>
+                <span className="text-xs text-gray-400">cada barra = un mes</span>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <ComprasChart meses={meses} />
+            </CardContent>
+          </Card>
 
           {/* Historial de pedidos */}
           <Card>
@@ -98,57 +138,49 @@ export default async function ClienteDetallePage({
               {cliente.pedidos.length === 0 ? (
                 <p className="px-6 py-4 text-sm text-gray-400">Sin pedidos registrados.</p>
               ) : (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-100">
-                      <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">Orden</th>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Estado</th>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Sede</th>
-                      <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">Total</th>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Fecha</th>
-                      <th className="px-4 py-3" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {cliente.pedidos.map((p) => (
-                      <tr key={p.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-3 font-mono font-medium text-gray-900">{p.numero_orden}</td>
-                        <td className="px-4 py-3">
-                          <EstadoBadge estado={p.estado as EstadoPedido} />
-                        </td>
-                        <td className="px-4 py-3 text-gray-600 text-xs">{p.sede_nombre}</td>
-                        <td className="px-4 py-3 text-right font-medium text-gray-900">
-                          {formatCOP(p.total)}
-                        </td>
-                        <td className="px-4 py-3 text-gray-500">{formatFecha(p.fecha_creacion)}</td>
-                        <td className="px-4 py-3 text-right">
-                          <Link
-                            href={`/pedidos/${p.id}`}
-                            className="inline-block px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 transition-colors"
-                          >
-                            Ver
-                          </Link>
-                        </td>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-100">
+                        <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">Orden</th>
+                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Estado</th>
+                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Sede</th>
+                        <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">Total</th>
+                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                        <th className="px-4 py-3" />
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {cliente.pedidos.map((p) => (
+                        <tr key={p.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-3 font-mono font-medium text-gray-900">{p.numero_orden}</td>
+                          <td className="px-4 py-3">
+                            <EstadoBadge estado={p.estado as EstadoPedido} />
+                          </td>
+                          <td className="px-4 py-3 text-gray-600 text-xs">{p.sede_nombre}</td>
+                          <td className="px-4 py-3 text-right font-medium text-gray-900">
+                            {formatCOP(p.total)}
+                          </td>
+                          <td className="px-4 py-3 text-gray-500">{formatFecha(p.fecha_creacion)}</td>
+                          <td className="px-4 py-3 text-right">
+                            <Link
+                              href={`/pedidos/${p.id}`}
+                              className="inline-block px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 transition-colors"
+                            >
+                              Ver
+                            </Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </CardContent>
           </Card>
         </div>
 
-          {/* Historial de pagos */}
-          <Card>
-            <CardHeader>
-              <h2 className="text-sm font-semibold text-gray-900">Historial de pagos</h2>
-            </CardHeader>
-            <CardContent className="p-0">
-              <HistorialPagos abonos={cliente.abonos} esAdmin={esAdmin} />
-            </CardContent>
-          </Card>
-
-        {/* Columna lateral — info del cliente */}
+        {/* Columna lateral — info + pagos */}
         <div className="space-y-4">
           <Card>
             <CardHeader>
@@ -195,6 +227,16 @@ export default async function ClienteDetallePage({
                   <p className="text-gray-600 whitespace-pre-wrap">{cliente.notas}</p>
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          {/* Historial de pagos */}
+          <Card>
+            <CardHeader>
+              <h2 className="text-sm font-semibold text-gray-900">Historial de pagos</h2>
+            </CardHeader>
+            <CardContent className="p-0">
+              <HistorialPagos abonos={cliente.abonos} esAdmin={esAdmin} />
             </CardContent>
           </Card>
         </div>
