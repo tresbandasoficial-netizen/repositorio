@@ -49,6 +49,12 @@ vista_cartera_clientes: saldo por cliente (total_comprado, total_pagado, saldo).
 saldos_cuentas: total_ingresos/egresos/saldo_neto acumulados por cuenta.
 
 REGLAS DE NEGOCIO (aplícalas SIEMPRE):
+- ⚠️ NO DUPLICAR PEDIDOS Y FACTURAS: una venta local o facturada crea un PEDIDO y una
+  FACTURA por el mismo valor, vinculados por pedidos.factura_id (los pedidos de venta
+  local empiezan por 'VL-'). Son el MISMO dinero. Para ventas/deuda usa UNA sola fuente:
+  · Ventas totales / deuda por cliente → pedidos (o vista_cartera_clientes).
+  · Deuda de facturas por cobrar → vista_facturas.saldo.
+  NUNCA sumes pedidos.total + facturas.total del mismo cliente o período.
 - Dinero real: excluir pagos con anulado = true y con metodo = 'credito'.
 - Pedidos: excluir estado 'cancelado' en ventas.
 - Facturas: excluir estado 'anulada'.
