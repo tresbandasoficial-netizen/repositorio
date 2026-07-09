@@ -252,15 +252,27 @@ export async function getSiguienteNumeroOrden(sedeCodigo: string): Promise<strin
     .order('fecha_creacion', { ascending: false })
     .limit(300)
 
-  let max = 0
+  // Prefijo de 2 letras (TR/CR/SR) + número. Otros formatos (VL-…) se ignoran.
+  const numeros: number[] = []
   for (const p of (data ?? []) as Array<{ numero_orden: string }>) {
-    // Prefijo de 2 letras (TR/CR/SR) + número. Otros formatos (VL-…) se ignoran.
     const m = /^[A-Za-z]{2}(\d+)$/.exec(p.numero_orden)
-    if (m) {
-      const n = parseInt(m[1], 10)
-      if (n > max) max = n
-    }
+    if (m) numeros.push(parseInt(m[1], 10))
+  }
+  if (numeros.length === 0) return `${sedeCodigo}1`
+
+  // Un número mal digitado (ej: TR65281 con un dígito de más) no debe arrastrar
+  // la numeración: se toma el máximo SOLO entre los números con la cantidad de
+  // dígitos que usa la mayoría de los pedidos recientes.
+  const porLongitud = new Map<number, number>()
+  for (const n of numeros) {
+    const len = String(n).length
+    porLongitud.set(len, (porLongitud.get(len) ?? 0) + 1)
+  }
+  let longitudComun = 0, mejorConteo = 0
+  for (const [len, conteo] of porLongitud) {
+    if (conteo > mejorConteo) { mejorConteo = conteo; longitudComun = len }
   }
 
+  const max = Math.max(...numeros.filter(n => String(n).length === longitudComun))
   return `${sedeCodigo}${max + 1}`
 }
