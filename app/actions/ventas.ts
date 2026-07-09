@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getSesion } from '@/lib/auth/acceso'
 import { bloqueoCajaCerrada } from '@/lib/auth/caja'
 import { cuentaIdPorMetodo } from '@/lib/queries/cuentas'
-import { getSiguienteNumeroOrden } from '@/lib/queries/pedidos'
+import { asignarNumeroOrden } from '@/lib/queries/pedidos'
 import { normalizarTelefono } from '@/lib/utils/phone'
 
 export type ItemVenta = {
@@ -98,7 +98,8 @@ export async function registrarVentaInmediataAction(data: VentaInmediataInput): 
   const total = data.items.reduce((s, it) => s + it.precio_venta * it.cantidad, 0)
   if (data.abono > total) return { ok: false, error: 'El abono no puede superar el total' }
 
-  const numeroOrden = await getSiguienteNumeroOrden(sede.codigo)
+  const numeroOrden = await asignarNumeroOrden(sede.codigo)
+  if (!numeroOrden) return { ok: false, error: 'No se pudo asignar el número de la venta. Intenta de nuevo.' }
 
   const items = data.items.map(it => ({
     articulo_id: it.articulo_id,

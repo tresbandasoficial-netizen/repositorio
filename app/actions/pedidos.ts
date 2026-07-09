@@ -7,7 +7,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { parsearPedido } from '@/lib/parser'
 import { normalizarTelefono } from '@/lib/utils/phone'
 import { hoyBogota } from '@/lib/utils/format'
-import { getSiguienteNumeroOrden } from '@/lib/queries/pedidos'
+import { asignarNumeroOrden } from '@/lib/queries/pedidos'
 import { puedeTransicionar } from '@/lib/domain/estados'
 import { EstadoPedido, MetodoPago, ParsedPedido } from '@/types'
 import { getSesion, puedeAccederSede } from '@/lib/auth/acceso'
@@ -15,7 +15,7 @@ import { bloqueoCajaCerrada } from '@/lib/auth/caja'
 import { cuentaIdPorMetodo } from '@/lib/queries/cuentas'
 
 export type CrearPedidoResult =
-  | { ok: true; pedidoId: string }
+  | { ok: true; pedidoId: string; numeroOrden: string }
   | { ok: false; error: string; siguienteNumero?: string }
 
 // Lógica compartida: crea el pedido desde datos ya parseados/editados
@@ -51,11 +51,10 @@ async function _crearPedidoConDatos(
     return { ok: false, error: 'No puedes crear pedidos en otra sede' }
   }
 
-  const numeroOrden = numeroOrdenManual.trim().toUpperCase()
-  if (!numeroOrden) return { ok: false, error: 'El número de orden es obligatorio' }
-  if (!numeroOrden.startsWith(datos.sede)) {
-    return { ok: false, error: `El número de orden debe empezar con "${datos.sede}" (sede del pedido)` }
-  }
+  // El número lo asigna el consecutivo oficial del servidor — el valor que
+  // venga del formulario se ignora (evita dedazos y duplicados).
+  const numeroOrden = await asignarNumeroOrden(datos.sede)
+  if (!numeroOrden) return { ok: false, error: 'No se pudo asignar el número de pedido. Intenta de nuevo.' }
 
   const telefonoNormalizado = normalizarTelefono(datos.cliente_telefono)
   if (!telefonoNormalizado) return { ok: false, error: 'Teléfono del cliente inválido' }
@@ -142,10 +141,6 @@ async function _crearPedidoConDatos(
   })
 
   if (errPedido) {
-    if (errPedido.code === '23505') {
-      const siguienteNumero = await getSiguienteNumeroOrden(datos.sede)
-      return { ok: false, error: `El número "${numeroOrden}" ya está en uso.`, siguienteNumero }
-    }
     return { ok: false, error: `Error creando pedido: ${errPedido.message}` }
   }
 
@@ -167,7 +162,7 @@ async function _crearPedidoConDatos(
     }
   }
 
-  return { ok: true as const, pedidoId }
+  return { ok: true as const, pedidoId, numeroOrden }
 }
 
 export async function crearPedidoAction(

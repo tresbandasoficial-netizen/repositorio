@@ -239,40 +239,21 @@ export async function getPedidoDetalle(id: string): Promise<PedidoDetalle | null
   }
 }
 
+// Muestra el PRÓXIMO número del consecutivo oficial sin consumirlo (para el
+// formulario). El número definitivo lo asigna el servidor al guardar con
+// asignarNumeroOrden() — el usuario nunca lo digita.
 export async function getSiguienteNumeroOrden(sedeCodigo: string): Promise<string> {
   const supabase = await createClient()
+  const { data, error } = await supabase.rpc('ver_proximo_numero_pedido')
+  if (error || !data) return `${sedeCodigo}…`
+  return `${sedeCodigo}${data}`
+}
 
-  // Consecutivo COMPARTIDO entre sedes: el siguiente número es el más alto usado
-  // por cualquier sede + 1, así no se repiten números entre TR y SR (no quedan
-  // TR0001 y SR0001 a la vez). Se mira solo el bloque reciente para que un número
-  // viejo mal digitado (ej: TR59581) no dañe la sugerencia.
-  const { data } = await supabase
-    .from('pedidos')
-    .select('numero_orden')
-    .order('fecha_creacion', { ascending: false })
-    .limit(300)
-
-  // Prefijo de 2 letras (TR/CR/SR) + número. Otros formatos (VL-…) se ignoran.
-  const numeros: number[] = []
-  for (const p of (data ?? []) as Array<{ numero_orden: string }>) {
-    const m = /^[A-Za-z]{2}(\d+)$/.exec(p.numero_orden)
-    if (m) numeros.push(parseInt(m[1], 10))
-  }
-  if (numeros.length === 0) return `${sedeCodigo}1`
-
-  // Un número mal digitado (ej: TR65281 con un dígito de más) no debe arrastrar
-  // la numeración: se toma el máximo SOLO entre los números con la cantidad de
-  // dígitos que usa la mayoría de los pedidos recientes.
-  const porLongitud = new Map<number, number>()
-  for (const n of numeros) {
-    const len = String(n).length
-    porLongitud.set(len, (porLongitud.get(len) ?? 0) + 1)
-  }
-  let longitudComun = 0, mejorConteo = 0
-  for (const [len, conteo] of porLongitud) {
-    if (conteo > mejorConteo) { mejorConteo = conteo; longitudComun = len }
-  }
-
-  const max = Math.max(...numeros.filter(n => String(n).length === longitudComun))
-  return `${sedeCodigo}${max + 1}`
+// Consume el consecutivo oficial (secuencia en la BD: atómico, sin duplicados
+// ni carreras) y devuelve el número de orden definitivo para la sede.
+export async function asignarNumeroOrden(sedeCodigo: string): Promise<string | null> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('asignar_numero_pedido')
+  if (error || !data) return null
+  return `${sedeCodigo}${data}`
 }

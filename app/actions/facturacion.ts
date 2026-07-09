@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getSesion } from '@/lib/auth/acceso'
 import { bloqueoCajaCerrada } from '@/lib/auth/caja'
 import { cuentaIdPorMetodo } from '@/lib/queries/cuentas'
-import { getSiguienteNumeroOrden } from '@/lib/queries/pedidos'
+import { asignarNumeroOrden } from '@/lib/queries/pedidos'
 import { ItemVenta } from '@/app/actions/ventas'
 import { normalizarTelefono } from '@/lib/utils/phone'
 import { MetodoPago, PagoFacturaInput, TipoMensajeria, TipoEntrega, QuienPagaEntrega } from '@/types'
@@ -306,9 +306,11 @@ export async function crearFacturaUnificadaAction(
     if (!sede) return { ok: false, error: 'Sede no encontrada' }
 
     // Los productos agregados al facturar son una venta inmediata, NO un pedido.
-    // Se marcan con prefijo 'VL-' para que no aparezcan en el módulo de pedidos
-    // ni consuman la secuencia de numeración real (igual que crear_factura_venta_local).
-    const numeroOrden = 'VL-' + (await getSiguienteNumeroOrden(sede.codigo))
+    // Se marcan con prefijo 'VL-'. Toman su número del consecutivo oficial
+    // (cada número se usa una sola vez entre pedidos y ventas).
+    const numeroBase = await asignarNumeroOrden(sede.codigo)
+    if (!numeroBase) return { ok: false, error: 'No se pudo asignar el número de la venta. Intenta de nuevo.' }
+    const numeroOrden = 'VL-' + numeroBase
     const totalNuevos = data.productos_nuevos.reduce((s, it) => s + it.precio_venta * it.cantidad, 0)
 
     const { data: ventaPedidoId, error: errVenta } = await supabase.rpc('registrar_venta_inmediata', {
