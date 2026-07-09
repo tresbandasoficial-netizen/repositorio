@@ -177,8 +177,14 @@ export async function getFlujoDiaAction(sedeId?: string): Promise<FlujoDia[]> {
   if (sesion.rol === 'visor') return []
   const supabase = await createClient()
   const hoy = hoyBogota()
+
+  // El asesor queda amarrado a SU sede; el admin usa la sede que eligió en el
+  // modal. Así el cierre de Bucaramanga nunca muestra cuentas de otra sede
+  // (ej. Efectivo Santa Rosa) ni cuentas globales que mezclan varias sedes.
+  const sid = sesion.rol === 'admin' ? (sedeId || null) : sesion.sede_id
+
   let q = supabase.from('flujo_caja_diario').select('*').eq('fecha', hoy)
-  if (sedeId) q = q.eq('sede_id', sedeId)
+  if (sid) q = q.eq('sede_id', sid)
   const { data } = await q
   return (data ?? []) as FlujoDia[]
 }
