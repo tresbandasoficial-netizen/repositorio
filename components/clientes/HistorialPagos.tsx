@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useState, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { formatCOP, formatFecha } from '@/lib/utils/format'
@@ -66,109 +66,102 @@ export function HistorialPagos({ abonos, esAdmin }: { abonos: AbonoCliente[]; es
   }
 
   return (
-    <div className="overflow-x-auto">
-      {error && <p className="px-6 pt-3 text-sm text-red-600">{error}</p>}
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-gray-100">
-            <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">Fecha</th>
-            <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">Total abono</th>
-            <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Método</th>
-            <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Aplicado a</th>
-            {esAdmin && <th className="px-4 py-3" />}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-50">
-          {abonos.map(a => {
-            const key = a.creado_en + '|' + a.metodo
-            const esCredito = a.metodo === 'credito'
-            const expandido = abierto === key
-            const enEdicion = editando === key
-            const multi = a.partes.length > 1
-            const totalEdit = enEdicion
-              ? a.partes.reduce((s, p) => s + (parseInt(montos[p.id] ?? '0', 10) || 0), 0)
-              : a.total
-            return (
-              <Fragment key={key}>
-                <tr className="hover:bg-gray-50">
-                  <td className="px-6 py-3 text-gray-600">{formatFecha(a.fecha)}</td>
-                  <td className={`px-4 py-3 text-right font-semibold ${esCredito ? 'text-gray-400' : 'text-green-700'}`}>
-                    {esCredito ? `(${formatCOP(totalEdit)})` : formatCOP(totalEdit)}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    {metodoLabel(a.metodo)}
-                    {esCredito && <span className="ml-1 text-xs text-gray-400">(deuda)</span>}
-                  </td>
-                  <td className="px-4 py-3">
-                    {multi ? (
-                      <button onClick={() => setAbierto(expandido ? null : key)} className="text-xs text-blue-600 hover:underline">
-                        {expandido ? '▾' : '▸'} repartido en {a.partes.length} pedidos
-                      </button>
-                    ) : (
-                      <Link
-                        href={a.partes[0].origen === 'pedido' ? `/pedidos/${a.partes[0].referencia_id}` : `/facturacion/${a.partes[0].referencia_id}`}
-                        className="font-mono text-xs text-blue-600 hover:underline"
-                      >
-                        {a.partes[0].referencia}
-                      </Link>
-                    )}
-                  </td>
-                  {esAdmin && (
-                    <td className="px-4 py-3 text-right whitespace-nowrap">
-                      {enEdicion ? (
-                        <>
-                          <button onClick={() => guardar(a)} disabled={pending} className="text-xs font-medium text-green-700 hover:underline disabled:opacity-50">Guardar</button>
-                          <button onClick={() => setEditando(null)} disabled={pending} className="ml-3 text-xs text-gray-500 hover:underline">Cancelar</button>
-                        </>
-                      ) : (
-                        <>
-                          <button onClick={() => abrirEdicion(a)} className="text-xs text-blue-600 hover:underline">Editar</button>
-                          <button onClick={() => eliminar(a)} disabled={pending} className="ml-3 text-xs text-red-600 hover:underline disabled:opacity-50">Eliminar</button>
-                        </>
-                      )}
-                    </td>
-                  )}
-                </tr>
+    <div>
+      {error && <p className="px-4 pt-3 text-sm text-red-600">{error}</p>}
 
-                {/* Partes del abono (al expandir o al editar) */}
-                {(expandido || enEdicion) && a.partes.map(p => (
-                  <tr key={p.id} className="bg-gray-50/60 text-xs">
-                    <td className="px-6 py-2 text-gray-400">↳</td>
-                    <td className="px-4 py-2 text-right">
-                      {enEdicion ? (
-                        <input
-                          type="number"
-                          value={montos[p.id] ?? ''}
-                          onChange={e => setMontos(m => ({ ...m, [p.id]: e.target.value }))}
-                          className="w-28 text-right rounded border border-gray-300 px-2 py-1"
-                        />
-                      ) : (
-                        <span className="text-gray-700">{formatCOP(p.monto)}</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2 text-gray-400">{metodoLabel(p.metodo)}</td>
-                    <td className="px-4 py-2" colSpan={esAdmin ? 2 : 1}>
+      {/* Lista compacta: cada abono es una tarjeta que cabe sin deslizar */}
+      <div className="divide-y divide-gray-50">
+        {abonos.map(a => {
+          const key = a.creado_en + '|' + a.metodo
+          const esCredito = a.metodo === 'credito'
+          const expandido = abierto === key
+          const enEdicion = editando === key
+          const multi = a.partes.length > 1
+          const totalEdit = enEdicion
+            ? a.partes.reduce((s, p) => s + (parseInt(montos[p.id] ?? '0', 10) || 0), 0)
+            : a.total
+          return (
+            <div key={key} className="px-4 py-3 hover:bg-gray-50/60">
+              {/* Fila 1: fecha + monto */}
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs text-gray-500">{formatFecha(a.fecha)}</span>
+                <span className={`text-sm font-bold ${esCredito ? 'text-gray-400' : 'text-green-700'}`}>
+                  {esCredito ? `(${formatCOP(totalEdit)})` : formatCOP(totalEdit)}
+                </span>
+              </div>
+
+              {/* Fila 2: método + referencia */}
+              <div className="flex items-center justify-between gap-2 mt-1">
+                <span className="text-xs text-gray-600">
+                  {metodoLabel(a.metodo)}
+                  {esCredito && <span className="ml-1 text-gray-400">(deuda)</span>}
+                </span>
+                {multi ? (
+                  <button onClick={() => setAbierto(expandido ? null : key)} className="text-xs text-blue-600 hover:underline">
+                    {expandido ? '▾' : '▸'} {a.partes.length} pedidos
+                  </button>
+                ) : (
+                  <Link
+                    href={a.partes[0].origen === 'pedido' ? `/pedidos/${a.partes[0].referencia_id}` : `/facturacion/${a.partes[0].referencia_id}`}
+                    className="font-mono text-xs text-blue-600 hover:underline"
+                  >
+                    {a.partes[0].referencia}
+                  </Link>
+                )}
+              </div>
+
+              {/* Acciones admin */}
+              {esAdmin && (
+                <div className="mt-1.5 flex gap-3">
+                  {enEdicion ? (
+                    <>
+                      <button onClick={() => guardar(a)} disabled={pending} className="text-xs font-medium text-green-700 hover:underline disabled:opacity-50">Guardar</button>
+                      <button onClick={() => setEditando(null)} disabled={pending} className="text-xs text-gray-500 hover:underline">Cancelar</button>
+                    </>
+                  ) : (
+                    <>
+                      <button onClick={() => abrirEdicion(a)} className="text-xs text-blue-600 hover:underline">Editar</button>
+                      <button onClick={() => eliminar(a)} disabled={pending} className="text-xs text-red-600 hover:underline disabled:opacity-50">Eliminar</button>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Partes del abono (al expandir o editar) */}
+              {(expandido || enEdicion) && (
+                <div className="mt-2 space-y-1.5 border-l-2 border-gray-100 pl-3">
+                  {a.partes.map(p => (
+                    <div key={p.id} className="flex items-center justify-between gap-2 text-xs">
                       <Link
                         href={p.origen === 'pedido' ? `/pedidos/${p.referencia_id}` : `/facturacion/${p.referencia_id}`}
                         className="font-mono text-blue-600 hover:underline"
                       >
                         {p.referencia}
                       </Link>
-                    </td>
-                  </tr>
-                ))}
-              </Fragment>
-            )
-          })}
-        </tbody>
-        <tfoot className="border-t-2 border-gray-200 bg-gray-50">
-          <tr>
-            <td className="px-6 py-3 text-xs font-semibold text-gray-600 uppercase">Total pagado</td>
-            <td className="px-4 py-3 text-right font-bold text-green-700">{formatCOP(totalPagado)}</td>
-            <td colSpan={esAdmin ? 3 : 2} />
-          </tr>
-        </tfoot>
-      </table>
+                      {enEdicion ? (
+                        <input
+                          type="number"
+                          value={montos[p.id] ?? ''}
+                          onChange={e => setMontos(m => ({ ...m, [p.id]: e.target.value }))}
+                          className="w-24 text-right rounded border border-gray-300 px-2 py-1"
+                        />
+                      ) : (
+                        <span className="text-gray-700">{formatCOP(p.monto)}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Total */}
+      <div className="flex items-center justify-between px-4 py-3 border-t-2 border-gray-200 bg-gray-50">
+        <span className="text-xs font-semibold text-gray-600 uppercase">Total pagado</span>
+        <span className="text-sm font-bold text-green-700">{formatCOP(totalPagado)}</span>
+      </div>
     </div>
   )
 }
