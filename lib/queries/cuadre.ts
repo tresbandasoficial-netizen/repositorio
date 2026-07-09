@@ -42,10 +42,14 @@ export async function getEfectivoEnCaja(filtroSedeCodigo?: string): Promise<Efec
   const cortes = cuentas.map(c => c.fecha_corte).filter(Boolean) as string[]
   const corteMin = cortes.length ? cortes.sort()[0] : hoyBogota()
 
+  let gastosQEfc = supabase.from('gastos').select('cuenta_id, valor, fecha').in('cuenta_id', ids).gte('fecha', corteMin).limit(20000)
+  // Los asesores no ven gastos de compra (solo admin)
+  if (!esAdmin) gastosQEfc = gastosQEfc.neq('categoria', 'compras_mercancia')
+
   const [pagosR, pfR, gastosR, pmR, trR] = await Promise.all([
     supabase.from('pagos').select('cuenta_id, monto, fecha').in('cuenta_id', ids).neq('metodo', 'credito').eq('anulado', false).gte('fecha', corteMin).limit(20000),
     supabase.from('pagos_factura').select('cuenta_id, monto, fecha').in('cuenta_id', ids).neq('metodo', 'credito').eq('anulado', false).gte('fecha', corteMin).limit(20000),
-    supabase.from('gastos').select('cuenta_id, valor, fecha').in('cuenta_id', ids).gte('fecha', corteMin).limit(20000),
+    gastosQEfc,
     supabase.from('pagos_mensajeria').select('cuenta_id, monto, fecha, tipo').in('cuenta_id', ids).eq('tipo', 'pago').gte('fecha', corteMin).limit(20000),
     supabase.from('traslados_caja').select('origen_cuenta_id, destino_cuenta_id, monto, fecha').gte('fecha', corteMin).limit(20000),
   ])
@@ -136,10 +140,14 @@ export async function getSaldosCuentas(
   const cortes = cuentas.map(c => c.fecha_corte).filter(Boolean) as string[]
   const corteMin = cortes.length ? cortes.sort()[0] : hoyBogota()
 
+  let gastosQ = admin.from('gastos').select('cuenta_id, valor, fecha').in('cuenta_id', ids).gte('fecha', corteMin).limit(50000)
+  // Los asesores no ven gastos de compra (solo admin)
+  if (!esAdmin) gastosQ = gastosQ.neq('categoria', 'compras_mercancia')
+
   const [pagosR, pfR, gastosR, pmR, trR] = await Promise.all([
     admin.from('pagos').select('cuenta_id, monto, fecha').in('cuenta_id', ids).neq('metodo', 'credito').eq('anulado', false).gte('fecha', corteMin).limit(50000),
     admin.from('pagos_factura').select('cuenta_id, monto, fecha').in('cuenta_id', ids).neq('metodo', 'credito').eq('anulado', false).gte('fecha', corteMin).limit(50000),
-    admin.from('gastos').select('cuenta_id, valor, fecha').in('cuenta_id', ids).gte('fecha', corteMin).limit(50000),
+    gastosQ,
     admin.from('pagos_mensajeria').select('cuenta_id, monto, fecha, tipo').in('cuenta_id', ids).eq('tipo', 'pago').gte('fecha', corteMin).limit(50000),
     admin.from('traslados_caja').select('origen_cuenta_id, destino_cuenta_id, monto, fecha').gte('fecha', corteMin).limit(50000),
   ])
@@ -177,7 +185,7 @@ export async function getSaldosCuentas(
 }
 
 // Total de gastos ACUMULADO (todos los días), no solo el del rango. El asesor
-// solo ve los de su sede; el admin todos (o los de la sede filtrada).
+// solo ve los de su sede y solo gastos operativos (no compras). Admin ve todos.
 export async function getGastosAcumulado(filtroSedeCodigo?: string): Promise<number> {
   const admin = createAdminClient()
   const sesion = await getSesion()
@@ -191,6 +199,8 @@ export async function getGastosAcumulado(filtroSedeCodigo?: string): Promise<num
 
   let q = admin.from('gastos').select('valor').limit(100000)
   if (sid) q = q.eq('sede_id', sid)
+  // Los asesores no ven gastos de compra (solo admin)
+  if (!esAdmin) q = q.neq('categoria', 'compras_mercancia')
 
   const rows = ((await q).data ?? []) as Array<{ valor: number }>
   return rows.reduce((s, g) => s + (g.valor ?? 0), 0)
@@ -369,7 +379,7 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
   if (sedeForzadaId) qRecaudo = qRecaudo.eq('sede_id', sedeForzadaId)
   else if (sedeFiltroCodigo) qRecaudo = qRecaudo.eq('sede_codigo', sedeFiltroCodigo)
 
-  // ── Gastos del rango (visibles para todos; el asesor solo los de su sede) ───
+  // ── Gastos del rango (visibles solo para admin; asesor no ve compras) ───
   const idPorCodigo = new Map(sedes.map(s => [s.codigo, s.id]))
   const sedeFiltroId = sedeFiltroCodigo ? idPorCodigo.get(sedeFiltroCodigo) ?? null : null
   let qGastos = supabase
@@ -381,6 +391,8 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
     .limit(20000)
   const sedeGastosId = sedeForzadaId ?? sedeFiltroId
   if (sedeGastosId) qGastos = qGastos.eq('sede_id', sedeGastosId)
+  // Los asesores no ven gastos de compra (solo admin)
+  if (!esAdmin) qGastos = qGastos.neq('categoria', 'compras_mercancia')
 
   const [ventasRes, recaudoRes, gastosRes, facturasRes] = await Promise.all([
     qVentas,

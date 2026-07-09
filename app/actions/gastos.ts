@@ -64,6 +64,7 @@ export type GastosFiltros = {
 
 export async function getGastosAction(filtros: GastosFiltros): Promise<Gasto[]> {
   const supabase = await createClient()
+  const sesion = await getSesion()
 
   let q = supabase
     .from('gastos')
@@ -76,6 +77,8 @@ export async function getGastosAction(filtros: GastosFiltros): Promise<Gasto[]> 
 
   if (filtros.categoria) q = q.eq('categoria', filtros.categoria)
   if (filtros.sede_id)   q = q.eq('sede_id', filtros.sede_id)
+  // Los asesores no ven gastos de compra (solo admin)
+  if (sesion.rol !== 'admin') q = q.neq('categoria', 'compras_mercancia')
 
   const { data } = await q
   return (data ?? []) as Gasto[]
