@@ -159,3 +159,58 @@ export async function editarClienteAction(
   revalidatePath('/clientes')
   redirect(`/clientes/${id}`)
 }
+
+export type CrearClienteResult =
+  | { ok: true; id: string }
+  | { ok: false; error: string }
+
+// Crear un cliente directamente, sin necesidad de hacer un pedido o factura.
+// Cualquier usuario (asesor o admin) puede; el visor no.
+export async function crearClienteAction(data: {
+  nombre: string
+  telefono: string
+  cedula?: string
+  email?: string
+  notas?: string
+}): Promise<CrearClienteResult> {
+  const sesion = await getSesion()
+  if (sesion.rol === 'visor') return { ok: false, error: 'Sin permisos para crear clientes' }
+
+  const supabase = await createClient()
+
+  const nombre = data.nombre.trim()
+  if (!nombre) return { ok: false, error: 'El nombre es obligatorio' }
+  if (!data.telefono.trim()) return { ok: false, error: 'El teléfono es obligatorio' }
+
+  const telefono_normalizado = normalizarTelefono(data.telefono)
+  if (!telefono_normalizado) {
+    return { ok: false, error: 'Teléfono inválido. Usa formato colombiano: 300 123 4567' }
+  }
+
+  // Si ya existe un cliente con ese teléfono, se reutiliza (no se duplica).
+  const { data: existente } = await supabase
+    .from('clientes')
+    .select('id, nombre')
+    .eq('telefono_normalizado', telefono_normalizado)
+    .maybeSingle()
+  if (existente) {
+    return { ok: false, error: `Ya existe un cliente con ese teléfono: "${existente.nombre}"` }
+  }
+
+  const { data: nuevo, error } = await supabase
+    .from('clientes')
+    .insert({
+      nombre,
+      telefono_normalizado,
+      cedula: data.cedula?.trim() || null,
+      email:  data.email?.trim() || null,
+      notas:  data.notas?.trim() || null,
+    })
+    .select('id')
+    .single()
+
+  if (error || !nuevo) return { ok: false, error: `Error al crear el cliente: ${error?.message}` }
+
+  revalidatePath('/clientes')
+  return { ok: true, id: nuevo.id }
+}

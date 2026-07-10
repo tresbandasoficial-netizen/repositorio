@@ -5,6 +5,7 @@ import { getClientes } from '@/lib/queries/clientes'
 import { formatFecha } from '@/lib/utils/format'
 import { formatearTelefono } from '@/lib/utils/phone'
 import { ClientesBusqueda } from '@/components/clientes/ClientesBusqueda'
+import { NuevoClienteButton } from '@/components/clientes/NuevoClienteButton'
 
 export default async function ClientesPage({
   searchParams,
@@ -55,6 +56,7 @@ export default async function ClientesPage({
             {q && ` para "${q}"`}
           </p>
         </div>
+        {usuario.rol !== 'visor' && <NuevoClienteButton />}
       </div>
 
       <div className="mb-4">
