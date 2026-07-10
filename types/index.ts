@@ -56,6 +56,7 @@ export type MetodoPago =
   | 'bold'
   | 'sistecredito'
   | 'credito'
+  | 'bono'
   // Históricos (registros anteriores)
   | 'contra_entrega'
   | 'bancolombia'
@@ -82,6 +83,7 @@ export const METODO_PAGO_LABELS: Record<MetodoPago, string> = {
   bold:                  'Bold',
   sistecredito:          'Sistecrédito',
   credito:               'Crédito',
+  bono:                  'Bono de regalo',
   // Históricos
   contra_entrega:        'Contra entrega (antiguo)',
   bancolombia:           'Bancolombia (antiguo)',

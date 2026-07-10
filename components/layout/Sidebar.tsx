@@ -21,6 +21,7 @@ import {
   HandCoins,
   Calculator,
   TrendingUp,
+  Gift,
   LucideProps,
 } from 'lucide-react'
 
@@ -49,6 +50,7 @@ const navItems: { href: string; label: string; icon: NavIcon; rol: string[] }[] 
   { href: '/pedidos',      label: 'Pedidos',      icon: Package,         rol: ['asesor', 'admin', 'visor'] },
   { href: '/facturacion/nueva', label: 'Facturar / Vender', icon: FileText, rol: ['asesor', 'admin'] },
   { href: '/cuentas-por-cobrar', label: 'Por cobrar', icon: HandCoins,   rol: ['asesor', 'admin'] },
+  { href: '/bonos',        label: 'Bonos regalo', icon: Gift,          rol: ['asesor', 'admin'] },
   { href: '/alertas',      label: 'Alertas',      icon: Bell,            rol: ['asesor', 'admin', 'visor'] },
   { href: '/clientes',     label: 'Clientes',     icon: Users,           rol: ['asesor', 'admin', 'visor'] },
   { href: '/domicilios',   label: 'Domicilios',   icon: MotoIcon,        rol: ['asesor', 'admin'] },
