@@ -6,7 +6,8 @@ export type EstadisticaDia = {
   ventas: number
   ticket_promedio: number
   por_sede: Record<string, number>         // TR/CR/SR → # pedidos
-  ventas_por_sede: Record<string, number>  // TR/CR/SR → $ vendido
+  // TR/CR/SR → $ vendido, separado entre encargos (pedido) y venta inmediata (tienda)
+  ventas_por_sede_tipo: Record<string, { pedido: number; tienda: number }>
 }
 
 export type EstadisticaAsesor = {
@@ -62,7 +63,7 @@ export async function getEstadisticas(dias: number): Promise<Estadisticas> {
   const [pedidosRes, pagosRes] = await Promise.all([
     supabase
       .from('vista_pedidos_asesor')
-      .select('fecha_creacion, total, sede_codigo, asesor_nombre, estado')
+      .select('fecha_creacion, total, sede_codigo, asesor_nombre, estado, tipo')
       .gte('fecha_creacion', desdeISO)
       .neq('estado', 'cancelado')
       .neq('tipo', 'saldo_anterior')
@@ -83,17 +84,22 @@ export async function getEstadisticas(dias: number): Promise<Estadisticas> {
     sede_codigo: string
     asesor_nombre: string
     estado: string
+    tipo: string
   }>
 
   // ── Por día ────────────────────────────────────────────────────────────────
-  const diaMap = new Map<string, { pedidos: number; ventas: number; por_sede: Record<string, number>; ventas_por_sede: Record<string, number> }>()
+  const diaMap = new Map<string, { pedidos: number; ventas: number; por_sede: Record<string, number>; ventas_por_sede_tipo: Record<string, { pedido: number; tienda: number }> }>()
   for (const p of pedidos) {
     const f = fechaBogota(p.fecha_creacion)
-    const entry = diaMap.get(f) ?? { pedidos: 0, ventas: 0, por_sede: {}, ventas_por_sede: {} }
+    const entry = diaMap.get(f) ?? { pedidos: 0, ventas: 0, por_sede: {}, ventas_por_sede_tipo: {} }
     entry.pedidos += 1
     entry.ventas += p.total ?? 0
     entry.por_sede[p.sede_codigo] = (entry.por_sede[p.sede_codigo] ?? 0) + 1
-    entry.ventas_por_sede[p.sede_codigo] = (entry.ventas_por_sede[p.sede_codigo] ?? 0) + (p.total ?? 0)
+    // 'venta_inmediata' = venta en tienda; 'encargo' (u otro) = pedido.
+    const st = entry.ventas_por_sede_tipo[p.sede_codigo] ?? { pedido: 0, tienda: 0 }
+    if (p.tipo === 'venta_inmediata') st.tienda += p.total ?? 0
+    else st.pedido += p.total ?? 0
+    entry.ventas_por_sede_tipo[p.sede_codigo] = st
     diaMap.set(f, entry)
   }
 
@@ -104,7 +110,7 @@ export async function getEstadisticas(dias: number): Promise<Estadisticas> {
       ventas: e.ventas,
       ticket_promedio: e.pedidos > 0 ? Math.round(e.ventas / e.pedidos) : 0,
       por_sede: e.por_sede,
-      ventas_por_sede: e.ventas_por_sede,
+      ventas_por_sede_tipo: e.ventas_por_sede_tipo,
     }))
     .sort((a, b) => b.fecha.localeCompare(a.fecha))  // más reciente primero
 
