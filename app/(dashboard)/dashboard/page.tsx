@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { getMetricasAdmin, getMetricasAsesor, getMetricasPorSede, getMetricasPorAsesor, getUltimosPedidosAsesor } from '@/lib/queries/metricas'
+import { getMetricasAdmin, getMetricasAsesor, getMetricasPorSede, getMetricasPorAsesor, getUltimosPedidosAsesor, getVentasMensualesAsesor } from '@/lib/queries/metricas'
 import { getEstadisticas } from '@/lib/queries/estadisticas'
+import { ComprasChart } from '@/components/clientes/ComprasChart'
 import { PedidosAreaChart } from '@/components/dashboard/PedidosAreaChart'
 import { SedeDonutChart } from '@/components/dashboard/SedeDonutChart'
 import { EstadoBadge } from '@/components/pedidos/EstadoBadge'
@@ -319,10 +320,11 @@ export default async function DashboardPage() {
   }
 
   // ── Vista Asesor ─────────────────────────────────────────────────────────────
-  const [m, ultimosPedidos, stats] = await Promise.all([
+  const [m, ultimosPedidos, stats, ventasMensuales] = await Promise.all([
     getMetricasAsesor(usuario.id),
     getUltimosPedidosAsesor(usuario.id),
     getEstadisticas(30),
+    getVentasMensualesAsesor(usuario.id),
   ])
 
   return (
@@ -357,6 +359,15 @@ export default async function DashboardPage() {
         <KpiCard label="Pedidos activos" valor={m.pedidos_activos}   icon={Package}       iconColor="text-sky-600"     iconBg="bg-sky-50" />
         <KpiCard label="En alerta"       valor={m.pedidos_en_alerta} icon={AlertTriangle} iconColor="text-red-500"     iconBg="bg-red-50" alerta={m.pedidos_en_alerta > 0} />
         <KpiCard label="Ticket promedio" valor={formatCOP(m.ticket_promedio)} icon={CreditCard} iconColor="text-violet-600" iconBg="bg-violet-50" />
+      </div>
+
+      {/* Mis ventas por mes */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+          <p className="text-sm font-semibold text-gray-900">Mis ventas por mes</p>
+          <span className="text-xs text-gray-400">cada barra = un mes</span>
+        </div>
+        <ComprasChart meses={ventasMensuales} />
       </div>
 
       {/* Gráfica */}

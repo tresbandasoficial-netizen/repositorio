@@ -131,6 +131,47 @@ export async function getMetricasAsesor(asesorId: string): Promise<MetricasAseso
   }
 }
 
+export type MesVenta = { clave: string; label: string; total: number; pedidos: number }
+
+// Ventas del asesor agrupadas por mes (últimos N meses, hora Bogotá).
+export async function getVentasMensualesAsesor(asesorId: string, meses = 8): Promise<MesVenta[]> {
+  const supabase = await createClient()
+
+  const hoy = hoyBogota()                         // 'YYYY-MM-DD'
+  const y = parseInt(hoy.slice(0, 4), 10)
+  const mo = parseInt(hoy.slice(5, 7), 10)
+  // 1° del primer mes de la ventana (en UTC-5 ≈ Bogotá).
+  const desdeISO = new Date(Date.UTC(y, mo - meses, 1, 5)).toISOString()
+
+  const { data } = await supabase
+    .from('vista_pedidos_asesor')
+    .select('fecha_creacion, total')
+    .eq('asesor_id', asesorId)
+    .neq('estado', 'cancelado')
+    .neq('tipo', 'saldo_anterior')
+    .gte('fecha_creacion', desdeISO)
+    .limit(20000)
+
+  const fmtClave = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota', year: 'numeric', month: '2-digit' })
+  const fmtLabel = new Intl.DateTimeFormat('es-CO', { timeZone: 'America/Bogota', month: 'short', year: '2-digit' })
+
+  // Prellenar los N meses (para que salgan también los meses en $0).
+  const mapa = new Map<string, MesVenta>()
+  for (let i = meses - 1; i >= 0; i--) {
+    const d = new Date(Date.UTC(y, mo - 1 - i, 15, 12))
+    const clave = fmtClave.format(d).slice(0, 7)
+    mapa.set(clave, { clave, label: fmtLabel.format(d).replace('.', ''), total: 0, pedidos: 0 })
+  }
+
+  for (const p of (data ?? []) as Array<{ fecha_creacion: string; total: number }>) {
+    const clave = fmtClave.format(new Date(p.fecha_creacion)).slice(0, 7)
+    const m = mapa.get(clave)
+    if (m) { m.total += p.total ?? 0; m.pedidos += 1 }
+  }
+
+  return [...mapa.values()].sort((a, b) => a.clave.localeCompare(b.clave))
+}
+
 export async function getMetricasPorSede(): Promise<MetricasSede[]> {
   const supabase = await createClient()
 
