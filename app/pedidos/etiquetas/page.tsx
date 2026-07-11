@@ -9,12 +9,14 @@ type PedidoEtiqueta = {
   numero_orden: string
   cliente_nombre: string
   cliente_telefono: string
+  cliente_id: string
   sede_id: string
+  ciudad?: string | null
 }
 
-// Etiquetas en lote: hojas de 100×150 mm con una cuadrícula de 2×3 (6 etiquetas
-// por hoja), cada etiqueta con número de orden, nombre y teléfono (sin +57).
-// Se llega desde la lista de pedidos seleccionando varios y pulsando "Etiquetas".
+// Etiquetas en lote: hojas de 100×150 mm con una cuadrícula de 2×4 (8 etiquetas
+// por hoja). Cada etiqueta es un recuadro con número de orden, nombre, teléfono
+// (sin +57) y la ciudad del cliente si la tiene registrada.
 export default async function EtiquetasLotePage({
   searchParams,
 }: {
@@ -28,7 +30,7 @@ export default async function EtiquetasLotePage({
   const supabase = await createClient()
   const { data } = await supabase
     .from('vista_pedidos_asesor')
-    .select('id, numero_orden, cliente_nombre, cliente_telefono, sede_id')
+    .select('id, numero_orden, cliente_nombre, cliente_telefono, cliente_id, sede_id')
     .in('id', ids)
 
   const pedidos = ((data ?? []) as PedidoEtiqueta[])
@@ -38,10 +40,22 @@ export default async function EtiquetasLotePage({
 
   if (pedidos.length === 0) notFound()
 
-  // Agrupar en hojas de 6 (2 columnas × 3 filas)
+  // Ciudad de cada cliente (campo opcional de la ficha del cliente)
+  const clienteIds = Array.from(new Set(pedidos.map(p => p.cliente_id)))
+  const { data: clientesData } = await supabase
+    .from('clientes')
+    .select('id, ciudad')
+    .in('id', clienteIds)
+  const ciudadPorCliente = new Map(
+    ((clientesData ?? []) as Array<{ id: string; ciudad: string | null }>).map(c => [c.id, c.ciudad])
+  )
+  for (const p of pedidos) p.ciudad = ciudadPorCliente.get(p.cliente_id) ?? null
+
+  // Agrupar en hojas de 8 (2 columnas × 4 filas)
+  const POR_HOJA = 8
   const hojas: PedidoEtiqueta[][] = []
-  for (let i = 0; i < pedidos.length; i += 6) {
-    hojas.push(pedidos.slice(i, i + 6))
+  for (let i = 0; i < pedidos.length; i += POR_HOJA) {
+    hojas.push(pedidos.slice(i, i + POR_HOJA))
   }
 
   return (
@@ -60,13 +74,18 @@ export default async function EtiquetasLotePage({
         <div key={h} className="hoja">
           {hoja.map((p) => (
             <div key={p.id} className="celda">
-              <p className="numero">{p.numero_orden}</p>
-              <p className="nombre">{p.cliente_nombre}</p>
-              <p className="telefono">{formatearTelefonoLocal(p.cliente_telefono)}</p>
+              <div className="recuadro numero-box">
+                <p className="numero">{p.numero_orden}</p>
+              </div>
+              <div className="recuadro datos-box">
+                <p className="nombre">{p.cliente_nombre}</p>
+                <p className="telefono">{formatearTelefonoLocal(p.cliente_telefono)}</p>
+                {p.ciudad && <p className="ciudad">{p.ciudad}</p>}
+              </div>
             </div>
           ))}
-          {/* Completar la cuadrícula con celdas vacías para conservar los bordes */}
-          {Array.from({ length: 6 - hoja.length }).map((_, i) => (
+          {/* Completar la cuadrícula con celdas vacías para conservar el corte */}
+          {Array.from({ length: POR_HOJA - hoja.length }).map((_, i) => (
             <div key={`v-${i}`} className="celda" />
           ))}
         </div>
@@ -80,42 +99,61 @@ export default async function EtiquetasLotePage({
           background: #fff;
           display: grid;
           grid-template-columns: 50mm 50mm;
-          grid-template-rows: 50mm 50mm 50mm;
+          grid-template-rows: repeat(4, 37.5mm);
           page-break-after: always;
           break-after: page;
         }
         .celda {
           box-sizing: border-box;
-          border: 0.4mm solid #000;
+          border: 0.35mm solid #000;
+          display: flex;
+          flex-direction: column;
+          padding: 1.5mm;
+          gap: 1mm;
+          overflow: hidden;
+          font-family: Arial, sans-serif;
+          color: #000;
+        }
+        .recuadro {
+          box-sizing: border-box;
+          border: 0.3mm solid #000;
+          border-radius: 1mm;
           display: flex;
           flex-direction: column;
           justify-content: center;
           align-items: center;
           text-align: center;
-          padding: 2mm;
+          padding: 1mm;
           overflow: hidden;
-          font-family: Arial, sans-serif;
-          color: #000;
         }
+        .numero-box { flex: 0 0 11mm; }
+        .datos-box  { flex: 1; }
         .celda .numero {
           font-family: 'Courier New', monospace;
           font-weight: 900;
-          font-size: 7mm;
-          line-height: 1.05;
+          font-size: 6.5mm;
+          line-height: 1;
           margin: 0;
           word-break: break-all;
         }
         .celda .nombre {
           font-weight: 700;
-          font-size: 4.2mm;
+          font-size: 3.6mm;
           line-height: 1.15;
-          margin: 2.5mm 0 0 0;
+          margin: 0;
         }
         .celda .telefono {
           font-weight: 600;
-          font-size: 4mm;
+          font-size: 3.4mm;
           line-height: 1.15;
-          margin: 1.5mm 0 0 0;
+          margin: 1mm 0 0 0;
+        }
+        .celda .ciudad {
+          font-weight: 700;
+          font-size: 3.4mm;
+          line-height: 1.15;
+          margin: 1mm 0 0 0;
+          text-transform: uppercase;
         }
         @media screen {
           body {

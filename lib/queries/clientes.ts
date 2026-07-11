@@ -51,6 +51,7 @@ export type ClienteDetalle = {
   cedula: string | null
   email: string | null
   notas: string | null
+  ciudad: string | null
   creado_en: string
   pedidos: Array<{
     id: string
@@ -129,7 +130,7 @@ export async function getClienteDetalle(id: string): Promise<ClienteDetalle | nu
 
   const { data: cliente, error } = await supabase
     .from('clientes')
-    .select('id, nombre, telefono_normalizado, cedula, email, notas, creado_en')
+    .select('id, nombre, telefono_normalizado, cedula, email, notas, ciudad, creado_en')
     .eq('id', id)
     .single()
 

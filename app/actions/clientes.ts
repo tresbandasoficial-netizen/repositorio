@@ -127,6 +127,7 @@ export async function editarClienteAction(
   const cedula = (formData.get('cedula') as string)?.trim() || null
   const email = (formData.get('email') as string)?.trim() || null
   const notas = (formData.get('notas') as string)?.trim() || null
+  const ciudad = (formData.get('ciudad') as string)?.trim() || null
 
   if (!nombre) return { ok: false, error: 'El nombre es obligatorio' }
   if (!telefonoRaw) return { ok: false, error: 'El teléfono es obligatorio' }
@@ -150,7 +151,7 @@ export async function editarClienteAction(
 
   const { error } = await supabase
     .from('clientes')
-    .update({ nombre, telefono_normalizado, cedula, email, notas })
+    .update({ nombre, telefono_normalizado, cedula, email, notas, ciudad })
     .eq('id', id)
 
   if (error) return { ok: false, error: `Error al guardar: ${error.message}` }

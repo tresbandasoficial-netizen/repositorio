@@ -6,7 +6,7 @@ import { editarClienteAction } from '@/app/actions/clientes'
 import { ClienteDetalle } from '@/lib/queries/clientes'
 
 interface EditarClienteFormProps {
-  cliente: Pick<ClienteDetalle, 'id' | 'nombre' | 'telefono_normalizado' | 'cedula' | 'email' | 'notas'>
+  cliente: Pick<ClienteDetalle, 'id' | 'nombre' | 'telefono_normalizado' | 'cedula' | 'email' | 'notas' | 'ciudad'>
 }
 
 export function EditarClienteForm({ cliente }: EditarClienteFormProps) {
@@ -82,6 +82,17 @@ export function EditarClienteForm({ cliente }: EditarClienteFormProps) {
           name="cedula"
           type="text"
           defaultValue={cliente.cedula ?? ''}
+          className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">Ciudad</label>
+        <input
+          name="ciudad"
+          type="text"
+          defaultValue={cliente.ciudad ?? ''}
+          placeholder="Ej: Cúcuta"
           className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
