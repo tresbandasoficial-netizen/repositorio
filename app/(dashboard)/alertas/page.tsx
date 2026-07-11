@@ -122,7 +122,9 @@ export default async function AlertasPage() {
                 return (
                   <tr key={p.id} className="hover:bg-red-50/30 transition-colors">
                     <td className="px-5 py-3">
-                      <span className="font-mono font-semibold text-gray-900">{p.numero_orden}</span>
+                      <Link href={`/pedidos/${p.id}`} className="font-mono font-semibold text-blue-600 hover:underline">
+                        {p.numero_orden}
+                      </Link>
                     </td>
                     <td className="px-4 py-3 text-gray-700">{p.cliente_nombre}</td>
                     <td className="px-4 py-3">

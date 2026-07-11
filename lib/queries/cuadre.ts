@@ -268,6 +268,7 @@ export type CuadreFactura = {
 // Los pedidos ya facturados se muestran en la lista de facturas, para no
 // contar lo mismo dos veces.
 export type CuadrePedido = {
+  id: string
   numero_orden: string
   cliente_nombre: string
   sede_codigo: string
@@ -342,7 +343,7 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
   // Trae también numero_orden/cliente/factura_id/abonado para listar cada pedido.
   let qVentas = supabase
     .from('vista_pedidos_asesor')
-    .select('numero_orden, sede_codigo, total, estado, tipo, cliente_nombre, total_pagado, factura_id')
+    .select('id, numero_orden, sede_codigo, total, estado, tipo, cliente_nombre, total_pagado, factura_id')
     .gte('fecha_creacion', bogotaDayStartUTC(filtros.desde))
     .lt('fecha_creacion', bogotaDayStartUTC(sumarDias(filtros.hasta, 1)))
     .neq('estado', 'cancelado')
@@ -396,7 +397,7 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
   if (recaudoRes.error) throw new Error(`Error cargando recaudo del cuadre: ${recaudoRes.error.message}`)
   if (facturasRes.error) throw new Error(`Error cargando facturas del cuadre: ${facturasRes.error.message}`)
 
-  const ventasRows  = (ventasRes.data ?? []) as Array<{ numero_orden: string; sede_codigo: string; total: number; estado: string; tipo: string; cliente_nombre: string; total_pagado: number; factura_id: string | null }>
+  const ventasRows  = (ventasRes.data ?? []) as Array<{ id: string; numero_orden: string; sede_codigo: string; total: number; estado: string; tipo: string; cliente_nombre: string; total_pagado: number; factura_id: string | null }>
   const recaudoRows = (recaudoRes.data ?? []) as Array<{ id: string; monto: number; metodo: MetodoPago; sede_codigo: string; asesor_id: string; asesor_nombre: string; referencia: string | null; origen: string; confirmado: boolean }>
   const gastosRows  = (gastosRes.data ?? []) as Array<{ valor: number; sede_id: string; categoria: string; observacion: string | null; fecha: string }>
   const facturasRows = (facturasRes.data ?? []) as Array<{ id: string; numero_factura: string; cliente_nombre: string; sede_codigo: string; total: number; saldo: number; estado: string }>
@@ -531,6 +532,7 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
   const pedidos: CuadrePedido[] = ventasRows
     .filter(p => !p.factura_id)
     .map(p => ({
+      id: p.id,
       numero_orden: p.numero_orden,
       cliente_nombre: p.cliente_nombre,
       sede_codigo: p.sede_codigo,

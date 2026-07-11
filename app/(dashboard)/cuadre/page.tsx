@@ -388,7 +388,9 @@ export default async function CuadrePage({
             <tbody className="divide-y divide-gray-50">
               {cuadre.pedidos.map(p => (
                 <tr key={p.numero_orden} className="hover:bg-gray-50/60">
-                  <td className="px-5 py-2 font-mono text-gray-900">{p.numero_orden}</td>
+                  <td className="px-5 py-2 font-mono">
+                    <Link href={`/pedidos/${p.id}`} className="text-blue-600 hover:underline">{p.numero_orden}</Link>
+                  </td>
                   <td className="px-3 py-2 text-gray-700">{p.cliente_nombre}</td>
                   {multiSede && <td className="px-3 py-2 text-gray-500">{p.sede_codigo}</td>}
                   <td className="px-3 py-2 text-right font-medium text-gray-900">{formatCOP(p.total)}</td>
