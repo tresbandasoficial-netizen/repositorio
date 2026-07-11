@@ -224,13 +224,17 @@ export async function cambiarEstadoAction(
     }
   }
 
-  // Regla: un pedido facturado no se cancela directo — hay que anular la factura
-  // primero (eso desvincula el pedido y anula los pagos de la factura). Cancelar
-  // solo el pedido dejaría la factura viva y descuadraría las finanzas.
+  // Cancelar un pedido facturado anula también su factura (revierte los pagos de
+  // la factura, borra domicilios/gastos automáticos y desvincula el pedido), para
+  // que la venta no siga contando. Solo admin (igual que anularFacturaAction).
   if (nuevoEstado === 'cancelado') {
     const { data: ped } = await supabase.from('pedidos').select('factura_id').eq('id', pedidoId).single()
     if (ped?.factura_id) {
-      return { ok: false, error: 'Este pedido está facturado. Anula primero la factura para poder cancelarlo.' }
+      if (sesion.rol !== 'admin') {
+        return { ok: false, error: 'Este pedido está facturado. Solo el administrador puede anularlo.' }
+      }
+      const { error: errAnular } = await supabase.rpc('anular_factura', { p_factura_id: ped.factura_id })
+      if (errAnular) return { ok: false, error: `No se pudo anular la factura del pedido: ${errAnular.message}` }
     }
   }
 
@@ -277,13 +281,17 @@ export async function cambiarEstadoInlineAction(
     }
   }
 
-  // Regla: un pedido facturado no se cancela directo — hay que anular la factura
-  // primero (eso desvincula el pedido y anula los pagos de la factura). Cancelar
-  // solo el pedido dejaría la factura viva y descuadraría las finanzas.
+  // Cancelar un pedido facturado anula también su factura (revierte los pagos de
+  // la factura, borra domicilios/gastos automáticos y desvincula el pedido), para
+  // que la venta no siga contando. Solo admin (igual que anularFacturaAction).
   if (nuevoEstado === 'cancelado') {
     const { data: ped } = await supabase.from('pedidos').select('factura_id').eq('id', pedidoId).single()
     if (ped?.factura_id) {
-      return { ok: false, error: 'Este pedido está facturado. Anula primero la factura para poder cancelarlo.' }
+      if (sesion.rol !== 'admin') {
+        return { ok: false, error: 'Este pedido está facturado. Solo el administrador puede anularlo.' }
+      }
+      const { error: errAnular } = await supabase.rpc('anular_factura', { p_factura_id: ped.factura_id })
+      if (errAnular) return { ok: false, error: `No se pudo anular la factura del pedido: ${errAnular.message}` }
     }
   }
 

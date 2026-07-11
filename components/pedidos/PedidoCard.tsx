@@ -13,7 +13,7 @@ import { transicionesDisponibles } from '@/lib/domain/estados'
 import { cambiarEstadoInlineAction } from '@/app/actions/pedidos'
 import { cn } from '@/lib/utils/cn'
 
-function EstadoInline({ pedidoId, estadoActual, sedeCodigo, esAdmin }: { pedidoId: string; estadoActual: EstadoPedido; sedeCodigo: string; esAdmin: boolean }) {
+function EstadoInline({ pedidoId, estadoActual, sedeCodigo, esAdmin, facturado }: { pedidoId: string; estadoActual: EstadoPedido; sedeCodigo: string; esAdmin: boolean; facturado: boolean }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [coords, setCoords] = useState<{ top: number; left: number } | null>(null)
@@ -68,9 +68,12 @@ function EstadoInline({ pedidoId, estadoActual, sedeCodigo, esAdmin }: { pedidoI
   function handleSelect(e: React.MouseEvent, nuevoEstado: EstadoPedido) {
     e.preventDefault()
     e.stopPropagation()
-    // Cancelar un pedido ya entregado es destructivo (anula sus abonos): confirmar.
-    if (nuevoEstado === 'cancelado' && estadoLocal === 'entregado') {
-      if (!window.confirm('¿Cancelar este pedido que ya fue entregado? Se anularán sus abonos. La acción queda registrada en el historial.')) {
+    // Cancelar un pedido entregado o facturado es destructivo: confirmar.
+    if (nuevoEstado === 'cancelado' && (estadoLocal === 'entregado' || facturado)) {
+      const mensaje = facturado
+        ? '¿Anular este pedido? Se anulará también su FACTURA: se revierten los abonos de la factura, se eliminan domicilios/gastos automáticos y deja de contar como venta. Queda registrado en el historial.'
+        : '¿Cancelar este pedido que ya fue entregado? Se anularán sus abonos. La acción queda registrada en el historial.'
+      if (!window.confirm(mensaje)) {
         setOpen(false)
         return
       }
@@ -169,7 +172,7 @@ export function PedidoCard({ pedido, esAdmin }: PedidoCardProps) {
             {pedido.es_zombie && <span className="text-xs text-orange-500" title="Pedido zombie">🧟</span>}
             {facturado && <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full">Facturado</span>}
           </div>
-          <EstadoInline pedidoId={pedido.id} estadoActual={pedido.estado} sedeCodigo={pedido.sede_codigo} esAdmin={esAdmin} />
+          <EstadoInline pedidoId={pedido.id} estadoActual={pedido.estado} sedeCodigo={pedido.sede_codigo} esAdmin={esAdmin} facturado={facturado} />
         </div>
         <div className="flex items-end justify-between gap-2">
           <div className="min-w-0">
@@ -210,7 +213,7 @@ export function PedidoCard({ pedido, esAdmin }: PedidoCardProps) {
           <p className="text-xs text-gray-400">{formatearTelefono(pedido.cliente_telefono)}</p>
         </div>
         <div className="w-40 shrink-0">
-          <EstadoInline pedidoId={pedido.id} estadoActual={pedido.estado} sedeCodigo={pedido.sede_codigo} esAdmin={esAdmin} />
+          <EstadoInline pedidoId={pedido.id} estadoActual={pedido.estado} sedeCodigo={pedido.sede_codigo} esAdmin={esAdmin} facturado={facturado} />
         </div>
         <div className="w-32 shrink-0 text-right">
           <p className="text-sm font-bold text-gray-900">{formatCOP(pedido.total)}</p>
