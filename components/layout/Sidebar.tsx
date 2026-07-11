@@ -22,6 +22,7 @@ import {
   Calculator,
   TrendingUp,
   Gift,
+  Send,
   LucideProps,
 } from 'lucide-react'
 
@@ -54,6 +55,7 @@ const navItems: { href: string; label: string; icon: NavIcon; rol: string[] }[] 
   { href: '/alertas',      label: 'Alertas',      icon: Bell,            rol: ['asesor', 'admin', 'visor'] },
   { href: '/clientes',     label: 'Clientes',     icon: Users,           rol: ['asesor', 'admin', 'visor'] },
   { href: '/domicilios',   label: 'Domicilios',   icon: MotoIcon,        rol: ['asesor', 'admin'] },
+  { href: '/envios',       label: 'Envíos',       icon: Send,            rol: ['asesor', 'admin'] },
   { href: '/cuadre',       label: 'Cuadre caja',  icon: Calculator,  rol: ['asesor', 'admin'] },
   { href: '/gastos',       label: 'Gastos',       icon: Wallet,      rol: ['asesor', 'admin'] },
   { href: '/flujo-caja',   label: 'Flujo de caja',icon: BarChart2,   rol: ['admin'] },

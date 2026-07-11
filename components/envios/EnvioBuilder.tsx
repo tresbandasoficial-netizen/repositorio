@@ -1,0 +1,267 @@
+'use client'
+
+import { useState, useRef, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
+import {
+  buscarPedidoParaEnvioAction,
+  buscarArticuloParaEnvioAction,
+  crearEnvioAction,
+  ItemEnvioInput,
+} from '@/app/actions/envios'
+import { EstadoBadge } from '@/components/pedidos/EstadoBadge'
+import { EstadoPedido } from '@/types'
+import { Loader2, Package, Barcode, Plus, Trash2, Send } from 'lucide-react'
+
+type ItemLista =
+  | { tipo: 'pedido'; pedido_id: string; numero_orden: string; descripcion: string; estado: string }
+  | { tipo: 'articulo'; codigo: string; talla: string | null; cantidad: number; descripcion: string | null; enCatalogo: boolean }
+
+export function EnvioBuilder({ sedes, sedeOrigenId }: {
+  sedes: { id: string; codigo: string; nombre: string }[]
+  sedeOrigenId: string | null
+}) {
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
+  const [guardando, setGuardando] = useState(false)
+
+  // Destino por defecto: Santa Rosa
+  const sedeSR = sedes.find(s => s.codigo === 'SR')
+  const [destino, setDestino] = useState<string>(sedeSR?.id ?? sedes[0]?.id ?? '')
+  const [notas, setNotas] = useState('')
+  const [items, setItems] = useState<ItemLista[]>([])
+  const [error, setError] = useState<string | null>(null)
+
+  // Escaneo de pedidos
+  const [numeroPedido, setNumeroPedido] = useState('')
+  const scanRef = useRef<HTMLInputElement>(null)
+
+  // Artículo suelto
+  const [codigoArt, setCodigoArt] = useState('')
+  const [tallaArt, setTallaArt] = useState('')
+  const [cantArt, setCantArt] = useState(1)
+
+  function agregarPedido() {
+    const num = numeroPedido.trim().toUpperCase()
+    if (!num) return
+    if (items.some(it => it.tipo === 'pedido' && it.numero_orden === num)) {
+      setError(`El pedido ${num} ya está en la lista`)
+      setNumeroPedido('')
+      return
+    }
+    startTransition(async () => {
+      setError(null)
+      const r = await buscarPedidoParaEnvioAction(num)
+      if (!r.ok) { setError(r.error) }
+      else {
+        setItems(prev => [...prev, {
+          tipo: 'pedido',
+          pedido_id: r.pedido.id,
+          numero_orden: r.pedido.numero_orden,
+          descripcion: r.pedido.cliente_nombre,
+          estado: r.pedido.estado,
+        }])
+      }
+      setNumeroPedido('')
+      scanRef.current?.focus()
+    })
+  }
+
+  function agregarArticulo() {
+    const cod = codigoArt.trim().toUpperCase()
+    if (!cod) return
+    startTransition(async () => {
+      setError(null)
+      const a = await buscarArticuloParaEnvioAction(cod)
+      setItems(prev => [...prev, {
+        tipo: 'articulo',
+        codigo: a.codigo,
+        talla: tallaArt.trim() || null,
+        cantidad: Math.max(1, cantArt),
+        descripcion: a.descripcion || null,
+        enCatalogo: a.encontrado,
+      }])
+      setCodigoArt('')
+      setTallaArt('')
+      setCantArt(1)
+    })
+  }
+
+  function quitar(idx: number) {
+    setItems(prev => prev.filter((_, i) => i !== idx))
+  }
+
+  function guardar() {
+    if (items.length === 0) { setError('Agrega al menos un pedido o artículo'); return }
+    setGuardando(true)
+    startTransition(async () => {
+      setError(null)
+      const payload: ItemEnvioInput[] = items.map(it => it.tipo === 'pedido'
+        ? { tipo: 'pedido', pedido_id: it.pedido_id, numero_orden: it.numero_orden, descripcion: it.descripcion }
+        : { tipo: 'articulo', codigo: it.codigo, talla: it.talla, cantidad: it.cantidad, descripcion: it.descripcion })
+      const r = await crearEnvioAction({ destino_sede_id: destino, notas, items: payload })
+      if (!r.ok) { setError(r.error); setGuardando(false) }
+      else router.push(`/envios/${r.envioId}`)
+    })
+  }
+
+  const numPedidos = items.filter(i => i.tipo === 'pedido').length
+  const numArticulos = items.filter(i => i.tipo === 'articulo').length
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+      {/* Columna izquierda: captura */}
+      <div className="lg:col-span-1 space-y-4">
+        {/* Destino */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-4 space-y-2">
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Destino</p>
+          <select
+            value={destino}
+            onChange={e => setDestino(e.target.value)}
+            className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {sedes.filter(s => s.id !== sedeOrigenId).map(s => (
+              <option key={s.id} value={s.id}>{s.nombre} ({s.codigo})</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Escanear pedidos */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-4 space-y-2">
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
+            <Barcode size={13} /> Escanear pedido
+          </p>
+          <div className="flex gap-2">
+            <input
+              ref={scanRef}
+              type="text"
+              value={numeroPedido}
+              onChange={e => setNumeroPedido(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); agregarPedido() } }}
+              placeholder="Escanea el código o escribe TR6722…"
+              autoFocus
+              className="flex-1 min-w-0 rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-mono bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:font-sans"
+            />
+            <button
+              onClick={agregarPedido}
+              disabled={isPending || !numeroPedido.trim()}
+              className="shrink-0 px-3 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-40 transition-colors"
+            >
+              {isPending ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
+            </button>
+          </div>
+          <p className="text-[11px] text-gray-400">Con lector: escanea la etiqueta y se agrega solo (el lector envía Enter).</p>
+        </div>
+
+        {/* Artículo suelto */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-4 space-y-2">
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
+            <Package size={13} /> Artículo (no pedido)
+          </p>
+          <div className="grid grid-cols-[1fr_4.5rem_3.5rem] gap-2">
+            <input
+              type="text"
+              value={codigoArt}
+              onChange={e => setCodigoArt(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); agregarArticulo() } }}
+              placeholder="Código: JD4546"
+              className="min-w-0 rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-mono bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:font-sans"
+            />
+            <input
+              type="text"
+              value={tallaArt}
+              onChange={e => setTallaArt(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); agregarArticulo() } }}
+              placeholder="Talla"
+              className="min-w-0 rounded-xl border border-gray-200 px-2 py-2.5 text-sm text-center bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <input
+              type="number"
+              min={1}
+              value={cantArt}
+              onChange={e => setCantArt(Math.max(1, parseInt(e.target.value) || 1))}
+              title="Cantidad"
+              className="min-w-0 rounded-xl border border-gray-200 px-2 py-2.5 text-sm text-center bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <button
+            onClick={agregarArticulo}
+            disabled={isPending || !codigoArt.trim()}
+            className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40 transition-colors"
+          >
+            <Plus size={14} /> Agregar artículo
+          </button>
+        </div>
+
+        {/* Notas */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-4 space-y-2">
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Notas</p>
+          <textarea
+            value={notas}
+            onChange={e => setNotas(e.target.value)}
+            rows={2}
+            placeholder="Opcional: transportadora, guía, observaciones…"
+            className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+          />
+        </div>
+      </div>
+
+      {/* Columna derecha: lista del envío */}
+      <div className="lg:col-span-2 space-y-3">
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">{error}</div>
+        )}
+
+        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
+            <p className="text-sm font-bold text-gray-900">Contenido del envío</p>
+            <p className="text-xs text-gray-400">{numPedidos} pedido{numPedidos !== 1 ? 's' : ''} · {numArticulos} artículo{numArticulos !== 1 ? 's' : ''}</p>
+          </div>
+
+          {items.length === 0 ? (
+            <p className="px-5 py-12 text-center text-sm text-gray-400">
+              Escanea pedidos o agrega artículos — irán apareciendo aquí
+            </p>
+          ) : (
+            <div className="divide-y divide-gray-50">
+              {items.map((it, i) => (
+                <div key={i} className="flex items-center gap-3 px-5 py-3">
+                  <span className="w-6 text-xs text-gray-300 font-medium text-right shrink-0">{i + 1}</span>
+                  {it.tipo === 'pedido' ? (
+                    <>
+                      <span className="font-mono font-bold text-sm text-gray-900 w-24 shrink-0">{it.numero_orden}</span>
+                      <span className="flex-1 text-sm text-gray-600 truncate">{it.descripcion}</span>
+                      <EstadoBadge estado={it.estado as EstadoPedido} enAlerta={false} />
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-mono font-bold text-sm text-gray-900 w-24 shrink-0">{it.codigo}</span>
+                      <span className="flex-1 text-sm text-gray-600 truncate">
+                        {it.descripcion ?? <span className="italic text-gray-400">No está en el catálogo</span>}
+                      </span>
+                      <span className="text-xs text-gray-500 shrink-0">
+                        {it.talla ? `T${it.talla}` : ''}{it.talla && it.cantidad > 1 ? ' · ' : ''}{it.cantidad > 1 ? `×${it.cantidad}` : ''}
+                      </span>
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 shrink-0">Artículo</span>
+                    </>
+                  )}
+                  <button onClick={() => quitar(i)} className="text-gray-300 hover:text-red-500 shrink-0" title="Quitar">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <button
+          onClick={guardar}
+          disabled={guardando || items.length === 0}
+          className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-2xl py-3.5 transition-colors shadow-md shadow-blue-200 disabled:opacity-50"
+        >
+          {guardando ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+          Guardar envío ({items.length} ítem{items.length !== 1 ? 's' : ''})
+        </button>
+      </div>
+    </div>
+  )
+}
