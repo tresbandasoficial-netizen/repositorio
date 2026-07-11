@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { getMetricasAdmin, getMetricasAsesor, getMetricasPorSede, getMetricasPorAsesor, getUltimosPedidosAsesor, getVentasMensualesAsesor } from '@/lib/queries/metricas'
+import { getMetricasAdmin, getMetricasAsesor, getMetricasPorSede, getMetricasPorAsesor, getUltimosPedidosAsesor, getVentasMensualesAsesor, getDeudaPorSede } from '@/lib/queries/metricas'
 import { getEstadisticas } from '@/lib/queries/estadisticas'
 import { ComprasChart } from '@/components/clientes/ComprasChart'
 import { PedidosAreaChart } from '@/components/dashboard/PedidosAreaChart'
@@ -141,12 +141,15 @@ export default async function DashboardPage() {
   const { data: cierreHoy } = await cierreQuery.maybeSingle()
 
   if (esAdmin) {
-    const [m, sedes, asesores, stats] = await Promise.all([
+    const [m, sedes, asesores, stats, deudaSedes] = await Promise.all([
       getMetricasAdmin(),
       getMetricasPorSede(),
       getMetricasPorAsesor(),
       getEstadisticas(30),
+      getDeudaPorSede(),
     ])
+    const deudaPorCodigo = new Map(deudaSedes.map(d => [d.codigo, d.saldo]))
+    const deudaTotal = deudaSedes.reduce((s, d) => s + d.saldo, 0)
 
     return (
       <div className="p-5 md:p-6 space-y-5">
@@ -229,6 +232,7 @@ export default async function DashboardPage() {
                     <th className="text-right px-5 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Activos</th>
                     <th className="text-right px-5 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Alertas</th>
                     <th className="text-right px-5 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Ventas (30d)</th>
+                    <th className="text-right px-5 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Por cobrar</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -256,9 +260,17 @@ export default async function DashboardPage() {
                         )}
                       </td>
                       <td className="px-5 py-3.5 text-right font-bold text-gray-900">{formatCOP(s.ventas_mes)}</td>
+                      <td className="px-5 py-3.5 text-right font-semibold text-amber-700">{formatCOP(deudaPorCodigo.get(s.sede_codigo) ?? 0)}</td>
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-gray-100 bg-gray-50/60">
+                    <td className="px-5 py-3 text-xs font-bold text-gray-500 uppercase" colSpan={3}>Total por cobrar</td>
+                    <td className="px-5 py-3 text-right text-xs text-gray-400" />
+                    <td className="px-5 py-3 text-right font-bold text-amber-800">{formatCOP(deudaTotal)}</td>
+                  </tr>
+                </tfoot>
               </table>
             </TableCard>
           </div>

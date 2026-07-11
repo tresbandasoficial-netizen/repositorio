@@ -131,6 +131,15 @@ export async function getMetricasAsesor(asesorId: string): Promise<MetricasAseso
   }
 }
 
+export type DeudaSede = { sede_id: string; codigo: string; nombre: string; saldo: number }
+
+// Lo que deben los clientes, por sede (solo admin lo consume).
+export async function getDeudaPorSede(): Promise<DeudaSede[]> {
+  const supabase = await createClient()
+  const { data } = await supabase.from('deuda_por_sede').select('*')
+  return (data ?? []) as DeudaSede[]
+}
+
 export type MesVenta = { clave: string; label: string; total: number; pedidos: number }
 
 // Ventas del asesor agrupadas por mes (últimos N meses, hora Bogotá).
