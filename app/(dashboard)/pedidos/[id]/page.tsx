@@ -39,6 +39,8 @@ export default async function PedidoDetallePage({
   const esAdmin = sesion.rol === 'admin'
   const saldo = pedido.total - pedido.total_pagado
   const ganancia = esAdmin ? await getGananciaPedido(id) : null
+  // Los saldos antiguos (deudas) no son pedidos de venta: no llevan estado ni productos.
+  const esSaldo = pedido.numero_orden.startsWith('SALDO-')
 
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto">
@@ -51,8 +53,10 @@ export default async function PedidoDetallePage({
           >
             ← Pedidos
           </Link>
-          <span className="font-mono font-bold text-gray-900">{pedido.numero_orden}</span>
-          <EstadoBadge estado={pedido.estado} enAlerta={pedido.en_alerta} />
+          <span className="font-mono font-bold text-gray-900">{esSaldo ? 'Saldo anterior' : pedido.numero_orden}</span>
+          {esSaldo
+            ? <span className="inline-block rounded-full px-2.5 py-0.5 text-xs font-medium bg-amber-100 text-amber-800">Deuda</span>
+            : <EstadoBadge estado={pedido.estado} enAlerta={pedido.en_alerta} />}
         </div>
         <div className="flex gap-2 flex-wrap">
           <Link
@@ -61,26 +65,30 @@ export default async function PedidoDetallePage({
           >
             + Registrar pago
           </Link>
-          <Link
-            href={`/pedidos/${id}/editar`}
-            className="text-sm bg-white border border-gray-200 hover:bg-gray-50 px-3.5 py-2 rounded-xl font-medium text-gray-700 transition-colors"
-          >
-            Editar
-          </Link>
-          <Link
-            href={`/pedidos/${id}/etiqueta`}
-            target="_blank"
-            className="text-sm bg-white border border-gray-200 hover:bg-gray-50 px-3.5 py-2 rounded-xl font-medium text-gray-500 transition-colors"
-          >
-            Etiqueta
-          </Link>
-          <Link
-            href={`/pedidos/${id}/imprimir`}
-            target="_blank"
-            className="hidden sm:inline-flex text-sm bg-white border border-gray-200 hover:bg-gray-50 px-3.5 py-2 rounded-xl font-medium text-gray-500 transition-colors"
-          >
-            Imprimir
-          </Link>
+          {!esSaldo && (
+            <>
+              <Link
+                href={`/pedidos/${id}/editar`}
+                className="text-sm bg-white border border-gray-200 hover:bg-gray-50 px-3.5 py-2 rounded-xl font-medium text-gray-700 transition-colors"
+              >
+                Editar
+              </Link>
+              <Link
+                href={`/pedidos/${id}/etiqueta`}
+                target="_blank"
+                className="text-sm bg-white border border-gray-200 hover:bg-gray-50 px-3.5 py-2 rounded-xl font-medium text-gray-500 transition-colors"
+              >
+                Etiqueta
+              </Link>
+              <Link
+                href={`/pedidos/${id}/imprimir`}
+                target="_blank"
+                className="hidden sm:inline-flex text-sm bg-white border border-gray-200 hover:bg-gray-50 px-3.5 py-2 rounded-xl font-medium text-gray-500 transition-colors"
+              >
+                Imprimir
+              </Link>
+            </>
+          )}
           {esAdmin && <EliminarPedidoButton pedidoId={id} />}
         </div>
       </div>
