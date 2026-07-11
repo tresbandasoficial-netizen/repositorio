@@ -11,7 +11,7 @@ import { CargarSaldoButton } from '@/components/cartera/CargarSaldoButton'
 export default async function CarteraPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; pagina?: string }>
+  searchParams: Promise<{ q?: string; pagina?: string; sede?: string }>
 }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -28,11 +28,14 @@ export default async function CarteraPage({
   const { data: sedesRaw } = await supabase.from('sedes').select('id, codigo, nombre').order('codigo')
   const sedes = (sedesRaw ?? []) as { id: string; codigo: string; nombre: string }[]
 
-  const { q, pagina: paginaParam } = await searchParams
+  const { q, pagina: paginaParam, sede: sedeParam } = await searchParams
   const pagina = Math.max(1, parseInt(paginaParam ?? '1', 10) || 1)
+  // Validar la sede contra las sedes reales; si no es válida, se ignora el filtro.
+  const sede = sedes.some(s => s.codigo === sedeParam) ? sedeParam : undefined
+  const sedeNombre = sedes.find(s => s.codigo === sede)?.nombre
   const [resultado, carteraTotal, deudaSedes] = await Promise.all([
-    getCartera({ busqueda: q, pagina }),
-    getTotalCartera(),
+    getCartera({ busqueda: q, pagina, sede }),
+    getTotalCartera(sede),
     getDeudaPorSede(),
   ])
   const { clientes, total, totalPaginas } = resultado
@@ -44,10 +47,21 @@ export default async function CarteraPage({
   function buildUrl(p: number) {
     const params = new URLSearchParams()
     if (q) params.set('q', q)
+    if (sede) params.set('sede', sede)
     if (p > 1) params.set('pagina', p.toString())
     const qs = params.toString()
     return `/cartera${qs ? `?${qs}` : ''}`
   }
+
+  // URL para el filtro por sede (preserva la búsqueda, reinicia la paginación).
+  function sedeUrl(codigo: string | null) {
+    const params = new URLSearchParams()
+    if (q) params.set('q', q)
+    if (codigo) params.set('sede', codigo)
+    const qs = params.toString()
+    return `/cartera${qs ? `?${qs}` : ''}`
+  }
+  const deudaPorCodigo = new Map(deudaSedes.map(d => [d.codigo, d.saldo]))
 
   return (
     <div className="p-6">
@@ -58,6 +72,7 @@ export default async function CarteraPage({
             {total === 0
               ? 'Sin saldos pendientes'
               : `${desde}–${hasta} de ${total} cliente${total !== 1 ? 's' : ''} con saldo`}
+            {sede && ` · ${sedeNombre}`}
             {q && ` para "${q}"`}
           </p>
         </div>
@@ -75,25 +90,39 @@ export default async function CarteraPage({
           </div>
           <div className="bg-white rounded-xl border border-red-200 bg-red-50 p-4">
             <p className="text-xs text-red-500 font-medium uppercase tracking-wide mb-1">
-              {pagina > 1 || q ? 'Saldo (filtrado)' : 'Cartera total'}
+              {sede ? `Cartera ${sedeNombre}` : (pagina > 1 || q ? 'Saldo (filtrado)' : 'Cartera total')}
             </p>
             <p className="text-2xl font-bold text-red-700">{formatCOP(totalSaldo)}</p>
           </div>
         </div>
       )}
 
-      {/* Por cobrar por sede */}
-      {deudaSedes.some(d => d.saldo !== 0) && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-          {deudaSedes.filter(d => d.saldo !== 0).map(d => (
-            <div key={d.sede_id} className="bg-white rounded-xl border border-gray-200 p-4">
-              <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">{d.nombre}</p>
-              <p className="text-lg font-bold text-amber-700">{formatCOP(d.saldo)}</p>
-              <p className="text-[10px] text-gray-400">{d.codigo}</p>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Filtro por sede — clic en una tarjeta filtra la cartera de esa sede */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+        <Link
+          href={sedeUrl(null)}
+          className={`rounded-xl border p-4 transition-colors ${
+            !sede ? 'border-blue-400 bg-blue-50 ring-1 ring-blue-300' : 'border-gray-200 bg-white hover:border-blue-200'
+          }`}
+        >
+          <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Todas las sedes</p>
+          <p className="text-lg font-bold text-amber-700">{formatCOP(deudaSedes.reduce((s, d) => s + d.saldo, 0))}</p>
+          <p className="text-[10px] text-gray-400">Total</p>
+        </Link>
+        {sedes.map(s => (
+          <Link
+            key={s.id}
+            href={sedeUrl(s.codigo)}
+            className={`rounded-xl border p-4 transition-colors ${
+              sede === s.codigo ? 'border-blue-400 bg-blue-50 ring-1 ring-blue-300' : 'border-gray-200 bg-white hover:border-blue-200'
+            }`}
+          >
+            <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">{s.nombre}</p>
+            <p className="text-lg font-bold text-amber-700">{formatCOP(deudaPorCodigo.get(s.codigo) ?? 0)}</p>
+            <p className="text-[10px] text-gray-400">{s.codigo}</p>
+          </Link>
+        ))}
+      </div>
 
       <div className="mb-4">
         <ClientesBusqueda valorInicial={q ?? ''} />

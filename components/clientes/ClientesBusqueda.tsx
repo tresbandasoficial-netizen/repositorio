@@ -1,20 +1,24 @@
 'use client'
 
 import { useRef } from 'react'
-import { useRouter, usePathname } from 'next/navigation'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { Search } from 'lucide-react'
 
 export function ClientesBusqueda({ valorInicial }: { valorInicial: string }) {
   const router = useRouter()
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const valor = e.target.value
     clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
-      const params = new URLSearchParams()
+      // Preservar los demás filtros (p. ej. sede); reiniciar la paginación.
+      const params = new URLSearchParams(searchParams.toString())
       if (valor) params.set('q', valor)
+      else params.delete('q')
+      params.delete('pagina')
       router.replace(`${pathname}?${params.toString()}`)
     }, 400)
   }

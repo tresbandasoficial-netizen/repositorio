@@ -24,15 +24,18 @@ export type CarteraResult = {
 export async function getCartera(params?: {
   busqueda?: string
   pagina?: number
+  sede?: string   // código de sede (TR/CR/SR); si viene, cartera de esa sede
 }): Promise<CarteraResult> {
   const supabase = await createClient()
   const pagina = Math.max(1, params?.pagina ?? 1)
   const desde = (pagina - 1) * PAGE_SIZE
   const hasta = desde + PAGE_SIZE - 1
 
-  let query = supabase
-    .from('vista_cartera_clientes')
-    .select('*', { count: 'exact' })
+  // Sin sede: cartera por cliente (todas las sedes). Con sede: cartera de esa sede.
+  let query = params?.sede
+    ? supabase.from('vista_cartera_cliente_sede').select('*', { count: 'exact' }).eq('sede_codigo', params.sede)
+    : supabase.from('vista_cartera_clientes').select('*', { count: 'exact' })
+  query = query
     .order('saldo', { ascending: false })
     .range(desde, hasta)
 
@@ -59,11 +62,12 @@ export async function getCartera(params?: {
   }
 }
 
-export async function getTotalCartera(): Promise<{ clientes: number; saldo: number }> {
+export async function getTotalCartera(sede?: string): Promise<{ clientes: number; saldo: number }> {
   const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('vista_cartera_clientes')
-    .select('saldo')
+  const base = sede
+    ? supabase.from('vista_cartera_cliente_sede').select('saldo').eq('sede_codigo', sede)
+    : supabase.from('vista_cartera_clientes').select('saldo')
+  const { data, error } = await base
 
   if (error) return { clientes: 0, saldo: 0 }
 
