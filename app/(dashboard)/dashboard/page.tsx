@@ -6,6 +6,7 @@ import { getEstadisticas } from '@/lib/queries/estadisticas'
 import { ComprasChart } from '@/components/clientes/ComprasChart'
 import { PedidosAreaChart } from '@/components/dashboard/PedidosAreaChart'
 import { SedeDonutChart } from '@/components/dashboard/SedeDonutChart'
+import { VentasPorDiaSede } from '@/components/dashboard/VentasPorDiaSede'
 import { EstadoBadge } from '@/components/pedidos/EstadoBadge'
 import { EstadoPedido } from '@/types'
 import { formatCOP, hoyBogota } from '@/lib/utils/format'
@@ -291,6 +292,9 @@ export default async function DashboardPage() {
             <QuickLink href="/estadisticas" label="Estadísticas"   icon={BarChart2} />
           </div>
         </div>
+
+        {/* Ventas por día y sede */}
+        <VentasPorDiaSede dias={stats.por_dia} />
 
         {/* Por asesor */}
         {asesores.length > 0 && (

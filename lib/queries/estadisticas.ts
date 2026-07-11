@@ -5,7 +5,8 @@ export type EstadisticaDia = {
   pedidos: number
   ventas: number
   ticket_promedio: number
-  por_sede: Record<string, number>  // TR/CR/SR → # pedidos
+  por_sede: Record<string, number>         // TR/CR/SR → # pedidos
+  ventas_por_sede: Record<string, number>  // TR/CR/SR → $ vendido
 }
 
 export type EstadisticaAsesor = {
@@ -85,13 +86,14 @@ export async function getEstadisticas(dias: number): Promise<Estadisticas> {
   }>
 
   // ── Por día ────────────────────────────────────────────────────────────────
-  const diaMap = new Map<string, { pedidos: number; ventas: number; por_sede: Record<string, number> }>()
+  const diaMap = new Map<string, { pedidos: number; ventas: number; por_sede: Record<string, number>; ventas_por_sede: Record<string, number> }>()
   for (const p of pedidos) {
     const f = fechaBogota(p.fecha_creacion)
-    const entry = diaMap.get(f) ?? { pedidos: 0, ventas: 0, por_sede: {} }
+    const entry = diaMap.get(f) ?? { pedidos: 0, ventas: 0, por_sede: {}, ventas_por_sede: {} }
     entry.pedidos += 1
     entry.ventas += p.total ?? 0
     entry.por_sede[p.sede_codigo] = (entry.por_sede[p.sede_codigo] ?? 0) + 1
+    entry.ventas_por_sede[p.sede_codigo] = (entry.ventas_por_sede[p.sede_codigo] ?? 0) + (p.total ?? 0)
     diaMap.set(f, entry)
   }
 
@@ -102,6 +104,7 @@ export async function getEstadisticas(dias: number): Promise<Estadisticas> {
       ventas: e.ventas,
       ticket_promedio: e.pedidos > 0 ? Math.round(e.ventas / e.pedidos) : 0,
       por_sede: e.por_sede,
+      ventas_por_sede: e.ventas_por_sede,
     }))
     .sort((a, b) => b.fecha.localeCompare(a.fecha))  // más reciente primero
 
