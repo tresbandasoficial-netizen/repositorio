@@ -4,6 +4,37 @@ import { getSesion, puedeAccederSede } from '@/lib/auth/acceso'
 import { formatearTelefonoLocal } from '@/lib/utils/phone'
 import { PrintButton } from '@/components/pedidos/PrintButton'
 import { MarcarLlegadaButton } from '@/components/pedidos/MarcarLlegadaButton'
+import { code128 } from '@/lib/utils/code128'
+
+// Código de barras Code 128 del número de orden, como SVG escalable.
+// Al escanearlo, el lector devuelve el número tal cual (ej. "TR6722").
+function Barcode({ texto }: { texto: string }) {
+  const barras = code128(texto)
+  if (!barras) return null
+  // Zona muda de 6 módulos a cada lado para que el lector enganche bien.
+  const quiet = 6
+  const total = barras.totalModules + quiet * 2
+  const rects: React.ReactNode[] = []
+  let x = quiet
+  for (let i = 0; i < barras.widths.length; i++) {
+    const w = barras.widths[i]
+    if (i % 2 === 0) {
+      rects.push(<rect key={i} x={x} y={0} width={w} height={10} fill="#000" />)
+    }
+    x += w
+  }
+  return (
+    <svg
+      viewBox={`0 0 ${total} 10`}
+      preserveAspectRatio="none"
+      className="barcode"
+      shapeRendering="crispEdges"
+    >
+      <rect x={0} y={0} width={total} height={10} fill="#fff" />
+      {rects}
+    </svg>
+  )
+}
 
 type PedidoEtiqueta = {
   id: string
@@ -97,6 +128,7 @@ export default async function EtiquetasLotePage({
             <div key={p.id} className="celda">
               <div className="recuadro numero-box">
                 <p className="numero">{p.numero_orden}</p>
+                <Barcode texto={p.numero_orden} />
               </div>
               <div className="recuadro datos-box">
                 <p className="nombre">{p.cliente_nombre}</p>
@@ -147,15 +179,20 @@ export default async function EtiquetasLotePage({
           padding: 1mm;
           overflow: hidden;
         }
-        .numero-box { flex: 0 0 11mm; }
+        .numero-box { flex: 0 0 17mm; gap: 1mm; }
         .datos-box  { flex: 1; }
         .celda .numero {
           font-family: 'Courier New', monospace;
           font-weight: 900;
-          font-size: 6.5mm;
+          font-size: 6mm;
           line-height: 1;
           margin: 0;
           word-break: break-all;
+        }
+        .celda .barcode {
+          width: 100%;
+          height: 8mm;
+          display: block;
         }
         .celda .nombre {
           font-weight: 700;
