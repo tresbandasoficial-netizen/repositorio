@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { formatCOP, formatFecha, formatFechaHora } from '@/lib/utils/format'
 import { formatearTelefono, whatsappUrl } from '@/lib/utils/phone'
 import { ESTADO_LABELS } from '@/types'
-import { getSesion, puedeAccederSede } from '@/lib/auth/acceso'
+import { getSesion, puedeVerPedido } from '@/lib/auth/acceso'
 import { CopiarResumen } from '@/components/pedidos/CopiarResumen'
 import { EliminarPedidoButton } from '@/components/pedidos/EliminarPedidoButton'
 import { SeguimientoBar } from '@/components/pedidos/SeguimientoBar'
@@ -34,7 +34,7 @@ export default async function PedidoDetallePage({
   const pedido = await getPedidoDetalle(id)
   if (!pedido) notFound()
 
-  if (!puedeAccederSede(sesion, pedido.sede_id)) notFound()
+  if (!puedeVerPedido(sesion, pedido.sede_id)) notFound()
 
   const esAdmin = sesion.rol === 'admin'
   const saldo = pedido.total - pedido.total_pagado

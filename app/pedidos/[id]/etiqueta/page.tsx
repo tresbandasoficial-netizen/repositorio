@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { getPedidoDetalle } from '@/lib/queries/pedidos'
 import { formatCOP } from '@/lib/utils/format'
-import { getSesion, puedeAccederSede } from '@/lib/auth/acceso'
+import { getSesion, puedeVerPedido } from '@/lib/auth/acceso'
 import { PrintButton } from '@/components/pedidos/PrintButton'
 
 export default async function EtiquetaPedidoPage({
@@ -14,7 +14,7 @@ export default async function EtiquetaPedidoPage({
   const pedido = await getPedidoDetalle(id)
 
   if (!pedido) notFound()
-  if (!puedeAccederSede(sesion, pedido.sede_id)) notFound()
+  if (!puedeVerPedido(sesion, pedido.sede_id)) notFound()
 
   const saldo = pedido.total - pedido.total_pagado
 

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { getSesion, puedeAccederSede } from '@/lib/auth/acceso'
+import { getSesion, puedeVerPedido } from '@/lib/auth/acceso'
 
 // ─── Buscar pedido para el envío (por número escaneado/digitado) ─────────────
 
@@ -30,7 +30,8 @@ export async function buscarPedidoParaEnvioAction(
     .maybeSingle()
 
   if (!data) return { ok: false, error: `No existe el pedido ${num}` }
-  if (!puedeAccederSede(sesion, (data as any).sede_id)) return { ok: false, error: `Sin acceso al pedido ${num}` }
+  // Logística entre sedes: un asesor de TR despacha pedidos de SR/CR también.
+  if (!puedeVerPedido(sesion, (data as any).sede_id)) return { ok: false, error: `Sin acceso al pedido ${num}` }
   if ((data as any).estado === 'cancelado') return { ok: false, error: `El pedido ${num} está cancelado` }
 
   const p = data as any
@@ -139,7 +140,8 @@ export async function marcarPedidosSantaRosaAction(
   let marcados = 0
   const omitidos: string[] = []
   for (const p of pedidos) {
-    if (!puedeAccederSede(sesion, p.sede_id)) { omitidos.push(p.numero_orden); continue }
+    // Avance logístico (solo hacia adelante, auditado): permitido entre sedes.
+    if (!puedeVerPedido(sesion, p.sede_id)) { omitidos.push(p.numero_orden); continue }
     if (p.estado === 'santa_rosa') continue // ya está
     if (!AVANZABLES.includes(p.estado)) { omitidos.push(`${p.numero_orden} (${p.estado})`); continue }
     const { error } = await supabase.rpc('cambiar_estado_pedido', {

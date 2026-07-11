@@ -44,7 +44,10 @@ export default async function PedidosPage({
     sede:         params.sede,
     fecha_desde:  params.desde,
     fecha_hasta:  params.hasta,
-    ...(!esAdmin && usuario.sedes ? { sede: (usuario.sedes as any).codigo } : {}),
+    // El asesor ve por defecto solo su sede, PERO al buscar (q) busca en todas:
+    // la mercancía de todas las sedes pasa por Bucaramanga y necesita
+    // encontrar pedidos de Santa Rosa/Cúcuta al recibir o despachar.
+    ...(!esAdmin && usuario.sedes && !params.q ? { sede: (usuario.sedes as any).codigo } : {}),
   })
 
   return (

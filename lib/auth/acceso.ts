@@ -24,10 +24,19 @@ export async function getSesion(): Promise<SesionUsuario> {
   return { id: user.id, rol: usuario.rol as 'asesor' | 'admin' | 'visor', sede_id: usuario.sede_id }
 }
 
-// Admin y visor (solo lectura) ven todas las sedes. El asesor solo la suya.
+// GESTIÓN (crear, editar, pagos): admin y visor ven todas las sedes; el
+// asesor solo puede gestionar pedidos de la suya.
 export function puedeAccederSede(sesion: SesionUsuario, sedePedido: string): boolean {
   if (sesion.rol === 'admin' || sesion.rol === 'visor') return true
   return sesion.sede_id === sedePedido
+}
+
+// LECTURA Y LOGÍSTICA (ver detalle, buscar, etiquetas, envíos, avance de
+// estado en lote): toda la mercancía pasa por Bucaramanga, así que cualquier
+// usuario autenticado puede ver y despachar pedidos de cualquier sede.
+// En las listas, el asesor sigue viendo solo su sede salvo que busque.
+export function puedeVerPedido(_sesion: SesionUsuario, _sedePedido: string): boolean {
+  return true
 }
 
 // El rol 'visor' es de solo lectura: no puede crear, editar ni eliminar.

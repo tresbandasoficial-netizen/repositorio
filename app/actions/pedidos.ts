@@ -10,7 +10,7 @@ import { hoyBogota } from '@/lib/utils/format'
 import { asignarNumeroOrden } from '@/lib/queries/pedidos'
 import { puedeTransicionar } from '@/lib/domain/estados'
 import { EstadoPedido, MetodoPago, ParsedPedido, tallasDeCategoria } from '@/types'
-import { getSesion, puedeAccederSede } from '@/lib/auth/acceso'
+import { getSesion, puedeAccederSede, puedeVerPedido } from '@/lib/auth/acceso'
 import { bloqueoCajaCerrada } from '@/lib/auth/caja'
 import { cuentaIdPorMetodo } from '@/lib/queries/cuentas'
 
@@ -347,7 +347,9 @@ export async function marcarLlegadaBucaramangaAction(
   let marcados = 0
   const omitidos: string[] = []
   for (const p of pedidos) {
-    if (!puedeAccederSede(sesion, p.sede_id)) { omitidos.push(p.numero_orden); continue }
+    // Avance logístico (solo hacia adelante, auditado): la mercancía de todas
+    // las sedes llega a Bucaramanga, así que aplica entre sedes.
+    if (!puedeVerPedido(sesion, p.sede_id)) { omitidos.push(p.numero_orden); continue }
     if (p.estado === 'bucaramanga') continue // ya está, nada que hacer
     if (!AVANZABLES.includes(p.estado)) { omitidos.push(`${p.numero_orden} (${p.estado})`); continue }
     const { error } = await supabase.rpc('cambiar_estado_pedido', {

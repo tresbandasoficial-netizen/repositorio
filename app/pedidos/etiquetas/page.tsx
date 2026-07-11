@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { getSesion, puedeAccederSede } from '@/lib/auth/acceso'
+import { getSesion, puedeVerPedido } from '@/lib/auth/acceso'
 import { formatearTelefonoLocal } from '@/lib/utils/phone'
 import { PrintButton } from '@/components/pedidos/PrintButton'
 import { MarcarLlegadaButton } from '@/components/pedidos/MarcarLlegadaButton'
@@ -73,7 +73,7 @@ export default async function EtiquetasLotePage({
   const orden = (p: PedidoEtiqueta) =>
     ids.length > 0 ? ids.indexOf(p.id) : nums.indexOf(p.numero_orden)
   const pedidos = ((data ?? []) as PedidoEtiqueta[])
-    .filter(p => puedeAccederSede(sesion, p.sede_id))
+    .filter(p => puedeVerPedido(sesion, p.sede_id))
     // Mantener el orden en que fueron pedidos (selección o texto digitado)
     .sort((a, b) => orden(a) - orden(b))
 
