@@ -8,9 +8,18 @@ import {
   crearEnvioAction,
   ItemEnvioInput,
 } from '@/app/actions/envios'
+import { buscarArticulosAction } from '@/app/actions/articulos'
 import { EstadoBadge } from '@/components/pedidos/EstadoBadge'
 import { EstadoPedido } from '@/types'
-import { Loader2, Package, Barcode, Plus, Trash2, Send } from 'lucide-react'
+import { Loader2, Package, Barcode, Plus, Trash2, Send, Search } from 'lucide-react'
+
+// Opción del buscador de catálogo, aplanada por talla disponible.
+type OpcionArt = {
+  codigo: string | null
+  descripcion: string   // marca + nombre (+ color)
+  talla: string | null
+  stock: number | null
+}
 
 type ItemLista =
   | { tipo: 'pedido'; pedido_id: string; numero_orden: string; descripcion: string; estado: string }
@@ -35,10 +44,51 @@ export function EnvioBuilder({ sedes, sedeOrigenId }: {
   const [numeroPedido, setNumeroPedido] = useState('')
   const scanRef = useRef<HTMLInputElement>(null)
 
-  // Artículo suelto
-  const [codigoArt, setCodigoArt] = useState('')
+  // Artículo suelto: buscador del catálogo + talla + cantidad
+  const [busquedaArt, setBusquedaArt] = useState('')
+  const [opcionesArt, setOpcionesArt] = useState<OpcionArt[]>([])
+  const [buscandoArt, setBuscandoArt] = useState(false)
+  const [openArt, setOpenArt] = useState(false)
+  const [artSel, setArtSel] = useState<{ codigo: string | null; descripcion: string } | null>(null)
   const [tallaArt, setTallaArt] = useState('')
   const [cantArt, setCantArt] = useState(1)
+  const artTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function onBusquedaArtChange(valor: string) {
+    setBusquedaArt(valor)
+    setArtSel(null) // al editar el texto se descarta la selección previa
+    if (artTimerRef.current) clearTimeout(artTimerRef.current)
+    const q = valor.trim()
+    if (q.length < 2) { setOpcionesArt([]); setOpenArt(false); return }
+    artTimerRef.current = setTimeout(async () => {
+      setBuscandoArt(true)
+      try {
+        const arts = await buscarArticulosAction(q, null)
+        const opts: OpcionArt[] = []
+        for (const a of arts) {
+          const desc = `${a.marca} ${a.nombre}${a.color ? ` ${a.color}` : ''}`.trim()
+          if (a.tallaStock.length === 0) {
+            opts.push({ codigo: a.codigo, descripcion: desc, talla: null, stock: null })
+          } else {
+            for (const ts of a.tallaStock) {
+              opts.push({ codigo: a.codigo, descripcion: desc, talla: ts.talla, stock: ts.stock })
+            }
+          }
+        }
+        setOpcionesArt(opts)
+        setOpenArt(true)
+      } finally {
+        setBuscandoArt(false)
+      }
+    }, 350)
+  }
+
+  function elegirArticulo(opt: OpcionArt) {
+    setArtSel({ codigo: opt.codigo, descripcion: opt.descripcion })
+    setBusquedaArt(`${opt.codigo ? `${opt.codigo} · ` : ''}${opt.descripcion}`)
+    if (opt.talla) setTallaArt(opt.talla)
+    setOpenArt(false)
+  }
 
   function agregarPedido() {
     const num = numeroPedido.trim().toUpperCase()
@@ -67,7 +117,25 @@ export function EnvioBuilder({ sedes, sedeOrigenId }: {
   }
 
   function agregarArticulo() {
-    const cod = codigoArt.trim().toUpperCase()
+    // Con artículo elegido del catálogo: usar sus datos directamente.
+    if (artSel) {
+      setItems(prev => [...prev, {
+        tipo: 'articulo',
+        codigo: artSel.codigo ?? '—',
+        talla: tallaArt.trim() || null,
+        cantidad: Math.max(1, cantArt),
+        descripcion: artSel.descripcion,
+        enCatalogo: true,
+      }])
+      setArtSel(null)
+      setBusquedaArt('')
+      setOpcionesArt([])
+      setTallaArt('')
+      setCantArt(1)
+      return
+    }
+    // Sin selección: tratar lo escrito como código exacto (permite fuera de catálogo).
+    const cod = busquedaArt.trim().toUpperCase()
     if (!cod) return
     startTransition(async () => {
       setError(null)
@@ -80,7 +148,9 @@ export function EnvioBuilder({ sedes, sedeOrigenId }: {
         descripcion: a.descripcion || null,
         enCatalogo: a.encontrado,
       }])
-      setCodigoArt('')
+      setBusquedaArt('')
+      setOpcionesArt([])
+      setOpenArt(false)
       setTallaArt('')
       setCantArt(1)
     })
@@ -152,27 +222,65 @@ export function EnvioBuilder({ sedes, sedeOrigenId }: {
           <p className="text-[11px] text-gray-400">Con lector: escanea la etiqueta y se agrega solo (el lector envía Enter).</p>
         </div>
 
-        {/* Artículo suelto */}
+        {/* Artículo suelto: buscador del catálogo */}
         <div className="bg-white rounded-2xl border border-gray-200 p-4 space-y-2">
           <p className="text-xs font-medium text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
             <Package size={13} /> Artículo (no pedido)
           </p>
-          <div className="grid grid-cols-[1fr_4.5rem_3.5rem] gap-2">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             <input
               type="text"
-              value={codigoArt}
-              onChange={e => setCodigoArt(e.target.value)}
+              value={busquedaArt}
+              onChange={e => onBusquedaArtChange(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); agregarArticulo() } }}
-              placeholder="Código: JD4546"
-              className="min-w-0 rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-mono bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:font-sans"
+              onFocus={() => { if (opcionesArt.length > 0 && !artSel) setOpenArt(true) }}
+              placeholder="Buscar en el catálogo: JD4546, marca, nombre…"
+              className={`w-full pl-9 pr-3 py-2.5 rounded-xl border text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 ${artSel ? 'border-green-300 bg-green-50/50' : 'border-gray-200'}`}
             />
+            {buscandoArt && (
+              <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 animate-spin" />
+            )}
+
+            {/* Resultados del catálogo */}
+            {openArt && (
+              <div className="absolute z-30 top-full left-0 right-0 mt-1.5 bg-white border border-gray-200 rounded-xl shadow-xl py-1 max-h-64 overflow-y-auto">
+                {opcionesArt.length === 0 ? (
+                  <p className="px-3 py-2.5 text-xs text-gray-400">
+                    Sin resultados — puedes agregarlo igual con el botón (queda como código libre)
+                  </p>
+                ) : opcionesArt.map((opt, i) => (
+                  <button
+                    key={`${opt.codigo ?? 'x'}-${opt.talla ?? ''}-${i}`}
+                    onClick={() => elegirArticulo(opt)}
+                    className="w-full text-left px-3 py-2 text-xs hover:bg-blue-50 transition-colors flex items-center gap-2"
+                  >
+                    {opt.codigo && <span className="font-mono font-bold text-gray-900 shrink-0">{opt.codigo}</span>}
+                    <span className="text-gray-600 truncate flex-1">{opt.descripcion}</span>
+                    {opt.talla && <span className="text-gray-500 shrink-0">T{opt.talla}</span>}
+                    {opt.stock !== null && (
+                      <span className={`shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${opt.stock > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-400'}`}>
+                        {opt.stock > 0 ? `${opt.stock} en stock` : 'sin stock'}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {artSel && (
+            <p className="text-xs text-green-600 font-medium">✓ Del catálogo: {artSel.descripcion}</p>
+          )}
+
+          <div className="grid grid-cols-[1fr_1fr] gap-2">
             <input
               type="text"
               value={tallaArt}
               onChange={e => setTallaArt(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); agregarArticulo() } }}
               placeholder="Talla"
-              className="min-w-0 rounded-xl border border-gray-200 px-2 py-2.5 text-sm text-center bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="min-w-0 rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-center bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <input
               type="number"
@@ -180,12 +288,12 @@ export function EnvioBuilder({ sedes, sedeOrigenId }: {
               value={cantArt}
               onChange={e => setCantArt(Math.max(1, parseInt(e.target.value) || 1))}
               title="Cantidad"
-              className="min-w-0 rounded-xl border border-gray-200 px-2 py-2.5 text-sm text-center bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="min-w-0 rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-center bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           <button
             onClick={agregarArticulo}
-            disabled={isPending || !codigoArt.trim()}
+            disabled={isPending || !busquedaArt.trim()}
             className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40 transition-colors"
           >
             <Plus size={14} /> Agregar artículo
