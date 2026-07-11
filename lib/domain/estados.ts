@@ -18,8 +18,9 @@ export const TRANSICIONES: Record<EstadoPedido, EstadoPedido[]> = {
 export const SOLO_ADMIN: EstadoPedido[] = []
 
 // El admin puede devolver un pedido ya 'entregado' a un estado anterior del flujo
-// (para corregir un pedido marcado entregado por error). El asesor no.
-const REVERSIBLES_ADMIN: EstadoPedido[] = ['pendiente', 'comprado', 'usa', 'bucaramanga', 'santa_rosa']
+// (para corregir un pedido marcado entregado por error) o cancelarlo. El asesor no.
+// (Si el pedido está facturado, la acción exige anular la factura antes de cancelar.)
+const REVERSIBLES_ADMIN: EstadoPedido[] = ['pendiente', 'comprado', 'usa', 'bucaramanga', 'santa_rosa', 'cancelado']
 
 export function transicionesDisponibles(
   estadoActual: EstadoPedido,

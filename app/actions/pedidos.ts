@@ -224,6 +224,16 @@ export async function cambiarEstadoAction(
     }
   }
 
+  // Regla: un pedido facturado no se cancela directo — hay que anular la factura
+  // primero (eso desvincula el pedido y anula los pagos de la factura). Cancelar
+  // solo el pedido dejaría la factura viva y descuadraría las finanzas.
+  if (nuevoEstado === 'cancelado') {
+    const { data: ped } = await supabase.from('pedidos').select('factura_id').eq('id', pedidoId).single()
+    if (ped?.factura_id) {
+      return { ok: false, error: 'Este pedido está facturado. Anula primero la factura para poder cancelarlo.' }
+    }
+  }
+
   const { error } = await supabase.rpc('cambiar_estado_pedido', {
     p_pedido_id:    pedidoId,
     p_nuevo_estado: nuevoEstado,
@@ -264,6 +274,16 @@ export async function cambiarEstadoInlineAction(
     const { data: ped } = await supabase.from('pedidos').select('factura_id, tipo').eq('id', pedidoId).single()
     if (ped && !ped.factura_id && ped.tipo !== 'venta_inmediata') {
       return { ok: false, error: 'Debes facturar el pedido antes de entregarlo.' }
+    }
+  }
+
+  // Regla: un pedido facturado no se cancela directo — hay que anular la factura
+  // primero (eso desvincula el pedido y anula los pagos de la factura). Cancelar
+  // solo el pedido dejaría la factura viva y descuadraría las finanzas.
+  if (nuevoEstado === 'cancelado') {
+    const { data: ped } = await supabase.from('pedidos').select('factura_id').eq('id', pedidoId).single()
+    if (ped?.factura_id) {
+      return { ok: false, error: 'Este pedido está facturado. Anula primero la factura para poder cancelarlo.' }
     }
   }
 

@@ -68,6 +68,13 @@ function EstadoInline({ pedidoId, estadoActual, sedeCodigo, esAdmin }: { pedidoI
   function handleSelect(e: React.MouseEvent, nuevoEstado: EstadoPedido) {
     e.preventDefault()
     e.stopPropagation()
+    // Cancelar un pedido ya entregado es destructivo (anula sus abonos): confirmar.
+    if (nuevoEstado === 'cancelado' && estadoLocal === 'entregado') {
+      if (!window.confirm('¿Cancelar este pedido que ya fue entregado? Se anularán sus abonos. La acción queda registrada en el historial.')) {
+        setOpen(false)
+        return
+      }
+    }
     setOpen(false)
     startTransition(async () => {
       setErrorEstado(null)
