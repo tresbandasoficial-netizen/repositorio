@@ -224,55 +224,54 @@ export default async function DashboardPage() {
         {/* Tablas + accesos rápidos */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           <div className="lg:col-span-2">
-            <TableCard title="Por sede">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-50 bg-gray-50/60">
-                    <th className="text-left px-5 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Sede</th>
-                    <th className="text-right px-5 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Activos</th>
-                    <th className="text-right px-5 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Alertas</th>
-                    <th className="text-right px-5 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Ventas (30d)</th>
-                    <th className="text-right px-5 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Por cobrar</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {sedes.map((s) => (
-                    <tr key={s.sede_codigo} className="hover:bg-gray-50/60 transition-colors">
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-2xl bg-blue-50 flex items-center justify-center shrink-0">
-                            <Store size={14} className="text-blue-600" />
-                          </div>
-                          <div>
-                            <p className="font-bold text-gray-900 text-sm">{s.sede_nombre}</p>
-                            <p className="text-xs text-gray-400">{s.sede_codigo}</p>
-                          </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between px-1">
+                <h3 className="text-sm font-bold text-gray-900">Por sede</h3>
+                <span className="text-xs text-gray-400">Total por cobrar: <span className="font-bold text-amber-800">{formatCOP(deudaTotal)}</span></span>
+              </div>
+
+              {/* Cada sede en su propia tarjeta */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {sedes.map((s) => {
+                  const porCobrar = deudaPorCodigo.get(s.sede_codigo) ?? 0
+                  return (
+                    <div key={s.sede_codigo} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+                      {/* Cabecera de la sede */}
+                      <div className="flex items-center gap-2.5 mb-3">
+                        <div className="w-9 h-9 rounded-2xl bg-blue-50 flex items-center justify-center shrink-0">
+                          <Store size={16} className="text-blue-600" />
                         </div>
-                      </td>
-                      <td className="px-5 py-3.5 text-right font-semibold text-gray-700">{s.pedidos_activos}</td>
-                      <td className="px-5 py-3.5 text-right">
-                        {s.pedidos_en_alerta > 0 ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-600">
-                            {s.pedidos_en_alerta}
+                        <div>
+                          <p className="font-bold text-gray-900 text-sm">{s.sede_nombre}</p>
+                          <p className="text-xs text-gray-400">{s.sede_codigo}</p>
+                        </div>
+                        {s.pedidos_en_alerta > 0 && (
+                          <span className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-600">
+                            <AlertTriangle size={11} /> {s.pedidos_en_alerta}
                           </span>
-                        ) : (
-                          <span className="text-gray-300 font-medium">0</span>
                         )}
-                      </td>
-                      <td className="px-5 py-3.5 text-right font-bold text-gray-900">{formatCOP(s.ventas_mes)}</td>
-                      <td className="px-5 py-3.5 text-right font-semibold text-amber-700">{formatCOP(deudaPorCodigo.get(s.sede_codigo) ?? 0)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-gray-100 bg-gray-50/60">
-                    <td className="px-5 py-3 text-xs font-bold text-gray-500 uppercase" colSpan={3}>Total por cobrar</td>
-                    <td className="px-5 py-3 text-right text-xs text-gray-400" />
-                    <td className="px-5 py-3 text-right font-bold text-amber-800">{formatCOP(deudaTotal)}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </TableCard>
+                      </div>
+
+                      {/* Métricas de la sede */}
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="rounded-xl bg-gray-50 px-3 py-2">
+                          <p className="text-[10px] text-gray-400 uppercase">Ventas 30d</p>
+                          <p className="text-sm font-bold text-gray-900">{formatCOP(s.ventas_mes)}</p>
+                        </div>
+                        <div className="rounded-xl bg-gray-50 px-3 py-2">
+                          <p className="text-[10px] text-gray-400 uppercase">Activos</p>
+                          <p className="text-sm font-bold text-gray-700">{s.pedidos_activos}</p>
+                        </div>
+                        <div className="rounded-xl bg-amber-50 px-3 py-2">
+                          <p className="text-[10px] text-amber-600 uppercase">Por cobrar</p>
+                          <p className="text-sm font-bold text-amber-700">{formatCOP(porCobrar)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
           </div>
 
           {/* Accesos rápidos */}
