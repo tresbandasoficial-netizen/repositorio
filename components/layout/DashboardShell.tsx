@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Menu } from 'lucide-react'
 import { Sidebar } from './Sidebar'
 import { CampanaNotificaciones } from './CampanaNotificaciones'
+import { NavGuard } from './NavGuard'
 import { Usuario } from '@/types'
 
 interface Props {
@@ -26,6 +27,7 @@ export function DashboardShell({ usuario, children }: Props) {
 
   return (
     <div className="flex min-h-screen bg-[#eef2ff]">
+      <NavGuard />
       {/* Mobile overlay */}
       {abierto && (
         <div
