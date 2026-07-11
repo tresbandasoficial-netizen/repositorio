@@ -9,7 +9,7 @@ import { normalizarTelefono } from '@/lib/utils/phone'
 import { hoyBogota } from '@/lib/utils/format'
 import { asignarNumeroOrden } from '@/lib/queries/pedidos'
 import { puedeTransicionar } from '@/lib/domain/estados'
-import { EstadoPedido, MetodoPago, ParsedPedido } from '@/types'
+import { EstadoPedido, MetodoPago, ParsedPedido, tallasDeCategoria } from '@/types'
 import { getSesion, puedeAccederSede } from '@/lib/auth/acceso'
 import { bloqueoCajaCerrada } from '@/lib/auth/caja'
 import { cuentaIdPorMetodo } from '@/lib/queries/cuentas'
@@ -65,6 +65,20 @@ async function _crearPedidoConDatos(
     return {
       ok: false,
       error: `El artículo "${productoSinCodigo.descripcion || 'sin nombre'}" no tiene código de producto. Selecciónalo del catálogo antes de crear el pedido.`,
+    }
+  }
+
+  // La talla es obligatoria para los asesores en ropa y tenis (los accesorios no
+  // llevan talla). Evita pedidos sin talla que descuadran el inventario.
+  if (sesionPre.rol === 'asesor') {
+    const productoSinTalla = datos.productos.find(
+      p => tallasDeCategoria((p as any).categoria).length > 0 && !((p.talla ?? '').trim())
+    )
+    if (productoSinTalla) {
+      return {
+        ok: false,
+        error: `El artículo "${productoSinTalla.descripcion || 'sin nombre'}" necesita talla. La talla es obligatoria en ropa y tenis.`,
+      }
     }
   }
 

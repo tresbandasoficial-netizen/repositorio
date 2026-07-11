@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect, useRef } from 'react'
 import { parsearPedido } from '@/lib/parser'
-import { ParsedPedido, MetodoPago, metodosDeSede, labelMetodo } from '@/types'
+import { ParsedPedido, MetodoPago, metodosDeSede, labelMetodo, tallasDeCategoria } from '@/types'
 import { formatCOP, formatMiles } from '@/lib/utils/format'
 import { crearPedidoDesdeDataAction } from '@/app/actions/pedidos'
 import { buscarClientesAction, buscarDireccionPorTelefonoAction, buscarClientePorTelefonoAction, ClienteBusqueda, ClientePorTelefono } from '@/app/actions/clientes'
@@ -42,6 +42,7 @@ interface CrearPedidoFormProps {
   numeroSugerido: string
   asesorNombre: string
   sedeId: string | null
+  esAsesor: boolean
 }
 
 function emptyData(sede: 'TR' | 'CR' | 'SR', numeroSugerido: string, asesorNombre: string): ParsedPedido {
@@ -63,7 +64,7 @@ function emptyData(sede: 'TR' | 'CR' | 'SR', numeroSugerido: string, asesorNombr
   }
 }
 
-export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearPedidoFormProps) {
+export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor }: CrearPedidoFormProps) {
   const sedeCode = numeroSugerido.slice(0, 2) as 'TR' | 'CR' | 'SR'
 
   const [form, setForm]               = useState<ParsedPedido>(() => emptyData(sedeCode, numeroSugerido, asesorNombre))
@@ -312,6 +313,16 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId }: CrearP
     if (idxSinCodigo !== -1) {
       setErrorAccion(`El artículo ${idxSinCodigo + 1} no tiene código de producto. Escribe el código y selecciónalo del catálogo, o guárdalo como artículo nuevo.`)
       return
+    }
+    // La talla es obligatoria para asesores en ropa y tenis (accesorios no llevan talla).
+    if (esAsesor) {
+      const idxSinTalla = form.productos.findIndex(
+        p => tallasDeCategoria((p as any).categoria).length > 0 && !((p.talla ?? '').trim())
+      )
+      if (idxSinTalla !== -1) {
+        setErrorAccion(`El artículo ${idxSinTalla + 1} necesita talla. La talla es obligatoria en ropa y tenis.`)
+        return
+      }
     }
 
     const total = form.productos.reduce((s, p) => s + p.precio_venta * p.cantidad, 0)
