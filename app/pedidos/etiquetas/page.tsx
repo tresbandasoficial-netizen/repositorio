@@ -17,26 +17,37 @@ type PedidoEtiqueta = {
 // Etiquetas en lote: hojas de 100×150 mm con una cuadrícula de 2×4 (8 etiquetas
 // por hoja). Cada etiqueta es un recuadro con número de orden, nombre, teléfono
 // (sin +57) y la ciudad del cliente si la tiene registrada.
+// Acepta ?ids=uuid,uuid (selección con checkbox) o ?nums=TR123,TR456 (números
+// de orden escritos a mano).
 export default async function EtiquetasLotePage({
   searchParams,
 }: {
-  searchParams: Promise<{ ids?: string }>
+  searchParams: Promise<{ ids?: string; nums?: string }>
 }) {
   const sesion = await getSesion()
-  const { ids: idsParam } = await searchParams
+  const { ids: idsParam, nums: numsParam } = await searchParams
   const ids = (idsParam ?? '').split(',').map(s => s.trim()).filter(Boolean)
-  if (ids.length === 0) notFound()
+  // Números de orden: separados por coma, espacio o salto de línea; siempre en mayúsculas.
+  const nums = (numsParam ?? '').split(/[\s,;]+/).map(s => s.trim().toUpperCase()).filter(Boolean)
+  if (ids.length === 0 && nums.length === 0) notFound()
 
   const supabase = await createClient()
-  const { data } = await supabase
+  let query = supabase
     .from('vista_pedidos_asesor')
     .select('id, numero_orden, cliente_nombre, cliente_telefono, cliente_id, sede_id')
-    .in('id', ids)
+  query = ids.length > 0 ? query.in('id', ids) : query.in('numero_orden', nums)
+  const { data } = await query
 
+  const orden = (p: PedidoEtiqueta) =>
+    ids.length > 0 ? ids.indexOf(p.id) : nums.indexOf(p.numero_orden)
   const pedidos = ((data ?? []) as PedidoEtiqueta[])
     .filter(p => puedeAccederSede(sesion, p.sede_id))
-    // Mantener el orden en que fueron seleccionados
-    .sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id))
+    // Mantener el orden en que fueron pedidos (selección o texto digitado)
+    .sort((a, b) => orden(a) - orden(b))
+
+  // Números digitados que no se encontraron (para avisar en pantalla, no se imprime)
+  const encontrados = new Set(pedidos.map(p => p.numero_orden))
+  const noEncontrados = nums.filter(n => !encontrados.has(n))
 
   if (pedidos.length === 0) notFound()
 
@@ -69,6 +80,14 @@ export default async function EtiquetasLotePage({
           Volver
         </a>
       </div>
+
+      {noEncontrados.length > 0 && (
+        <div className="no-print fixed top-4 left-4 z-10 max-w-sm bg-amber-50 border border-amber-300 rounded-lg px-4 py-3 text-sm text-amber-800 shadow">
+          <p className="font-bold mb-0.5">No se encontraron estos números:</p>
+          <p className="font-mono">{noEncontrados.join(', ')}</p>
+          <p className="text-xs mt-1 text-amber-600">Revisa que estén bien escritos. Las demás etiquetas sí se imprimirán.</p>
+        </div>
+      )}
 
       {hojas.map((hoja, h) => (
         <div key={h} className="hoja">

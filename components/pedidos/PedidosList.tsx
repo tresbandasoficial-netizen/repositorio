@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { PedidosResult } from '@/lib/queries/pedidos'
 import { PedidoCard } from './PedidoCard'
+import { EtiquetasPorNumero } from './EtiquetasPorNumero'
 import { EstadoPedido, ESTADO_LABELS } from '@/types'
 import { Search, AlertTriangle, Download, ChevronLeft, ChevronRight, Tag } from 'lucide-react'
 
@@ -208,6 +209,9 @@ export function PedidosList({ resultado, esAdmin }: PedidosListProps) {
             {total === 0 ? 'Sin resultados' : `${desde}–${hasta} de ${total}`}
           </span>
         </div>
+
+        {/* Fila 3: imprimir etiquetas escribiendo los números */}
+        <EtiquetasPorNumero />
       </div>
 
       {/* Lista */}
