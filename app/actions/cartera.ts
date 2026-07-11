@@ -4,7 +4,6 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getSesion } from '@/lib/auth/acceso'
 import { normalizarTelefono } from '@/lib/utils/phone'
-import { asignarNumeroOrden } from '@/lib/queries/pedidos'
 
 export type CargarSaldoInput = {
   cliente_id: string | null      // cliente existente, o null para crear uno nuevo
@@ -59,8 +58,8 @@ export async function cargarSaldoAntiguoAction(data: CargarSaldoInput): Promise<
   const { data: sede } = await admin.from('sedes').select('id, codigo').eq('id', data.sede_id).maybeSingle()
   if (!sede) return { ok: false, error: 'Sede no encontrada' }
 
-  const numeroOrden = await asignarNumeroOrden(sede.codigo)
-  if (!numeroOrden) return { ok: false, error: 'No se pudo asignar el número. Intenta de nuevo.' }
+  // Número propio con prefijo SALDO- (no consume el consecutivo de pedidos de venta).
+  const numeroOrden = `SALDO-${sede.codigo}-${Date.now().toString(36).toUpperCase().slice(-5)}`
 
   const notas = ['Saldo anterior (deuda migrada al sistema)', data.notas.trim()]
     .filter(Boolean).join(' · ')
@@ -73,6 +72,7 @@ export async function cargarSaldoAntiguoAction(data: CargarSaldoInput): Promise<
       sede_id:      sede.id,
       asesor_id:    sesion.id,
       estado:       'entregado',
+      tipo:         'saldo_anterior',
       total:        Math.round(data.valor),
       notas,
     })

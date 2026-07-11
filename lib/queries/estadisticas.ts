@@ -64,6 +64,7 @@ export async function getEstadisticas(dias: number): Promise<Estadisticas> {
       .select('fecha_creacion, total, sede_codigo, asesor_nombre, estado')
       .gte('fecha_creacion', desdeISO)
       .neq('estado', 'cancelado')
+      .neq('tipo', 'saldo_anterior')
       .order('fecha_creacion', { ascending: true }),
     supabase
       .from('pagos')

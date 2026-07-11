@@ -86,7 +86,7 @@ export async function getPedidos(filtros?: {
   let query = supabase
     .from('vista_pedidos_asesor')
     .select('*', { count: 'exact' })
-    .neq('tipo', 'venta_inmediata')
+    .not('tipo', 'in', '("venta_inmediata","saldo_anterior")')
     .order('fecha_creacion', { ascending: false })
     .range(desde, hasta)
 

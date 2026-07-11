@@ -347,6 +347,7 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
     .gte('fecha_creacion', bogotaDayStartUTC(filtros.desde))
     .lt('fecha_creacion', bogotaDayStartUTC(sumarDias(filtros.hasta, 1)))
     .neq('estado', 'cancelado')
+    .neq('tipo', 'saldo_anterior')
     .limit(20000)
   if (sedeFiltroCodigo) qVentas = qVentas.eq('sede_codigo', sedeFiltroCodigo)
 

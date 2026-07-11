@@ -39,17 +39,20 @@ export async function getMetricasAdmin(): Promise<MetricasAdmin> {
       .from('pedidos')
       .select('total', { count: 'exact' })
       .gte('fecha_creacion', hoyInicio())
-      .neq('estado', 'cancelado'),
+      .neq('estado', 'cancelado')
+      .neq('tipo', 'saldo_anterior'),
     supabase
       .from('pedidos')
       .select('total', { count: 'exact' })
       .gte('fecha_creacion', hace(7))
-      .neq('estado', 'cancelado'),
+      .neq('estado', 'cancelado')
+      .neq('tipo', 'saldo_anterior'),
     supabase
       .from('pedidos')
       .select('total', { count: 'exact' })
       .gte('fecha_creacion', inicioMes())
-      .neq('estado', 'cancelado'),
+      .neq('estado', 'cancelado')
+      .neq('tipo', 'saldo_anterior'),
     supabase
       .from('vista_pedidos_asesor')
       .select('en_alerta, es_zombie'),

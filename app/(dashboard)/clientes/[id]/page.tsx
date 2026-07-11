@@ -12,12 +12,13 @@ import { HistorialPagos } from '@/components/clientes/HistorialPagos'
 import { ComprasChart, MesCompra } from '@/components/clientes/ComprasChart'
 
 // Agrupa los pedidos por mes (hora Bogotá) para el flujo de compras.
-function comprasPorMes(pedidos: { fecha_creacion: string; total: number; estado: string }[]): MesCompra[] {
+function comprasPorMes(pedidos: { fecha_creacion: string; total: number; estado: string; numero_orden: string }[]): MesCompra[] {
   const fmtClave = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota', year: 'numeric', month: '2-digit' })
   const fmtLabel = new Intl.DateTimeFormat('es-CO', { timeZone: 'America/Bogota', month: 'short', year: '2-digit' })
   const mapa = new Map<string, MesCompra>()
   for (const p of pedidos) {
     if (p.estado === 'cancelado') continue
+    if (p.numero_orden.startsWith('SALDO-')) continue  // deuda migrada, no es compra
     const d = new Date(p.fecha_creacion)
     const clave = fmtClave.format(d).slice(0, 7)           // 'YYYY-MM'
     const label = fmtLabel.format(d).replace('.', '')       // 'jul 26'
@@ -152,19 +153,29 @@ export default async function ClienteDetallePage({
                     </thead>
                     <tbody className="divide-y divide-gray-50">
                       {cliente.pedidos.map((p) => {
+                        // Las deudas cargadas (SALDO-) no son pedidos de venta.
+                        const esSaldo = p.numero_orden.startsWith('SALDO-')
                         // Las ventas locales (VL-) abren su factura; el resto, el pedido.
                         const href = p.numero_orden.startsWith('VL-') && p.factura_id
                           ? `/facturacion/${p.factura_id}`
                           : `/pedidos/${p.id}`
                         return (
-                          <tr key={p.id} className="hover:bg-gray-50">
+                          <tr key={p.id} className={esSaldo ? 'bg-amber-50/40 hover:bg-amber-50' : 'hover:bg-gray-50'}>
                             <td className="px-6 py-3">
-                              <Link href={href} className="font-mono font-medium text-blue-600 hover:underline">
-                                {p.numero_orden}
-                              </Link>
+                              {esSaldo ? (
+                                <span className="text-amber-800 font-medium">Saldo anterior</span>
+                              ) : (
+                                <Link href={href} className="font-mono font-medium text-blue-600 hover:underline">
+                                  {p.numero_orden}
+                                </Link>
+                              )}
                             </td>
                             <td className="px-4 py-3">
-                              <EstadoBadge estado={p.estado as EstadoPedido} />
+                              {esSaldo ? (
+                                <span className="inline-block rounded-full px-2 py-0.5 text-[11px] font-medium bg-amber-100 text-amber-800">Deuda</span>
+                              ) : (
+                                <EstadoBadge estado={p.estado as EstadoPedido} />
+                              )}
                             </td>
                             <td className="px-4 py-3 text-gray-600 text-xs">{p.sede_nombre}</td>
                             <td className="px-4 py-3 text-right font-medium text-gray-900">
