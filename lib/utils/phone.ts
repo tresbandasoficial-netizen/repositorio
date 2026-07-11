@@ -28,6 +28,13 @@ export function formatearTelefono(normalizado: string): string {
   return normalizado
 }
 
+// Formato local sin indicativo de país: +573001234567 → 300 123 4567
+export function formatearTelefonoLocal(normalizado: string): string {
+  const m = normalizado.match(/^\+?57(\d{3})(\d{3})(\d{4})$/)
+  if (m) return `${m[1]} ${m[2]} ${m[3]}`
+  return normalizado.replace(/^\+/, '')
+}
+
 export function whatsappUrl(normalizado: string): string {
   return `https://wa.me/${normalizado.replace(/\D/g, '')}`
 }
