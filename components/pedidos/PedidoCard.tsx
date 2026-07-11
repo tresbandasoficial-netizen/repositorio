@@ -8,11 +8,11 @@ import { formatCOP, formatFecha, formatHora } from '@/lib/utils/format'
 import { formatearTelefono } from '@/lib/utils/phone'
 import { ChevronRight, Loader2 } from 'lucide-react'
 import { EstadoPedido, ESTADO_LABELS, ESTADO_COLORES } from '@/types'
-import { TRANSICIONES } from '@/lib/domain/estados'
+import { transicionesDisponibles } from '@/lib/domain/estados'
 import { cambiarEstadoInlineAction } from '@/app/actions/pedidos'
 import { cn } from '@/lib/utils/cn'
 
-function EstadoInline({ pedidoId, estadoActual, sedeCodigo }: { pedidoId: string; estadoActual: EstadoPedido; sedeCodigo: string }) {
+function EstadoInline({ pedidoId, estadoActual, sedeCodigo, esAdmin }: { pedidoId: string; estadoActual: EstadoPedido; sedeCodigo: string; esAdmin: boolean }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
@@ -21,7 +21,8 @@ function EstadoInline({ pedidoId, estadoActual, sedeCodigo }: { pedidoId: string
   const ref = useRef<HTMLDivElement>(null)
 
   const esSantaRosa = sedeCodigo === 'SR'
-  const disponibles = (TRANSICIONES[estadoLocal] ?? []).filter(e => esSantaRosa || e !== 'santa_rosa')
+  const disponibles = transicionesDisponibles(estadoLocal, esAdmin ? 'admin' : 'asesor')
+    .filter(e => esSantaRosa || e !== 'santa_rosa')
   const esTerminal = disponibles.length === 0
 
   useEffect(() => {
@@ -130,7 +131,7 @@ export function PedidoCard({ pedido, esAdmin }: PedidoCardProps) {
             {pedido.es_zombie && <span className="text-xs text-orange-500" title="Pedido zombie">🧟</span>}
             {facturado && <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full">Facturado</span>}
           </div>
-          <EstadoInline pedidoId={pedido.id} estadoActual={pedido.estado} sedeCodigo={pedido.sede_codigo} />
+          <EstadoInline pedidoId={pedido.id} estadoActual={pedido.estado} sedeCodigo={pedido.sede_codigo} esAdmin={esAdmin} />
         </div>
         <div className="flex items-end justify-between gap-2">
           <div className="min-w-0">
@@ -171,7 +172,7 @@ export function PedidoCard({ pedido, esAdmin }: PedidoCardProps) {
           <p className="text-xs text-gray-400">{formatearTelefono(pedido.cliente_telefono)}</p>
         </div>
         <div className="w-40 shrink-0">
-          <EstadoInline pedidoId={pedido.id} estadoActual={pedido.estado} sedeCodigo={pedido.sede_codigo} />
+          <EstadoInline pedidoId={pedido.id} estadoActual={pedido.estado} sedeCodigo={pedido.sede_codigo} esAdmin={esAdmin} />
         </div>
         <div className="w-32 shrink-0 text-right">
           <p className="text-sm font-bold text-gray-900">{formatCOP(pedido.total)}</p>
