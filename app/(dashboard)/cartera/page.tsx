@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getCartera, getTotalCartera } from '@/lib/queries/cartera'
+import { getDeudaPorSede } from '@/lib/queries/metricas'
 import { formatCOP } from '@/lib/utils/format'
 import { formatearTelefono } from '@/lib/utils/phone'
 import { ClientesBusqueda } from '@/components/clientes/ClientesBusqueda'
@@ -29,9 +30,10 @@ export default async function CarteraPage({
 
   const { q, pagina: paginaParam } = await searchParams
   const pagina = Math.max(1, parseInt(paginaParam ?? '1', 10) || 1)
-  const [resultado, carteraTotal] = await Promise.all([
+  const [resultado, carteraTotal, deudaSedes] = await Promise.all([
     getCartera({ busqueda: q, pagina }),
     getTotalCartera(),
+    getDeudaPorSede(),
   ])
   const { clientes, total, totalPaginas } = resultado
   const totalSaldo = (pagina === 1 && !q) ? carteraTotal.saldo : resultado.totalSaldo
@@ -77,6 +79,19 @@ export default async function CarteraPage({
             </p>
             <p className="text-2xl font-bold text-red-700">{formatCOP(totalSaldo)}</p>
           </div>
+        </div>
+      )}
+
+      {/* Por cobrar por sede */}
+      {deudaSedes.some(d => d.saldo !== 0) && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          {deudaSedes.filter(d => d.saldo !== 0).map(d => (
+            <div key={d.sede_id} className="bg-white rounded-xl border border-gray-200 p-4">
+              <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">{d.nombre}</p>
+              <p className="text-lg font-bold text-amber-700">{formatCOP(d.saldo)}</p>
+              <p className="text-[10px] text-gray-400">{d.codigo}</p>
+            </div>
+          ))}
         </div>
       )}
 
