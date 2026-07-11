@@ -1,11 +1,11 @@
 'use client'
 
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { PedidosResult } from '@/lib/queries/pedidos'
 import { PedidoCard } from './PedidoCard'
 import { EstadoPedido, ESTADO_LABELS } from '@/types'
-import { Search, AlertTriangle, Download, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, AlertTriangle, Download, ChevronLeft, ChevronRight, Tag } from 'lucide-react'
 
 const ESTADOS: Array<{ value: EstadoPedido | ''; label: string }> = [
   { value: '',            label: 'Todos los estados' },
@@ -35,6 +35,17 @@ export function PedidosList({ resultado, esAdmin }: PedidosListProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  // Pedidos marcados para imprimir etiquetas en lote.
+  const [seleccion, setSeleccion] = useState<Set<string>>(new Set())
+
+  function toggleSeleccion(id: string) {
+    setSeleccion(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   const estadoActual  = searchParams.get('estado') ?? ''
   const sedeActual    = searchParams.get('sede')   ?? ''
@@ -124,6 +135,17 @@ export function PedidosList({ resultado, esAdmin }: PedidosListProps) {
             <Download size={14} />
             <span className="hidden sm:inline">CSV</span>
           </a>
+          {seleccion.size > 0 && (
+            <a
+              href={`/pedidos/etiquetas?ids=${Array.from(seleccion).join(',')}`}
+              target="_blank"
+              title="Imprimir etiquetas de los pedidos seleccionados"
+              className="shrink-0 flex items-center gap-1.5 text-sm font-bold px-3 py-2.5 rounded-xl bg-blue-600 text-white shadow-sm shadow-blue-200 hover:bg-blue-700 transition-colors"
+            >
+              <Tag size={14} />
+              Etiquetas ({seleccion.size})
+            </a>
+          )}
         </div>
 
         {/* Fila 2: filtros + fechas */}
@@ -191,6 +213,7 @@ export function PedidosList({ resultado, esAdmin }: PedidosListProps) {
       {/* Lista */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="hidden md:flex px-6 py-3.5 bg-gray-50/60 border-b border-gray-100 gap-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+          <span className="w-4" />
           <span className="w-24">Orden</span>
           <span className="flex-1">Cliente</span>
           <span className="w-40">Estado</span>
@@ -211,7 +234,13 @@ export function PedidosList({ resultado, esAdmin }: PedidosListProps) {
         ) : (
           <div className="divide-y divide-gray-50">
             {pedidos.map((pedido) => (
-              <PedidoCard key={pedido.id} pedido={pedido} esAdmin={esAdmin} />
+              <PedidoCard
+                key={pedido.id}
+                pedido={pedido}
+                esAdmin={esAdmin}
+                seleccionado={seleccion.has(pedido.id)}
+                onToggleSeleccion={() => toggleSeleccion(pedido.id)}
+              />
             ))}
           </div>
         )}

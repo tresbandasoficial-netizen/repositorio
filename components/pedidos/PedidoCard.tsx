@@ -146,9 +146,11 @@ function EstadoInline({ pedidoId, estadoActual, sedeCodigo, esAdmin, facturado }
 interface PedidoCardProps {
   pedido: PedidoRow
   esAdmin: boolean
+  seleccionado?: boolean
+  onToggleSeleccion?: () => void
 }
 
-export function PedidoCard({ pedido, esAdmin }: PedidoCardProps) {
+export function PedidoCard({ pedido, esAdmin, seleccionado = false, onToggleSeleccion }: PedidoCardProps) {
   const router = useRouter()
   const saldo = pedido.total - pedido.total_pagado
   const imagen = (pedido as any).primera_imagen as string | null
@@ -165,6 +167,16 @@ export function PedidoCard({ pedido, esAdmin }: PedidoCardProps) {
       <div className="md:hidden px-4 py-3.5 space-y-2">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
+            {onToggleSeleccion && (
+              <input
+                type="checkbox"
+                checked={seleccionado}
+                onChange={onToggleSeleccion}
+                onClick={e => e.stopPropagation()}
+                title="Seleccionar para etiquetas"
+                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 shrink-0"
+              />
+            )}
             {imagen && (
               <img src={imagen} alt="" className="w-8 h-8 rounded-lg object-cover border border-gray-200 shrink-0" />
             )}
@@ -192,6 +204,16 @@ export function PedidoCard({ pedido, esAdmin }: PedidoCardProps) {
 
       {/* Desktop */}
       <div className="hidden md:flex px-6 py-4 items-center gap-4">
+        {onToggleSeleccion && (
+          <input
+            type="checkbox"
+            checked={seleccionado}
+            onChange={onToggleSeleccion}
+            onClick={e => e.stopPropagation()}
+            title="Seleccionar para etiquetas"
+            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 shrink-0"
+          />
+        )}
         <div className="w-24 shrink-0 flex items-center gap-2">
           {imagen && (
             <img src={imagen} alt="" className="w-9 h-9 rounded-lg object-cover border border-gray-200 shrink-0" />
