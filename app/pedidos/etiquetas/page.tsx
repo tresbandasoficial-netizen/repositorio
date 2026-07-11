@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getSesion, puedeAccederSede } from '@/lib/auth/acceso'
 import { formatearTelefonoLocal } from '@/lib/utils/phone'
 import { PrintButton } from '@/components/pedidos/PrintButton'
+import { MarcarLlegadaButton } from '@/components/pedidos/MarcarLlegadaButton'
 
 type PedidoEtiqueta = {
   id: string
@@ -71,7 +72,8 @@ export default async function EtiquetasLotePage({
 
   return (
     <>
-      <div className="no-print fixed top-4 right-4 z-10 flex gap-2">
+      <div className="no-print fixed top-4 right-4 z-10 flex items-start gap-2">
+        <MarcarLlegadaButton pedidoIds={pedidos.map(p => p.id)} />
         <PrintButton />
         <a
           href="/pedidos"

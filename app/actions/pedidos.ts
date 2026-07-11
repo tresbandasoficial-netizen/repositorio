@@ -319,6 +319,50 @@ export async function cambiarEstadoInlineAction(
   return { ok: true }
 }
 
+// ─── Marcar llegada a Bucaramanga (desde impresión de etiquetas) ─────────────
+// Cuando se imprimen las etiquetas es porque la mercancía llegó: los pedidos
+// pasan a estado 'bucaramanga'. Solo avanza pedidos en pendiente/comprado/usa;
+// no toca los que ya están en bucaramanga/santa_rosa/entregado/cancelado.
+
+export type MarcarLlegadaResult =
+  | { ok: true; marcados: number; omitidos: string[] }
+  | { ok: false; error: string }
+
+export async function marcarLlegadaBucaramangaAction(
+  pedidoIds: string[]
+): Promise<MarcarLlegadaResult> {
+  const sesion = await getSesion()
+  if (sesion.rol === 'visor') return { ok: false, error: 'Sin permisos para cambiar estados' }
+  if (pedidoIds.length === 0) return { ok: false, error: 'Sin pedidos' }
+  const supabase = await createClient()
+
+  const { data } = await supabase
+    .from('vista_pedidos_asesor')
+    .select('id, numero_orden, estado, sede_id')
+    .in('id', pedidoIds)
+
+  const pedidos = (data ?? []) as Array<{ id: string; numero_orden: string; estado: string; sede_id: string }>
+  const AVANZABLES = ['pendiente', 'comprado', 'usa']
+
+  let marcados = 0
+  const omitidos: string[] = []
+  for (const p of pedidos) {
+    if (!puedeAccederSede(sesion, p.sede_id)) { omitidos.push(p.numero_orden); continue }
+    if (p.estado === 'bucaramanga') continue // ya está, nada que hacer
+    if (!AVANZABLES.includes(p.estado)) { omitidos.push(`${p.numero_orden} (${p.estado})`); continue }
+    const { error } = await supabase.rpc('cambiar_estado_pedido', {
+      p_pedido_id:    p.id,
+      p_nuevo_estado: 'bucaramanga',
+      p_usuario_id:   sesion.id,
+    })
+    if (error) omitidos.push(`${p.numero_orden} (${error.message})`)
+    else marcados++
+  }
+
+  revalidatePath('/pedidos')
+  return { ok: true, marcados, omitidos }
+}
+
 // ─── Registrar pago ───────────────────────────────────────────────────────────
 
 export type RegistrarPagoResult =
