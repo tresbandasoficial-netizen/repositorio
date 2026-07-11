@@ -6,7 +6,7 @@ import { getEstadisticas } from '@/lib/queries/estadisticas'
 import { ComprasChart } from '@/components/clientes/ComprasChart'
 import { PedidosAreaChart } from '@/components/dashboard/PedidosAreaChart'
 import { SedeDonutChart } from '@/components/dashboard/SedeDonutChart'
-import { VentasPorDiaSede } from '@/components/dashboard/VentasPorDiaSede'
+import { VentasPorSemanaSede } from '@/components/dashboard/VentasPorSemanaSede'
 import { EstadoBadge } from '@/components/pedidos/EstadoBadge'
 import { EstadoPedido } from '@/types'
 import { formatCOP, hoyBogota } from '@/lib/utils/format'
@@ -293,8 +293,8 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        {/* Ventas por día y sede */}
-        <VentasPorDiaSede dias={stats.por_dia} />
+        {/* Ventas por semana y sede */}
+        <VentasPorSemanaSede dias={stats.por_dia} />
 
         {/* Por asesor */}
         {asesores.length > 0 && (
