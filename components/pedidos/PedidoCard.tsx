@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { PedidoRow } from '@/lib/queries/pedidos'
 import { EstadoBadge } from './EstadoBadge'
@@ -15,10 +16,13 @@ import { cn } from '@/lib/utils/cn'
 function EstadoInline({ pedidoId, estadoActual, sedeCodigo, esAdmin }: { pedidoId: string; estadoActual: EstadoPedido; sedeCodigo: string; esAdmin: boolean }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null)
   const [isPending, startTransition] = useTransition()
   const [estadoLocal, setEstadoLocal] = useState<EstadoPedido>(estadoActual)
   const [errorEstado, setErrorEstado] = useState<string | null>(null)
   const ref = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
 
   const esSantaRosa = sedeCodigo === 'SR'
   const disponibles = transicionesDisponibles(estadoLocal, esAdmin ? 'admin' : 'asesor')
@@ -28,16 +32,36 @@ function EstadoInline({ pedidoId, estadoActual, sedeCodigo, esAdmin }: { pedidoI
   useEffect(() => {
     if (!open) return
     function onClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+      const target = e.target as Node
+      if (ref.current?.contains(target) || menuRef.current?.contains(target)) return
+      setOpen(false)
     }
+    // El menú usa posición fija; si la página se desplaza o cambia de tamaño, ciérralo
+    function onReposition() { setOpen(false) }
     document.addEventListener('mousedown', onClickOutside)
-    return () => document.removeEventListener('mousedown', onClickOutside)
+    window.addEventListener('scroll', onReposition, true)
+    window.addEventListener('resize', onReposition)
+    return () => {
+      document.removeEventListener('mousedown', onClickOutside)
+      window.removeEventListener('scroll', onReposition, true)
+      window.removeEventListener('resize', onReposition)
+    }
   }, [open])
 
   function handleBadgeClick(e: React.MouseEvent) {
     e.preventDefault()
     e.stopPropagation()
     if (esTerminal || isPending) return
+    if (!open && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect()
+      const menuAlto = disponibles.length * 36 + 8
+      const espacioAbajo = window.innerHeight - rect.bottom
+      const abrirArriba = espacioAbajo < menuAlto + 12 && rect.top > menuAlto + 12
+      setCoords({
+        top: abrirArriba ? rect.top - menuAlto - 6 : rect.bottom + 6,
+        left: rect.left,
+      })
+    }
     setOpen(o => !o)
   }
 
@@ -65,6 +89,7 @@ function EstadoInline({ pedidoId, estadoActual, sedeCodigo, esAdmin }: { pedidoI
         </div>
       )}
       <button
+        ref={triggerRef}
         onClick={handleBadgeClick}
         disabled={esTerminal || isPending}
         className={cn(
@@ -82,8 +107,13 @@ function EstadoInline({ pedidoId, estadoActual, sedeCodigo, esAdmin }: { pedidoI
         )}
       </button>
 
-      {open && (
-        <div className="absolute z-50 top-full left-0 mt-1.5 bg-white border border-gray-200 rounded-xl shadow-xl py-1 min-w-[150px]">
+      {open && coords && createPortal(
+        <div
+          ref={menuRef}
+          style={{ position: 'fixed', top: coords.top, left: coords.left }}
+          onClick={e => { e.preventDefault(); e.stopPropagation() }}
+          className="z-50 bg-white border border-gray-200 rounded-xl shadow-xl py-1 min-w-[150px]"
+        >
           {disponibles.map(estado => (
             <button
               key={estado}
@@ -96,7 +126,8 @@ function EstadoInline({ pedidoId, estadoActual, sedeCodigo, esAdmin }: { pedidoI
               <span className="text-gray-700">{ESTADO_LABELS[estado]}</span>
             </button>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
