@@ -151,27 +151,37 @@ export default async function ClienteDetallePage({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
-                      {cliente.pedidos.map((p) => (
-                        <tr key={p.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-3 font-mono font-medium text-gray-900">{p.numero_orden}</td>
-                          <td className="px-4 py-3">
-                            <EstadoBadge estado={p.estado as EstadoPedido} />
-                          </td>
-                          <td className="px-4 py-3 text-gray-600 text-xs">{p.sede_nombre}</td>
-                          <td className="px-4 py-3 text-right font-medium text-gray-900">
-                            {formatCOP(p.total)}
-                          </td>
-                          <td className="px-4 py-3 text-gray-500">{formatFecha(p.fecha_creacion)}</td>
-                          <td className="px-4 py-3 text-right">
-                            <Link
-                              href={`/pedidos/${p.id}`}
-                              className="inline-block px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 transition-colors"
-                            >
-                              Ver
-                            </Link>
-                          </td>
-                        </tr>
-                      ))}
+                      {cliente.pedidos.map((p) => {
+                        // Las ventas locales (VL-) abren su factura; el resto, el pedido.
+                        const href = p.numero_orden.startsWith('VL-') && p.factura_id
+                          ? `/facturacion/${p.factura_id}`
+                          : `/pedidos/${p.id}`
+                        return (
+                          <tr key={p.id} className="hover:bg-gray-50">
+                            <td className="px-6 py-3">
+                              <Link href={href} className="font-mono font-medium text-blue-600 hover:underline">
+                                {p.numero_orden}
+                              </Link>
+                            </td>
+                            <td className="px-4 py-3">
+                              <EstadoBadge estado={p.estado as EstadoPedido} />
+                            </td>
+                            <td className="px-4 py-3 text-gray-600 text-xs">{p.sede_nombre}</td>
+                            <td className="px-4 py-3 text-right font-medium text-gray-900">
+                              {formatCOP(p.total)}
+                            </td>
+                            <td className="px-4 py-3 text-gray-500">{formatFecha(p.fecha_creacion)}</td>
+                            <td className="px-4 py-3 text-right">
+                              <Link
+                                href={href}
+                                className="inline-block px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 transition-colors"
+                              >
+                                Ver
+                              </Link>
+                            </td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>

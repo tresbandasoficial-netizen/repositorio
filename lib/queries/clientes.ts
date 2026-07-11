@@ -61,6 +61,7 @@ export type ClienteDetalle = {
     fecha_creacion: string
     sede_nombre: string
     asesor_nombre: string
+    factura_id: string | null
   }>
   pagos: PagoCliente[]
   abonos: AbonoCliente[]
@@ -175,6 +176,7 @@ export async function getClienteDetalle(id: string): Promise<ClienteDetalle | nu
       fecha_creacion: p.fecha_creacion,
       sede_nombre:    p.sede?.nombre ?? '',
       asesor_nombre:  p.asesor?.nombre ?? '',
+      factura_id:     factura?.id ?? null,
     }
   })
 
