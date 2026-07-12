@@ -12,6 +12,9 @@ type Movimiento = {
   detalle: string
   ingreso: number
   egreso: number
+  // Los cuadres son informativos: la diferencia ya quedó absorbida en el
+  // saldo_inicial del corte, así que no suman al saldo (evita doble conteo).
+  esAjuste?: boolean
 }
 
 export default async function CuentaMovimientosPage({
@@ -58,6 +61,12 @@ export default async function CuentaMovimientosPage({
       .limit(5000),
   ])
 
+  const { data: ajustesR } = await supabase
+    .from('ajustes_caja')
+    .select('fecha, creado_en, diferencia, saldo_contado, motivo')
+    .eq('cuenta_id', cuentaId)
+    .limit(500)
+
   const movimientos: Movimiento[] = []
 
   for (const p of (pagosR.data ?? []) as any[]) {
@@ -103,6 +112,16 @@ export default async function CuentaMovimientosPage({
       tipo: `Gasto · ${CATEGORIA_GASTO_LABELS[g.categoria as CategoriaGasto] ?? g.categoria}`,
       detalle: g.observacion ?? '',
       ingreso: 0, egreso: g.valor,
+    })
+  }
+  for (const a of (ajustesR ?? []) as any[]) {
+    const dif = a.diferencia as number
+    movimientos.push({
+      fecha: a.fecha, creado_en: a.creado_en,
+      tipo: 'Cuadre de caja',
+      detalle: `${a.motivo ?? 'Ajuste'} · saldo contado ${formatCOP(a.saldo_contado)} · diferencia ${dif >= 0 ? '+' : '−'}${formatCOP(Math.abs(dif))}`,
+      ingreso: 0, egreso: 0,
+      esAjuste: true,
     })
   }
 
@@ -177,15 +196,17 @@ export default async function CuentaMovimientosPage({
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {movimientos.map((m, i) => {
-                  const antesDeCorte = m.fecha < corte
+                  const antesDeCorte = m.fecha < corte && !m.esAjuste
                   return (
-                    <tr key={i} className={antesDeCorte ? 'opacity-45' : 'hover:bg-gray-50'}>
+                    <tr key={i} className={m.esAjuste ? 'bg-amber-50/70 hover:bg-amber-50' : antesDeCorte ? 'opacity-45' : 'hover:bg-gray-50'}>
                       <td className="px-5 py-2.5 text-gray-600 whitespace-nowrap">
                         {formatFecha(m.fecha)}
                         <span className="block text-xs text-gray-400">{formatHora(m.creado_en)}</span>
                       </td>
-                      <td className="px-3 py-2.5 text-gray-800 font-medium whitespace-nowrap">{m.tipo}</td>
-                      <td className="px-3 py-2.5 text-gray-500 max-w-xs truncate">{m.detalle || '—'}</td>
+                      <td className={`px-3 py-2.5 font-medium whitespace-nowrap ${m.esAjuste ? 'text-amber-800' : 'text-gray-800'}`}>
+                        {m.esAjuste ? '⚖ ' : ''}{m.tipo}
+                      </td>
+                      <td className={`px-3 py-2.5 max-w-md ${m.esAjuste ? 'text-amber-800' : 'text-gray-500 truncate max-w-xs'}`}>{m.detalle || '—'}</td>
                       <td className="px-3 py-2.5 text-right text-green-700 whitespace-nowrap">{m.ingreso ? '+' + formatCOP(m.ingreso) : ''}</td>
                       <td className="px-5 py-2.5 text-right text-red-600 whitespace-nowrap">{m.egreso ? '−' + formatCOP(m.egreso) : ''}</td>
                     </tr>
