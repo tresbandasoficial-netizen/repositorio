@@ -6,6 +6,7 @@ import {
   Gasto, Cuenta, CategoriaGasto, CATEGORIA_GASTO_LABELS, CATEGORIAS_GASTO,
 } from '@/types'
 import { crearGastoAction, eliminarGastoAction } from '@/app/actions/gastos'
+import { ConsignarDineroButton } from './ConsignarDineroButton'
 
 function hoy() { return hoyBogota() }
 function inicioMes() {
@@ -22,9 +23,11 @@ interface Props {
   porCategoria: { categoria: CategoriaGasto; label: string; total: number }[]
   totalGeneral: number
   filtros: { desde: string; hasta: string; categoria?: CategoriaGasto; sede_id?: string }
+  cuentasDestino?: { id: string; nombre: string }[]
+  origenTrasladoId?: string
 }
 
-export function GastosClientPage({ gastos, cuentas, sedes, sedeRestringida, esAdmin = true, porCategoria, totalGeneral, filtros }: Props) {
+export function GastosClientPage({ gastos, cuentas, sedes, sedeRestringida, esAdmin = true, porCategoria, totalGeneral, filtros, cuentasDestino = [], origenTrasladoId = '' }: Props) {
   const [mostrarForm, setMostrarForm] = useState(false)
   const [form, setForm] = useState({
     fecha:       hoy(),
@@ -91,12 +94,21 @@ export function GastosClientPage({ gastos, cuentas, sedes, sedeRestringida, esAd
           <h1 className="text-xl font-bold text-gray-900">Gastos</h1>
           <p className="text-sm text-gray-500 mt-0.5">Control de egresos operacionales</p>
         </div>
-        <button
-          onClick={() => setMostrarForm(!mostrarForm)}
-          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 text-white px-4 py-2 text-sm font-medium hover:bg-blue-700"
-        >
-          + Nuevo gasto
-        </button>
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          {cuentasDestino.length > 0 && (
+            <ConsignarDineroButton
+              cuentasOrigen={cuentas}
+              cuentasDestino={cuentasDestino}
+              origenDefaultId={origenTrasladoId}
+            />
+          )}
+          <button
+            onClick={() => setMostrarForm(!mostrarForm)}
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 text-white px-4 py-2 text-sm font-medium hover:bg-blue-700"
+          >
+            + Nuevo gasto
+          </button>
+        </div>
       </div>
 
       {/* Formulario nuevo gasto */}

@@ -37,6 +37,12 @@ export default async function GastosPage({
   const sedes = (sedesRes.data ?? []) as { id: string; codigo: string; nombre: string }[]
   let cuentas = (cuentasRes.data ?? []) as { id: string; nombre: string; tipo: string; sede_id: string | null; metodo_pago: string | null; orden: number }[]
 
+  // Para consignaciones entre sedes: el destino puede ser CUALQUIER cuenta
+  // activa (ej: la asesora de Santa Rosa consigna a una cuenta de Bucaramanga).
+  const cuentasDestino = cuentas.map(c => ({ id: c.id, nombre: c.nombre }))
+  // Origen por defecto: la caja de efectivo de la sede del usuario.
+  const origenDefault = cuentas.find(c => c.metodo_pago === 'efectivo' && c.sede_id === (sesion.sede_id ?? ''))?.id ?? ''
+
   // Asesor: las cuentas de los métodos permitidos de su sede (efectivo = su caja;
   // Nequi/Addi/etc. son globales). Admin: todas.
   if (sedeForzadaId) {
@@ -67,6 +73,8 @@ export default async function GastosPage({
       porCategoria={porCategoria}
       totalGeneral={totalGeneral}
       filtros={{ desde, hasta, categoria, sede_id }}
+      cuentasDestino={cuentasDestino}
+      origenTrasladoId={origenDefault}
     />
   )
 }
