@@ -173,16 +173,55 @@ function CrearArticulo({ onClose }: { onClose: () => void }) {
   )
 }
 
+// Buscador de artículo con texto libre (código, marca, nombre o color).
+// Filtra sobre el catálogo ya cargado — sin ir al servidor.
 function SelectArticulo({ articulos, value, onChange }: { articulos: Articulo[]; value: string; onChange: (v: string) => void }) {
+  const [q, setQ] = useState('')
+  const [open, setOpen] = useState(false)
+
+  const sel = articulos.find(a => a.id === value) ?? null
+  const etiqueta = (a: Articulo) =>
+    `${a.codigo ? `${a.codigo} · ` : ''}${a.marca} ${a.nombre}${a.color ? ` · ${a.color}` : ''}`
+
+  const texto = q.trim().toLowerCase()
+  const resultados = texto.length < 1 ? [] : articulos
+    .filter(a =>
+      `${a.codigo ?? ''} ${a.marca} ${a.nombre} ${a.color ?? ''} ${(a as any).referencia ?? ''}`
+        .toLowerCase().includes(texto)
+    )
+    .slice(0, 15)
+
   return (
-    <select className={inputCls} value={value} onChange={e => onChange(e.target.value)}>
-      <option value="">Artículo…</option>
-      {articulos.map(a => (
-        <option key={a.id} value={a.id}>
-          {a.marca} {a.nombre}{a.codigo ? ` [${a.codigo}]` : ''}{a.color ? ` · ${a.color}` : ''}
-        </option>
-      ))}
-    </select>
+    <div className="relative">
+      <input
+        type="text"
+        value={sel ? etiqueta(sel) : q}
+        onChange={e => { onChange(''); setQ(e.target.value); setOpen(true) }}
+        onFocus={() => { if (!sel && resultados.length > 0) setOpen(true) }}
+        placeholder="Buscar artículo: código, marca, nombre…"
+        className={`${inputCls} ${sel ? 'border-green-300 bg-green-50/50' : ''}`}
+      />
+      {open && !sel && resultados.length > 0 && (
+        <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl py-1 max-h-60 overflow-y-auto">
+          {resultados.map(a => (
+            <button
+              key={a.id}
+              type="button"
+              onClick={() => { onChange(a.id); setQ(''); setOpen(false) }}
+              className="w-full text-left px-3 py-2 text-xs hover:bg-blue-50 transition-colors flex items-center gap-2"
+            >
+              {a.codigo && <span className="font-mono font-bold text-gray-900 shrink-0">{a.codigo}</span>}
+              <span className="text-gray-600 truncate">{a.marca} {a.nombre}{a.color ? ` · ${a.color}` : ''}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {open && !sel && texto.length >= 1 && resultados.length === 0 && (
+        <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl px-3 py-2.5">
+          <p className="text-xs text-gray-400">Sin resultados — créalo primero con &quot;+ Nuevo artículo&quot;</p>
+        </div>
+      )}
+    </div>
   )
 }
 
