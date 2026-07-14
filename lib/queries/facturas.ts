@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getSesion } from '@/lib/auth/acceso'
+import { terminoBusquedaSeguro } from '@/lib/utils/busqueda'
 import { FacturaRow, EstadoFactura } from '@/types'
 
 export type FacturaListRow = FacturaRow & { numeros_orden: string[]; metodos: string[] }
@@ -25,8 +26,8 @@ export async function getFacturas(filtros?: {
   if (filtros?.estado) query = query.eq('estado', filtros.estado)
   if (filtros?.sede)   query = query.eq('sede_codigo', filtros.sede)
   if (filtros?.q) {
-    const t = filtros.q.trim()
-    query = query.or(`numero_factura.ilike.%${t}%,cliente_nombre.ilike.%${t}%,cliente_telefono.ilike.%${t}%`)
+    const t = terminoBusquedaSeguro(filtros.q)
+    if (t) query = query.or(`numero_factura.ilike.%${t}%,cliente_nombre.ilike.%${t}%,cliente_telefono.ilike.%${t}%`)
   }
 
   const { data, error } = await query

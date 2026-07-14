@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getSesion } from '@/lib/auth/acceso'
+import { terminoBusquedaSeguro } from '@/lib/utils/busqueda'
 import { Articulo, StockSede, CategoriaArticulo } from '@/types'
 
 export async function getArticulos(q?: string): Promise<Articulo[]> {
@@ -12,8 +13,8 @@ export async function getArticulos(q?: string): Promise<Articulo[]> {
     .limit(200)
 
   if (q?.trim()) {
-    const t = q.trim()
-    query = query.or(`nombre.ilike.%${t}%,marca.ilike.%${t}%,codigo.ilike.%${t}%`)
+    const t = terminoBusquedaSeguro(q)
+    if (t) query = query.or(`nombre.ilike.%${t}%,marca.ilike.%${t}%,codigo.ilike.%${t}%`)
   }
 
   const { data, error } = await query

@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getSesion } from '@/lib/auth/acceso'
+import { terminoBusquedaSeguro } from '@/lib/utils/busqueda'
 import { Articulo, CategoriaArticulo, SexoArticulo } from '@/types'
 
 async function soloAdmin() {
@@ -239,7 +240,7 @@ export type ArticuloBusqueda = {
 
 export async function buscarArticulosAction(q: string, sedeId: string | null): Promise<ArticuloBusqueda[]> {
   const supabase = await createClient()
-  const t = q.trim()
+  const t = terminoBusquedaSeguro(q)
   if (!t) return []
 
   const { data: articulos } = await supabase

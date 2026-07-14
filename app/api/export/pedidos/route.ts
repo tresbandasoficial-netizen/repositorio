@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { terminoBusquedaSeguro } from '@/lib/utils/busqueda'
 import { ESTADO_LABELS } from '@/types'
 
 const METODO_LABELS: Record<string, string> = {
@@ -53,8 +54,9 @@ export async function GET(request: NextRequest) {
   if (fechaDesde)       query = query.gte('fecha_creacion', `${fechaDesde}T00:00:00`)
   if (fechaHasta)       query = query.lte('fecha_creacion', `${fechaHasta}T23:59:59`)
   if (q) {
-    query = query.or(
-      `numero_orden.ilike.%${q}%,cliente_nombre.ilike.%${q}%,cliente_telefono.ilike.%${q}%`
+    const b = terminoBusquedaSeguro(q)
+    if (b) query = query.or(
+      `numero_orden.ilike.%${b}%,cliente_nombre.ilike.%${b}%,cliente_telefono.ilike.%${b}%`
     )
   }
 

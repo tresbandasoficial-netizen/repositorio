@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { terminoBusquedaSeguro } from '@/lib/utils/busqueda'
 import { EstadoPedido } from '@/types'
 
 export type PedidoRow = {
@@ -110,8 +111,8 @@ export async function getPedidos(filtros?: {
   if (filtros?.fecha_desde) query = query.gte('fecha_creacion', `${filtros.fecha_desde}T00:00:00`)
   if (filtros?.fecha_hasta) query = query.lte('fecha_creacion', `${filtros.fecha_hasta}T23:59:59`)
   if (filtros?.q) {
-    const q = filtros.q.trim()
-    query = query.or(
+    const q = terminoBusquedaSeguro(filtros.q)
+    if (q) query = query.or(
       `numero_orden.ilike.%${q}%,cliente_nombre.ilike.%${q}%,cliente_telefono.ilike.%${q}%`
     )
   }

@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { terminoBusquedaSeguro } from '@/lib/utils/busqueda'
 
 const PAGE_SIZE = 30
 
@@ -94,8 +95,9 @@ export async function getClientes(params?: {
   }
 
   if (params?.busqueda) {
-    query = query.or(
-      `nombre.ilike.%${params.busqueda}%,telefono_normalizado.ilike.%${params.busqueda}%,cedula.ilike.%${params.busqueda}%`
+    const b = terminoBusquedaSeguro(params.busqueda)
+    if (b) query = query.or(
+      `nombre.ilike.%${b}%,telefono_normalizado.ilike.%${b}%,cedula.ilike.%${b}%`
     )
   }
 
