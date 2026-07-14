@@ -77,6 +77,11 @@ export function EnvioBuilder({ sedes, sedeOrigenId }: {
         }
         setOpcionesArt(opts)
         setOpenArt(true)
+        setError(null)
+      } catch (e) {
+        // Típico tras un despliegue con la página abierta: recargar lo resuelve.
+        console.error('Error buscando artículos:', e)
+        setError('No se pudo buscar. Recarga la página (Ctrl+Shift+R) e intenta de nuevo.')
       } finally {
         setBuscandoArt(false)
       }

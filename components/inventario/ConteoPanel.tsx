@@ -66,6 +66,12 @@ export function ConteoPanel({ sedes, sedeFijaId }: { sedes: Sede[]; sedeFijaId: 
           categoria: a.categoria,
         })))
         setOpen(true)
+        setError(null)
+      } catch (e) {
+        // Típico tras un despliegue con la página abierta: la acción vieja ya
+        // no existe en el servidor. Recargar la página lo resuelve.
+        console.error('Error buscando artículos:', e)
+        setError('No se pudo buscar. Recarga la página (Ctrl+Shift+R) e intenta de nuevo.')
       } finally {
         setBuscando(false)
       }
