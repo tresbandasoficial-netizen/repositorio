@@ -36,6 +36,12 @@ export function InventarioPanel({
         <Button onClick={() => setAccion('articulo')} variant="secondary">+ Nuevo artículo</Button>
         <Button onClick={() => setAccion('entrada')} variant="secondary">+ Entrada de stock</Button>
         <Button onClick={() => setAccion('transferencia')} variant="secondary">⇄ Transferir</Button>
+        <a
+          href="/inventario/conteo"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 text-white px-4 py-2 text-sm font-medium hover:bg-emerald-700"
+        >
+          📋 Conteo físico
+        </a>
       </div>
 
       {accion === 'articulo'      && <CrearArticulo onClose={() => setAccion('none')} />}
