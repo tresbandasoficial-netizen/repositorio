@@ -111,6 +111,15 @@ export const METODOS_PAGO: MetodoPago[] = [
 // todos. Santa Rosa solo maneja estos: efectivo (Caja/Efectivo Santa Rosa),
 // Nequi Luisa, Addi, Sistecrédito, Bold y Crédito.
 export const METODOS_PAGO_POR_SEDE: Record<string, MetodoPago[]> = {
+  // Cada sede ve SOLO sus métodos; los de otras sedes no aparecen en sus
+  // selectores. Bucaramanga usa sus cuentas propias + las globales del negocio.
+  TR: [
+    'efectivo',
+    'nequi_johan', 'nequi_marisol',
+    'bancolombia_ronaldo', 'bancolombia_johan', 'bancolombia_carlos',
+    'bancolombia_cristian', 'bancolombia_huber',
+    'davivienda', 'addi', 'bold', 'sistecredito', 'credito',
+  ],
   SR: ['efectivo', 'nequi_luisa', 'addi', 'sistecredito', 'bold', 'credito'],
   CR: ['efectivo', 'bancolombia_mayra', 'bold_cucuta', 'credito'],
 }
@@ -137,6 +146,7 @@ export function cuentasAcumuladoAsesor(sedeCodigo?: string | null): MetodoPago[]
 // El efectivo se muestra con el nombre de la caja de su sede (ej: en Santa Rosa
 // aparece "Efectivo Santa Rosa", no solo "Efectivo").
 const EFECTIVO_LABEL_POR_SEDE: Record<string, string> = {
+  TR: 'Efectivo Bucaramanga',
   SR: 'Efectivo Santa Rosa',
   CR: 'Efectivo Cúcuta',
 }
