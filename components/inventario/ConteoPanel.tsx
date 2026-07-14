@@ -59,13 +59,35 @@ export function ConteoPanel({ sedes, sedeFijaId }: { sedes: Sede[]; sedeFijaId: 
       setBuscando(true)
       try {
         const arts = await buscarArticulosAction(q, null)
-        setOpciones(arts.map(a => ({
-          articulo_id: a.id,
-          codigo: a.codigo,
-          descripcion: `${a.marca} ${a.nombre}${a.color ? ` ${a.color}` : ''}`.trim(),
-          categoria: a.categoria,
-        })))
-        setOpen(true)
+        const qUp = q.toUpperCase()
+        // El código de producto manda: exacto primero, luego los que empiezan
+        // por lo digitado, luego los que lo contienen, y al final el resto.
+        const prioridad = (codigo: string | null) => {
+          const c = (codigo ?? '').toUpperCase()
+          if (!c) return 3
+          if (c === qUp) return 0
+          if (c.startsWith(qUp)) return 1
+          if (c.includes(qUp)) return 2
+          return 3
+        }
+        const opts = arts
+          .map(a => ({
+            articulo_id: a.id,
+            codigo: a.codigo,
+            descripcion: `${a.marca} ${a.nombre}${a.color ? ` ${a.color}` : ''}`.trim(),
+            categoria: a.categoria,
+          }))
+          .sort((a, b) => prioridad(a.codigo) - prioridad(b.codigo))
+
+        // Código exacto (escaneado o digitado completo): se selecciona solo.
+        const exacto = opts.find(o => (o.codigo ?? '').toUpperCase() === qUp)
+        if (exacto) {
+          elegir(exacto)
+          setOpciones([])
+        } else {
+          setOpciones(opts)
+          setOpen(true)
+        }
         setError(null)
       } catch (e) {
         // Típico tras un despliegue con la página abierta: la acción vieja ya
@@ -189,7 +211,14 @@ export function ConteoPanel({ sedes, sedeFijaId }: { sedes: Sede[]; sedeFijaId: 
             value={busqueda}
             onChange={e => onBusquedaChange(e.target.value)}
             onFocus={() => { if (opciones.length > 0 && !artSel) setOpen(true) }}
-            placeholder="Buscar artículo: código, marca, nombre…"
+            onKeyDown={e => {
+              if (e.key !== 'Enter') return
+              e.preventDefault()
+              // Con lector: el código exacto ya se seleccionó solo; Enter pasa a cantidad.
+              if (artSel) { cantRef.current?.focus(); return }
+              if (opciones.length === 1) { elegir(opciones[0]); cantRef.current?.focus() }
+            }}
+            placeholder="Código de producto (o marca/nombre)…"
             className={`w-full pl-9 pr-3 py-2.5 rounded-xl border text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 ${artSel ? 'border-green-300 bg-green-50/50' : 'border-gray-200'}`}
           />
           {buscando && <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 animate-spin" />}

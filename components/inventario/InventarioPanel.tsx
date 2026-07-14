@@ -201,11 +201,21 @@ function SelectArticulo({ articulos, value, onChange, onCreado }: {
     `${a.codigo ? `${a.codigo} · ` : ''}${a.marca} ${a.nombre}${a.color ? ` · ${a.color}` : ''}`
 
   const texto = q.trim().toLowerCase()
+  // El código de producto manda: exacto primero, luego prefijo, luego contiene.
+  const prioridad = (a: Articulo) => {
+    const c = (a.codigo ?? '').toLowerCase()
+    if (!c) return 3
+    if (c === texto) return 0
+    if (c.startsWith(texto)) return 1
+    if (c.includes(texto)) return 2
+    return 3
+  }
   const resultados = texto.length < 1 ? [] : articulos
     .filter(a =>
       `${a.codigo ?? ''} ${a.marca} ${a.nombre} ${a.color ?? ''} ${(a as any).referencia ?? ''}`
         .toLowerCase().includes(texto)
     )
+    .sort((a, b) => prioridad(a) - prioridad(b))
     .slice(0, 15)
 
   function creado(art: ArticuloCreado) {
@@ -221,9 +231,15 @@ function SelectArticulo({ articulos, value, onChange, onCreado }: {
       <input
         type="text"
         value={sel ? etiqueta(sel) : q}
-        onChange={e => { onChange(''); setQ(e.target.value); setOpen(true) }}
+        onChange={e => {
+          const v = e.target.value
+          // Código exacto (escaneado o digitado completo): se selecciona solo.
+          const exacto = articulos.find(a => (a.codigo ?? '').toUpperCase() === v.trim().toUpperCase() && v.trim() !== '')
+          if (exacto) { onChange(exacto.id); setQ(''); setOpen(false); return }
+          onChange(''); setQ(v); setOpen(true)
+        }}
         onFocus={() => { if (!sel && resultados.length > 0) setOpen(true) }}
-        placeholder="Buscar artículo: código, marca, nombre…"
+        placeholder="Código de producto (o marca/nombre)…"
         className={`${inputCls} ${sel ? 'border-green-300 bg-green-50/50' : ''}`}
       />
       {open && !sel && texto.length >= 1 && (

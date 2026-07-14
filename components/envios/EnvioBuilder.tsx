@@ -75,6 +75,17 @@ export function EnvioBuilder({ sedes, sedeOrigenId }: {
             }
           }
         }
+        // El código de producto manda: exacto primero, luego prefijo, luego contiene.
+        const qUp = q.toUpperCase()
+        const prioridad = (codigo: string | null) => {
+          const c = (codigo ?? '').toUpperCase()
+          if (!c) return 3
+          if (c === qUp) return 0
+          if (c.startsWith(qUp)) return 1
+          if (c.includes(qUp)) return 2
+          return 3
+        }
+        opts.sort((a, b) => prioridad(a.codigo) - prioridad(b.codigo))
         setOpcionesArt(opts)
         setOpenArt(true)
         setError(null)
