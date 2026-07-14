@@ -10,6 +10,7 @@ import { StockAgrupado } from '@/lib/queries/inventario'
 import { Articulo, CategoriaArticulo, SexoArticulo } from '@/types'
 import { TallaSelect } from '@/components/ui/TallaSelect'
 import { formatMiles } from '@/lib/utils/format'
+import { CrearArticuloModal, ArticuloCreado } from './CrearArticuloModal'
 
 type Sede = { id: string; codigo: string; nombre: string }
 
@@ -23,6 +24,15 @@ export function InventarioPanel({
 }) {
   const [accion, setAccion] = useState<'none' | 'articulo' | 'entrada' | 'transferencia'>('none')
   const [q, setQ] = useState('')
+  // Artículos creados en esta sesión desde el buscador (antes de que llegue el refresh)
+  const [extras, setExtras] = useState<Articulo[]>([])
+  const todos = [
+    ...articulos,
+    ...extras.filter(e => !articulos.some(a => a.id === e.id)),
+  ]
+  function registrarCreado(art: ArticuloCreado) {
+    setExtras(prev => [...prev, { ...art, activo: true } as unknown as Articulo])
+  }
 
   const filtradas = q.trim()
     ? filas.filter(f =>
@@ -45,8 +55,8 @@ export function InventarioPanel({
       </div>
 
       {accion === 'articulo'      && <CrearArticulo onClose={() => setAccion('none')} />}
-      {accion === 'entrada'       && <Entrada articulos={articulos} sedes={sedes} onClose={() => setAccion('none')} />}
-      {accion === 'transferencia' && <Transferencia articulos={articulos} sedes={sedes} onClose={() => setAccion('none')} />}
+      {accion === 'entrada'       && <Entrada articulos={todos} sedes={sedes} onCreado={registrarCreado} onClose={() => setAccion('none')} />}
+      {accion === 'transferencia' && <Transferencia articulos={todos} sedes={sedes} onCreado={registrarCreado} onClose={() => setAccion('none')} />}
 
       <input
         type="text"
@@ -174,10 +184,17 @@ function CrearArticulo({ onClose }: { onClose: () => void }) {
 }
 
 // Buscador de artículo con texto libre (código, marca, nombre o color).
-// Filtra sobre el catálogo ya cargado — sin ir al servidor.
-function SelectArticulo({ articulos, value, onChange }: { articulos: Articulo[]; value: string; onChange: (v: string) => void }) {
+// Filtra sobre el catálogo ya cargado — sin ir al servidor. Si el artículo
+// no existe, permite crearlo ahí mismo y queda seleccionado.
+function SelectArticulo({ articulos, value, onChange, onCreado }: {
+  articulos: Articulo[]
+  value: string
+  onChange: (v: string) => void
+  onCreado?: (art: ArticuloCreado) => void
+}) {
   const [q, setQ] = useState('')
   const [open, setOpen] = useState(false)
+  const [crear, setCrear] = useState(false)
 
   const sel = articulos.find(a => a.id === value) ?? null
   const etiqueta = (a: Articulo) =>
@@ -191,6 +208,14 @@ function SelectArticulo({ articulos, value, onChange }: { articulos: Articulo[];
     )
     .slice(0, 15)
 
+  function creado(art: ArticuloCreado) {
+    onCreado?.(art)
+    onChange(art.id)
+    setQ('')
+    setCrear(false)
+    setOpen(false)
+  }
+
   return (
     <div className="relative">
       <input
@@ -201,7 +226,7 @@ function SelectArticulo({ articulos, value, onChange }: { articulos: Articulo[];
         placeholder="Buscar artículo: código, marca, nombre…"
         className={`${inputCls} ${sel ? 'border-green-300 bg-green-50/50' : ''}`}
       />
-      {open && !sel && resultados.length > 0 && (
+      {open && !sel && texto.length >= 1 && (
         <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl py-1 max-h-60 overflow-y-auto">
           {resultados.map(a => (
             <button
@@ -214,18 +239,32 @@ function SelectArticulo({ articulos, value, onChange }: { articulos: Articulo[];
               <span className="text-gray-600 truncate">{a.marca} {a.nombre}{a.color ? ` · ${a.color}` : ''}</span>
             </button>
           ))}
+          {resultados.length === 0 && (
+            <p className="px-3 py-2 text-xs text-gray-400">Sin resultados en el catálogo</p>
+          )}
+          {onCreado && (
+            <button
+              type="button"
+              onClick={() => { setCrear(true); setOpen(false) }}
+              className="w-full text-left px-3 py-2.5 text-xs font-bold text-emerald-700 bg-emerald-50/60 hover:bg-emerald-50 transition-colors border-t border-gray-100"
+            >
+              ➕ Crear artículo nuevo{q.trim() ? ` "${q.trim().toUpperCase()}"` : ''}
+            </button>
+          )}
         </div>
       )}
-      {open && !sel && texto.length >= 1 && resultados.length === 0 && (
-        <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl px-3 py-2.5">
-          <p className="text-xs text-gray-400">Sin resultados — créalo primero con &quot;+ Nuevo artículo&quot;</p>
-        </div>
+      {crear && (
+        <CrearArticuloModal
+          codigoInicial={q.trim()}
+          onCreado={creado}
+          onClose={() => setCrear(false)}
+        />
       )}
     </div>
   )
 }
 
-function Entrada({ articulos, sedes, onClose }: { articulos: Articulo[]; sedes: Sede[]; onClose: () => void }) {
+function Entrada({ articulos, sedes, onCreado, onClose }: { articulos: Articulo[]; sedes: Sede[]; onCreado?: (a: ArticuloCreado) => void; onClose: () => void }) {
   const router = useRouter()
   const tr = sedes.find(s => s.codigo === 'TR')
   const [articuloId, setArticuloId] = useState('')
@@ -259,7 +298,7 @@ function Entrada({ articulos, sedes, onClose }: { articulos: Articulo[]; sedes: 
   return (
     <Panel title="Entrada de stock" onClose={onClose}>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <SelectArticulo articulos={articulos} value={articuloId} onChange={setArticuloId} />
+        <SelectArticulo articulos={articulos} value={articuloId} onChange={setArticuloId} onCreado={onCreado} />
         <TallaSelect
           categoria={articulos.find(a => a.id === articuloId)?.categoria ?? ''}
           value={talla}
@@ -282,7 +321,7 @@ function Entrada({ articulos, sedes, onClose }: { articulos: Articulo[]; sedes: 
   )
 }
 
-function Transferencia({ articulos, sedes, onClose }: { articulos: Articulo[]; sedes: Sede[]; onClose: () => void }) {
+function Transferencia({ articulos, sedes, onCreado, onClose }: { articulos: Articulo[]; sedes: Sede[]; onCreado?: (a: ArticuloCreado) => void; onClose: () => void }) {
   const router = useRouter()
   const tr = sedes.find(s => s.codigo === 'TR')
   const [articuloId, setArticuloId] = useState('')
@@ -316,7 +355,7 @@ function Transferencia({ articulos, sedes, onClose }: { articulos: Articulo[]; s
   return (
     <Panel title="Transferir stock entre sedes" onClose={onClose}>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <SelectArticulo articulos={articulos} value={articuloId} onChange={setArticuloId} />
+        <SelectArticulo articulos={articulos} value={articuloId} onChange={setArticuloId} onCreado={onCreado} />
         <TallaSelect
           categoria={articulos.find(a => a.id === articuloId)?.categoria ?? ''}
           value={talla}

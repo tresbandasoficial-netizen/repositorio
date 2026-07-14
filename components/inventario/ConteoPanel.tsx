@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { buscarArticulosAction } from '@/app/actions/articulos'
 import { registrarConteoAction, ItemConteo } from '@/app/actions/conteo'
 import { TallaSelect } from '@/components/ui/TallaSelect'
+import { CrearArticuloModal, ArticuloCreado } from './CrearArticuloModal'
 import { Loader2, Search, Plus, Trash2, ClipboardCheck, Check } from 'lucide-react'
 
 type Sede = { id: string; codigo: string; nombre: string }
@@ -41,6 +42,7 @@ export function ConteoPanel({ sedes, sedeFijaId }: { sedes: Sede[]; sedeFijaId: 
   const [buscando, setBuscando] = useState(false)
   const [open, setOpen] = useState(false)
   const [artSel, setArtSel] = useState<ArtSel | null>(null)
+  const [crear, setCrear] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [talla, setTalla] = useState('')
@@ -74,6 +76,16 @@ export function ConteoPanel({ sedes, sedeFijaId }: { sedes: Sede[]; sedeFijaId: 
     setArtSel(a)
     setBusqueda(`${a.codigo ? `${a.codigo} · ` : ''}${a.descripcion}`)
     setOpen(false)
+  }
+
+  function articuloCreado(art: ArticuloCreado) {
+    setCrear(false)
+    elegir({
+      articulo_id: art.id,
+      codigo: art.codigo,
+      descripcion: `${art.marca} ${art.nombre}${art.color ? ` ${art.color}` : ''}`.trim(),
+      categoria: art.categoria,
+    })
   }
 
   function agregar() {
@@ -190,7 +202,21 @@ export function ConteoPanel({ sedes, sedeFijaId }: { sedes: Sede[]; sedeFijaId: 
                   <span className="text-gray-600 truncate">{a.descripcion}</span>
                 </button>
               ))}
+              <button
+                onClick={() => { setCrear(true); setOpen(false) }}
+                className="w-full text-left px-3 py-2.5 text-xs font-bold text-emerald-700 bg-emerald-50/60 hover:bg-emerald-50 transition-colors border-t border-gray-100"
+              >
+                ➕ Crear artículo nuevo{busqueda.trim() ? ` "${busqueda.trim().toUpperCase()}"` : ''}
+              </button>
             </div>
+          )}
+
+          {crear && (
+            <CrearArticuloModal
+              codigoInicial={busqueda.trim()}
+              onCreado={articuloCreado}
+              onClose={() => setCrear(false)}
+            />
           )}
         </div>
 
