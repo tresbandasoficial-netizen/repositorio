@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getSesion } from '@/lib/auth/acceso'
-import { ConteoPanel } from '@/components/inventario/ConteoPanel'
+import { ConteoTabs } from '@/components/inventario/ConteoTabs'
 
 // Conteo físico de inventario: admin cuenta cualquier sede; el asesor, la suya.
 export default async function ConteoInventarioPage() {
@@ -16,7 +16,7 @@ export default async function ConteoInventarioPage() {
   const sedeFijaId = sesion.rol === 'asesor' ? sesion.sede_id : null
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
+    <div className="p-6 max-w-6xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
         {sesion.rol === 'admin' && (
           <>
@@ -24,10 +24,10 @@ export default async function ConteoInventarioPage() {
             <span className="text-gray-300">/</span>
           </>
         )}
-        <h1 className="text-lg font-bold text-gray-900">Conteo físico de inventario</h1>
+        <h1 className="text-lg font-bold text-gray-900">Cargar inventario</h1>
       </div>
 
-      <ConteoPanel sedes={sedes} sedeFijaId={sedeFijaId} />
+      <ConteoTabs sedes={sedes} sedeFijaId={sedeFijaId} />
     </div>
   )
 }
