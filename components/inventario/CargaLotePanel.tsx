@@ -122,11 +122,17 @@ export function CargaLotePanel({ sedes, sedeFijaId }: { sedes: Sede[]; sedeFijaI
     if (!window.confirm(`¿Cargar ${usadas.length} fila(s) al inventario de ${sedeNombre}? Los productos nuevos se crearán en el catálogo.`)) return
 
     startTransition(async () => {
-      const r = await cargaMasivaAction(sedeId, payload)
-      if (!r.ok) { setError(r.error); return }
-      setResultado({ creados: r.creados, reutilizados: r.reutilizados, ajustes: r.ajustes, errores: r.errores })
-      setFilas(Array.from({ length: 5 }, filaVacia))
-      router.refresh()
+      try {
+        const r = await cargaMasivaAction(sedeId, payload)
+        if (!r.ok) { setError(r.error); return }
+        setResultado({ creados: r.creados, reutilizados: r.reutilizados, ajustes: r.ajustes, errores: r.errores })
+        setFilas(Array.from({ length: 5 }, filaVacia))
+        router.refresh()
+      } catch (e) {
+        // Típico si la página quedó abierta durante una actualización de la app.
+        console.error('Error cargando inventario:', e)
+        setError('Hubo una actualización del sistema. Recarga la página (F5) — tus filas se conservan si no la cierras — y vuelve a intentar. Si sigue fallando, avisa al administrador.')
+      }
     })
   }
 

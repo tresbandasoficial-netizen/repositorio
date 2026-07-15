@@ -149,12 +149,17 @@ export function ConteoPanel({ sedes, sedeFijaId }: { sedes: Sede[]; sedeFijaId: 
     if (!window.confirm(`¿Guardar el conteo? El stock de ${filas.length} artículo(s)/talla(s) quedará fijado en lo contado.`)) return
     startTransition(async () => {
       setError(null)
-      const items: ItemConteo[] = filas.map(f => ({ articulo_id: f.articulo_id, talla: f.talla, cantidad: f.cantidad }))
-      const r = await registrarConteoAction(sedeId, items)
-      if (!r.ok) { setError(r.error); return }
-      setExito({ items: filas.length, ajustes: r.ajustes })
-      setFilas([])
-      router.refresh()
+      try {
+        const items: ItemConteo[] = filas.map(f => ({ articulo_id: f.articulo_id, talla: f.talla, cantidad: f.cantidad }))
+        const r = await registrarConteoAction(sedeId, items)
+        if (!r.ok) { setError(r.error); return }
+        setExito({ items: filas.length, ajustes: r.ajustes })
+        setFilas([])
+        router.refresh()
+      } catch (e) {
+        console.error('Error guardando conteo:', e)
+        setError('Hubo una actualización del sistema. Recarga la página (F5) y vuelve a intentar — lo contado se pierde al recargar, así que guarda en tandas pequeñas.')
+      }
     })
   }
 
