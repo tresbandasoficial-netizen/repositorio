@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { formatCOP } from '@/lib/utils/format'
 import type { GananciaPedidoDetalle } from '@/lib/queries/ganancias'
+import { CostoManualInline } from './CostoManualInline'
 
 // Bloque de ganancia del pedido (solo admin): venta vs. costo, utilidad y margen.
 // El costo viene de las compras asignadas al pedido; si no hay, "costo pendiente".
@@ -19,11 +20,14 @@ export function BloqueGanancia({ g }: { g: GananciaPedidoDetalle }) {
           <span className="font-medium text-gray-900">{formatCOP(g.venta)}</span>
         </div>
 
-        <div className="flex justify-between">
+        <div className="flex justify-between items-center">
           <span className="text-gray-500">Costo</span>
-          {g.tiene_costo
-            ? <span className="font-medium text-gray-900">{formatCOP(g.costo)}</span>
-            : <span className="text-xs font-medium text-amber-600">Costo pendiente</span>}
+          <span className="inline-flex items-center gap-1.5">
+            {g.tiene_costo
+              ? <span className="font-medium text-gray-900">{formatCOP(g.costo)}</span>
+              : <span className="text-xs font-medium text-amber-600">Costo pendiente</span>}
+            <CostoManualInline pedidoId={g.pedido_id} costoManual={g.costo_manual} />
+          </span>
         </div>
 
         {/* Desglose de compras que dan el costo */}
@@ -57,7 +61,7 @@ export function BloqueGanancia({ g }: { g: GananciaPedidoDetalle }) {
 
         {!g.tiene_costo && (
           <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">
-            Falta asignar la compra de este pedido para calcular la ganancia real.
+            Falta asignar la compra de este pedido — o escribe el costo a mano con el lápiz ✎.
           </p>
         )}
       </CardContent>

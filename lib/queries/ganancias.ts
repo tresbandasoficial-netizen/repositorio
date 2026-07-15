@@ -28,23 +28,29 @@ export type CostoAsignado = {
 
 export type GananciaPedidoDetalle = GananciaPedido & {
   compras: CostoAsignado[]
+  costo_manual: number | null
 }
 
 // Ganancia de un pedido + las compras que le dan el costo. Para el detalle (admin).
 export async function getGananciaPedido(pedidoId: string): Promise<GananciaPedidoDetalle | null> {
   const supabase = await createClient()
 
-  const [{ data: fila }, { data: compras }] = await Promise.all([
+  const [{ data: fila }, { data: compras }, { data: ped }] = await Promise.all([
     supabase.from('vista_ganancia_pedidos').select('*').eq('pedido_id', pedidoId).maybeSingle(),
     supabase
       .from('compra_items')
       .select('codigo, descripcion, costo_unitario_cop, cantidad')
       .eq('pedido_id', pedidoId)
       .order('creado_en', { ascending: true }),
+    supabase.from('pedidos').select('costo_manual').eq('id', pedidoId).maybeSingle(),
   ])
 
   if (!fila) return null
-  return { ...(fila as GananciaPedido), compras: (compras ?? []) as CostoAsignado[] }
+  return {
+    ...(fila as GananciaPedido),
+    compras: (compras ?? []) as CostoAsignado[],
+    costo_manual: (ped as any)?.costo_manual ?? null,
+  }
 }
 
 // Margen de utilidad agrupado por código de artículo (ranking de productos).

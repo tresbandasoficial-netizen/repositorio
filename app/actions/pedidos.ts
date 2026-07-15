@@ -545,6 +545,48 @@ export async function editarPagoAction(
   return { ok: true }
 }
 
+// ─── Costo manual del pedido (solo admin) ─────────────────────────────────────
+// Para pedidos sin compra asignada ni salida de inventario: el admin digita el
+// costo total y la ganancia se calcula con ese valor. null = volver al
+// costo automático.
+
+export async function asignarCostoManualAction(
+  pedidoId: string,
+  costo: number | null
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const sesion = await getSesion()
+  if (sesion.rol !== 'admin') return { ok: false, error: 'Solo el administrador puede asignar el costo' }
+  if (costo !== null && (isNaN(costo) || costo < 0)) return { ok: false, error: 'Costo inválido' }
+
+  const adminClient = createAdminClient()
+
+  const { data: pedido } = await adminClient
+    .from('pedidos')
+    .select('costo_manual')
+    .eq('id', pedidoId)
+    .single()
+  if (!pedido) return { ok: false, error: 'Pedido no encontrado' }
+
+  const { error } = await adminClient
+    .from('pedidos')
+    .update({ costo_manual: costo })
+    .eq('id', pedidoId)
+  if (error) return { ok: false, error: error.message }
+
+  await adminClient.from('historial_cambios').insert({
+    tabla:          'pedidos',
+    registro_id:    pedidoId,
+    campo:          'costo_manual',
+    valor_anterior: pedido.costo_manual != null ? String(pedido.costo_manual) : null,
+    valor_nuevo:    costo != null ? String(costo) : null,
+    usuario_id:     sesion.id,
+  })
+
+  revalidatePath(`/pedidos/${pedidoId}`)
+  revalidatePath('/ganancias')
+  return { ok: true }
+}
+
 // ─── Eliminar pedido ──────────────────────────────────────────────────────────
 
 export type EliminarPedidoResult =
