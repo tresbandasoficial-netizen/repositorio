@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getSesion } from '@/lib/auth/acceso'
 import { bloqueoCajaCerrada } from '@/lib/auth/caja'
 import { TipoMensajeria } from '@/types'
@@ -153,7 +154,55 @@ export async function editarDomicilioAction(
 
   if (error) return { ok: false, error: error.message }
 
+  // Sincronizar la deuda con la mensajería. La deuda del domicilio vive en
+  // pagos_mensajeria (creada al crear el domicilio —ligada por domicilio_id—
+  // o al facturar —ligada por factura_id con concepto 'domicilio_tb'—).
+  // Editar el valor/mensajería/fecha debe reflejarse allí, si la deuda sigue
+  // PENDIENTE (las ya liquidadas no se tocan). RLS solo deja al admin escribir
+  // pagos_mensajeria, así que se usa el cliente administrativo tras validar
+  // el permiso del usuario arriba.
+  const admin = createAdminClient()
+  const { data: dom } = await admin.from('domicilios').select('factura_id').eq('id', id).maybeSingle()
+
+  let qDeudas = admin
+    .from('pagos_mensajeria')
+    .select('id')
+    .eq('tipo', 'deuda')
+    .eq('estado', 'pendiente')
+  qDeudas = (dom as any)?.factura_id
+    ? qDeudas.or(`domicilio_id.eq.${id},and(factura_id.eq.${(dom as any).factura_id},concepto.eq.domicilio_tb)`)
+    : qDeudas.eq('domicilio_id', id)
+  const { data: deudas } = await qDeudas
+
+  const debeExistir = data.tipo_cobro === 'tb_cobra' && data.valor_domicilio > 0
+  const idsDeuda = (deudas ?? []).map(d => (d as any).id)
+
+  if (idsDeuda.length > 0) {
+    if (debeExistir) {
+      await admin.from('pagos_mensajeria')
+        .update({ monto: data.valor_domicilio, mensajeria: data.mensajeria, fecha: data.fecha })
+        .in('id', idsDeuda)
+    } else {
+      // Ya no es "TB cobra" (o quedó en 0): la deuda pendiente sobra.
+      await admin.from('pagos_mensajeria').delete().in('id', idsDeuda)
+    }
+  } else if (debeExistir) {
+    // Cambió a "TB cobra" y no había deuda registrada: crearla.
+    await admin.from('pagos_mensajeria').insert({
+      mensajeria:     data.mensajeria,
+      tipo:           'deuda',
+      concepto:       'domicilio_tb',
+      estado:         'pendiente',
+      monto:          data.valor_domicilio,
+      fecha:          data.fecha,
+      domicilio_id:   id,
+      responsable_id: user.id,
+      notas:          `Domicilio ${data.cliente_nombre.trim()} — ${data.direccion.trim()}`,
+    })
+  }
+
   revalidatePath('/domicilios')
+  revalidatePath('/mensajerias')
   return { ok: true }
 }
 
