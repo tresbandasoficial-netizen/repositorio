@@ -508,39 +508,52 @@ export async function editarPedidoAction(
 }
 
 // ─── Editar pago (solo admin) ─────────────────────────────────────────────────
+// Permite corregir el monto Y el método de un pago del pedido. Al cambiar el
+// método, el pago se re-enruta a la cuenta correcta (efectivo → caja de la
+// sede del pedido; electrónicos → su cuenta global), para que el flujo de
+// caja quede cuadrado.
 
 export async function editarPagoAction(
   pagoId: string,
-  nuevoMonto: number
+  data: { monto: number; metodo: MetodoPago }
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const sesion = await getSesion()
   if (sesion.rol !== 'admin') return { ok: false, error: 'Solo los administradores pueden editar pagos' }
+  if (!data.monto || data.monto <= 0) return { ok: false, error: 'El monto debe ser mayor a cero' }
 
   const adminClient = createAdminClient()
 
   const { data: pago } = await adminClient
     .from('pagos')
-    .select('monto')
+    .select('monto, metodo, pedido:pedidos(sede_id)')
     .eq('id', pagoId)
     .single()
 
   if (!pago) return { ok: false, error: 'Pago no encontrado' }
 
+  const sedeId = (Array.isArray((pago as any).pedido) ? (pago as any).pedido[0] : (pago as any).pedido)?.sede_id ?? null
+  const cuentaId = await cuentaIdPorMetodo(adminClient, data.metodo, sedeId)
+
   const { error } = await adminClient
     .from('pagos')
-    .update({ monto: nuevoMonto })
+    .update({ monto: data.monto, metodo: data.metodo, cuenta_id: cuentaId })
     .eq('id', pagoId)
 
   if (error) return { ok: false, error: error.message }
 
-  await adminClient.from('historial_cambios').insert({
-    tabla:          'pagos',
-    registro_id:    pagoId,
-    campo:          'monto',
-    valor_anterior: String(pago.monto),
-    valor_nuevo:    String(nuevoMonto),
-    usuario_id:     sesion.id,
-  })
+  const cambios: Array<{ campo: string; antes: string; ahora: string }> = []
+  if (pago.monto !== data.monto)   cambios.push({ campo: 'monto', antes: String(pago.monto), ahora: String(data.monto) })
+  if (pago.metodo !== data.metodo) cambios.push({ campo: 'metodo', antes: pago.metodo, ahora: data.metodo })
+  for (const c of cambios) {
+    await adminClient.from('historial_cambios').insert({
+      tabla:          'pagos',
+      registro_id:    pagoId,
+      campo:          c.campo,
+      valor_anterior: c.antes,
+      valor_nuevo:    c.ahora,
+      usuario_id:     sesion.id,
+    })
+  }
 
   return { ok: true }
 }

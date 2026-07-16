@@ -3,34 +3,55 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { editarPagoAction } from '@/app/actions/pedidos'
+import { editarAbonoFacturaAction } from '@/app/actions/facturacion'
 import { formatCOP, formatMiles } from '@/lib/utils/format'
+import { MetodoPago, metodosDeSede, labelMetodo } from '@/types'
 
-export function EditarPagoInline({ pagoId, monto }: { pagoId: string; monto: number }) {
+// Editor de un pago desde el detalle del pedido (solo admin): monto Y método.
+// Funciona tanto para pagos del pedido como para abonos hechos en la factura
+// (origen 'factura'); en ambos casos el dinero se re-enruta a la cuenta del
+// método nuevo para que el flujo de caja quede cuadrado.
+export function EditarPagoInline({ pagoId, monto, metodo, origen, fecha, sedeCodigo }: {
+  pagoId: string
+  monto: number
+  metodo: string
+  origen?: 'pedido' | 'factura'
+  fecha: string
+  sedeCodigo?: string | null
+}) {
   const [editando, setEditando] = useState(false)
   const [valor, setValor] = useState(String(monto))
+  const [metodoSel, setMetodoSel] = useState(metodo)
   const [error, setError] = useState<string | null>(null)
   const [isPending, start] = useTransition()
   const router = useRouter()
 
+  // Métodos de la sede del pedido + el método actual (por si es histórico).
+  const metodos = Array.from(new Set([metodo as MetodoPago, ...metodosDeSede(sedeCodigo)]))
+
   function abrir() {
     setValor(String(monto))
+    setMetodoSel(metodo)
     setError(null)
     setEditando(true)
-  }
-
-  function cancelar() {
-    setEditando(false)
-    setError(null)
   }
 
   function guardar() {
     const nuevoMonto = parseInt(valor.replace(/\D/g, ''), 10)
     if (!nuevoMonto || nuevoMonto <= 0) { setError('Monto inválido'); return }
     start(async () => {
-      const r = await editarPagoAction(pagoId, nuevoMonto)
-      if (!r.ok) { setError(r.error); return }
-      setEditando(false)
-      router.refresh()
+      setError(null)
+      try {
+        const r = origen === 'factura'
+          ? await editarAbonoFacturaAction(pagoId, { monto: nuevoMonto, metodo: metodoSel as MetodoPago, fecha })
+          : await editarPagoAction(pagoId, { monto: nuevoMonto, metodo: metodoSel as MetodoPago })
+        if (!r.ok) { setError(r.error); return }
+        setEditando(false)
+        router.refresh()
+      } catch (e) {
+        console.error(e)
+        setError('Recarga la página e intenta de nuevo')
+      }
     })
   }
 
@@ -40,7 +61,7 @@ export function EditarPagoInline({ pagoId, monto }: { pagoId: string; monto: num
         type="button"
         onClick={abrir}
         className="font-medium text-gray-900 hover:text-blue-600 hover:underline transition-colors"
-        title="Editar monto"
+        title="Editar monto y método"
       >
         {formatCOP(monto)}
       </button>
@@ -48,23 +69,35 @@ export function EditarPagoInline({ pagoId, monto }: { pagoId: string; monto: num
   }
 
   return (
-    <div className="flex items-center gap-1 justify-end">
-      <input
-        type="text"
-        inputMode="numeric"
-        autoFocus
-        value={formatMiles(valor)}
-        onChange={e => setValor(e.target.value.replace(/\D/g, ''))}
-        onKeyDown={e => { if (e.key === 'Enter') guardar(); if (e.key === 'Escape') cancelar() }}
-        className={`w-28 rounded border px-2 py-0.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500 ${error ? 'border-red-400' : 'border-gray-300'}`}
-      />
-      <button type="button" onClick={guardar} disabled={isPending}
-        className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 disabled:opacity-60">
-        {isPending ? '…' : 'OK'}
-      </button>
-      <button type="button" onClick={cancelar} className="text-xs text-gray-400 hover:text-gray-600 px-1">
-        ✕
-      </button>
+    <div className="flex flex-col items-end gap-1">
+      <div className="flex items-center gap-1 justify-end flex-wrap">
+        <select
+          value={metodoSel}
+          onChange={e => setMetodoSel(e.target.value)}
+          className="rounded border border-gray-300 px-1.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-36"
+        >
+          {metodos.map(m => (
+            <option key={m} value={m}>{labelMetodo(m as MetodoPago, sedeCodigo)}</option>
+          ))}
+        </select>
+        <input
+          type="text"
+          inputMode="numeric"
+          autoFocus
+          value={formatMiles(valor)}
+          onChange={e => setValor(e.target.value.replace(/\D/g, ''))}
+          onKeyDown={e => { if (e.key === 'Enter') guardar(); if (e.key === 'Escape') setEditando(false) }}
+          className={`w-24 rounded border px-2 py-1 text-xs text-right focus:outline-none focus:ring-2 focus:ring-blue-500 ${error ? 'border-red-400' : 'border-gray-300'}`}
+        />
+        <button type="button" onClick={guardar} disabled={isPending}
+          className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 disabled:opacity-60">
+          {isPending ? '…' : 'OK'}
+        </button>
+        <button type="button" onClick={() => setEditando(false)} className="text-xs text-gray-400 hover:text-gray-600 px-1">
+          ✕
+        </button>
+      </div>
+      {error && <span className="text-[10px] text-red-600">{error}</span>}
     </div>
   )
 }

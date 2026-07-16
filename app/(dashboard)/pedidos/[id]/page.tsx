@@ -194,8 +194,8 @@ export default async function PedidoDetallePage({
                           </p>
                         </div>
                         <div className="text-right shrink-0">
-                          {esAdmin && pago.origen !== 'factura'
-                            ? <EditarPagoInline pagoId={pago.id} monto={pago.monto} />
+                          {esAdmin
+                            ? <EditarPagoInline pagoId={pago.id} monto={pago.monto} metodo={pago.metodo} origen={pago.origen ?? 'pedido'} fecha={pago.fecha} sedeCodigo={(pedido as any).sede_codigo} />
                             : <p className="font-medium text-gray-900">{formatCOP(pago.monto)}</p>
                           }
                           {pago.origen !== 'factura' && (
@@ -231,8 +231,8 @@ export default async function PedidoDetallePage({
                           </td>
                           <td className="px-4 py-3 text-gray-500 text-xs">{pago.asesor_nombre}</td>
                           <td className="px-6 py-3 text-right">
-                            {esAdmin && pago.origen !== 'factura'
-                              ? <EditarPagoInline pagoId={pago.id} monto={pago.monto} />
+                            {esAdmin
+                              ? <EditarPagoInline pagoId={pago.id} monto={pago.monto} metodo={pago.metodo} origen={pago.origen ?? 'pedido'} fecha={pago.fecha} sedeCodigo={(pedido as any).sede_codigo} />
                               : <span className="font-medium text-gray-900">{formatCOP(pago.monto)}</span>
                             }
                           </td>
