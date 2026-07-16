@@ -21,11 +21,11 @@ function buildTexto(pedido: PedidoDetalle): string {
   const saldo = pedido.total - pedido.total_pagado
   const estadoLabel = ESTADO_LABELS[pedido.estado] ?? pedido.estado
 
+  // Mensaje para el CLIENTE: sin código ni links.
   const itemsLineas = pedido.items.map((it) => {
-    const codigo = it.codigo ? ` (${it.codigo})` : ''
     const talla = it.talla ? ` talla ${it.talla}` : ''
     const cant  = it.cantidad > 1 ? ` x${it.cantidad}` : ''
-    return `  • ${it.marca} ${it.descripcion}${codigo}${talla}${cant} — ${formatCOPPlain(it.precio_venta)}`
+    return `  • ${it.marca} ${it.descripcion}${talla}${cant} — ${formatCOPPlain(it.precio_venta)}`
   }).join('\n')
 
   const entrega = pedido.tipo_entrega === 'domicilio'
@@ -49,11 +49,10 @@ function buildConfirmacion(pedido: PedidoDetalle): string {
     ? METODO_LABELS[pedido.pagos[0].metodo] ?? pedido.pagos[0].metodo
     : '—'
 
+  // Mensaje para el CLIENTE: sin código ni links.
   const productos = pedido.items.map((it) => {
-    const codigo = it.codigo ? ` (${it.codigo})` : ''
     const talla = it.talla ? ` / Talla ${it.talla}` : ''
-    const link = it.imagen_url ? `\n🔗 ${it.imagen_url}` : ''
-    return `${it.marca} ${it.descripcion}${codigo}${talla} — ${formatCOPPlain(it.precio_venta)}${link}`
+    return `${it.marca} ${it.descripcion}${talla} — ${formatCOPPlain(it.precio_venta)}`
   }).join('\n🛒 ')
 
   return `🛍️ Estamos preparando tu pedido
