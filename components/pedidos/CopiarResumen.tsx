@@ -22,9 +22,10 @@ function buildTexto(pedido: PedidoDetalle): string {
   const estadoLabel = ESTADO_LABELS[pedido.estado] ?? pedido.estado
 
   const itemsLineas = pedido.items.map((it) => {
+    const codigo = it.codigo ? ` (${it.codigo})` : ''
     const talla = it.talla ? ` talla ${it.talla}` : ''
     const cant  = it.cantidad > 1 ? ` x${it.cantidad}` : ''
-    return `  • ${it.marca} ${it.descripcion}${talla}${cant} — ${formatCOPPlain(it.precio_venta)}`
+    return `  • ${it.marca} ${it.descripcion}${codigo}${talla}${cant} — ${formatCOPPlain(it.precio_venta)}`
   }).join('\n')
 
   const entrega = pedido.tipo_entrega === 'domicilio'
@@ -49,8 +50,10 @@ function buildConfirmacion(pedido: PedidoDetalle): string {
     : '—'
 
   const productos = pedido.items.map((it) => {
+    const codigo = it.codigo ? ` (${it.codigo})` : ''
     const talla = it.talla ? ` / Talla ${it.talla}` : ''
-    return `${it.marca} ${it.descripcion}${talla} — ${formatCOPPlain(it.precio_venta)}`
+    const link = it.imagen_url ? `\n🔗 ${it.imagen_url}` : ''
+    return `${it.marca} ${it.descripcion}${codigo}${talla} — ${formatCOPPlain(it.precio_venta)}${link}`
   }).join('\n🛒 ')
 
   return `🛍️ Estamos preparando tu pedido
@@ -79,8 +82,10 @@ function buildGrupo(pedido: PedidoDetalle): string {
     : ''
 
   const articulos = pedido.items.map((it) => {
+    const codigo = it.codigo ? ` (${it.codigo})` : ''
     const talla = it.talla ? ` / Talla ${it.talla}` : ''
-    return `Artículo: ${it.marca} ${it.descripcion}${talla} — ${formatCOPPlain(it.precio_venta)}`
+    const link = it.imagen_url ? `\nLink: ${it.imagen_url}` : ''
+    return `Artículo: ${it.marca} ${it.descripcion}${codigo}${talla} — ${formatCOPPlain(it.precio_venta)}${link}`
   }).join('\n')
 
   const ccLinea = pedido.cliente_cedula ? `CC: ${pedido.cliente_cedula}\n` : ''
