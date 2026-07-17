@@ -2,7 +2,51 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getSesion } from '@/lib/auth/acceso'
 import { TipoMensajeria, PagoMensajeria } from '@/types'
+
+// ─── Editar el valor de una deuda pendiente (solo admin) ─────────────────────
+// Corrige el monto de un domicilio/recaudo que aún no se ha liquidado.
+// Queda en historial_cambios con quién y cuándo.
+export async function editarDeudaMensajeriaAction(
+  deudaId: string,
+  nuevoMonto: number
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const sesion = await getSesion()
+  if (sesion.rol !== 'admin') return { ok: false, error: 'Solo el administrador puede editar deudas' }
+  if (!nuevoMonto || nuevoMonto <= 0) return { ok: false, error: 'El monto debe ser mayor a cero' }
+
+  const admin = createAdminClient()
+  const { data: deuda } = await admin
+    .from('pagos_mensajeria')
+    .select('monto, estado, tipo')
+    .eq('id', deudaId)
+    .maybeSingle()
+
+  if (!deuda) return { ok: false, error: 'Deuda no encontrada' }
+  if (deuda.tipo !== 'deuda' || deuda.estado !== 'pendiente') {
+    return { ok: false, error: 'Solo se pueden editar deudas pendientes (esta ya fue liquidada)' }
+  }
+
+  const { error } = await admin
+    .from('pagos_mensajeria')
+    .update({ monto: nuevoMonto })
+    .eq('id', deudaId)
+  if (error) return { ok: false, error: error.message }
+
+  await admin.from('historial_cambios').insert({
+    tabla:          'pagos_mensajeria',
+    registro_id:    deudaId,
+    campo:          'monto',
+    valor_anterior: String(deuda.monto),
+    valor_nuevo:    String(nuevoMonto),
+    usuario_id:     sesion.id,
+  })
+
+  revalidatePath('/mensajerias')
+  return { ok: true }
+}
 
 // ─── Cuadre por mensajería ────────────────────────────────────────────────────
 

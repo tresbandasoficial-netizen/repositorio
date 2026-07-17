@@ -39,6 +39,7 @@ export default async function MensajeriasPage({
       liquidaciones={liquidaciones}
       cuentas={cuentas}
       activaMensajeria={activaMensajeria}
+      esAdmin={sesion.rol === 'admin'}
     />
   )
 }

@@ -4,7 +4,7 @@ import { Fragment, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { formatCOP, formatMiles, hoyBogota } from '@/lib/utils/format'
 import { TipoMensajeria, MENSAJERIA_LABELS, Cuenta } from '@/types'
-import { liquidarMensajeriaAction, liquidarMensajeriaDiaAction } from '@/app/actions/mensajerias'
+import { liquidarMensajeriaAction, liquidarMensajeriaDiaAction, editarDeudaMensajeriaAction } from '@/app/actions/mensajerias'
 import type {
   CuadreMensajeria,
   RecaudoPendiente,
@@ -32,10 +32,69 @@ interface Props {
   liquidaciones: LiquidacionEntry[]
   cuentas: Cuenta[]
   activaMensajeria: TipoMensajeria
+  esAdmin?: boolean
+}
+
+// Monto de una deuda pendiente, editable por el admin (clic → corregir → OK).
+function MontoDeudaEditable({ deudaId, monto, esAdmin }: { deudaId: string; monto: number; esAdmin: boolean }) {
+  const [editando, setEditando] = useState(false)
+  const [valor, setValor] = useState(String(monto))
+  const [err, setErr] = useState<string | null>(null)
+  const [pending, start] = useTransition()
+
+  if (!esAdmin) return <p className="font-semibold text-orange-600 whitespace-nowrap">{formatCOP(monto)}</p>
+
+  function guardar() {
+    const nuevo = parseInt(valor.replace(/\D/g, ''), 10)
+    if (!nuevo || nuevo <= 0) { setErr('Monto inválido'); return }
+    start(async () => {
+      setErr(null)
+      try {
+        const r = await editarDeudaMensajeriaAction(deudaId, nuevo)
+        if (!r.ok) { setErr(r.error); return }
+        setEditando(false)
+        window.location.reload()
+      } catch {
+        setErr('Recarga la página e intenta de nuevo')
+      }
+    })
+  }
+
+  if (!editando) {
+    return (
+      <button
+        onClick={() => { setValor(String(monto)); setErr(null); setEditando(true) }}
+        title="Editar el valor de esta deuda"
+        className="font-semibold text-orange-600 whitespace-nowrap hover:text-orange-800 hover:underline"
+      >
+        {formatCOP(monto)} ✎
+      </button>
+    )
+  }
+
+  return (
+    <span className="flex flex-col items-end gap-1">
+      <span className="flex items-center gap-1">
+        <input
+          type="text" inputMode="numeric" autoFocus
+          value={formatMiles(valor)}
+          onChange={e => setValor(e.target.value.replace(/\D/g, ''))}
+          onKeyDown={e => { if (e.key === 'Enter') guardar(); if (e.key === 'Escape') setEditando(false) }}
+          className="w-24 rounded border border-orange-300 px-2 py-1 text-xs text-right focus:outline-none focus:ring-2 focus:ring-orange-400"
+        />
+        <button onClick={guardar} disabled={pending}
+          className="text-xs bg-orange-600 text-white px-2 py-1 rounded hover:bg-orange-700 disabled:opacity-60">
+          {pending ? '…' : 'OK'}
+        </button>
+        <button onClick={() => setEditando(false)} className="text-xs text-gray-400 hover:text-gray-600 px-1">✕</button>
+      </span>
+      {err && <span className="text-[10px] text-red-600">{err}</span>}
+    </span>
+  )
 }
 
 export function MensajeriasClientPage({
-  cuadres, recaudos, domiciliosTB, liquidaciones, cuentas, activaMensajeria,
+  cuadres, recaudos, domiciliosTB, liquidaciones, cuentas, activaMensajeria, esAdmin = false,
 }: Props) {
   const [activa, setActiva] = useState<TipoMensajeria>(activaMensajeria)
   const [mostrarLiquidar, setMostrarLiquidar] = useState(false)
@@ -368,7 +427,7 @@ export function MensajeriasClientPage({
                                   {domDia.map(x => (
                                     <li key={x.id} className="px-3 py-2 flex justify-between gap-3 text-xs">
                                       <span className="text-gray-700 truncate">{x.cliente_nombre ?? x.notas ?? 'Domicilio'}{x.numero_factura && <> · <FacLink numero={x.numero_factura} /></>}</span>
-                                      <span className="text-orange-600 font-semibold whitespace-nowrap">{formatCOP(x.monto)}</span>
+                                      <MontoDeudaEditable deudaId={x.id} monto={x.monto} esAdmin={esAdmin} />
                                     </li>
                                   ))}
                                 </ul>
@@ -450,7 +509,7 @@ export function MensajeriasClientPage({
                     {d.fecha}{d.es_legacy ? ' · registro anterior' : ''}
                   </p>
                 </div>
-                <p className="font-semibold text-orange-600 whitespace-nowrap">{formatCOP(d.monto)}</p>
+                <MontoDeudaEditable deudaId={d.id} monto={d.monto} esAdmin={esAdmin} />
               </div>
             ))}
           </div>
