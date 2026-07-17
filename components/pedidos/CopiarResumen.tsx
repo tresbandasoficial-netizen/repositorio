@@ -80,10 +80,13 @@ function buildGrupo(pedido: PedidoDetalle): string {
     ? METODO_LABELS[pedido.pagos[0].metodo] ?? pedido.pagos[0].metodo
     : ''
 
-  const articulos = pedido.items.map((it) => {
+  // Si hay varios artículos se enumeran (Artículo 1, Artículo 2, …).
+  const varios = pedido.items.length > 1
+  const articulos = pedido.items.map((it, i) => {
     const codigo = it.codigo ? ` (${it.codigo})` : ''
     const talla = it.talla ? ` / Talla ${it.talla}` : ''
-    return `Artículo: ${it.marca} ${it.descripcion}${codigo}${talla} — ${formatCOPPlain(it.precio_venta)}`
+    const etiqueta = varios ? `Artículo ${i + 1}` : 'Artículo'
+    return `${etiqueta}: ${it.marca} ${it.descripcion}${codigo}${talla} — ${formatCOPPlain(it.precio_venta)}`
   }).join('\n')
 
   const ccLinea = pedido.cliente_cedula ? `CC: ${pedido.cliente_cedula}\n` : ''
