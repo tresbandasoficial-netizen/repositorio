@@ -22,16 +22,17 @@ type OpcionCatalogo = {
   sexo: string | null
   categoria: string | null
   talla: string | null
+  stock: number | null
 }
 
 function aplanarOpciones(arts: ArticuloBusqueda[]): OpcionCatalogo[] {
   const result: OpcionCatalogo[] = []
   for (const a of arts) {
     if (a.tallaStock.length === 0) {
-      result.push({ articulo_id: a.id, codigo: a.codigo, marca: a.marca, nombre: a.nombre, color: a.color, sexo: a.sexo, categoria: a.categoria, talla: null })
+      result.push({ articulo_id: a.id, codigo: a.codigo, marca: a.marca, nombre: a.nombre, color: a.color, sexo: a.sexo, categoria: a.categoria, talla: null, stock: null })
     } else {
       for (const ts of a.tallaStock) {
-        result.push({ articulo_id: a.id, codigo: a.codigo, marca: a.marca, nombre: a.nombre, color: a.color, sexo: a.sexo, categoria: a.categoria, talla: ts.talla })
+        result.push({ articulo_id: a.id, codigo: a.codigo, marca: a.marca, nombre: a.nombre, color: a.color, sexo: a.sexo, categoria: a.categoria, talla: ts.talla, stock: ts.stock })
       }
     }
   }
@@ -91,6 +92,8 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
   const [searchDone, setSearchDone]     = useState<boolean[]>([false])
   const [catalogSaving, setCatalogSaving] = useState<Set<number>>(new Set())
   const [catalogError, setCatalogError] = useState<(string | null)[]>([null])
+  // Aviso por producto: el artículo elegido tiene stock (quizá no hay que encargarlo)
+  const [stockAviso, setStockAviso] = useState<({ talla: string | null; stock: number } | null)[]>([null])
   const searchTimersRef = useRef<(ReturnType<typeof setTimeout> | null)[]>([null])
 
   const [isPending, startTransition] = useTransition()
@@ -192,6 +195,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
     if (searchTimersRef.current[idx]) clearTimeout(searchTimersRef.current[idx]!)
     setSearchDone(prev => prev.map((d, i) => i === idx ? false : d))
     setCatalogError(prev => prev.map((e, i) => i === idx ? null : e))
+    setStockAviso(prev => prev.map((s, i) => i === idx ? null : s))
 
     const q = val.trim()
     if (q.length < 2) {
@@ -243,6 +247,10 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
   function elegirArticulo(idx: number, opt: OpcionCatalogo) {
     setCodigoQuery(prev => prev.map((c, i) => i === idx ? (opt.codigo ?? prev[idx]) : c))
     setSearchOpen(prev => prev.map((o, i) => i === idx ? false : o))
+    // Aviso: el producto elegido YA está en stock — quizá no hay que encargarlo.
+    setStockAviso(prev => prev.map((s, i) => i === idx
+      ? (opt.stock && opt.stock > 0 ? { talla: opt.talla, stock: opt.stock } : null)
+      : s))
     patchProducto(idx, {
       articulo_id: opt.articulo_id,
       marca:       opt.marca,
@@ -264,6 +272,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
     setSearchOpen(prev => [...prev, false])
     setSearchDone(prev => [...prev, false])
     setCatalogError(prev => [...prev, null])
+    setStockAviso(prev => [...prev, null])
     searchTimersRef.current = [...searchTimersRef.current, null]
   }
 
@@ -274,6 +283,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
     setSearchOpen(prev => prev.filter((_, j) => j !== idx))
     setSearchDone(prev => prev.filter((_, j) => j !== idx))
     setCatalogError(prev => prev.filter((_, j) => j !== idx))
+    setStockAviso(prev => prev.filter((_, j) => j !== idx))
     searchTimersRef.current = searchTimersRef.current.filter((_, j) => j !== idx)
   }
 
@@ -288,6 +298,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
     setSearchOpen(result.data.productos.map(() => false))
     setSearchDone(result.data.productos.map(() => false))
     setCatalogError(result.data.productos.map(() => null))
+    setStockAviso(result.data.productos.map(() => null))
     searchTimersRef.current = result.data.productos.map(() => null)
     // Sembrar el abono parseado como primera línea de la lista de abonos.
     setAbonos(result.data.abono > 0
@@ -538,6 +549,11 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
                               {opt.color && <span className="text-gray-400"> · {opt.color}</span>}
                               {opt.talla && <span className="text-gray-400"> · T{opt.talla}</span>}
                             </span>
+                            {opt.stock != null && opt.stock > 0 && (
+                              <span className="shrink-0 ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                                {opt.stock} en stock
+                              </span>
+                            )}
                           </button>
                         ))}
                       </div>
@@ -573,6 +589,18 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
                 {/* Enlazado al catálogo */}
                 {(p as any).articulo_id && (
                   <p className="text-xs text-green-600 font-medium">✓ Enlazado al catálogo</p>
+                )}
+
+                {/* Aviso: este producto YA está en stock — quizá no hay que encargarlo */}
+                {stockAviso[i] && (
+                  <div className="flex items-start gap-2 bg-emerald-50 border border-emerald-300 rounded-lg px-3 py-2">
+                    <span className="text-base leading-none">📦</span>
+                    <p className="text-xs text-emerald-800">
+                      <b>¡Este producto está EN STOCK!</b> Hay {stockAviso[i]!.stock} unidad{stockAviso[i]!.stock !== 1 ? 'es' : ''}
+                      {stockAviso[i]!.talla ? ` en talla ${stockAviso[i]!.talla}` : ''} en el inventario.
+                      Revisa si puede salir de la tienda (Venta) en lugar de encargarlo.
+                    </p>
+                  </div>
                 )}
 
                 {/* Fila 2: Marca · Talla · Cant · X */}
