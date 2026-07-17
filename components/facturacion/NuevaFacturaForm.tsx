@@ -152,9 +152,10 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
   const totalPedidos    = pedidosElegidos.reduce((s, p) => s + p.saldo, 0)
   const lineasValidas   = lineas.filter(l => l.descripcion.trim() && l.precio_venta > 0)
 
-  // Default artículo for the domicilio record: order numbers + new product descriptions
+  // Artículo del domicilio/envío: TODOS los artículos de los pedidos elegidos
+  // (no solo el número de orden) + los productos nuevos digitados.
   const articuloDefault = [
-    ...pedidosElegidos.map(p => p.numero_orden),
+    ...pedidosElegidos.flatMap(p => p.articulos.length > 0 ? p.articulos : [p.numero_orden]),
     ...lineasValidas.map(l => [l.marca, l.descripcion].filter(Boolean).join(' ')),
   ].join(' / ')
 
@@ -389,8 +390,18 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
                         seleccionados.has(p.id) ? 'border-blue-300 bg-blue-50' : 'border-gray-100 hover:bg-gray-50'
                       }`}>
                       <input type="checkbox" checked={seleccionados.has(p.id)} onChange={() => toggle(p.id)} className="w-4 h-4 accent-blue-600" />
-                      <div className="flex-1">
-                        <p className="font-mono text-sm font-medium text-gray-900">{p.numero_orden}</p>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-mono text-sm font-medium text-gray-900">
+                          {p.numero_orden}
+                          {p.articulos.length > 1 && (
+                            <span className="ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                              {p.articulos.length} artículos
+                            </span>
+                          )}
+                        </p>
+                        {p.articulos.map((a, i) => (
+                          <p key={i} className="text-xs text-gray-500 truncate">· {a}</p>
+                        ))}
                         <p className="text-xs text-gray-400">{formatFecha(p.fecha_creacion)}</p>
                       </div>
                       <div className="text-right text-xs leading-relaxed">

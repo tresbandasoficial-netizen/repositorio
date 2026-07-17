@@ -20,6 +20,9 @@ export type PedidoFacturable = {
   fecha_creacion: string
   sede_id: string
   sede_codigo: string
+  // Artículos del pedido ("ADIDAS Conjunto Essentials / Talla M"), para
+  // mostrarlos al elegir el pedido y armar el artículo del envío.
+  articulos: string[]
 }
 
 // Pedidos entregados y sin factura de un cliente, dentro de la sede del usuario
@@ -30,7 +33,7 @@ export async function getPedidosFacturablesAction(clienteId: string): Promise<Pe
 
   let q = supabase
     .from('pedidos')
-    .select('id, numero_orden, total, fecha_creacion, sede_id, sedes(codigo)')
+    .select('id, numero_orden, total, fecha_creacion, sede_id, sedes(codigo), pedido_items(marca, descripcion, talla, cantidad)')
     .eq('cliente_id', clienteId)
     .neq('estado', 'cancelado')
     .is('factura_id', null)
@@ -46,6 +49,9 @@ export async function getPedidosFacturablesAction(clienteId: string): Promise<Pe
     fecha_creacion: p.fecha_creacion as string,
     sede_id: p.sede_id as string,
     sede_codigo: (Array.isArray(p.sedes) ? p.sedes[0]?.codigo : p.sedes?.codigo) ?? '',
+    articulos: ((p.pedido_items ?? []) as any[]).map(it =>
+      `${it.marca} ${it.descripcion}${it.talla ? ` / Talla ${it.talla}` : ''}${it.cantidad > 1 ? ` x${it.cantidad}` : ''}`.trim()
+    ),
   }))
   if (pedidos.length === 0) return []
 
@@ -65,6 +71,7 @@ export async function getPedidosFacturablesAction(clienteId: string): Promise<Pe
     fecha_creacion: p.fecha_creacion,
     sede_id: p.sede_id,
     sede_codigo: p.sede_codigo,
+    articulos: p.articulos,
   }))
 }
 
