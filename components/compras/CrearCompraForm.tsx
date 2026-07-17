@@ -133,24 +133,54 @@ export function CrearCompraForm({ cuentas, proveedores = [] }: { cuentas: Cuenta
     const itemIdx = m ? parseInt(m[1], 10) - 1 : 0
     const prod = pedido?.items?.[itemIdx] ?? pedido?.items?.[0] ?? null
 
-    setItems(prev => prev.map((item, i) => {
-      if (i !== idx) return item
-      if (!pedido) return { ...item, pedidoOk: false, pedidoCliente: null }
-      return {
-        ...item,
-        pedidoOk: true,
-        pedidoCliente: pedido.cliente_nombre,
-        // Autollenar con los datos del producto del pedido (si los tiene).
-        ...(prod ? {
-          codigo:      prod.codigo || item.codigo,
-          descripcion: prod.descripcion || item.descripcion,
-          marca:       prod.marca || item.marca,
-          talla:       prod.talla || item.talla,
-          articuloId:  prod.articulo_id ?? item.articuloId ?? null,
-          articuloEncontrado: prod.articulo_id ? true : item.articuloEncontrado,
-        } : {}),
+    setItems(prev => {
+      const actualizado = prev.map((item, i) => {
+        if (i !== idx) return item
+        if (!pedido) return { ...item, pedidoOk: false, pedidoCliente: null }
+        return {
+          ...item,
+          pedidoOk: true,
+          pedidoCliente: pedido.cliente_nombre,
+          // Autollenar con los datos del producto del pedido (si los tiene).
+          ...(prod ? {
+            codigo:      prod.codigo || item.codigo,
+            descripcion: prod.descripcion || item.descripcion,
+            marca:       prod.marca || item.marca,
+            talla:       prod.talla || item.talla,
+            articuloId:  prod.articulo_id ?? item.articuloId ?? null,
+            articuloEncontrado: prod.articulo_id ? true : item.articuloEncontrado,
+          } : {}),
+        }
+      })
+
+      // Si el pedido tiene VARIOS artículos y es la primera fila que se le
+      // asigna, abrir automáticamente una fila por cada artículo restante
+      // (prellenada), para que la compra cubra el pedido completo.
+      if (pedido && !m && (pedido.items?.length ?? 0) > 1) {
+        const base = r.toUpperCase().replace(/-(\d+)$/, '')
+        const filasDeEstePedido = actualizado.filter(it =>
+          (it.pedidoRef ?? '').toUpperCase().replace(/-(\d+)$/, '') === base
+        ).length
+        if (filasDeEstePedido === 1) {
+          const extras: ItemForm[] = pedido.items.slice(1).map((p2: any) => ({
+            codigo:             p2.codigo ?? '',
+            descripcion:        p2.descripcion ?? '',
+            marca:              p2.marca ?? '',
+            talla:              p2.talla ?? '',
+            cantidad:           String(p2.cantidad || 1),
+            costo_unitario_cop: '',
+            destino:            'pedido' as const,
+            pedidoRef:          base,
+            pedidoOk:           true,
+            pedidoCliente:      pedido.cliente_nombre,
+            articuloId:         p2.articulo_id ?? null,
+            articuloEncontrado: p2.articulo_id ? true : undefined,
+          }))
+          return [...actualizado.slice(0, idx + 1), ...extras, ...actualizado.slice(idx + 1)]
+        }
       }
-    }))
+      return actualizado
+    })
   }
 
   async function buscarPorCodigo(idx: number, codigo: string) {
