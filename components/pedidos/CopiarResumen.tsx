@@ -83,8 +83,7 @@ function buildGrupo(pedido: PedidoDetalle): string {
   const articulos = pedido.items.map((it) => {
     const codigo = it.codigo ? ` (${it.codigo})` : ''
     const talla = it.talla ? ` / Talla ${it.talla}` : ''
-    const link = it.imagen_url ? `\nLink: ${it.imagen_url}` : ''
-    return `Artículo: ${it.marca} ${it.descripcion}${codigo}${talla} — ${formatCOPPlain(it.precio_venta)}${link}`
+    return `Artículo: ${it.marca} ${it.descripcion}${codigo}${talla} — ${formatCOPPlain(it.precio_venta)}`
   }).join('\n')
 
   const ccLinea = pedido.cliente_cedula ? `CC: ${pedido.cliente_cedula}\n` : ''
