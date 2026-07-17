@@ -398,7 +398,8 @@ export function EditarCompraForm({ compraId, inicial, itemsIniciales, cuentas }:
                     className={`${inputCls} bg-white`}>
                     <option value="sin_asignar">Stock tienda (sin asignar)</option>
                     <option value="pedido">Asignar a pedido</option>
-                    <option value="contoda">Para Contoda</option>
+                    {/* 'contoda' ya no se usa; se conserva solo si el item viejo lo tiene */}
+                    {item.destino === 'contoda' && <option value="contoda">Para Contoda</option>}
                   </select>
                 </div>
 

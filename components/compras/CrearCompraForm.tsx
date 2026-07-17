@@ -588,158 +588,121 @@ export function CrearCompraForm({ cuentas, proveedores = [] }: { cuentas: Cuenta
         </CardHeader>
         <CardContent className="space-y-4">
           {items.map((item, idx) => (
-            <div key={idx} className="border border-gray-100 rounded-lg p-4 space-y-3 bg-gray-50">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Producto {idx + 1}</span>
-                {items.length > 1 && (
-                  <button type="button" onClick={() => eliminarItem(idx)} className="text-xs text-red-500 hover:text-red-700">
-                    Eliminar
-                  </button>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                {/* Código SKU con lookup al catálogo */}
-                <div className="col-span-2">
-                  <label className="block text-xs text-gray-500 mb-1">Código del artículo (SKU)</label>
-                  <div className="relative">
+            <div key={idx} className="border border-gray-100 rounded-lg p-3 space-y-2 bg-gray-50">
+              {/* Fila 1: número + destino + N° de pedido (ARRIBA) + eliminar */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] font-bold text-gray-400 uppercase shrink-0">#{idx + 1}</span>
+                <select
+                  value={item.destino}
+                  onChange={(e) => actualizarItem(idx, 'destino', e.target.value)}
+                  className="rounded-lg border border-gray-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                  <option value="sin_asignar">Stock tienda</option>
+                  <option value="pedido">Asignar a pedido</option>
+                </select>
+                {item.destino === 'pedido' && (
+                  <div className="relative flex-1 min-w-32 max-w-44">
                     <input
                       type="text"
-                      value={item.codigo}
-                      onChange={(e) => actualizarItem(idx, 'codigo', e.target.value)}
-                      onBlur={(e) => buscarPorCodigo(idx, e.target.value)}
-                      placeholder="Ej: DV3337-100 — opcional"
-                      className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 bg-white font-mono ${
-                        item.articuloEncontrado === true  ? 'border-green-400 focus:ring-green-400' :
-                        item.articuloEncontrado === false ? 'border-amber-400 focus:ring-amber-400' :
+                      value={item.pedidoRef ?? ''}
+                      onChange={(e) => actualizarItem(idx, 'pedidoRef', e.target.value.toUpperCase())}
+                      onBlur={(e) => buscarPedidoRef(idx, e.target.value)}
+                      placeholder="N° pedido: TR6492"
+                      className={`w-full rounded-lg border px-2 py-1.5 text-xs font-mono bg-white focus:outline-none focus:ring-2 ${
+                        item.pedidoOk === true  ? 'border-green-400 focus:ring-green-400' :
+                        item.pedidoOk === false ? 'border-red-400 focus:ring-red-400' :
                         'border-gray-300 focus:ring-blue-500'
                       }`}
                     />
-                    {item.articuloEncontrado === true && (
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
-                        ✓ En catálogo
-                      </span>
+                    {item.pedidoOk === true && (
+                      <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-medium">✓</span>
                     )}
-                    {item.articuloEncontrado === false && (
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
-                        Artículo nuevo
-                      </span>
-                    )}
-                  </div>
-                  {item.articuloEncontrado === true && (
-                    <p className="text-xs text-green-600 mt-0.5">
-                      {item.marca} {item.descripcion} — datos cargados del catálogo
-                    </p>
-                  )}
-                  {item.articuloEncontrado === false && (
-                    <p className="text-xs text-amber-600 mt-0.5">
-                      Artículo nuevo — se creará en el catálogo al asignar el pedido
-                    </p>
-                  )}
-                </div>
-
-                <div className="col-span-2">
-                  <label className="block text-xs text-gray-500 mb-1">Descripción *</label>
-                  <input
-                    type="text"
-                    value={item.descripcion}
-                    onChange={(e) => actualizarItem(idx, 'descripcion', e.target.value)}
-                    placeholder="Nike Air Max 95, pantalón cargo..."
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Marca</label>
-                  <input
-                    type="text"
-                    value={item.marca}
-                    onChange={(e) => actualizarItem(idx, 'marca', e.target.value)}
-                    placeholder="Nike, Adidas..."
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Talla</label>
-                  <input
-                    type="text"
-                    value={item.talla}
-                    onChange={(e) => actualizarItem(idx, 'talla', e.target.value)}
-                    placeholder="40, L, XL..."
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Cantidad *</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={item.cantidad}
-                    onChange={(e) => actualizarItem(idx, 'cantidad', e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Costo unit. COP</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={formatMiles(item.costo_unitario_cop)}
-                    onChange={(e) => actualizarItem(idx, 'costo_unitario_cop', e.target.value.replace(/\D/g, ''))}
-                    placeholder="opcional"
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                  />
-                  {item.costo_unitario_cop && (
-                    <p className="text-xs text-gray-400 mt-1">{formatCOP(parseInt(item.costo_unitario_cop, 10) || 0)}</p>
-                  )}
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-xs text-gray-500 mb-1">Destino</label>
-                  <select
-                    value={item.destino}
-                    onChange={(e) => actualizarItem(idx, 'destino', e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                  >
-                    <option value="sin_asignar">Stock tienda (sin asignar)</option>
-                    <option value="pedido">Asignar a pedido</option>
-                    <option value="contoda">Para Contoda</option>
-                  </select>
-                </div>
-
-                {/* N° de pedido cuando se asigna a un pedido */}
-                {item.destino === 'pedido' && (
-                  <div className="col-span-2">
-                    <label className="block text-xs text-gray-500 mb-1">
-                      N° de pedido <span className="text-gray-400">(ej: TR6492)</span>
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={item.pedidoRef ?? ''}
-                        onChange={(e) => actualizarItem(idx, 'pedidoRef', e.target.value.toUpperCase())}
-                        onBlur={(e) => buscarPedidoRef(idx, e.target.value)}
-                        placeholder="TR6492"
-                        className={`w-full rounded-lg border px-3 py-2 text-sm font-mono bg-white focus:outline-none focus:ring-2 ${
-                          item.pedidoOk === true  ? 'border-green-400 focus:ring-green-400' :
-                          item.pedidoOk === false ? 'border-red-400 focus:ring-red-400' :
-                          'border-gray-300 focus:ring-blue-500'
-                        }`}
-                      />
-                      {item.pedidoOk === true && (
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
-                          ✓ Encontrado
-                        </span>
-                      )}
-                      {item.pedidoOk === false && (
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium">
-                          No existe
-                        </span>
-                      )}
-                    </div>
-                    {item.pedidoOk === true && item.pedidoCliente && (
-                      <p className="text-xs text-green-600 mt-0.5">Cliente: {item.pedidoCliente}</p>
+                    {item.pedidoOk === false && (
+                      <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full font-medium">✗</span>
                     )}
                   </div>
                 )}
+                <div className="flex-1" />
+                {items.length > 1 && (
+                  <button type="button" onClick={() => eliminarItem(idx)} className="text-xs text-red-400 hover:text-red-600 shrink-0">
+                    ✕
+                  </button>
+                )}
+              </div>
+              {item.destino === 'pedido' && item.pedidoOk === true && item.pedidoCliente && (
+                <p className="text-xs text-green-600">Cliente: {item.pedidoCliente}</p>
+              )}
+              {item.destino === 'pedido' && item.pedidoOk === false && (
+                <p className="text-xs text-red-600">Ese pedido no existe — revisa el número</p>
+              )}
+
+              {/* Fila 2: código + descripción */}
+              <div className="grid grid-cols-1 sm:grid-cols-[11rem_1fr] gap-2">
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={item.codigo}
+                    onChange={(e) => actualizarItem(idx, 'codigo', e.target.value)}
+                    onBlur={(e) => buscarPorCodigo(idx, e.target.value)}
+                    placeholder="Código (SKU)"
+                    className={`w-full rounded-lg border px-2 py-1.5 text-sm focus:outline-none focus:ring-2 bg-white font-mono ${
+                      item.articuloEncontrado === true  ? 'border-green-400 focus:ring-green-400' :
+                      item.articuloEncontrado === false ? 'border-amber-400 focus:ring-amber-400' :
+                      'border-gray-300 focus:ring-blue-500'
+                    }`}
+                  />
+                  {item.articuloEncontrado === true && (
+                    <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-medium">✓</span>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  value={item.descripcion}
+                  onChange={(e) => actualizarItem(idx, 'descripcion', e.target.value)}
+                  placeholder="Descripción * — Nike Air Max 95…"
+                  className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                />
+              </div>
+              {item.articuloEncontrado === true && (
+                <p className="text-xs text-green-600">✓ En catálogo: {item.marca} {item.descripcion}</p>
+              )}
+              {item.articuloEncontrado === false && (
+                <p className="text-xs text-amber-600">Artículo nuevo — se creará en el catálogo al asignar el pedido</p>
+              )}
+
+              {/* Fila 3: marca / talla / cantidad / costo */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <input
+                  type="text"
+                  value={item.marca}
+                  onChange={(e) => actualizarItem(idx, 'marca', e.target.value)}
+                  placeholder="Marca"
+                  className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                />
+                <input
+                  type="text"
+                  value={item.talla}
+                  onChange={(e) => actualizarItem(idx, 'talla', e.target.value)}
+                  placeholder="Talla"
+                  className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                />
+                <input
+                  type="number"
+                  min="1"
+                  value={item.cantidad}
+                  onChange={(e) => actualizarItem(idx, 'cantidad', e.target.value)}
+                  title="Cantidad"
+                  className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                />
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={formatMiles(item.costo_unitario_cop)}
+                  onChange={(e) => actualizarItem(idx, 'costo_unitario_cop', e.target.value.replace(/\D/g, ''))}
+                  placeholder="Costo unit."
+                  title="Costo unitario COP"
+                  className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                />
               </div>
             </div>
           ))}
