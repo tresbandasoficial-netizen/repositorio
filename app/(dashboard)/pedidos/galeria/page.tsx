@@ -2,10 +2,9 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getPedidos } from '@/lib/queries/pedidos'
-import { EstadoBadge } from '@/components/pedidos/EstadoBadge'
+import { GaleriaPedidos } from '@/components/pedidos/GaleriaPedidos'
 import { EstadoPedido, ESTADO_LABELS } from '@/types'
-import { formatCOP } from '@/lib/utils/format'
-import { List, ChevronLeft, ChevronRight, ImageOff } from 'lucide-react'
+import { List, ChevronLeft, ChevronRight } from 'lucide-react'
 
 const ESTADOS: Array<{ value: string; label: string }> = [
   { value: '',            label: 'Todos los estados' },
@@ -102,47 +101,7 @@ export default async function GaleriaPedidosPage({
           No hay pedidos con estos filtros
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {pedidos.map((pedido) => {
-            const imagen = (pedido as any).primera_imagen as string | null
-            const saldo = pedido.total - pedido.total_pagado
-            return (
-              <Link
-                key={pedido.id}
-                href={`/pedidos/${pedido.id}`}
-                className="group bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md hover:border-blue-200 transition-all"
-              >
-                {imagen ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={imagen}
-                    alt={pedido.numero_orden}
-                    loading="lazy"
-                    className="w-full aspect-square object-cover group-hover:scale-[1.02] transition-transform"
-                  />
-                ) : (
-                  <div className="w-full aspect-square bg-gray-50 flex flex-col items-center justify-center gap-2 text-gray-300">
-                    <ImageOff size={28} />
-                    <span className="text-xs">Sin foto</span>
-                  </div>
-                )}
-                <div className="p-3 space-y-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono font-bold text-sm text-gray-900">{pedido.numero_orden}</span>
-                    <EstadoBadge estado={pedido.estado} enAlerta={false} />
-                  </div>
-                  <p className="text-xs text-gray-600 truncate">{pedido.cliente_nombre}</p>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-gray-900">{formatCOP(pedido.total)}</span>
-                    {saldo > 0
-                      ? <span className="text-red-500 font-medium">Debe {formatCOP(saldo)}</span>
-                      : <span className="text-emerald-600 font-medium">Pagado ✓</span>}
-                  </div>
-                </div>
-              </Link>
-            )
-          })}
-        </div>
+        <GaleriaPedidos pedidos={pedidos} />
       )}
 
       {/* Paginación */}
