@@ -43,3 +43,4 @@ next-env.d.ts
 
 # scratchpad temporal (archivos de trabajo, no parte del proyecto)
 scratchpad/
+*.canvas
