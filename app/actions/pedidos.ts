@@ -80,6 +80,15 @@ async function _crearPedidoConDatos(
         error: `El artículo "${productoSinTalla.descripcion || 'sin nombre'}" necesita talla. La talla es obligatoria en ropa y tenis.`,
       }
     }
+    // La foto del producto es obligatoria en todos los artículos: identifica
+    // qué se compró (etiquetas, compras, revisión de mercancía).
+    const productoSinFoto = datos.productos.find(p => !(p as any).imagen_url)
+    if (productoSinFoto) {
+      return {
+        ok: false,
+        error: `El artículo "${productoSinFoto.descripcion || 'sin nombre'}" no tiene foto. Carga la imagen del producto antes de crear el pedido.`,
+      }
+    }
   }
 
   const { data: clienteExistente } = await supabase

@@ -334,6 +334,12 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
         setErrorAccion(`El artículo ${idxSinTalla + 1} necesita talla. La talla es obligatoria en ropa y tenis.`)
         return
       }
+      // La FOTO del producto es obligatoria en todos los artículos del pedido.
+      const idxSinFoto = form.productos.findIndex(p => !((p as any).imagen_url))
+      if (idxSinFoto !== -1) {
+        setErrorAccion(`El artículo ${idxSinFoto + 1} no tiene foto. Carga la imagen del producto antes de crear el pedido.`)
+        return
+      }
     }
 
     const total = form.productos.reduce((s, p) => s + p.precio_venta * p.cantidad, 0)
