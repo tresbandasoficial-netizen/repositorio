@@ -28,6 +28,7 @@ export async function crearTareaAction(data: {
   if (error) return { ok: false, error: error.message }
 
   revalidatePath('/tareas')
+  revalidatePath('/', 'layout') // refresca el aviso flotante en todas las páginas
   return { ok: true }
 }
 
@@ -47,6 +48,7 @@ export async function completarTareaAction(tareaId: string): Promise<TareaResult
   if (!count) return { ok: false, error: 'La tarea no existe, no es tuya o ya estaba completada' }
 
   revalidatePath('/tareas')
+  revalidatePath('/', 'layout') // refresca el aviso flotante en todas las páginas
   return { ok: true }
 }
 
@@ -63,6 +65,7 @@ export async function reabrirTareaAction(tareaId: string): Promise<TareaResult> 
   if (error) return { ok: false, error: error.message }
 
   revalidatePath('/tareas')
+  revalidatePath('/', 'layout') // refresca el aviso flotante en todas las páginas
   return { ok: true }
 }
 
