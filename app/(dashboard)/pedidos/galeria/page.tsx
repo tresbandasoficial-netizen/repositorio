@@ -41,6 +41,7 @@ export default async function GaleriaPedidosPage({
     estado: params.estado as EstadoPedido | undefined,
     q:      params.q,
     pagina,
+    porPagina: 30, // cuadrícula de 6 × 5 imágenes
     // Igual que la lista: el asesor ve su sede por defecto; al buscar, todas.
     ...(!esAdmin && usuario.sedes && !params.q ? { sede: (usuario.sedes as any).codigo } : {}),
   })

@@ -78,11 +78,13 @@ export async function getPedidos(filtros?: {
   pagina?: number
   fecha_desde?: string
   fecha_hasta?: string
+  porPagina?: number   // la galería usa 30 (cuadrícula de 6×5)
 }): Promise<PedidosResult> {
   const supabase = await createClient()
+  const porPagina = filtros?.porPagina ?? PAGE_SIZE
   const pagina = Math.max(1, filtros?.pagina ?? 1)
-  const desde = (pagina - 1) * PAGE_SIZE
-  const hasta = desde + PAGE_SIZE - 1
+  const desde = (pagina - 1) * porPagina
+  const hasta = desde + porPagina - 1
 
   let query = supabase
     .from('vista_pedidos_asesor')
@@ -126,7 +128,7 @@ export async function getPedidos(filtros?: {
     pedidos:      (data ?? []) as PedidoRow[],
     total,
     pagina,
-    totalPaginas: Math.max(1, Math.ceil(total / PAGE_SIZE)),
+    totalPaginas: Math.max(1, Math.ceil(total / porPagina)),
   }
 }
 
