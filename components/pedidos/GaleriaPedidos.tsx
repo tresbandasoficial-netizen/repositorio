@@ -1,12 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { PedidoRow } from '@/lib/queries/pedidos'
 import { ESTADO_LABELS } from '@/types'
 import { formatCOP, formatFecha } from '@/lib/utils/format'
 import { formatearTelefono } from '@/lib/utils/phone'
-import { ImageOff, X, ArrowUpRight, Check, Phone, ShoppingCart } from 'lucide-react'
+import { ImageOff, X, ArrowUpRight, Check, Phone, ShoppingCart, LayoutGrid, Package } from 'lucide-react'
 
 export type ItemGaleria = {
   codigo: string | null
@@ -17,6 +17,21 @@ export type ItemGaleria = {
   precio_venta: number
   sexo: string | null
   categoria: string | null
+  imagen_url: string | null
+  articulo_id: string | null
+  comprado: boolean
+}
+
+// Una tarjeta de la cuadrícula: en la vista "por artículo" cada artículo del
+// pedido es su propia tarjeta con consecutivo interno (TR6835-1, TR6835-2…);
+// en la vista "por pedido" hay una tarjeta por pedido.
+type Tile = {
+  ref: string                 // TR6835 o TR6835-2 (lo que se manda a compras)
+  pedido: PedidoRow
+  item: ItemGaleria | null    // null en vista por pedido
+  itemIdx: number | null
+  imagen: string | null
+  comprado: boolean
 }
 
 // Sexo del artículo como letra: M = mujer, H = hombre. Si el campo sexo no
@@ -53,8 +68,6 @@ function iniciales(nombre: string): string {
     .join('') || '?'
 }
 
-// Galería: cuadrícula de pedidos (filas de 6) y, al lado, un visor con la
-// foto del pedido seleccionado EN GRANDE + sus datos completos.
 export function GaleriaPedidos({
   pedidos,
   itemsPorPedido,
@@ -65,57 +78,89 @@ export function GaleriaPedidos({
   esAdmin?: boolean
 }) {
   const router = useRouter()
-  const [sel, setSel] = useState<PedidoRow | null>(pedidos[0] ?? null)
+  // Vista: "articulo" = una tarjeta por artículo (TR6835-1…); "pedido" = agrupada
+  const [vista, setVista] = useState<'articulo' | 'pedido'>('articulo')
+  const [selRef, setSelRef] = useState<string | null>(null)
   const [verMovil, setVerMovil] = useState(false)
-  // Selección múltiple (admin): números de orden marcados para registrar compra
+  // Selección múltiple (admin): refs marcadas para registrar compra
   const [marcados, setMarcados] = useState<string[]>([])
 
-  function toggleMarcado(numeroOrden: string) {
-    setMarcados(prev =>
-      prev.includes(numeroOrden) ? prev.filter(n => n !== numeroOrden) : [...prev, numeroOrden]
-    )
-  }
+  const tiles: Tile[] = useMemo(() => {
+    const out: Tile[] = []
+    for (const p of pedidos) {
+      const imagenPedido = (p as any).primera_imagen as string | null
+      const items = itemsPorPedido[p.id] ?? []
+      const pedidoComprado = !['pendiente', 'cancelado'].includes(p.estado)
+      if (vista === 'pedido' || items.length === 0) {
+        out.push({
+          ref: p.numero_orden,
+          pedido: p,
+          item: null,
+          itemIdx: null,
+          imagen: imagenPedido,
+          comprado: vista === 'pedido'
+            ? (items.length > 0 ? items.every(it => it.comprado) : pedidoComprado)
+            : pedidoComprado,
+        })
+      } else {
+        items.forEach((it, i) => {
+          out.push({
+            ref: items.length > 1 ? `${p.numero_orden}-${i + 1}` : p.numero_orden,
+            pedido: p,
+            item: it,
+            itemIdx: i,
+            imagen: it.imagen_url ?? imagenPedido,
+            comprado: it.comprado,
+          })
+        })
+      }
+    }
+    return out
+  }, [pedidos, itemsPorPedido, vista])
 
-  function elegir(p: PedidoRow) {
-    setSel(p)
+  const sel = tiles.find(t => t.ref === selRef) ?? tiles[0] ?? null
+
+  function elegir(t: Tile) {
+    setSelRef(t.ref)
     setVerMovil(true) // en pantallas pequeñas abre el visor encima
   }
 
-  const imagenSel = sel ? ((sel as any).primera_imagen as string | null) : null
-  const saldoSel = sel ? sel.total - sel.total_pagado : 0
-  const itemsSel = sel ? (itemsPorPedido[sel.id] ?? []) : []
-  // "Comprado" = el pedido ya pasó del estado pendiente (comprado, USA,
-  // Bucaramanga, Santa Rosa o entregado). Pendiente = falta comprarlo.
-  const yaComprado = sel ? !['pendiente', 'cancelado'].includes(sel.estado) : false
-  const cancelado = sel?.estado === 'cancelado'
+  function toggleMarcado(ref: string) {
+    setMarcados(prev => prev.includes(ref) ? prev.filter(n => n !== ref) : [...prev, ref])
+  }
+
+  const saldoSel = sel ? sel.pedido.total - sel.pedido.total_pagado : 0
+  const itemsSel = sel ? (itemsPorPedido[sel.pedido.id] ?? []) : []
+  const yaComprado = sel ? !['pendiente', 'cancelado'].includes(sel.pedido.estado) : false
+  const cancelado = sel?.pedido.estado === 'cancelado'
 
   const Visor = sel && (
     <div className="space-y-3">
-      {/* LA FOTO EN GRANDE */}
-      {imagenSel ? (
+      {/* LA FOTO EN GRANDE (la del artículo elegido) */}
+      {sel.imagen ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={imagenSel}
-          alt={sel.numero_orden}
+          src={sel.imagen}
+          alt={sel.ref}
           className="w-full aspect-square object-cover rounded-2xl border border-gray-200 shadow-sm"
         />
       ) : (
         <div className="w-full aspect-square bg-gray-50 rounded-2xl border border-gray-200 flex flex-col items-center justify-center gap-2 text-gray-300">
           <ImageOff size={40} />
-          <span className="text-sm">Este pedido no tiene foto</span>
+          <span className="text-sm">Sin foto</span>
         </div>
       )}
 
       {/* Tarjeta de información */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        {/* Encabezado: número + estado de compra */}
+        {/* Encabezado: ref + estado de compra */}
         <div className="flex items-center justify-between gap-2 px-4 py-3 bg-gray-50 border-b border-gray-100">
-          <span className="font-mono font-bold text-lg text-gray-900">{sel.numero_orden}</span>
+          <span className="font-mono font-bold text-lg text-gray-900">{sel.ref}</span>
           {cancelado ? (
             <span className="inline-flex items-center gap-1 bg-gray-200 text-gray-600 text-xs font-bold px-3 py-1 rounded-full">
               Cancelado
             </span>
-          ) : yaComprado ? (
+          ) : (sel.item ? sel.comprado : yaComprado) ? (
             <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-full">
               <Check size={13} /> Ya comprado
             </span>
@@ -129,26 +174,40 @@ export function GaleriaPedidos({
         {/* Cliente */}
         <div className="flex items-center gap-3 px-4 py-3">
           <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-bold shrink-0">
-            {iniciales(sel.cliente_nombre)}
+            {iniciales(sel.pedido.cliente_nombre)}
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-bold text-gray-900 truncate">{sel.cliente_nombre}</p>
+            <p className="text-sm font-bold text-gray-900 truncate">{sel.pedido.cliente_nombre}</p>
             <p className="text-xs text-gray-400 flex items-center gap-1 flex-wrap">
               <Phone size={11} className="shrink-0" />
-              {formatearTelefono(sel.cliente_telefono)} · {formatFecha(sel.fecha_creacion)} · {sel.sede_codigo} · {ESTADO_LABELS[sel.estado]}
+              {formatearTelefono(sel.pedido.cliente_telefono)} · {formatFecha(sel.pedido.fecha_creacion)} · {sel.pedido.sede_codigo} · {ESTADO_LABELS[sel.pedido.estado]}
             </p>
           </div>
         </div>
 
-        {/* Artículos: código + TALLA GRANDE (con M/H en tenis) */}
+        {/* Artículos: el elegido queda resaltado */}
         {itemsSel.map((it, i) => {
           const letra = esTallaNumerica(it.talla) ? sexoLetra(it) : null
+          const esElElegido = sel.itemIdx === i
           return (
-            <div key={i} className="mx-4 mb-3 bg-gray-50 rounded-xl p-3">
+            <div
+              key={i}
+              className={`mx-4 mb-3 rounded-xl p-3 ${
+                esElElegido ? 'bg-blue-50 ring-2 ring-blue-300' : 'bg-gray-50'
+              }`}
+            >
               <div className="flex items-center justify-between gap-2">
-                {it.codigo ? (
-                  <span className="font-mono text-[11px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md">{it.codigo}</span>
-                ) : <span />}
+                <span className="flex items-center gap-1.5 min-w-0">
+                  {itemsSel.length > 1 && (
+                    <span className="font-mono text-[11px] font-bold text-gray-400 shrink-0">-{i + 1}</span>
+                  )}
+                  {it.codigo ? (
+                    <span className="font-mono text-[11px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md truncate">{it.codigo}</span>
+                  ) : null}
+                  {it.comprado
+                    ? <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" title="Ya comprado" />
+                    : <span className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" title="Sin comprar" />}
+                </span>
                 {it.talla && (
                   <span className="inline-flex items-stretch shrink-0">
                     <span className={`bg-amber-50 border border-amber-400 text-amber-800 text-[15px] font-bold px-2.5 py-0.5 ${letra ? 'rounded-l-lg border-r-0' : 'rounded-lg'}`}>
@@ -174,15 +233,15 @@ export function GaleriaPedidos({
           )
         })}
 
-        {/* La plata: Total / Abono / Debe */}
+        {/* La plata: Total / Abono / Debe (del pedido completo) */}
         <div className="grid grid-cols-3 gap-2 px-4 pb-3">
           <div className="bg-gray-50 rounded-lg px-2 py-2 text-center">
             <p className="text-[11px] text-gray-400">Total</p>
-            <p className="text-sm font-bold text-gray-900">{formatCOP(sel.total)}</p>
+            <p className="text-sm font-bold text-gray-900">{formatCOP(sel.pedido.total)}</p>
           </div>
           <div className="bg-emerald-50 rounded-lg px-2 py-2 text-center">
             <p className="text-[11px] text-emerald-600">Abono</p>
-            <p className="text-sm font-bold text-emerald-800">{formatCOP(sel.total_pagado)}</p>
+            <p className="text-sm font-bold text-emerald-800">{formatCOP(sel.pedido.total_pagado)}</p>
           </div>
           {saldoSel > 0 ? (
             <div className="bg-red-50 rounded-lg px-2 py-2 text-center">
@@ -199,7 +258,7 @@ export function GaleriaPedidos({
 
         <div className="px-4 pb-4">
           <button
-            onClick={() => router.push(`/pedidos/${sel.id}`)}
+            onClick={() => router.push(`/pedidos/${sel.pedido.id}`)}
             className="w-full flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl py-2.5 transition-colors"
           >
             Abrir pedido <ArrowUpRight size={14} />
@@ -210,76 +269,100 @@ export function GaleriaPedidos({
   )
 
   return (
-    <div className="flex gap-5 items-start">
-      {/* Cuadrícula: filas de 6 */}
-      <div className="flex-1 min-w-0 grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
-        {pedidos.map((p) => {
-          const imagen = (p as any).primera_imagen as string | null
-          const activa = sel?.id === p.id
-          const comprado = !['pendiente', 'cancelado'].includes(p.estado)
-          const marcado = marcados.includes(p.numero_orden)
-          return (
-            <button
-              key={p.id}
-              onClick={() => elegir(p)}
-              className={`group relative text-left bg-white rounded-xl border overflow-hidden transition-all ${
-                marcado ? 'border-purple-500 ring-2 ring-purple-300 shadow-md'
-                : activa ? 'border-blue-500 ring-2 ring-blue-300 shadow-md'
-                : 'border-gray-100 shadow-sm hover:border-blue-200 hover:shadow'
-              }`}
-            >
-              {/* Punto verde = ya comprado · rojo = sin comprar · gris = cancelado */}
-              <span
-                className={`absolute top-1.5 right-1.5 z-10 w-3 h-3 rounded-full ring-2 ring-white ${
-                  p.estado === 'cancelado' ? 'bg-gray-400' : comprado ? 'bg-emerald-500' : 'bg-red-500'
-                }`}
-              />
-              {/* Casilla de selección (admin): marcar varios para registrar compra */}
-              {esAdmin && p.estado !== 'cancelado' && (
-                <span
-                  role="checkbox"
-                  aria-checked={marcado}
-                  onClick={(e) => { e.stopPropagation(); toggleMarcado(p.numero_orden) }}
-                  className={`absolute top-1.5 left-1.5 z-10 w-6 h-6 rounded-md flex items-center justify-center border-2 cursor-pointer transition-colors ${
-                    marcado
-                      ? 'bg-purple-600 border-purple-600 text-white'
-                      : 'bg-white/90 border-gray-300 text-transparent hover:border-purple-400'
-                  }`}
-                >
-                  <Check size={14} strokeWidth={3} />
-                </span>
-              )}
-              {imagen ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={imagen} alt={p.numero_orden} loading="lazy" className="w-full aspect-square object-cover" />
-              ) : (
-                <div className="w-full aspect-square bg-gray-50 flex items-center justify-center text-gray-300">
-                  <ImageOff size={20} />
-                </div>
-              )}
-              <div className="px-2 py-1.5">
-                <p className="font-mono font-bold text-[11px] text-gray-900 truncate">{p.numero_orden}</p>
-                <p className="text-[10px] text-gray-400 truncate">{p.cliente_nombre}</p>
-              </div>
-            </button>
-          )
-        })}
+    <div className="space-y-3">
+      {/* Selector de vista */}
+      <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+        <button
+          onClick={() => { setVista('articulo'); setMarcados([]) }}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+            vista === 'articulo' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <LayoutGrid size={13} /> Por artículo
+        </button>
+        <button
+          onClick={() => { setVista('pedido'); setMarcados([]) }}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+            vista === 'pedido' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Package size={13} /> Por pedido
+        </button>
       </div>
 
-      {/* Visor lateral (pantallas grandes): la foto EN GRANDE a un lado */}
-      <aside className="hidden lg:block w-[360px] xl:w-[420px] shrink-0 sticky top-20">
-        {Visor ?? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center text-sm text-gray-400">
-            Toca un pedido para ver su foto en grande
-          </div>
-        )}
-      </aside>
+      <div className="flex gap-5 items-start">
+        {/* Cuadrícula: filas de 6 */}
+        <div className="flex-1 min-w-0 grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+          {tiles.map((t) => {
+            const activa = sel?.ref === t.ref
+            const marcado = marcados.includes(t.ref)
+            const esCancelado = t.pedido.estado === 'cancelado'
+            return (
+              <button
+                key={t.ref}
+                onClick={() => elegir(t)}
+                className={`group relative text-left bg-white rounded-xl border overflow-hidden transition-all ${
+                  marcado ? 'border-purple-500 ring-2 ring-purple-300 shadow-md'
+                  : activa ? 'border-blue-500 ring-2 ring-blue-300 shadow-md'
+                  : 'border-gray-100 shadow-sm hover:border-blue-200 hover:shadow'
+                }`}
+              >
+                {/* Punto verde = ya comprado · rojo = sin comprar · gris = cancelado */}
+                <span
+                  className={`absolute top-1.5 right-1.5 z-10 w-3 h-3 rounded-full ring-2 ring-white ${
+                    esCancelado ? 'bg-gray-400' : t.comprado ? 'bg-emerald-500' : 'bg-red-500'
+                  }`}
+                />
+                {/* Casilla de selección (admin): marcar varios para registrar compra */}
+                {esAdmin && !esCancelado && (
+                  <span
+                    role="checkbox"
+                    aria-checked={marcado}
+                    onClick={(e) => { e.stopPropagation(); toggleMarcado(t.ref) }}
+                    className={`absolute top-1.5 left-1.5 z-10 w-6 h-6 rounded-md flex items-center justify-center border-2 cursor-pointer transition-colors ${
+                      marcado
+                        ? 'bg-purple-600 border-purple-600 text-white'
+                        : 'bg-white/90 border-gray-300 text-transparent hover:border-purple-400'
+                    }`}
+                  >
+                    <Check size={14} strokeWidth={3} />
+                  </span>
+                )}
+                {t.imagen ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={t.imagen} alt={t.ref} loading="lazy" className="w-full aspect-square object-cover" />
+                ) : (
+                  <div className="w-full aspect-square bg-gray-50 flex items-center justify-center text-gray-300">
+                    <ImageOff size={20} />
+                  </div>
+                )}
+                <div className="px-2 py-1.5">
+                  <p className="font-mono font-bold text-[11px] text-gray-900 truncate">{t.ref}</p>
+                  <p className="text-[10px] text-gray-400 truncate">
+                    {t.pedido.cliente_nombre}
+                    {t.item?.talla ? ` · T ${tallaLimpia(t.item.talla)}` : ''}
+                  </p>
+                </div>
+              </button>
+            )
+          })}
+        </div>
 
-      {/* Barra flotante: registrar la compra de los pedidos marcados */}
+        {/* Visor lateral (pantallas grandes): la foto EN GRANDE a un lado */}
+        <aside className="hidden lg:block w-[360px] xl:w-[420px] shrink-0 sticky top-20">
+          {Visor ?? (
+            <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center text-sm text-gray-400">
+              Toca un artículo para ver su foto en grande
+            </div>
+          )}
+        </aside>
+      </div>
+
+      {/* Barra flotante: registrar la compra de lo marcado */}
       {esAdmin && marcados.length > 0 && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-gray-900 text-white rounded-2xl shadow-xl pl-4 pr-2 py-2 print:hidden">
           <span className="text-sm font-semibold whitespace-nowrap">
-            {marcados.length} pedido{marcados.length !== 1 ? 's' : ''} seleccionado{marcados.length !== 1 ? 's' : ''}
+            {marcados.length} artículo{marcados.length !== 1 ? 's' : ''} seleccionado{marcados.length !== 1 ? 's' : ''}
           </span>
           <button
             onClick={() => setMarcados([])}

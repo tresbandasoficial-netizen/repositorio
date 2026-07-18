@@ -2,9 +2,48 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getPedidos } from '@/lib/queries/pedidos'
-import { GaleriaPedidos } from '@/components/pedidos/GaleriaPedidos'
+import { GaleriaPedidos, type ItemGaleria } from '@/components/pedidos/GaleriaPedidos'
 import { EstadoPedido, ESTADO_LABELS } from '@/types'
 import { List, ChevronLeft, ChevronRight } from 'lucide-react'
+
+// Cruza los artículos del pedido con las compras ya asignadas para saber
+// cuáles piezas YA se compraron. El cruce va de lo exacto a lo aproximado:
+// 1) mismo artículo del catálogo, 2) mismo código, 3) misma talla, 4) lo que
+// quede en orden (para compras viejas sin código).
+function marcarComprados(
+  items: ItemGaleria[],
+  compras: Array<{ codigo: string | null; talla: string | null; articulo_id: string | null; cantidad: number }>,
+): void {
+  const unidades: Array<{ codigo: string | null; talla: string | null; articulo_id: string | null; usada: boolean }> = []
+  for (const c of compras) {
+    for (let i = 0; i < (c.cantidad || 1); i++) {
+      unidades.push({
+        codigo: c.codigo?.trim().toUpperCase() || null,
+        talla: c.talla?.trim().toLowerCase() || null,
+        articulo_id: c.articulo_id ?? null,
+        usada: false,
+      })
+    }
+  }
+  const restante = items.map(it => it.cantidad || 1)
+  const pasadas: Array<(u: (typeof unidades)[0], it: ItemGaleria) => boolean> = [
+    (u, it) => !!it.articulo_id && u.articulo_id === it.articulo_id,
+    (u, it) => !!it.codigo && u.codigo === it.codigo.trim().toUpperCase(),
+    (u, it) => !!it.talla && u.talla === it.talla.trim().toLowerCase(),
+    () => true,
+  ]
+  for (const coincide of pasadas) {
+    items.forEach((it, idx) => {
+      while (restante[idx] > 0) {
+        const u = unidades.find(u => !u.usada && coincide(u, it))
+        if (!u) break
+        u.usada = true
+        restante[idx]--
+      }
+    })
+  }
+  items.forEach((it, idx) => { it.comprado = restante[idx] <= 0 })
+}
 
 const ESTADOS: Array<{ value: string; label: string }> = [
   { value: '',            label: 'Todos los estados' },
@@ -47,14 +86,22 @@ export default async function GaleriaPedidosPage({
   })
   const { pedidos, total, totalPaginas } = resultado
 
-  // Artículos de los pedidos en pantalla (para el visor: códigos, tallas, sexo…)
-  const itemsPorPedido: Record<string, Array<{ codigo: string | null; marca: string; descripcion: string; talla: string | null; cantidad: number; precio_venta: number; sexo: string | null; categoria: string | null }>> = {}
+  // Artículos de los pedidos en pantalla (con su foto) + compras ya asignadas
+  // (para pintar en verde las piezas que ya se compraron).
+  const itemsPorPedido: Record<string, ItemGaleria[]> = {}
   if (pedidos.length > 0) {
-    const { data: items } = await supabase
-      .from('pedido_items')
-      .select('pedido_id, codigo, marca, descripcion, talla, cantidad, precio_venta, sexo, categoria, articulos(codigo, sexo, categoria)')
-      .in('pedido_id', pedidos.map(p => p.id))
-      .order('id')
+    const ids = pedidos.map(p => p.id)
+    const [{ data: items }, { data: compras }] = await Promise.all([
+      supabase
+        .from('pedido_items')
+        .select('pedido_id, codigo, marca, descripcion, talla, cantidad, precio_venta, sexo, categoria, imagen_url, articulo_id, articulos(codigo, sexo, categoria)')
+        .in('pedido_id', ids)
+        .order('id'),
+      supabase
+        .from('compra_items')
+        .select('pedido_id, codigo, talla, articulo_id, cantidad')
+        .in('pedido_id', ids),
+    ])
     for (const it of (items ?? []) as any[]) {
       const art = Array.isArray(it.articulos) ? it.articulos[0] : it.articulos
       ;(itemsPorPedido[it.pedido_id] ??= []).push({
@@ -66,7 +113,17 @@ export default async function GaleriaPedidosPage({
         precio_venta: it.precio_venta,
         sexo: it.sexo ?? art?.sexo ?? null,
         categoria: it.categoria ?? art?.categoria ?? null,
+        imagen_url: it.imagen_url ?? null,
+        articulo_id: it.articulo_id ?? null,
+        comprado: false,
       })
+    }
+    const comprasPorPedido: Record<string, Array<{ codigo: string | null; talla: string | null; articulo_id: string | null; cantidad: number }>> = {}
+    for (const c of (compras ?? []) as any[]) {
+      ;(comprasPorPedido[c.pedido_id] ??= []).push(c)
+    }
+    for (const pid of Object.keys(itemsPorPedido)) {
+      marcarComprados(itemsPorPedido[pid], comprasPorPedido[pid] ?? [])
     }
   }
 

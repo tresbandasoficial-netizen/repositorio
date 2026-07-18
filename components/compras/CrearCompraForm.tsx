@@ -82,9 +82,10 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
   const fileRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
-  // Pedidos seleccionados desde la galería (?pedidos=TR6821,TR6822): se abre
-  // directo el formulario con una fila prellenada por cada artículo de cada
-  // pedido, ya asignada a su número de orden.
+  // Pedidos/artículos seleccionados desde la galería
+  // (?pedidos=TR6821,TR6835-2,TR6835-4): se abre directo el formulario con
+  // filas prellenadas. "TR6835-2" = solo el 2º artículo del pedido TR6835;
+  // sin sufijo = todos los artículos del pedido.
   useEffect(() => {
     if (pedidosIniciales.length === 0) return
     let cancelado = false
@@ -92,13 +93,16 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
       const filas: ItemForm[] = []
       const avisos: string[] = []
       for (const num of pedidosIniciales) {
+        const idxSufijo = num.match(/-(\d+)$/) ? parseInt(num.match(/-(\d+)$/)![1], 10) - 1 : null
         const pedido = await buscarPedidoPorOrdenAction(num)
         if (cancelado) return
         if (!pedido) { avisos.push(`${num}: no existe`); continue }
         const compraCompleta = pedido.unidades_pedido > 0 &&
           pedido.unidades_compradas >= pedido.unidades_pedido
         if (compraCompleta) { avisos.push(`${pedido.numero_orden}: ya tiene su compra asignada`); continue }
-        const itemsPedido = pedido.items?.length ? pedido.items : [null]
+        const itemsPedido = idxSufijo !== null
+          ? [pedido.items?.[idxSufijo] ?? null]
+          : (pedido.items?.length ? pedido.items : [null])
         for (const prod of itemsPedido) {
           filas.push({
             codigo:             prod?.codigo ?? '',
@@ -108,7 +112,9 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
             cantidad:           '1',
             costo_unitario_cop: '',
             destino:            'pedido',
-            pedidoRef:          pedido.numero_orden,
+            // Con sufijo se conserva (TR6835-2) para que la compra quede
+            // asignada exactamente a ese artículo del pedido.
+            pedidoRef:          idxSufijo !== null ? num : pedido.numero_orden,
             pedidoOk:           true,
             pedidoCliente:      pedido.cliente_nombre,
             articuloId:         prod?.articulo_id ?? null,
