@@ -266,8 +266,9 @@ export function CrearCompraForm({ cuentas, proveedores = [] }: { cuentas: Cuenta
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i]
-      if (!item.descripcion.trim()) { setError(`Item ${i + 1}: falta la descripción`); return }
-      if (!parseInt(item.cantidad, 10)) { setError(`Item ${i + 1}: cantidad inválida`); return }
+      if (!item.codigo.trim()) { setError(`Producto ${i + 1}: el código del artículo (SKU) es obligatorio`); return }
+      if (!item.descripcion.trim()) { setError(`Producto ${i + 1}: falta la descripción`); return }
+      if (!parseInt(item.cantidad, 10)) { setError(`Producto ${i + 1}: cantidad inválida`); return }
     }
 
     const itemsValidos: CompraItemInput[] = items.map((item) => ({
