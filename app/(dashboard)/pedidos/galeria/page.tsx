@@ -46,12 +46,12 @@ export default async function GaleriaPedidosPage({
   })
   const { pedidos, total, totalPaginas } = resultado
 
-  // Artículos de los pedidos en pantalla (para el visor: códigos, tallas, etc.)
-  const itemsPorPedido: Record<string, Array<{ codigo: string | null; marca: string; descripcion: string; talla: string | null; cantidad: number; precio_venta: number }>> = {}
+  // Artículos de los pedidos en pantalla (para el visor: códigos, tallas, sexo…)
+  const itemsPorPedido: Record<string, Array<{ codigo: string | null; marca: string; descripcion: string; talla: string | null; cantidad: number; precio_venta: number; sexo: string | null; categoria: string | null }>> = {}
   if (pedidos.length > 0) {
     const { data: items } = await supabase
       .from('pedido_items')
-      .select('pedido_id, codigo, marca, descripcion, talla, cantidad, precio_venta, articulos(codigo)')
+      .select('pedido_id, codigo, marca, descripcion, talla, cantidad, precio_venta, sexo, categoria, articulos(codigo, sexo, categoria)')
       .in('pedido_id', pedidos.map(p => p.id))
       .order('id')
     for (const it of (items ?? []) as any[]) {
@@ -63,6 +63,8 @@ export default async function GaleriaPedidosPage({
         talla: it.talla,
         cantidad: it.cantidad,
         precio_venta: it.precio_venta,
+        sexo: it.sexo ?? art?.sexo ?? null,
+        categoria: it.categoria ?? art?.categoria ?? null,
       })
     }
   }

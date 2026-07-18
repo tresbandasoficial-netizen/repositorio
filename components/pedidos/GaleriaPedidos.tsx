@@ -1,13 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { PedidoRow } from '@/lib/queries/pedidos'
-import { EstadoBadge } from './EstadoBadge'
+import { ESTADO_LABELS } from '@/types'
 import { formatCOP, formatFecha } from '@/lib/utils/format'
 import { formatearTelefono } from '@/lib/utils/phone'
-import { ImageOff, X, ArrowUpRight, Check } from 'lucide-react'
+import { ImageOff, X, ArrowUpRight, Check, Phone } from 'lucide-react'
 
 export type ItemGaleria = {
   codigo: string | null
@@ -16,6 +15,42 @@ export type ItemGaleria = {
   talla: string | null
   cantidad: number
   precio_venta: number
+  sexo: string | null
+  categoria: string | null
+}
+
+// Sexo del artículo como letra: M = mujer, H = hombre. Si el campo sexo no
+// está, se detecta del texto de la talla/descripción; si no hay forma de
+// saberlo, no se muestra nada (null).
+function sexoLetra(it: ItemGaleria): 'M' | 'H' | null {
+  if (it.sexo === 'mujer') return 'M'
+  if (it.sexo === 'hombre') return 'H'
+  const texto = `${it.talla ?? ''} ${it.descripcion}`.toLowerCase()
+  if (/dama|mujer|niña|wmns|women/.test(texto)) return 'M'
+  if (/caballero|hombre|\bmen\b/.test(texto)) return 'H'
+  return null
+}
+
+// Talla limpia para la etiqueta: si es numérica (tenis) deja solo el número
+// ("6.5 us dama" → "6.5"); si es de ropa (S/M/L…) la deja tal cual.
+function tallaLimpia(talla: string): string {
+  const num = talla.match(/\d+(?:[.,]\d+)?/)
+  return num ? num[0] : talla.toUpperCase()
+}
+
+// La letra M/H solo aplica a tenis (talla numérica): en ropa la talla "M"
+// (mediana) se confundiría con la M de mujer.
+function esTallaNumerica(talla: string | null): boolean {
+  return !!talla && /\d/.test(talla)
+}
+
+function iniciales(nombre: string): string {
+  return nombre
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map(p => p[0]?.toUpperCase() ?? '')
+    .join('') || '?'
 }
 
 // Galería: cuadrícula de pedidos (filas de 6) y, al lado, un visor con la
@@ -61,71 +96,105 @@ export function GaleriaPedidos({
         </div>
       )}
 
-      {/* Recuadro VERDE si ya fue comprado, ROJO si falta comprarlo */}
-      {cancelado ? (
-        <div className="rounded-xl border-2 border-gray-300 bg-gray-100 text-gray-500 text-center font-bold text-sm py-2.5">
-          Pedido cancelado
-        </div>
-      ) : yaComprado ? (
-        <div className="flex items-center justify-center gap-2 rounded-xl border-2 border-emerald-500 bg-emerald-50 text-emerald-700 font-bold text-sm py-2.5">
-          <Check size={16} /> YA COMPRADO
-        </div>
-      ) : (
-        <div className="flex items-center justify-center gap-2 rounded-xl border-2 border-red-500 bg-red-50 text-red-600 font-bold text-sm py-2.5">
-          <X size={16} /> SIN COMPRAR
-        </div>
-      )}
-
-      {/* Datos completos del pedido */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-2">
-        <div className="flex items-center justify-between gap-2">
+      {/* Tarjeta de información */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        {/* Encabezado: número + estado de compra */}
+        <div className="flex items-center justify-between gap-2 px-4 py-3 bg-gray-50 border-b border-gray-100">
           <span className="font-mono font-bold text-lg text-gray-900">{sel.numero_orden}</span>
-          <EstadoBadge estado={sel.estado} enAlerta={false} />
+          {cancelado ? (
+            <span className="inline-flex items-center gap-1 bg-gray-200 text-gray-600 text-xs font-bold px-3 py-1 rounded-full">
+              Cancelado
+            </span>
+          ) : yaComprado ? (
+            <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-full">
+              <Check size={13} /> Ya comprado
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 bg-red-100 text-red-700 text-xs font-bold px-3 py-1 rounded-full">
+              <X size={13} /> Sin comprar
+            </span>
+          )}
         </div>
-        <p className="text-sm font-semibold text-gray-800">{sel.cliente_nombre}</p>
-        <p className="text-xs text-gray-400">{formatearTelefono(sel.cliente_telefono)} · {formatFecha(sel.fecha_creacion)} · {sel.sede_codigo}</p>
 
-        {/* Artículos con código */}
-        {itemsSel.length > 0 && (
-          <ul className="pt-2 border-t border-gray-100 space-y-1">
-            {itemsSel.map((it, i) => (
-              <li key={i} className="text-xs text-gray-700 flex justify-between gap-2">
-                <span className="min-w-0">
-                  {it.cantidad > 1 ? `${it.cantidad}× ` : ''}
-                  {it.codigo && <span className="font-mono font-bold text-blue-700">({it.codigo}) </span>}
-                  <span className="font-medium">{it.marca} {it.descripcion}</span>
-                  {it.talla && <span className="text-gray-400"> · Talla {it.talla}</span>}
-                </span>
-                <span className="shrink-0 text-gray-500">{formatCOP(it.precio_venta * it.cantidad)}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {/* Plata: total, abono y saldo */}
-        <div className="pt-2 border-t border-gray-100 space-y-0.5 text-sm">
-          <div className="flex justify-between">
-            <span className="text-gray-500">Total</span>
-            <span className="font-bold text-gray-900">{formatCOP(sel.total)}</span>
+        {/* Cliente */}
+        <div className="flex items-center gap-3 px-4 py-3">
+          <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-bold shrink-0">
+            {iniciales(sel.cliente_nombre)}
           </div>
-          <div className="flex justify-between">
-            <span className="text-gray-500">Abono</span>
-            <span className="font-semibold text-emerald-600">{formatCOP(sel.total_pagado)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-500">Saldo</span>
-            {saldoSel > 0
-              ? <span className="font-bold text-red-500">{formatCOP(saldoSel)}</span>
-              : <span className="font-bold text-emerald-600">Pagado ✓</span>}
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-gray-900 truncate">{sel.cliente_nombre}</p>
+            <p className="text-xs text-gray-400 flex items-center gap-1 flex-wrap">
+              <Phone size={11} className="shrink-0" />
+              {formatearTelefono(sel.cliente_telefono)} · {formatFecha(sel.fecha_creacion)} · {sel.sede_codigo} · {ESTADO_LABELS[sel.estado]}
+            </p>
           </div>
         </div>
 
-        <button
-          onClick={() => router.push(`/pedidos/${sel.id}`)}
-          className="w-full flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl py-2.5 transition-colors"
-        >
-          Abrir pedido <ArrowUpRight size={14} />
-        </button>
+        {/* Artículos: código + TALLA GRANDE (con M/H en tenis) */}
+        {itemsSel.map((it, i) => {
+          const letra = esTallaNumerica(it.talla) ? sexoLetra(it) : null
+          return (
+            <div key={i} className="mx-4 mb-3 bg-gray-50 rounded-xl p-3">
+              <div className="flex items-center justify-between gap-2">
+                {it.codigo ? (
+                  <span className="font-mono text-[11px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md">{it.codigo}</span>
+                ) : <span />}
+                {it.talla && (
+                  <span className="inline-flex items-stretch shrink-0">
+                    <span className={`bg-amber-50 border border-amber-400 text-amber-800 text-[15px] font-bold px-2.5 py-0.5 ${letra ? 'rounded-l-lg border-r-0' : 'rounded-lg'}`}>
+                      Talla {tallaLimpia(it.talla)}
+                    </span>
+                    {letra === 'M' && (
+                      <span className="bg-pink-50 border border-pink-400 text-pink-800 text-[15px] font-bold px-2.5 py-0.5 rounded-r-lg">M</span>
+                    )}
+                    {letra === 'H' && (
+                      <span className="bg-blue-50 border border-blue-400 text-blue-800 text-[15px] font-bold px-2.5 py-0.5 rounded-r-lg">H</span>
+                    )}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-baseline justify-between gap-2 mt-2">
+                <div className="min-w-0">
+                  <p className="text-[13px] font-semibold text-gray-800 truncate">{it.marca} {it.descripcion}</p>
+                  <p className="text-xs text-gray-400">{it.cantidad} unidad{it.cantidad !== 1 ? 'es' : ''}</p>
+                </div>
+                <span className="text-[13px] font-bold text-gray-900 shrink-0">{formatCOP(it.precio_venta * it.cantidad)}</span>
+              </div>
+            </div>
+          )
+        })}
+
+        {/* La plata: Total / Abono / Debe */}
+        <div className="grid grid-cols-3 gap-2 px-4 pb-3">
+          <div className="bg-gray-50 rounded-lg px-2 py-2 text-center">
+            <p className="text-[11px] text-gray-400">Total</p>
+            <p className="text-sm font-bold text-gray-900">{formatCOP(sel.total)}</p>
+          </div>
+          <div className="bg-emerald-50 rounded-lg px-2 py-2 text-center">
+            <p className="text-[11px] text-emerald-600">Abono</p>
+            <p className="text-sm font-bold text-emerald-800">{formatCOP(sel.total_pagado)}</p>
+          </div>
+          {saldoSel > 0 ? (
+            <div className="bg-red-50 rounded-lg px-2 py-2 text-center">
+              <p className="text-[11px] text-red-500">Debe</p>
+              <p className="text-sm font-bold text-red-700">{formatCOP(saldoSel)}</p>
+            </div>
+          ) : (
+            <div className="bg-emerald-50 rounded-lg px-2 py-2 text-center">
+              <p className="text-[11px] text-emerald-600">Debe</p>
+              <p className="text-sm font-bold text-emerald-800">Pagado ✓</p>
+            </div>
+          )}
+        </div>
+
+        <div className="px-4 pb-4">
+          <button
+            onClick={() => router.push(`/pedidos/${sel.id}`)}
+            className="w-full flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl py-2.5 transition-colors"
+          >
+            Abrir pedido <ArrowUpRight size={14} />
+          </button>
+        </div>
       </div>
     </div>
   )
