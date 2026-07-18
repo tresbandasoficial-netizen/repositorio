@@ -655,3 +655,28 @@ export async function eliminarPedidoAction(pedidoId: string): Promise<EliminarPe
 
   redirect('/pedidos')
 }
+
+export type SepararPedidoResult =
+  | { ok: true; partes: string[] }
+  | { ok: false; error: string }
+
+// Separa un pedido de varios artículos en un pedido por artículo
+// (TR6835 → TR6835-1, TR6835-2, …) para facturar/enviar solo lo que ya llegó.
+// El RPC reparte los abonos entre las partes sin mover un peso de la caja y
+// se lleva las compras ya asignadas a la parte de su artículo.
+export async function separarPedidoAction(pedidoId: string): Promise<SepararPedidoResult> {
+  const sesion = await getSesion()
+  if (sesion.rol === 'visor') return { ok: false, error: 'Sin permisos para separar pedidos' }
+  const supabase = await createClient()
+
+  try {
+    const { data, error } = await supabase.rpc('separar_pedido_por_articulos', { p_pedido_id: pedidoId })
+    if (error) return { ok: false, error: error.message }
+    revalidatePath('/pedidos')
+    revalidatePath('/pedidos/galeria')
+    revalidatePath('/facturacion')
+    return { ok: true, partes: ((data as any)?.partes ?? []) as string[] }
+  } catch {
+    return { ok: false, error: 'No se pudo separar el pedido. Recarga la página (F5) e intenta de nuevo.' }
+  }
+}

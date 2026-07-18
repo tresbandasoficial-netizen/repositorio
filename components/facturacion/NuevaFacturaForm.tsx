@@ -7,6 +7,7 @@ import { buscarClientesAction, ClienteBusqueda } from '@/app/actions/clientes'
 import {
   getPedidosFacturablesAction, crearFacturaUnificadaAction, buscarPedidoFacturableAction, PedidoFacturable,
 } from '@/app/actions/facturacion'
+import { separarPedidoAction } from '@/app/actions/pedidos'
 import { formatCOP, formatFecha, formatMiles, hoyBogota } from '@/lib/utils/format'
 import { MetodoPago, PagoFacturaInput, TipoEntrega, QuienPagaEntrega, TipoMensajeria, MENSAJERIA_LABELS, metodosDeSede, labelMetodo, METODO_PAGO_LABELS } from '@/types'
 import { Linea, nuevaLinea, LineaProducto } from '@/components/ventas/LineaProducto'
@@ -39,6 +40,8 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
   const [pedidos, setPedidos] = useState<PedidoFacturable[]>([])
   const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set())
   const [cargando, setCargando] = useState(false)
+  const [separando, setSeparando] = useState<string | null>(null)
+  const [avisoSeparado, setAvisoSeparado] = useState('')
 
   // Productos nuevos del inventario
   const [lineas, setLineas] = useState<Linea[]>([])
@@ -126,6 +129,27 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
       r.data.pedido_id,
       numPedido.trim().toUpperCase(),
     )
+  }
+
+  // Separa un pedido de varios artículos en una parte por artículo
+  // (TR6835 → TR6835-1, TR6835-2…) y recarga la lista para elegir cuáles facturar.
+  async function separarPedido(pedidoId: string) {
+    if (!cliente) return
+    setSeparando(pedidoId)
+    setError('')
+    setAvisoSeparado('')
+    try {
+      const r = await separarPedidoAction(pedidoId)
+      if (!r.ok) { setError(r.error); return }
+      const ped = await getPedidosFacturablesAction(cliente.id)
+      setPedidos(ped)
+      setSeleccionados(prev => { const next = new Set(prev); next.delete(pedidoId); return next })
+      setAvisoSeparado(`Pedido separado en: ${r.partes.join(', ')}. Marca las partes que vas a facturar.`)
+    } catch {
+      setError('No se pudo separar el pedido. Recarga la página (F5) e intenta de nuevo.')
+    } finally {
+      setSeparando(null)
+    }
   }
 
   function reset() {
@@ -378,6 +402,11 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
             {/* Pedidos sin facturar */}
             <div className="bg-white rounded-xl border border-gray-100 p-5">
               <p className="text-sm font-bold text-gray-900 mb-3">Pedidos sin facturar</p>
+              {avisoSeparado && (
+                <div className="mb-3 rounded-lg bg-purple-50 border border-purple-200 px-3 py-2 text-xs text-purple-800">
+                  ✂ {avisoSeparado}
+                </div>
+              )}
               {cargando ? (
                 <p className="text-sm text-gray-400">Cargando…</p>
               ) : pedidosSede.length === 0 ? (
@@ -385,30 +414,44 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
               ) : (
                 <div className="space-y-2">
                   {pedidosSede.map(p => (
-                    <label key={p.id}
-                      className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                    <div key={p.id}
+                      className={`p-3 rounded-lg border transition-colors ${
                         seleccionados.has(p.id) ? 'border-blue-300 bg-blue-50' : 'border-gray-100 hover:bg-gray-50'
                       }`}>
-                      <input type="checkbox" checked={seleccionados.has(p.id)} onChange={() => toggle(p.id)} className="w-4 h-4 accent-blue-600" />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-mono text-sm font-medium text-gray-900">
-                          {p.numero_orden}
-                          {p.articulos.length > 1 && (
-                            <span className="ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">
-                              {p.articulos.length} artículos
-                            </span>
-                          )}
-                        </p>
-                        {p.articulos.map((a, i) => (
-                          <p key={i} className="text-xs text-gray-500 truncate">· {a}</p>
-                        ))}
-                        <p className="text-xs text-gray-400">{formatFecha(p.fecha_creacion)}</p>
-                      </div>
-                      <div className="text-right text-xs leading-relaxed">
-                        <p className="text-gray-500">Abonado: <span className="font-semibold text-green-600">{formatCOP(p.abonado)}</span></p>
-                        <p className="text-gray-900 font-bold text-sm">Falta: {formatCOP(p.saldo)}</p>
-                      </div>
-                    </label>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" checked={seleccionados.has(p.id)} onChange={() => toggle(p.id)} className="w-4 h-4 accent-blue-600" />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-mono text-sm font-medium text-gray-900">
+                            {p.numero_orden}
+                            {p.articulos.length > 1 && (
+                              <span className="ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                                {p.articulos.length} artículos
+                              </span>
+                            )}
+                          </p>
+                          {p.articulos.map((a, i) => (
+                            <p key={i} className="text-xs text-gray-500 truncate">· {a}</p>
+                          ))}
+                          <p className="text-xs text-gray-400">{formatFecha(p.fecha_creacion)}</p>
+                        </div>
+                        <div className="text-right text-xs leading-relaxed">
+                          <p className="text-gray-500">Abonado: <span className="font-semibold text-green-600">{formatCOP(p.abonado)}</span></p>
+                          <p className="text-gray-900 font-bold text-sm">Falta: {formatCOP(p.saldo)}</p>
+                        </div>
+                      </label>
+                      {/* ¿Solo va a enviar algunos artículos? Separa el pedido en
+                          partes (TR6835-1, TR6835-2…) y factura las que envía. */}
+                      {p.articulos.length > 1 && (
+                        <button
+                          type="button"
+                          disabled={separando === p.id}
+                          onClick={() => separarPedido(p.id)}
+                          className="mt-2 ml-7 text-xs font-semibold text-purple-600 hover:text-purple-800 disabled:opacity-50 underline"
+                        >
+                          {separando === p.id ? 'Separando…' : `✂ Separar en ${p.articulos.length} partes para facturar solo lo que envías`}
+                        </button>
+                      )}
+                    </div>
                   ))}
                 </div>
               )}

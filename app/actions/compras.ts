@@ -20,6 +20,26 @@ async function verificarAdmin() {
   return { userId: user.id, adminClient: createAdminClient() }
 }
 
+// Resuelve una referencia de pedido a su pedido REAL: primero por número
+// exacto (los pedidos separados por artículo son pedidos de verdad llamados
+// TR6835-1, TR6835-2…); si no existe, el sufijo se interpreta como
+// "artículo N del pedido base" (comportamiento histórico de compras).
+async function _resolverPedidoPorRef(
+  client: ReturnType<typeof createAdminClient>,
+  ref: string,
+): Promise<{ id: string; estado: string; numero_orden: string; indice: number | null } | null> {
+  const { data: exacto } = await client
+    .from('pedidos').select('id, estado, numero_orden').eq('numero_orden', ref).maybeSingle()
+  if (exacto) return { ...exacto, indice: null }
+
+  const m = ref.match(/^(.+)-(\d+)$/)
+  if (!m) return null
+  const { data: base } = await client
+    .from('pedidos').select('id, estado, numero_orden').eq('numero_orden', m[1]).maybeSingle()
+  if (!base) return null
+  return { ...base, indice: parseInt(m[2], 10) }
+}
+
 export type CompraItemInput = {
   codigo?: string               // código SKU extraído de la factura
   descripcion: string
@@ -55,16 +75,29 @@ export async function buscarPedidoPorOrdenAction(numeroOrden: string): Promise<
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  // Acepta "TR6492" o "TR6492-1" → toma solo el número de orden
+  // Acepta "TR6492" o "TR6492-1". Primero busca el número EXACTO (los pedidos
+  // separados por artículo son pedidos reales llamados TR6835-1, TR6835-2…);
+  // si no existe, el sufijo se interpreta como "artículo N del pedido base".
   const ref = numeroOrden.trim().toUpperCase()
-  const orden = ref.match(/^(.+)-(\d+)$/)?.[1] ?? ref
-  if (!orden) return null
+  if (!ref) return null
 
-  const { data } = await supabase
+  let { data } = await supabase
     .from('pedidos')
     .select('id, numero_orden, estado, cliente_id')
-    .eq('numero_orden', orden)
+    .eq('numero_orden', ref)
     .maybeSingle()
+
+  if (!data) {
+    const orden = ref.match(/^(.+)-(\d+)$/)?.[1]
+    if (orden) {
+      const res = await supabase
+        .from('pedidos')
+        .select('id, numero_orden, estado, cliente_id')
+        .eq('numero_orden', orden)
+        .maybeSingle()
+      data = res.data
+    }
+  }
   if (!data) return null
 
   const [{ data: cli }, { data: itemsRaw }, { data: compraItems }] = await Promise.all([
@@ -138,19 +171,26 @@ export async function crearCompraAction(data: CrearCompraInput): Promise<CrearCo
 
   // Evitar doble asignación: un pedido con su compra completa no puede recibir
   // otra (duplicaría el costo y la ganancia saldría mal).
-  const unidadesPorPedido = new Map<string, number>()
+  const unidadesPorRef = new Map<string, number>()
   for (const it of data.items) {
     if (it.destino === 'pedido' && it.pedido_ref?.trim()) {
-      const num = it.pedido_ref.trim().toUpperCase().replace(/-(\d+)$/, '')
-      unidadesPorPedido.set(num, (unidadesPorPedido.get(num) ?? 0) + (it.cantidad || 1))
+      const ref = it.pedido_ref.trim().toUpperCase()
+      unidadesPorRef.set(ref, (unidadesPorRef.get(ref) ?? 0) + (it.cantidad || 1))
     }
   }
-  for (const [numeroOrden, unidadesNuevas] of unidadesPorPedido) {
-    const { data: ped } = await adminClient.from('pedidos').select('id').eq('numero_orden', numeroOrden).maybeSingle()
+  // Las refs se agrupan por el pedido REAL que resuelven (TR6835-2 puede ser
+  // un pedido separado real, o el artículo 2 del pedido TR6835).
+  const unidadesPorPedido = new Map<string, { numero: string; unidades: number }>()
+  for (const [ref, unidades] of unidadesPorRef) {
+    const ped = await _resolverPedidoPorRef(adminClient, ref)
     if (!ped) continue
+    const acc = unidadesPorPedido.get(ped.id)
+    unidadesPorPedido.set(ped.id, { numero: ped.numero_orden, unidades: (acc?.unidades ?? 0) + unidades })
+  }
+  for (const [pedidoId, { numero: numeroOrden, unidades: unidadesNuevas }] of unidadesPorPedido) {
     const [{ data: itemsPed }, { data: yaAsignados }] = await Promise.all([
-      adminClient.from('pedido_items').select('cantidad').eq('pedido_id', ped.id),
-      adminClient.from('compra_items').select('cantidad').eq('pedido_id', ped.id),
+      adminClient.from('pedido_items').select('cantidad').eq('pedido_id', pedidoId),
+      adminClient.from('compra_items').select('cantidad').eq('pedido_id', pedidoId),
     ])
     const unidadesPedido = (itemsPed ?? []).reduce((s, r: any) => s + (r.cantidad || 1), 0)
     const unidadesCompradas = (yaAsignados ?? []).reduce((s, r: any) => s + (r.cantidad || 1), 0)
@@ -206,19 +246,14 @@ export async function crearCompraAction(data: CrearCompraInput): Promise<CrearCo
       return { ok: false, error: `Error creando item: ${errItem?.message}` }
     }
 
-    // Asignación directa a pedido si viene el número (ej: "TR6492" o "TR6492-1").
+    // Asignación directa a pedido si viene el número (ej: "TR6492", "TR6492-1"
+    // como artículo 1, o un pedido separado real llamado TR6492-1).
     if (item.destino === 'pedido' && item.pedido_ref?.trim()) {
-      const ref = item.pedido_ref.trim().toUpperCase()
-      const m = ref.match(/^(.+)-(\d+)$/)
-      const numeroOrden = m ? m[1] : ref
-      const indice = m ? parseInt(m[2], 10) : null
-
-      const { data: pedido } = await adminClient
-        .from('pedidos').select('id, estado').eq('numero_orden', numeroOrden).maybeSingle()
+      const pedido = await _resolverPedidoPorRef(adminClient, item.pedido_ref.trim().toUpperCase())
 
       if (pedido) {
         await adminClient.from('compra_items')
-          .update({ pedido_id: pedido.id, pedido_item_indice: indice })
+          .update({ pedido_id: pedido.id, pedido_item_indice: pedido.indice })
           .eq('id', itemCreado.id)
         // El pedido avanza de pendiente → comprado al asignarle la compra.
         if (pedido.estado === 'pendiente') {
@@ -227,7 +262,7 @@ export async function crearCompraAction(data: CrearCompraInput): Promise<CrearCo
             .eq('id', pedido.id)
         }
         // Vincular el artículo del catálogo si aplica.
-        await _resolverArticuloCompraItem(itemCreado.id, pedido.id, indice, adminClient)
+        await _resolverArticuloCompraItem(itemCreado.id, pedido.id, pedido.indice, adminClient)
       }
     }
 
@@ -530,13 +565,10 @@ export async function editarCompraAction(compraId: string, data: EditarCompraInp
     let pedidoEstado: string | null = null
     if (item.destino === 'pedido' && item.pedido_ref?.trim()) {
       const ref = item.pedido_ref.trim().toUpperCase()
-      const m = ref.match(/^(.+)-(\d+)$/)
-      const numeroOrden = m ? m[1] : ref
-      pedidoItemIndice = m ? parseInt(m[2], 10) : null
-      const { data: pedido } = await adminClient
-        .from('pedidos').select('id, estado').eq('numero_orden', numeroOrden).maybeSingle()
-      if (!pedido) return { ok: false, error: `Pedido "${numeroOrden}" no encontrado` }
+      const pedido = await _resolverPedidoPorRef(adminClient, ref)
+      if (!pedido) return { ok: false, error: `Pedido "${ref}" no encontrado` }
       pedidoId = pedido.id
+      pedidoItemIndice = pedido.indice
       pedidoEstado = pedido.estado
     }
 

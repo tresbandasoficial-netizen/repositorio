@@ -100,7 +100,10 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
         const compraCompleta = pedido.unidades_pedido > 0 &&
           pedido.unidades_compradas >= pedido.unidades_pedido
         if (compraCompleta) { avisos.push(`${pedido.numero_orden}: ya tiene su compra asignada`); continue }
-        const itemsPedido = idxSufijo !== null
+        // Si el número con sufijo ES un pedido real (separado por artículos),
+        // se toman todos sus artículos; si no, el sufijo indica "artículo N".
+        const esParteReal = pedido.numero_orden.toUpperCase() === num.toUpperCase()
+        const itemsPedido = (idxSufijo !== null && !esParteReal)
           ? [pedido.items?.[idxSufijo] ?? null]
           : (pedido.items?.length ? pedido.items : [null])
         for (const prod of itemsPedido) {
@@ -114,7 +117,7 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
             destino:            'pedido',
             // Con sufijo se conserva (TR6835-2) para que la compra quede
             // asignada exactamente a ese artículo del pedido.
-            pedidoRef:          idxSufijo !== null ? num : pedido.numero_orden,
+            pedidoRef:          esParteReal ? pedido.numero_orden : (idxSufijo !== null ? num : pedido.numero_orden),
             pedidoOk:           true,
             pedidoCliente:      pedido.cliente_nombre,
             articuloId:         prod?.articulo_id ?? null,
