@@ -18,6 +18,8 @@ export type ClienteRow = {
   email: string | null
   notas: string | null
   creado_en: string
+  cumple_dia: number | null
+  cumple_mes: number | null
   total_pedidos: number
   ultimo_pedido: string | null
 }
@@ -54,6 +56,8 @@ export type ClienteDetalle = {
   notas: string | null
   ciudad: string | null
   creado_en: string
+  cumple_dia: number | null
+  cumple_mes: number | null
   pedidos: Array<{
     id: string
     numero_orden: string
@@ -86,7 +90,7 @@ export async function getClientes(params?: {
 
   let query = supabase
     .from('clientes')
-    .select(`id, nombre, telefono_normalizado, cedula, email, notas, creado_en, ${pedidosSelect}`, { count: 'exact' })
+    .select(`id, nombre, telefono_normalizado, cedula, email, notas, creado_en, cumple_dia, cumple_mes, ${pedidosSelect}`, { count: 'exact' })
     .order('nombre', { ascending: true })
     .range(desde, hasta)
 
@@ -114,6 +118,8 @@ export async function getClientes(params?: {
       email:                c.email,
       notas:                c.notas,
       creado_en:            c.creado_en,
+      cumple_dia:           c.cumple_dia,
+      cumple_mes:           c.cumple_mes,
       total_pedidos:        c.pedidos?.length ?? 0,
       ultimo_pedido:        c.pedidos?.length
         ? c.pedidos.sort((a: any, b: any) =>
@@ -132,7 +138,7 @@ export async function getClienteDetalle(id: string): Promise<ClienteDetalle | nu
 
   const { data: cliente, error } = await supabase
     .from('clientes')
-    .select('id, nombre, telefono_normalizado, cedula, email, notas, ciudad, creado_en')
+    .select('id, nombre, telefono_normalizado, cedula, email, notas, ciudad, creado_en, cumple_dia, cumple_mes')
     .eq('id', id)
     .single()
 

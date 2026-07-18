@@ -130,9 +130,22 @@ export async function editarClienteAction(
   const email = (formData.get('email') as string)?.trim() || null
   const notas = (formData.get('notas') as string)?.trim() || null
   const ciudad = (formData.get('ciudad') as string)?.trim() || null
+  const cumple_dia = parseInt((formData.get('cumple_dia') as string) ?? '', 10) || null
+  const cumple_mes = parseInt((formData.get('cumple_mes') as string) ?? '', 10) || null
 
   if (!nombre) return { ok: false, error: 'El nombre es obligatorio' }
   if (!telefonoRaw) return { ok: false, error: 'El teléfono es obligatorio' }
+
+  // Cumpleaños: día y mes van juntos (o ninguno), y el día debe existir en el mes
+  if ((cumple_dia === null) !== (cumple_mes === null)) {
+    return { ok: false, error: 'Para el cumpleaños elige día Y mes (o deja ambos vacíos)' }
+  }
+  if (cumple_dia !== null && cumple_mes !== null) {
+    const diasDelMes = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][cumple_mes - 1] ?? 0
+    if (cumple_dia < 1 || cumple_dia > diasDelMes) {
+      return { ok: false, error: 'Ese día no existe en el mes elegido' }
+    }
+  }
 
   const telefono_normalizado = normalizarTelefono(telefonoRaw)
   if (!telefono_normalizado) {
@@ -153,7 +166,7 @@ export async function editarClienteAction(
 
   const { error } = await supabase
     .from('clientes')
-    .update({ nombre, telefono_normalizado, cedula, email, notas, ciudad })
+    .update({ nombre, telefono_normalizado, cedula, email, notas, ciudad, cumple_dia, cumple_mes })
     .eq('id', id)
 
   if (error) return { ok: false, error: `Error al guardar: ${error.message}` }

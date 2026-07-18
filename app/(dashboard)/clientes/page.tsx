@@ -7,6 +7,8 @@ import { formatearTelefono } from '@/lib/utils/phone'
 import { ClientesBusqueda } from '@/components/clientes/ClientesBusqueda'
 import { NuevoClienteButton } from '@/components/clientes/NuevoClienteButton'
 
+const MESES_CORTO = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+
 export default async function ClientesPage({
   searchParams,
 }: {
@@ -76,6 +78,7 @@ export default async function ClientesPage({
                   <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">Cliente</th>
                   <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">Teléfono</th>
                   <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Pedidos</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Cumpleaños</th>
                   <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">Último pedido</th>
                   <th className="px-4 py-3" />
                 </tr>
@@ -101,6 +104,15 @@ export default async function ClientesPage({
                       <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-100 text-gray-700 text-xs font-semibold">
                         {c.total_pedidos}
                       </span>
+                    </td>
+                    <td className="px-4 py-4">
+                      {c.cumple_dia && c.cumple_mes ? (
+                        <span className="text-gray-700 font-medium whitespace-nowrap">
+                          🎂 {c.cumple_dia} {MESES_CORTO[c.cumple_mes - 1]}
+                        </span>
+                      ) : (
+                        <span className="text-gray-300">—</span>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-gray-500">
                       {c.ultimo_pedido ? formatFecha(c.ultimo_pedido) : '—'}
