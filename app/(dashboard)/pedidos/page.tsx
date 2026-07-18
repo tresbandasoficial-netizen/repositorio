@@ -57,13 +57,21 @@ export default async function PedidosPage({
           <h1 className="text-2xl font-bold text-gray-900">Pedidos</h1>
           <p className="text-sm text-gray-400 mt-0.5">Gestiona y rastrea todos los pedidos</p>
         </div>
-        <Link
-          href="/pedidos/nuevo"
-          className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-4 py-2.5 rounded-2xl transition-colors shadow-md shadow-blue-200"
-        >
-          <Plus size={15} />
-          Nuevo pedido
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/pedidos/galeria"
+            className="inline-flex items-center gap-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-semibold px-4 py-2.5 rounded-2xl transition-colors"
+          >
+            🖼 Galería
+          </Link>
+          <Link
+            href="/pedidos/nuevo"
+            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-4 py-2.5 rounded-2xl transition-colors shadow-md shadow-blue-200"
+          >
+            <Plus size={15} />
+            Nuevo pedido
+          </Link>
+        </div>
       </div>
 
       <PedidosList resultado={resultado} esAdmin={esAdmin} />
