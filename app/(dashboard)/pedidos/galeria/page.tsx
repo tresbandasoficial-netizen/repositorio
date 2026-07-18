@@ -46,6 +46,27 @@ export default async function GaleriaPedidosPage({
   })
   const { pedidos, total, totalPaginas } = resultado
 
+  // Artículos de los pedidos en pantalla (para el visor: códigos, tallas, etc.)
+  const itemsPorPedido: Record<string, Array<{ codigo: string | null; marca: string; descripcion: string; talla: string | null; cantidad: number; precio_venta: number }>> = {}
+  if (pedidos.length > 0) {
+    const { data: items } = await supabase
+      .from('pedido_items')
+      .select('pedido_id, codigo, marca, descripcion, talla, cantidad, precio_venta, articulos(codigo)')
+      .in('pedido_id', pedidos.map(p => p.id))
+      .order('id')
+    for (const it of (items ?? []) as any[]) {
+      const art = Array.isArray(it.articulos) ? it.articulos[0] : it.articulos
+      ;(itemsPorPedido[it.pedido_id] ??= []).push({
+        codigo: it.codigo ?? art?.codigo ?? null,
+        marca: it.marca,
+        descripcion: it.descripcion,
+        talla: it.talla,
+        cantidad: it.cantidad,
+        precio_venta: it.precio_venta,
+      })
+    }
+  }
+
   function urlCon(cambios: Record<string, string | undefined>) {
     const p = new URLSearchParams()
     const merged = { estado: params.estado, q: params.q, pagina: undefined as string | undefined, ...cambios }
@@ -101,7 +122,7 @@ export default async function GaleriaPedidosPage({
           No hay pedidos con estos filtros
         </div>
       ) : (
-        <GaleriaPedidos pedidos={pedidos} />
+        <GaleriaPedidos pedidos={pedidos} itemsPorPedido={itemsPorPedido} />
       )}
 
       {/* Paginación */}
