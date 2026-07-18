@@ -251,11 +251,17 @@ export function CrearCompraForm({ cuentas, proveedores = [] }: { cuentas: Cuenta
     setError(null)
 
     if (!proveedor.trim()) { setError('El proveedor es obligatorio'); return }
+    // Total en COP: si no lo digitaron, se calcula solo sumando los productos
+    // (costo unitario × cantidad). Así no se bloquea la compra por el campo.
+    const totalItemsCop = items.reduce(
+      (s, it) => s + ((parseInt(it.costo_unitario_cop, 10) || 0) * (parseInt(it.cantidad, 10) || 0)), 0)
+    const totalCopFinal = totalCopNum > 0 ? totalCopNum : totalItemsCop
     if (tipo === 'usa') {
       if (!totalUsd || parseFloat(totalUsd) <= 0) { setError('El total en USD es obligatorio'); return }
       if (!totalCopPagado || totalCopNum <= 0) { setError('Ingresa el total que pagaste en COP'); return }
     } else {
-      if (!totalCopPagado || totalCopNum <= 0) { setError('El total en COP es obligatorio'); return }
+      if (totalCopFinal <= 0) { setError('Ingresa el total en COP o el costo de los productos'); return }
+      if (totalCopNum <= 0) setTotalCopPagado(String(totalCopFinal))
     }
 
     for (let i = 0; i < items.length; i++) {
@@ -283,7 +289,7 @@ export function CrearCompraForm({ cuentas, proveedores = [] }: { cuentas: Cuenta
       numero_factura: numeroFactura.trim(),
       total_usd: tipo === 'usa' ? parseFloat(totalUsd) : null,
       trm: tipo === 'usa' ? (trmCalculada ?? null) : null,
-      total_cop: totalCopNum,
+      total_cop: totalCopFinal,
       notas,
       cuenta_id: cuentaId || null,
       items: itemsValidos,
