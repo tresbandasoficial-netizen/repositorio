@@ -43,7 +43,13 @@ export type PedidoItemBusqueda = {
 // Busca un pedido por número de orden (para el lookup en vivo del formulario).
 // Devuelve también sus productos, para autollenar el artículo de la compra.
 export async function buscarPedidoPorOrdenAction(numeroOrden: string): Promise<
-  { id: string; numero_orden: string; estado: string; cliente_nombre: string | null; items: PedidoItemBusqueda[] } | null
+  {
+    id: string; numero_orden: string; estado: string; cliente_nombre: string | null
+    items: PedidoItemBusqueda[]
+    // Para evitar doble asignación: unidades del pedido vs. ya compradas
+    unidades_pedido: number
+    unidades_compradas: number
+  } | null
 > {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -61,13 +67,14 @@ export async function buscarPedidoPorOrdenAction(numeroOrden: string): Promise<
     .maybeSingle()
   if (!data) return null
 
-  const [{ data: cli }, { data: itemsRaw }] = await Promise.all([
+  const [{ data: cli }, { data: itemsRaw }, { data: compraItems }] = await Promise.all([
     supabase.from('clientes').select('nombre').eq('id', data.cliente_id).maybeSingle(),
     supabase
       .from('pedido_items')
-      .select('marca, descripcion, talla, articulo_id, articulos(codigo)')
+      .select('marca, descripcion, talla, cantidad, articulo_id, articulos(codigo)')
       .eq('pedido_id', data.id)
       .order('id'),
+    supabase.from('compra_items').select('cantidad').eq('pedido_id', data.id),
   ])
 
   const items: PedidoItemBusqueda[] = (itemsRaw ?? []).map((it: Record<string, unknown>) => {
@@ -81,7 +88,14 @@ export async function buscarPedidoPorOrdenAction(numeroOrden: string): Promise<
     }
   })
 
-  return { id: data.id, numero_orden: data.numero_orden, estado: data.estado, cliente_nombre: cli?.nombre ?? null, items }
+  const unidades_pedido = (itemsRaw ?? []).reduce((s: number, it: any) => s + (it.cantidad || 1), 0)
+  const unidades_compradas = (compraItems ?? []).reduce((s: number, it: any) => s + (it.cantidad || 1), 0)
+
+  return {
+    id: data.id, numero_orden: data.numero_orden, estado: data.estado,
+    cliente_nombre: cli?.nombre ?? null, items,
+    unidades_pedido, unidades_compradas,
+  }
 }
 
 export type CrearCompraInput = {
@@ -119,6 +133,32 @@ export async function crearCompraAction(data: CrearCompraInput): Promise<CrearCo
         ok: false,
         error: `La factura "${numeroFactura}" ya fue registrada (${existente.proveedor} — ${existente.fecha})`,
       }
+    }
+  }
+
+  // Evitar doble asignación: un pedido con su compra completa no puede recibir
+  // otra (duplicaría el costo y la ganancia saldría mal).
+  const unidadesPorPedido = new Map<string, number>()
+  for (const it of data.items) {
+    if (it.destino === 'pedido' && it.pedido_ref?.trim()) {
+      const num = it.pedido_ref.trim().toUpperCase().replace(/-(\d+)$/, '')
+      unidadesPorPedido.set(num, (unidadesPorPedido.get(num) ?? 0) + (it.cantidad || 1))
+    }
+  }
+  for (const [numeroOrden, unidadesNuevas] of unidadesPorPedido) {
+    const { data: ped } = await adminClient.from('pedidos').select('id').eq('numero_orden', numeroOrden).maybeSingle()
+    if (!ped) continue
+    const [{ data: itemsPed }, { data: yaAsignados }] = await Promise.all([
+      adminClient.from('pedido_items').select('cantidad').eq('pedido_id', ped.id),
+      adminClient.from('compra_items').select('cantidad').eq('pedido_id', ped.id),
+    ])
+    const unidadesPedido = (itemsPed ?? []).reduce((s, r: any) => s + (r.cantidad || 1), 0)
+    const unidadesCompradas = (yaAsignados ?? []).reduce((s, r: any) => s + (r.cantidad || 1), 0)
+    if (unidadesCompradas >= unidadesPedido && unidadesPedido > 0) {
+      return { ok: false, error: `El pedido ${numeroOrden} YA tiene su compra asignada completa (${unidadesCompradas} de ${unidadesPedido} unidades). No se puede asignar otra compra — se duplicaría el costo.` }
+    }
+    if (unidadesCompradas + unidadesNuevas > unidadesPedido && unidadesPedido > 0) {
+      return { ok: false, error: `El pedido ${numeroOrden} quedaría con más compra que artículos (${unidadesCompradas + unidadesNuevas} de ${unidadesPedido} unidades). Revisa las filas asignadas a ese pedido.` }
     }
   }
 

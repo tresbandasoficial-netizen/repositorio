@@ -25,8 +25,9 @@ type ItemForm = {
   articuloEncontrado?: boolean   // true=encontrado, false=nuevo, undefined=sin buscar
   // asignación directa a pedido
   pedidoRef?: string
-  pedidoOk?: boolean             // true=encontrado, false=no existe, undefined=sin buscar
+  pedidoOk?: boolean             // true=encontrado, false=no existe/bloqueado, undefined=sin buscar
   pedidoCliente?: string | null
+  pedidoAviso?: string | null    // motivo del bloqueo (ej: ya tiene compra asignada)
 }
 
 function facturaToItems(items: FacturaExtraida['items'], moneda: 'USD' | 'COP'): ItemForm[] {
@@ -133,13 +134,24 @@ export function CrearCompraForm({ cuentas, proveedores = [] }: { cuentas: Cuenta
     const itemIdx = m ? parseInt(m[1], 10) - 1 : 0
     const prod = pedido?.items?.[itemIdx] ?? pedido?.items?.[0] ?? null
 
+    // Bloqueo: el pedido ya tiene su compra completa asignada (no duplicar costo).
+    const compraCompleta = !!pedido && pedido.unidades_pedido > 0 &&
+      pedido.unidades_compradas >= pedido.unidades_pedido
+
     setItems(prev => {
       const actualizado = prev.map((item, i) => {
         if (i !== idx) return item
-        if (!pedido) return { ...item, pedidoOk: false, pedidoCliente: null }
+        if (!pedido) return { ...item, pedidoOk: false, pedidoCliente: null, pedidoAviso: null }
+        if (compraCompleta) return {
+          ...item,
+          pedidoOk: false,
+          pedidoCliente: null,
+          pedidoAviso: `El pedido ${pedido.numero_orden} YA tiene su compra asignada (${pedido.unidades_compradas} de ${pedido.unidades_pedido} unidades) — no se puede asignar otra vez.`,
+        }
         return {
           ...item,
           pedidoOk: true,
+          pedidoAviso: null,
           pedidoCliente: pedido.cliente_nombre,
           // Autollenar con los datos del producto del pedido (si los tiene).
           ...(prod ? {
@@ -156,7 +168,7 @@ export function CrearCompraForm({ cuentas, proveedores = [] }: { cuentas: Cuenta
       // Si el pedido tiene VARIOS artículos y es la primera fila que se le
       // asigna, abrir automáticamente una fila por cada artículo restante
       // (prellenada), para que la compra cubra el pedido completo.
-      if (pedido && !m && (pedido.items?.length ?? 0) > 1) {
+      if (pedido && !compraCompleta && !m && (pedido.items?.length ?? 0) > 1) {
         const base = r.toUpperCase().replace(/-(\d+)$/, '')
         const filasDeEstePedido = actualizado.filter(it =>
           (it.pedidoRef ?? '').toUpperCase().replace(/-(\d+)$/, '') === base
@@ -670,7 +682,7 @@ export function CrearCompraForm({ cuentas, proveedores = [] }: { cuentas: Cuenta
                 <p className="text-xs text-green-600">Cliente: {item.pedidoCliente}</p>
               )}
               {item.destino === 'pedido' && item.pedidoOk === false && (
-                <p className="text-xs text-red-600">Ese pedido no existe — revisa el número</p>
+                <p className="text-xs text-red-600">{item.pedidoAviso ?? 'Ese pedido no existe — revisa el número'}</p>
               )}
 
               {/* Fila 2: código + descripción */}
