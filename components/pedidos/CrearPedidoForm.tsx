@@ -326,15 +326,15 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
       setErrorAccion(`El artículo ${idxSinCodigo + 1} no tiene código de producto. Escribe el código y selecciónalo del catálogo, o guárdalo como artículo nuevo.`)
       return
     }
-    // La talla es obligatoria para asesores en ropa y tenis (accesorios no llevan talla).
+    // La talla es obligatoria PARA TODOS en ropa y tenis (accesorios no llevan talla).
+    const idxSinTalla = form.productos.findIndex(
+      p => tallasDeCategoria((p as any).categoria).length > 0 && !((p.talla ?? '').trim())
+    )
+    if (idxSinTalla !== -1) {
+      setErrorAccion(`El artículo ${idxSinTalla + 1} necesita talla. La talla es obligatoria en ropa y tenis.`)
+      return
+    }
     if (esAsesor) {
-      const idxSinTalla = form.productos.findIndex(
-        p => tallasDeCategoria((p as any).categoria).length > 0 && !((p.talla ?? '').trim())
-      )
-      if (idxSinTalla !== -1) {
-        setErrorAccion(`El artículo ${idxSinTalla + 1} necesita talla. La talla es obligatoria en ropa y tenis.`)
-        return
-      }
       // La FOTO del producto es obligatoria en todos los artículos del pedido.
       const idxSinFoto = form.productos.findIndex(p => !((p as any).imagen_url))
       if (idxSinFoto !== -1) {

@@ -68,20 +68,21 @@ async function _crearPedidoConDatos(
     }
   }
 
-  // La talla es obligatoria para los asesores en ropa y tenis (los accesorios no
+  // La talla es obligatoria PARA TODOS en ropa y tenis (los accesorios no
   // llevan talla). Evita pedidos sin talla que descuadran el inventario.
-  if (sesionPre.rol === 'asesor') {
-    const productoSinTalla = datos.productos.find(
-      p => tallasDeCategoria((p as any).categoria).length > 0 && !((p.talla ?? '').trim())
-    )
-    if (productoSinTalla) {
-      return {
-        ok: false,
-        error: `El artículo "${productoSinTalla.descripcion || 'sin nombre'}" necesita talla. La talla es obligatoria en ropa y tenis.`,
-      }
+  const productoSinTalla = datos.productos.find(
+    p => tallasDeCategoria((p as any).categoria).length > 0 && !((p.talla ?? '').trim())
+  )
+  if (productoSinTalla) {
+    return {
+      ok: false,
+      error: `El artículo "${productoSinTalla.descripcion || 'sin nombre'}" necesita talla. La talla es obligatoria en ropa y tenis.`,
     }
-    // La foto del producto es obligatoria en todos los artículos: identifica
-    // qué se compró (etiquetas, compras, revisión de mercancía).
+  }
+
+  // La foto del producto es obligatoria en todos los artículos (asesores):
+  // identifica qué se compró (etiquetas, compras, revisión de mercancía).
+  if (sesionPre.rol === 'asesor') {
     const productoSinFoto = datos.productos.find(p => !(p as any).imagen_url)
     if (productoSinFoto) {
       return {
