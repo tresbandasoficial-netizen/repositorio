@@ -99,11 +99,21 @@ async function _crearPedidoConDatos(
 
   let clienteId: string
 
+  // Dirección y ciudad del pedido se guardan también en la ficha del cliente
+  // (la ciudad sale en las etiquetas de impresión). Siempre la más reciente.
+  const direccionCliente = datos.direccion?.trim() || null
+  const ciudadCliente = datos.ciudad?.trim() || null
+
   if (clienteExistente) {
     clienteId = clienteExistente.id
+    const cambios: Record<string, string> = {}
     if (datos.cliente_doc && !clienteExistente.cedula) {
-      const cedulaLimpia = datos.cliente_doc.replace(/^CC\s*/i, '').trim()
-      await supabase.from('clientes').update({ cedula: cedulaLimpia }).eq('id', clienteId)
+      cambios.cedula = datos.cliente_doc.replace(/^CC\s*/i, '').trim()
+    }
+    if (direccionCliente) cambios.direccion = direccionCliente
+    if (ciudadCliente) cambios.ciudad = ciudadCliente
+    if (Object.keys(cambios).length > 0) {
+      await supabase.from('clientes').update(cambios).eq('id', clienteId)
     }
   } else {
     const cedulaLimpia = datos.cliente_doc
@@ -111,7 +121,13 @@ async function _crearPedidoConDatos(
       : null
     const { data: nuevoCliente, error: errCliente } = await supabase
       .from('clientes')
-      .insert({ telefono_normalizado: telefonoNormalizado, nombre: datos.cliente_nombre.trim(), cedula: cedulaLimpia })
+      .insert({
+        telefono_normalizado: telefonoNormalizado,
+        nombre: datos.cliente_nombre.trim(),
+        cedula: cedulaLimpia,
+        direccion: direccionCliente,
+        ciudad: ciudadCliente,
+      })
       .select('id')
       .single()
     if (errCliente || !nuevoCliente) return { ok: false, error: `Error creando cliente: ${errCliente?.message}` }

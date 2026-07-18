@@ -280,6 +280,7 @@ export type ParsedPedido = {
   abonos?: Array<{ monto: number; metodo: MetodoPago }>
   tipo_entrega: 'domicilio' | 'sede'
   direccion: string | null
+  ciudad?: string | null   // se guarda en la ficha del cliente (etiquetas)
   notas: string | null
 }
 

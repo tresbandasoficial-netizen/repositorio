@@ -128,6 +128,7 @@ function parsearEstructurado(texto: string): ParseResult {
   const direccion = tipoEntrega === 'domicilio' ? extractField(lines, 'DIRECCION') : null
   if (tipoEntrega === 'domicilio' && !direccion)
     return { ok: false, error: 'ENTREGA es "Domicilio" pero falta el campo DIRECCION' }
+  const ciudadEstructurada = extractField(lines, 'CIUDAD')
 
   const notasRaw = extractField(lines, 'NOTAS')
   const notas = notasRaw === 'ninguna' || notasRaw === 'none' || notasRaw === '-' ? null : notasRaw
@@ -147,6 +148,7 @@ function parsearEstructurado(texto: string): ParseResult {
       metodo_pago_abono: metodoPago,
       tipo_entrega: tipoEntrega,
       direccion,
+      ciudad: ciudadEstructurada,
       notas,
     },
   }
@@ -549,6 +551,7 @@ function parsearLibre(texto: string): ParseResult {
       metodo_pago_abono: metodoPago,
       tipo_entrega: tipoEntrega,
       direccion,
+      ciudad: ciudadRaw ?? null,
       notas,
     },
     warnings: advertencias.length > 0 ? advertencias : undefined,

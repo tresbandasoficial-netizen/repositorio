@@ -130,6 +130,7 @@ export async function editarClienteAction(
   const email = (formData.get('email') as string)?.trim() || null
   const notas = (formData.get('notas') as string)?.trim() || null
   const ciudad = (formData.get('ciudad') as string)?.trim() || null
+  const direccion = (formData.get('direccion') as string)?.trim() || null
   const cumple_dia = parseInt((formData.get('cumple_dia') as string) ?? '', 10) || null
   const cumple_mes = parseInt((formData.get('cumple_mes') as string) ?? '', 10) || null
 
@@ -166,7 +167,7 @@ export async function editarClienteAction(
 
   const { error } = await supabase
     .from('clientes')
-    .update({ nombre, telefono_normalizado, cedula, email, notas, ciudad, cumple_dia, cumple_mes })
+    .update({ nombre, telefono_normalizado, cedula, email, notas, ciudad, direccion, cumple_dia, cumple_mes })
     .eq('id', id)
 
   if (error) return { ok: false, error: `Error al guardar: ${error.message}` }

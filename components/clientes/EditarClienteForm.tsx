@@ -6,7 +6,7 @@ import { editarClienteAction } from '@/app/actions/clientes'
 import { ClienteDetalle } from '@/lib/queries/clientes'
 
 interface EditarClienteFormProps {
-  cliente: Pick<ClienteDetalle, 'id' | 'nombre' | 'telefono_normalizado' | 'cedula' | 'email' | 'notas' | 'ciudad' | 'cumple_dia' | 'cumple_mes'>
+  cliente: Pick<ClienteDetalle, 'id' | 'nombre' | 'telefono_normalizado' | 'cedula' | 'email' | 'notas' | 'ciudad' | 'direccion' | 'cumple_dia' | 'cumple_mes'>
 }
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
@@ -97,6 +97,18 @@ export function EditarClienteForm({ cliente }: EditarClienteFormProps) {
           placeholder="Ej: Cúcuta"
           className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">Dirección</label>
+        <input
+          name="direccion"
+          type="text"
+          defaultValue={cliente.direccion ?? ''}
+          placeholder="Calle 10 # 5-20, Barrio…"
+          className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        <p className="text-xs text-gray-400 mt-1">Se actualiza sola con la del último pedido a domicilio</p>
       </div>
 
       <div>
