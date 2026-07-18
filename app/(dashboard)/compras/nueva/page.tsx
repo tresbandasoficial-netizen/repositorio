@@ -2,7 +2,11 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { CrearCompraForm } from '@/components/compras/CrearCompraForm'
 
-export default async function NuevaCompraPage() {
+export default async function NuevaCompraPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ pedidos?: string }>
+}) {
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -36,13 +40,21 @@ export default async function NuevaCompraPage() {
     new Set((provRaw ?? []).map((c: { proveedor: string }) => c.proveedor?.trim()).filter(Boolean))
   ).sort((a, b) => a.localeCompare(b))
 
+  // Pedidos seleccionados en la galería (?pedidos=TR6821,TR6822)
+  const { pedidos: pedidosParam } = await searchParams
+  const pedidosIniciales = (pedidosParam ?? '')
+    .split(',')
+    .map(p => p.trim().toUpperCase())
+    .filter(Boolean)
+    .slice(0, 40)
+
   return (
     <div className="p-6">
       <div className="mb-6">
         <h1 className="text-xl font-bold text-gray-900">Nueva compra</h1>
         <p className="text-sm text-gray-500 mt-0.5">Registra una factura de compra a proveedor</p>
       </div>
-      <CrearCompraForm cuentas={cuentas} proveedores={proveedores} />
+      <CrearCompraForm cuentas={cuentas} proveedores={proveedores} pedidosIniciales={pedidosIniciales} />
     </div>
   )
 }

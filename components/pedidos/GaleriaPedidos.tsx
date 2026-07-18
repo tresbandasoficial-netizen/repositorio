@@ -6,7 +6,7 @@ import type { PedidoRow } from '@/lib/queries/pedidos'
 import { ESTADO_LABELS } from '@/types'
 import { formatCOP, formatFecha } from '@/lib/utils/format'
 import { formatearTelefono } from '@/lib/utils/phone'
-import { ImageOff, X, ArrowUpRight, Check, Phone } from 'lucide-react'
+import { ImageOff, X, ArrowUpRight, Check, Phone, ShoppingCart } from 'lucide-react'
 
 export type ItemGaleria = {
   codigo: string | null
@@ -58,13 +58,23 @@ function iniciales(nombre: string): string {
 export function GaleriaPedidos({
   pedidos,
   itemsPorPedido,
+  esAdmin = false,
 }: {
   pedidos: PedidoRow[]
   itemsPorPedido: Record<string, ItemGaleria[]>
+  esAdmin?: boolean
 }) {
   const router = useRouter()
   const [sel, setSel] = useState<PedidoRow | null>(pedidos[0] ?? null)
   const [verMovil, setVerMovil] = useState(false)
+  // Selección múltiple (admin): números de orden marcados para registrar compra
+  const [marcados, setMarcados] = useState<string[]>([])
+
+  function toggleMarcado(numeroOrden: string) {
+    setMarcados(prev =>
+      prev.includes(numeroOrden) ? prev.filter(n => n !== numeroOrden) : [...prev, numeroOrden]
+    )
+  }
 
   function elegir(p: PedidoRow) {
     setSel(p)
@@ -207,12 +217,15 @@ export function GaleriaPedidos({
           const imagen = (p as any).primera_imagen as string | null
           const activa = sel?.id === p.id
           const comprado = !['pendiente', 'cancelado'].includes(p.estado)
+          const marcado = marcados.includes(p.numero_orden)
           return (
             <button
               key={p.id}
               onClick={() => elegir(p)}
               className={`group relative text-left bg-white rounded-xl border overflow-hidden transition-all ${
-                activa ? 'border-blue-500 ring-2 ring-blue-300 shadow-md' : 'border-gray-100 shadow-sm hover:border-blue-200 hover:shadow'
+                marcado ? 'border-purple-500 ring-2 ring-purple-300 shadow-md'
+                : activa ? 'border-blue-500 ring-2 ring-blue-300 shadow-md'
+                : 'border-gray-100 shadow-sm hover:border-blue-200 hover:shadow'
               }`}
             >
               {/* Punto verde = ya comprado · rojo = sin comprar · gris = cancelado */}
@@ -221,6 +234,21 @@ export function GaleriaPedidos({
                   p.estado === 'cancelado' ? 'bg-gray-400' : comprado ? 'bg-emerald-500' : 'bg-red-500'
                 }`}
               />
+              {/* Casilla de selección (admin): marcar varios para registrar compra */}
+              {esAdmin && p.estado !== 'cancelado' && (
+                <span
+                  role="checkbox"
+                  aria-checked={marcado}
+                  onClick={(e) => { e.stopPropagation(); toggleMarcado(p.numero_orden) }}
+                  className={`absolute top-1.5 left-1.5 z-10 w-6 h-6 rounded-md flex items-center justify-center border-2 cursor-pointer transition-colors ${
+                    marcado
+                      ? 'bg-purple-600 border-purple-600 text-white'
+                      : 'bg-white/90 border-gray-300 text-transparent hover:border-purple-400'
+                  }`}
+                >
+                  <Check size={14} strokeWidth={3} />
+                </span>
+              )}
               {imagen ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={imagen} alt={p.numero_orden} loading="lazy" className="w-full aspect-square object-cover" />
@@ -246,6 +274,28 @@ export function GaleriaPedidos({
           </div>
         )}
       </aside>
+
+      {/* Barra flotante: registrar la compra de los pedidos marcados */}
+      {esAdmin && marcados.length > 0 && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-gray-900 text-white rounded-2xl shadow-xl pl-4 pr-2 py-2 print:hidden">
+          <span className="text-sm font-semibold whitespace-nowrap">
+            {marcados.length} pedido{marcados.length !== 1 ? 's' : ''} seleccionado{marcados.length !== 1 ? 's' : ''}
+          </span>
+          <button
+            onClick={() => setMarcados([])}
+            className="text-xs text-gray-300 hover:text-white underline"
+          >
+            Limpiar
+          </button>
+          <button
+            onClick={() => router.push(`/compras/nueva?pedidos=${marcados.join(',')}`)}
+            className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold px-4 py-2 rounded-xl transition-colors"
+          >
+            <ShoppingCart size={15} />
+            Registrar compra
+          </button>
+        </div>
+      )}
 
       {/* Visor móvil: overlay a pantalla completa */}
       {verMovil && sel && (

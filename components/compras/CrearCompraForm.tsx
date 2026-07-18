@@ -57,9 +57,10 @@ function facturaToItems(items: FacturaExtraida['items'], moneda: 'USD' | 'COP'):
 
 type CuentaOpc = { id: string; nombre: string; tipo: string; sede_id: string | null }
 
-export function CrearCompraForm({ cuentas, proveedores = [] }: { cuentas: CuentaOpc[]; proveedores?: string[] }) {
+export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = [] }: { cuentas: CuentaOpc[]; proveedores?: string[]; pedidosIniciales?: string[] }) {
   const [paso, setPaso] = useState<Paso>('subir')
   const [factura, setFactura] = useState<FacturaExtraida | null>(null)
+  const [cargandoPedidos, setCargandoPedidos] = useState(pedidosIniciales.length > 0)
 
   // Campos de la factura
   const [tipo, setTipo] = useState<'usa' | 'colombia'>('usa')
@@ -80,6 +81,52 @@ export function CrearCompraForm({ cuentas, proveedores = [] }: { cuentas: Cuenta
   const [isSaving, startSaving] = useTransition()
   const fileRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
+
+  // Pedidos seleccionados desde la galería (?pedidos=TR6821,TR6822): se abre
+  // directo el formulario con una fila prellenada por cada artículo de cada
+  // pedido, ya asignada a su número de orden.
+  useEffect(() => {
+    if (pedidosIniciales.length === 0) return
+    let cancelado = false
+    ;(async () => {
+      const filas: ItemForm[] = []
+      const avisos: string[] = []
+      for (const num of pedidosIniciales) {
+        const pedido = await buscarPedidoPorOrdenAction(num)
+        if (cancelado) return
+        if (!pedido) { avisos.push(`${num}: no existe`); continue }
+        const compraCompleta = pedido.unidades_pedido > 0 &&
+          pedido.unidades_compradas >= pedido.unidades_pedido
+        if (compraCompleta) { avisos.push(`${pedido.numero_orden}: ya tiene su compra asignada`); continue }
+        const itemsPedido = pedido.items?.length ? pedido.items : [null]
+        for (const prod of itemsPedido) {
+          filas.push({
+            codigo:             prod?.codigo ?? '',
+            descripcion:        prod?.descripcion ?? '',
+            marca:              prod?.marca ?? '',
+            talla:              prod?.talla ?? '',
+            cantidad:           '1',
+            costo_unitario_cop: '',
+            destino:            'pedido',
+            pedidoRef:          pedido.numero_orden,
+            pedidoOk:           true,
+            pedidoCliente:      pedido.cliente_nombre,
+            articuloId:         prod?.articulo_id ?? null,
+            articuloEncontrado: prod?.articulo_id ? true : undefined,
+          })
+        }
+      }
+      if (cancelado) return
+      if (filas.length > 0) {
+        setItems(filas)
+        setPaso('revisar')
+      }
+      if (avisos.length > 0) setError(`No se agregaron — ${avisos.join(' · ')}`)
+      setCargandoPedidos(false)
+    })()
+    return () => { cancelado = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // TRM calculada automáticamente
   const trmCalculada =
@@ -313,6 +360,22 @@ export function CrearCompraForm({ cuentas, proveedores = [] }: { cuentas: Cuenta
       if (!result.ok) setError(result.error)
       else router.push('/compras')
     })
+  }
+
+  // Pantalla de espera mientras se cargan los pedidos seleccionados en la galería
+  if (cargandoPedidos && paso === 'subir') {
+    return (
+      <div className="max-w-xl">
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center gap-3 py-14">
+            <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm text-gray-500 font-medium">
+              Cargando {pedidosIniciales.length} pedido{pedidosIniciales.length !== 1 ? 's' : ''} seleccionado{pedidosIniciales.length !== 1 ? 's' : ''}…
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   // ── Paso 1: subir factura ───────────────────────────────────────────────────

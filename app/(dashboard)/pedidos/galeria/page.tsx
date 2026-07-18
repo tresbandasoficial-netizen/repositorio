@@ -125,7 +125,7 @@ export default async function GaleriaPedidosPage({
           No hay pedidos con estos filtros
         </div>
       ) : (
-        <GaleriaPedidos pedidos={pedidos} itemsPorPedido={itemsPorPedido} />
+        <GaleriaPedidos pedidos={pedidos} itemsPorPedido={itemsPorPedido} esAdmin={esAdmin} />
       )}
 
       {/* Paginación */}
