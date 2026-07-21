@@ -626,6 +626,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
                   />
                   <TallaSelect
                     categoria={(p as any).categoria ?? ''}
+                    sexo={(p as any).sexo ?? ''}
                     value={p.talla ?? ''}
                     onChange={talla => patchProducto(i, { talla: talla || null })}
                     className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"

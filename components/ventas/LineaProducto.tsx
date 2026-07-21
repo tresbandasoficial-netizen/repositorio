@@ -223,6 +223,7 @@ export function LineaProducto({
         />
         <TallaSelect
           categoria={linea.categoria as CategoriaArticulo | ''}
+          sexo={linea.sexo as any}
           value={linea.talla}
           onChange={talla => onChange({ talla })}
           className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"

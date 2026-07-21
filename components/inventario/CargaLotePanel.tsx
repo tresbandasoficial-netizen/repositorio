@@ -253,6 +253,7 @@ export function CargaLotePanel({ sedes, sedeFijaId }: { sedes: Sede[]; sedeFijaI
                 <td className="px-2 py-1.5">
                   <TallaSelect
                     categoria={f.categoria}
+                    sexo={f.sexo}
                     value={f.talla}
                     onChange={talla => patch(f.uid, { talla })}
                     className={celda}

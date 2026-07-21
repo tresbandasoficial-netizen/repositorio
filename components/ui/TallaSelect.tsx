@@ -1,18 +1,21 @@
 'use client'
 
 import { useEffect } from 'react'
-import { TALLAS_ROPA, TALLAS_TENIS, tallasDeCategoria, CategoriaArticulo } from '@/types'
+import { TALLAS_ROPA, TALLAS_ROPA_NINO, TALLAS_TENIS, tallasDeCategoria, CategoriaArticulo, SexoArticulo } from '@/types'
 
 // Selector de talla según la categoría del artículo:
-//   ropa  → 2XS…2XL · tenis → 5…12 (con medias tallas) · accesorios → sin talla
+//   ropa → 2XS…2XL · ropa de niño → 3 meses…15-16 años · tenis → 5…12 (con
+//   medias tallas) · accesorios → sin talla
 // Si aún no hay categoría elegida, muestra ambos grupos.
 export function TallaSelect({
   categoria,
+  sexo,
   value,
   onChange,
   className,
 }: {
   categoria?: CategoriaArticulo | '' | null
+  sexo?: SexoArticulo | '' | null
   value: string
   onChange: (talla: string) => void
   className?: string
@@ -33,8 +36,10 @@ export function TallaSelect({
     )
   }
 
-  const opciones = tallasDeCategoria(categoria)
-  const conocidas = opciones.length > 0 ? opciones : [...TALLAS_ROPA, ...TALLAS_TENIS]
+  const esNino = sexo === 'nino'
+  const opciones = tallasDeCategoria(categoria, sexo)
+  const grupoRopa = esNino ? TALLAS_ROPA_NINO : TALLAS_ROPA
+  const conocidas = opciones.length > 0 ? opciones : [...grupoRopa, ...TALLAS_TENIS]
 
   return (
     <select value={value} onChange={e => onChange(e.target.value)} className={className}>
@@ -43,8 +48,8 @@ export function TallaSelect({
         opciones.map(t => <option key={t} value={t}>{t}</option>)
       ) : (
         <>
-          <optgroup label="Ropa">
-            {TALLAS_ROPA.map(t => <option key={t} value={t}>{t}</option>)}
+          <optgroup label={esNino ? 'Ropa niño' : 'Ropa'}>
+            {grupoRopa.map(t => <option key={t} value={t}>{t}</option>)}
           </optgroup>
           <optgroup label="Tenis">
             {TALLAS_TENIS.map(t => <option key={t} value={t}>{t}</option>)}

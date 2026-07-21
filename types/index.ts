@@ -393,9 +393,16 @@ export type SexoArticulo = 'hombre' | 'mujer' | 'nino'
 // Tallas permitidas por categoría. Los accesorios no llevan talla.
 export const TALLAS_ROPA  = ['2XS', 'XS', 'S', 'M', 'L', 'XL', '2XL']
 export const TALLAS_TENIS = ['5', '5.5', '6', '6.5', '7', '7.5', '8', '8.5', '9', '9.5', '10', '10.5', '11', '11.5', '12']
+// Ropa de niño: por edad (meses y años) en vez de letras.
+export const TALLAS_ROPA_NINO = [
+  '3 meses', '3-6 meses', '6-9 meses', '9-12 meses', '12-18 meses',
+  '1-2 años', '2-3 años', '3-4 años', '4-5 años', '5-6 años',
+  '6-7 años', '7-8 años', '8-9 años', '9-10 años', '10-11 años',
+  '11-12 años', '12-13 años', '13-14 años', '14-15 años', '15-16 años',
+]
 
-export function tallasDeCategoria(cat?: CategoriaArticulo | '' | null): string[] {
-  if (cat === 'ropa') return TALLAS_ROPA
+export function tallasDeCategoria(cat?: CategoriaArticulo | '' | null, sexo?: SexoArticulo | '' | null): string[] {
+  if (cat === 'ropa') return sexo === 'nino' ? TALLAS_ROPA_NINO : TALLAS_ROPA
   if (cat === 'tenis') return TALLAS_TENIS
   return []
 }

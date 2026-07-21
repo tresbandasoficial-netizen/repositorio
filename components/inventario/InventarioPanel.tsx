@@ -317,6 +317,7 @@ function Entrada({ articulos, sedes, onCreado, onClose }: { articulos: Articulo[
         <SelectArticulo articulos={articulos} value={articuloId} onChange={setArticuloId} onCreado={onCreado} />
         <TallaSelect
           categoria={articulos.find(a => a.id === articuloId)?.categoria ?? ''}
+          sexo={articulos.find(a => a.id === articuloId)?.sexo ?? ''}
           value={talla}
           onChange={setTalla}
           className={inputCls}
@@ -374,6 +375,7 @@ function Transferencia({ articulos, sedes, onCreado, onClose }: { articulos: Art
         <SelectArticulo articulos={articulos} value={articuloId} onChange={setArticuloId} onCreado={onCreado} />
         <TallaSelect
           categoria={articulos.find(a => a.id === articuloId)?.categoria ?? ''}
+          sexo={articulos.find(a => a.id === articuloId)?.sexo ?? ''}
           value={talla}
           onChange={setTalla}
           className={inputCls}

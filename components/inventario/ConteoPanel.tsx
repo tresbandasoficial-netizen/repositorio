@@ -15,6 +15,7 @@ type ArtSel = {
   codigo: string | null
   descripcion: string
   categoria: string | null
+  sexo: string | null
 }
 
 type Fila = {
@@ -76,6 +77,7 @@ export function ConteoPanel({ sedes, sedeFijaId }: { sedes: Sede[]; sedeFijaId: 
             codigo: a.codigo,
             descripcion: `${a.marca} ${a.nombre}${a.color ? ` ${a.color}` : ''}`.trim(),
             categoria: a.categoria,
+            sexo: a.sexo,
           }))
           .sort((a, b) => prioridad(a.codigo) - prioridad(b.codigo))
 
@@ -113,6 +115,7 @@ export function ConteoPanel({ sedes, sedeFijaId }: { sedes: Sede[]; sedeFijaId: 
       codigo: art.codigo,
       descripcion: `${art.marca} ${art.nombre}${art.color ? ` ${art.color}` : ''}`.trim(),
       categoria: art.categoria,
+      sexo: art.sexo,
     })
   }
 
@@ -263,6 +266,7 @@ export function ConteoPanel({ sedes, sedeFijaId }: { sedes: Sede[]; sedeFijaId: 
         <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
           <TallaSelect
             categoria={(artSel?.categoria ?? '') as any}
+            sexo={(artSel?.sexo ?? '') as any}
             value={talla}
             onChange={setTalla}
             className="min-w-0 rounded-xl border border-gray-200 px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
