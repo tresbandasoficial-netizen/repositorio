@@ -338,6 +338,9 @@ export function GaleriaPedidos({
                 )}
                 <div className="px-2 py-1.5">
                   <p className="font-mono font-bold text-[11px] text-gray-900 truncate">{t.ref}</p>
+                  {t.item?.codigo && (
+                    <p className="font-mono font-bold text-[10px] text-blue-700 truncate">{t.item.codigo}</p>
+                  )}
                   <p className="text-[10px] text-gray-400 truncate">
                     {t.pedido.cliente_nombre}
                     {t.item?.talla ? ` · T ${tallaLimpia(t.item.talla)}` : ''}
