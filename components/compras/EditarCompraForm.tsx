@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { editarCompraAction, EditarCompraInput, EditarCompraItemInput, buscarPedidoPorOrdenAction } from '@/app/actions/compras'
 import { buscarPorCodigoAction } from '@/app/actions/articulos'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
+import { MarcaSelect } from '@/components/ui/MarcaSelect'
 import { formatCOP, formatMiles } from '@/lib/utils/format'
 
 type CuentaOpc = { id: string; nombre: string }
@@ -364,9 +365,8 @@ export function EditarCompraForm({ compraId, inicial, itemsIniciales, cuentas }:
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Marca</label>
-                  <input type="text" value={item.marca}
-                    onChange={e => actualizarItem(idx, 'marca', e.target.value)}
-                    placeholder="Nike, Adidas..."
+                  <MarcaSelect value={item.marca}
+                    onChange={marca => actualizarItem(idx, 'marca', marca)}
                     className={`${inputCls} bg-white`} />
                 </div>
                 <div>

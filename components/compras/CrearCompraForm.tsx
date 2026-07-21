@@ -7,6 +7,7 @@ import { parsearFacturaAction, FacturaExtraida } from '@/app/actions/parsear-fac
 import { buscarPorCodigoAction } from '@/app/actions/articulos'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
+import { MarcaSelect } from '@/components/ui/MarcaSelect'
 import { formatCOP, formatMiles, hoyBogota } from '@/lib/utils/format'
 
 type Paso = 'subir' | 'revisar' | 'guardando'
@@ -793,11 +794,9 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
 
               {/* Fila 3: marca / talla / cantidad / costo */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <input
-                  type="text"
+                <MarcaSelect
                   value={item.marca}
-                  onChange={(e) => actualizarItem(idx, 'marca', e.target.value)}
-                  placeholder="Marca"
+                  onChange={marca => actualizarItem(idx, 'marca', marca)}
                   className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 />
                 <input

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { buscarArticulosAction, guardarArticuloCatalogoAction, ArticuloBusqueda } from '@/app/actions/articulos'
 import { ItemVenta } from '@/app/actions/ventas'
 import { TallaSelect } from '@/components/ui/TallaSelect'
+import { MarcaSelect } from '@/components/ui/MarcaSelect'
 import type { CategoriaArticulo } from '@/types'
 import { formatMiles } from '@/lib/utils/format'
 
@@ -214,12 +215,10 @@ export function LineaProducto({
 
       {/* Fila 2: Marca · Talla · Cant */}
       <div className="grid grid-cols-[2fr_1fr_auto] gap-2 items-center">
-        <input
-          type="text"
+        <MarcaSelect
           value={linea.marca}
-          onChange={e => onChange({ marca: e.target.value })}
-          placeholder="Marca"
-          className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          onChange={marca => onChange({ marca })}
+          className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
         />
         <TallaSelect
           categoria={linea.categoria as CategoriaArticulo | ''}

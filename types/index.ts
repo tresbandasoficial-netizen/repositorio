@@ -390,6 +390,9 @@ export const DIAS_ZOMBIE_DOC = 30
 export type CategoriaArticulo = 'ropa' | 'tenis' | 'accesorios'
 export type SexoArticulo = 'hombre' | 'mujer' | 'nino'
 
+// Marcas que maneja la tienda (selector de marca al crear/editar artículos).
+export const MARCAS = ['ALO', 'Nike', 'Adidas', 'Puma', 'On', 'Lacoste', 'Hugo Boss', 'New Balance']
+
 // Tallas permitidas por categoría. Los accesorios no llevan talla.
 export const TALLAS_ROPA  = ['2XS', 'XS', 'S', 'M', 'L', 'XL', '2XL']
 export const TALLAS_TENIS = ['5', '5.5', '6', '6.5', '7', '7.5', '8', '8.5', '9', '9.5', '10', '10.5', '11', '11.5', '12']

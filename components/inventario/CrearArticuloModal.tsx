@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { guardarArticuloCatalogoAction } from '@/app/actions/articulos'
 import { CategoriaArticulo, SexoArticulo } from '@/types'
+import { MarcaSelect } from '@/components/ui/MarcaSelect'
 
 export type ArticuloCreado = {
   id: string
@@ -77,7 +78,7 @@ export function CrearArticuloModal({
         <div className="px-6 py-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <input className={inputCls} placeholder="Código SKU (ej. JD4546)" value={codigo} onChange={e => setCodigo(e.target.value.toUpperCase())} />
-            <input className={inputCls} placeholder="Marca (ej. Nike) *" value={marca} onChange={e => setMarca(e.target.value)} />
+            <MarcaSelect className={`${inputCls} bg-white`} value={marca} onChange={setMarca} />
             <input className={inputCls} placeholder="Nombre / modelo *" value={nombre} onChange={e => setNombre(e.target.value)} />
             <input className={inputCls} placeholder="Color (ej. Blanco/Negro)" value={color} onChange={e => setColor(e.target.value)} />
             <input className={inputCls} placeholder="Referencia técnica (opcional)" value={referencia} onChange={e => setReferencia(e.target.value)} />

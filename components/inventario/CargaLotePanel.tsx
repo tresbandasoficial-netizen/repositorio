@@ -4,6 +4,7 @@ import { useState, useRef, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { buscarArticuloPorCodigoAction, cargaMasivaAction, FilaLote } from '@/app/actions/cargaMasiva'
 import { TallaSelect } from '@/components/ui/TallaSelect'
+import { MarcaSelect } from '@/components/ui/MarcaSelect'
 import { formatMiles } from '@/lib/utils/format'
 import { Loader2, Plus, Trash2, Check, UploadCloud } from 'lucide-react'
 
@@ -221,8 +222,8 @@ export function CargaLotePanel({ sedes, sedeFijaId }: { sedes: Sede[]; sedeFijaI
                   </div>
                 </td>
                 <td className="px-2 py-1.5">
-                  <input type="text" value={f.marca} disabled={f.existente}
-                    onChange={e => patch(f.uid, { marca: e.target.value })} placeholder="Nike" className={celda} />
+                  <MarcaSelect value={f.marca} disabled={f.existente}
+                    onChange={marca => patch(f.uid, { marca })} className={celda} />
                 </td>
                 <td className="px-2 py-1.5">
                   <input type="text" value={f.nombre} disabled={f.existente}

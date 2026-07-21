@@ -4,6 +4,7 @@ import { useState, useTransition, useRef } from 'react'
 import { parsearFacturaAction } from '@/app/actions/parsear-factura'
 import { crearCompraAction, CompraItemInput } from '@/app/actions/compras'
 import { formatCOP, formatMiles, hoyBogota } from '@/lib/utils/format'
+import { MarcaSelect } from '@/components/ui/MarcaSelect'
 
 type Fase = 'subir' | 'revisar' | 'exito'
 
@@ -309,9 +310,8 @@ export function FacturaTab() {
                   placeholder="Descripción *"
                   className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
               </div>
-              <input type="text" value={item.marca}
-                onChange={e => updateItem(idx, 'marca', e.target.value)}
-                placeholder="Marca"
+              <MarcaSelect value={item.marca}
+                onChange={marca => updateItem(idx, 'marca', marca)}
                 className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
               <input type="text" value={item.talla}
                 onChange={e => updateItem(idx, 'talla', e.target.value)}

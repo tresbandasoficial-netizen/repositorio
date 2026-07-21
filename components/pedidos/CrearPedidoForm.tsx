@@ -12,6 +12,7 @@ import { ImagenProducto } from '@/components/pedidos/ImagenProducto'
 import { uploadPedidoImage } from '@/lib/utils/uploadPedidoImage'
 import { PedidoSuccessOverlay } from '@/components/pedidos/PedidoSuccessOverlay'
 import { TallaSelect } from '@/components/ui/TallaSelect'
+import { MarcaSelect } from '@/components/ui/MarcaSelect'
 
 type OpcionCatalogo = {
   articulo_id: string
@@ -617,12 +618,10 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
 
                 {/* Fila 2: Marca · Talla · Cant · X */}
                 <div className="grid grid-cols-[2fr_1fr_auto_auto] gap-2 items-center">
-                  <input
-                    type="text"
+                  <MarcaSelect
                     value={p.marca}
-                    onChange={e => patchProducto(i, { marca: e.target.value })}
-                    placeholder="Marca"
-                    className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onChange={marca => patchProducto(i, { marca })}
+                    className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                   />
                   <TallaSelect
                     categoria={(p as any).categoria ?? ''}
