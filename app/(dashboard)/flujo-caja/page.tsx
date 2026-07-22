@@ -7,9 +7,10 @@ import { EntregaEfectivoButton } from '@/components/flujo/EntregaEfectivoButton'
 import { AgregarDineroButton } from '@/components/flujo/AgregarDineroButton'
 import { PagoFinancieraButton } from '@/components/flujo/PagoFinancieraButton'
 
-// Addi/Sistecrédito pagan después (al mes) y Bold consigna el datáfono: su
-// saldo es plata POR COBRAR, no dinero disponible todavía.
-const TIPOS_POR_COBRAR = ['addi', 'sistecredito', 'bold']
+// Addi/Sistecrédito pagan después (al mes): su saldo es plata POR COBRAR,
+// no dinero disponible todavía. Bold (datáfono) sí entra de una — va con
+// las cuentas normales.
+const TIPOS_POR_COBRAR = ['addi', 'sistecredito']
 
 type Cuenta = {
   id: string
@@ -212,7 +213,7 @@ export default async function FlujoCajaPage({
         <div className="bg-amber-50 rounded-xl border border-amber-200 p-5">
           <p className="text-xs text-amber-700 uppercase font-semibold">📋 Por cobrar</p>
           <p className="text-2xl font-bold text-amber-800 mt-2">{formatCOP(totalPorCobrar)}</p>
-          <p className="text-[10px] text-amber-600">Addi · Sistecrédito · Bold (aún no consignan)</p>
+          <p className="text-[10px] text-amber-600">Addi · Sistecrédito (aún no consignan)</p>
         </div>
       </div>
 
@@ -224,8 +225,8 @@ export default async function FlujoCajaPage({
         <div className="space-y-4">
           {renderTabla('Efectivo', '💵', efectivo, totalEfectivo, 'verde')}
           {renderTabla('Cuentas', '🏦', otras, totalCuentas, 'azul')}
-          {renderTabla('Por cobrar — financieras y datáfono', '📋', porCobrar, totalPorCobrar, 'naranja',
-            'Ventas por Addi, Sistecrédito y Bold que AÚN no te consignan. Cuando te paguen, usa "📋 Pago de financiera".')}
+          {renderTabla('Por cobrar — financieras', '📋', porCobrar, totalPorCobrar, 'naranja',
+            'Ventas por Addi y Sistecrédito que AÚN no te consignan. Cuando te paguen, usa "📋 Pago de financiera".')}
         </div>
       )}
     </div>

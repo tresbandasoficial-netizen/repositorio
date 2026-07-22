@@ -7,11 +7,11 @@ import { formatCOP, formatMiles } from '@/lib/utils/format'
 
 type CuentaOpcion = { id: string; nombre: string; tipo: string }
 
-const TIPOS_FINANCIERA = ['addi', 'sistecredito', 'bold']
+const TIPOS_FINANCIERA = ['addi', 'sistecredito']
 
-// Registra el pago que hace una financiera (Addi, Sistecrédito) o el datáfono
-// (Bold): traslado de la cuenta "por cobrar" a la cuenta bancaria donde
-// consignaron. Baja lo pendiente y sube el banco — la venta ya estaba contada.
+// Registra el pago que hace una financiera (Addi, Sistecrédito): traslado de
+// la cuenta "por cobrar" a la cuenta bancaria donde consignaron. Baja lo
+// pendiente y sube el banco — la venta ya estaba contada.
 export function PagoFinancieraButton({ cuentas }: { cuentas: CuentaOpcion[] }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -62,7 +62,7 @@ export function PagoFinancieraButton({ cuentas }: { cuentas: CuentaOpcion[] }) {
             <div className="px-6 py-4 border-b border-gray-100">
               <h2 className="text-base font-bold text-gray-900">Pago de financiera</h2>
               <p className="text-xs text-gray-500 mt-0.5">
-                Cuando Addi, Sistecrédito o Bold te consignan: baja lo pendiente por cobrar y sube tu cuenta.
+                Cuando Addi o Sistecrédito te consignan: baja lo pendiente por cobrar y sube tu cuenta.
               </p>
             </div>
 
