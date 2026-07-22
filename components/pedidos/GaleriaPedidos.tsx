@@ -166,7 +166,7 @@ export function GaleriaPedidos({
             <span className="inline-flex items-center gap-1 bg-gray-200 text-gray-600 text-xs font-bold px-3 py-1 rounded-full">
               Cancelado
             </span>
-          ) : (sel.item ? sel.comprado : yaComprado) ? (
+          ) : !esAdmin ? null : (sel.item ? sel.comprado : yaComprado) ? (
             <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-full">
               <Check size={13} /> Ya comprado
             </span>
@@ -223,9 +223,9 @@ export function GaleriaPedidos({
                   {it.codigo ? (
                     <span className="font-mono text-[11px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md truncate">{it.codigo}</span>
                   ) : null}
-                  {it.comprado
+                  {esAdmin && (it.comprado
                     ? <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" title="Ya comprado" />
-                    : <span className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" title="Sin comprar" />}
+                    : <span className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" title="Sin comprar" />)}
                 </span>
                 {it.talla && (
                   <span className="inline-flex items-stretch shrink-0">
@@ -326,12 +326,15 @@ export function GaleriaPedidos({
                   : 'border-gray-100 shadow-sm hover:border-blue-200 hover:shadow'
                 }`}
               >
-                {/* Punto verde = ya comprado · rojo = sin comprar · gris = cancelado */}
-                <span
-                  className={`absolute top-1.5 right-1.5 z-10 w-3 h-3 rounded-full ring-2 ring-white ${
-                    esCancelado ? 'bg-gray-400' : t.comprado ? 'bg-emerald-500' : 'bg-red-500'
-                  }`}
-                />
+                {/* Punto verde = ya comprado · rojo = sin comprar · gris = cancelado.
+                    Es información de compras: SOLO la ve el admin. */}
+                {esAdmin && (
+                  <span
+                    className={`absolute top-1.5 right-1.5 z-10 w-3 h-3 rounded-full ring-2 ring-white ${
+                      esCancelado ? 'bg-gray-400' : t.comprado ? 'bg-emerald-500' : 'bg-red-500'
+                    }`}
+                  />
+                )}
                 {/* Casilla de selección (admin): marcar varios para registrar compra */}
                 {esAdmin && !esCancelado && (
                   <span
