@@ -198,6 +198,8 @@ export type LiquidarInput = {
   fecha: string
   cuenta_id: string | null
   notas: string
+  // true = el neto es negativo: TB le paga al mensajero (sale dinero de la cuenta)
+  tb_paga?: boolean
 }
 
 export type LiquidarResult = { ok: true } | { ok: false; error: string }
@@ -216,6 +218,7 @@ export async function liquidarMensajeriaAction(
     p_cuenta_id:      data.cuenta_id || null,
     p_responsable_id: user.id,
     p_notas:          data.notas.trim() || null,
+    p_tb_paga:        data.tb_paga ?? false,
   })
 
   if (error) return { ok: false, error: error.message }
@@ -233,6 +236,8 @@ export type LiquidarDiaInput = {
   monto: number
   cuenta_id: string | null
   notas: string
+  // true = el neto del día es negativo: TB le paga al mensajero
+  tb_paga?: boolean
 }
 
 export async function liquidarMensajeriaDiaAction(data: LiquidarDiaInput): Promise<LiquidarResult> {
@@ -247,6 +252,7 @@ export async function liquidarMensajeriaDiaAction(data: LiquidarDiaInput): Promi
     p_cuenta_id:      data.cuenta_id || null,
     p_responsable_id: user.id,
     p_notas:          data.notas.trim() || null,
+    p_tb_paga:        data.tb_paga ?? false,
   })
 
   if (error) return { ok: false, error: error.message }

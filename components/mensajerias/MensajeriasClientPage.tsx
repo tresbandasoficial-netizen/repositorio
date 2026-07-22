@@ -100,6 +100,8 @@ export function MensajeriasClientPage({
   const [mostrarLiquidar, setMostrarLiquidar] = useState(false)
   const [diaAbierto, setDiaAbierto] = useState<string | null>(null)
   const [diaLiquidando, setDiaLiquidando] = useState<string | null>(null)
+  // true = el neto que se está liquidando es negativo: TB le paga al mensajero
+  const [tbPaga, setTbPaga] = useState(false)
   // Las liquidaciones entran por defecto al efectivo de Bucaramanga (hub de domicilios).
   const cuentaEfectivoTR = cuentas.find(c => c.metodo_pago === 'efectivo' && c.sede?.codigo === 'TR')?.id ?? ''
   const [form, setForm] = useState({ monto: '', fecha: hoy(), cuenta_id: cuentaEfectivoTR, notas: '' })
@@ -135,6 +137,7 @@ export function MensajeriasClientPage({
   function abrirLiquidar() {
     setError(null)
     setDiaLiquidando(null)
+    setTbPaga(cuadreActivo.saldo_neto < 0)
     setForm({
       monto: Math.abs(cuadreActivo.saldo_neto).toString(),
       fecha: hoy(),
@@ -147,6 +150,7 @@ export function MensajeriasClientPage({
   function abrirLiquidarDia(fecha: string, neto: number) {
     setError(null)
     setDiaLiquidando(fecha)
+    setTbPaga(neto < 0)
     setForm({ monto: Math.abs(neto).toString(), fecha, cuenta_id: cuentaEfectivoTR, notas: `Cuadre del día ${fecha}` })
     setMostrarLiquidar(true)
     // Llevar el panel a la vista
@@ -161,8 +165,8 @@ export function MensajeriasClientPage({
 
     start(async () => {
       const r = diaLiquidando
-        ? await liquidarMensajeriaDiaAction({ mensajeria: activa, fecha: diaLiquidando, monto, cuenta_id: form.cuenta_id || null, notas: form.notas })
-        : await liquidarMensajeriaAction({ mensajeria: activa, monto, fecha: form.fecha, cuenta_id: form.cuenta_id || null, notas: form.notas })
+        ? await liquidarMensajeriaDiaAction({ mensajeria: activa, fecha: diaLiquidando, monto, cuenta_id: form.cuenta_id || null, notas: form.notas, tb_paga: tbPaga })
+        : await liquidarMensajeriaAction({ mensajeria: activa, monto, fecha: form.fecha, cuenta_id: form.cuenta_id || null, notas: form.notas, tb_paga: tbPaga })
       if (!r.ok) { setError(r.error); return }
       setMostrarLiquidar(false)
       setDiaLiquidando(null)
@@ -254,17 +258,19 @@ export function MensajeriasClientPage({
         <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
           <div>
             <h2 className="font-semibold text-gray-900">
-              {diaLiquidando
+              {tbPaga
+                ? `Pagarle a ${MENSAJERIA_LABELS[activa]}${diaLiquidando ? ` el día ${diaLiquidando}` : ''}`
+                : diaLiquidando
                 ? `Liquidar el día ${diaLiquidando} con ${MENSAJERIA_LABELS[activa]}`
                 : `Liquidar cuadre con ${MENSAJERIA_LABELS[activa]}`}
             </h2>
             <p className="text-sm text-gray-500 mt-1">
-              {diaLiquidando
-                ? 'Se liquidan solo los recaudos y domicilios de ese día.'
+              {tbPaga
+                ? `TB le paga a ${MENSAJERIA_LABELS[activa]}: el dinero SALE de la cuenta elegida y queda como gasto de domicilios.`
+                : diaLiquidando
+                ? 'Se liquidan solo los recaudos y domicilios de ese día. El neto entra a la cuenta elegida.'
                 : cuadreActivo.saldo_neto > 0
                 ? `${MENSAJERIA_LABELS[activa]} te entrega el neto y quedan en cero.`
-                : cuadreActivo.saldo_neto < 0
-                ? `TB le paga a ${MENSAJERIA_LABELS[activa]} el neto y quedan en cero.`
                 : 'El cuadre está en cero — solo confirma el cierre.'}
             </p>
           </div>
@@ -310,7 +316,7 @@ export function MensajeriasClientPage({
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">
-                Cuenta {cuadreActivo.saldo_neto >= 0 ? 'de ingreso' : 'de egreso'}
+                {tbPaga ? 'Cuenta de la que SALE el dinero' : 'Cuenta donde ENTRA el dinero'}
               </label>
               <select
                 value={form.cuenta_id}
@@ -343,7 +349,7 @@ export function MensajeriasClientPage({
               disabled={isPending}
               className="flex-1 py-2 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-50"
             >
-              {isPending ? 'Liquidando...' : 'Confirmar liquidación'}
+              {isPending ? 'Liquidando...' : tbPaga ? 'Confirmar pago a la mensajería' : 'Confirmar liquidación'}
             </button>
             <button
               onClick={() => { setMostrarLiquidar(false); setDiaLiquidando(null) }}
