@@ -59,7 +59,7 @@ const ESTADOS: Array<{ value: string; label: string }> = [
 export default async function GaleriaPedidosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ estado?: string; q?: string; pagina?: string }>
+  searchParams: Promise<{ estado?: string; q?: string; pagina?: string; desde?: string; hasta?: string }>
 }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -79,6 +79,8 @@ export default async function GaleriaPedidosPage({
   const resultado = await getPedidos({
     estado: params.estado as EstadoPedido | undefined,
     q:      params.q,
+    fecha_desde: params.desde,
+    fecha_hasta: params.hasta,
     pagina,
     porPagina: 30, // cuadrícula de 6 × 5 imágenes
     // Igual que la lista: el asesor ve su sede por defecto; al buscar, todas.
@@ -129,9 +131,11 @@ export default async function GaleriaPedidosPage({
 
   function urlCon(cambios: Record<string, string | undefined>) {
     const p = new URLSearchParams()
-    const merged = { estado: params.estado, q: params.q, pagina: undefined as string | undefined, ...cambios }
+    const merged = { estado: params.estado, q: params.q, desde: params.desde, hasta: params.hasta, pagina: undefined as string | undefined, ...cambios }
     if (merged.estado) p.set('estado', merged.estado)
     if (merged.q) p.set('q', merged.q)
+    if (merged.desde) p.set('desde', merged.desde)
+    if (merged.hasta) p.set('hasta', merged.hasta)
     if (merged.pagina && merged.pagina !== '1') p.set('pagina', merged.pagina)
     const qs = p.toString()
     return `/pedidos/galeria${qs ? `?${qs}` : ''}`
@@ -169,12 +173,37 @@ export default async function GaleriaPedidosPage({
           placeholder="Buscar número, cliente o teléfono…"
           className="flex-1 min-w-48 rounded-xl border border-gray-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
+        {/* Rango de fechas (fecha de creación del pedido) */}
+        <div className="flex items-center gap-1.5">
+          <label className="text-xs text-gray-400 font-medium">Desde</label>
+          <input
+            type="date"
+            name="desde"
+            defaultValue={params.desde ?? ''}
+            className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <label className="text-xs text-gray-400 font-medium">Hasta</label>
+          <input
+            type="date"
+            name="hasta"
+            defaultValue={params.hasta ?? ''}
+            className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
         <button
           type="submit"
           className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition-colors"
         >
           Filtrar
         </button>
+        {(params.estado || params.q || params.desde || params.hasta) && (
+          <Link
+            href="/pedidos/galeria"
+            className="px-4 py-2.5 text-sm font-medium text-gray-500 hover:text-gray-700 border border-gray-200 rounded-xl bg-white hover:bg-gray-50 transition-colors"
+          >
+            Limpiar
+          </Link>
+        )}
       </form>
 
       {pedidos.length === 0 ? (
