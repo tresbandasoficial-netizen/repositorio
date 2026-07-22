@@ -157,7 +157,12 @@ export async function crearCompraAction(data: CrearCompraInput): Promise<CrearCo
   const numeroFactura = data.numero_factura.trim() || null
 
   // Verificar duplicado por número de factura
-  if (numeroFactura) {
+  // El número de factura es obligatorio y único: es el candado contra
+  // registrar la misma factura dos veces.
+  if (!numeroFactura) {
+    return { ok: false, error: 'El número de factura es obligatorio' }
+  }
+  {
     const { data: existente } = await adminClient
       .from('compras')
       .select('id, proveedor, fecha')
@@ -525,6 +530,11 @@ export async function editarCompraAction(compraId: string, data: EditarCompraInp
     return { ok: false, error: 'Selecciona la cuenta de pago: de dónde salió el dinero de esta compra' }
 
   const numeroFactura = data.numero_factura.trim() || null
+
+  // El número de factura es obligatorio y único (candado anti-duplicados)
+  if (!numeroFactura) {
+    return { ok: false, error: 'El número de factura es obligatorio' }
+  }
 
   // Verificar duplicado de número de factura excluyendo esta compra
   if (numeroFactura) {

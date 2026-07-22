@@ -320,6 +320,7 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
     setError(null)
 
     if (!proveedor.trim()) { setError('El proveedor es obligatorio'); return }
+    if (!numeroFactura.trim()) { setError('El número de factura es obligatorio — sin él no se puede controlar que no se registre dos veces'); return }
     if (!cuentaId) { setError('Selecciona la cuenta de pago: de dónde salió el dinero de esta compra'); return }
     // Total en COP: si no lo digitaron, se calcula solo sumando los productos
     // (costo unitario × cantidad). Así no se bloquea la compra por el campo.
