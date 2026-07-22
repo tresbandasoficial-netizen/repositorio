@@ -5,6 +5,11 @@ import { createClient } from '@/lib/supabase/server'
 import { formatCOP, formatFecha, hoyBogota } from '@/lib/utils/format'
 import { EntregaEfectivoButton } from '@/components/flujo/EntregaEfectivoButton'
 import { AgregarDineroButton } from '@/components/flujo/AgregarDineroButton'
+import { PagoFinancieraButton } from '@/components/flujo/PagoFinancieraButton'
+
+// Addi/Sistecrédito pagan después (al mes) y Bold consigna el datáfono: su
+// saldo es plata POR COBRAR, no dinero disponible todavía.
+const TIPOS_POR_COBRAR = ['addi', 'sistecredito', 'bold']
 
 type Cuenta = {
   id: string
@@ -79,16 +84,19 @@ export default async function FlujoCajaPage({
 
   // Filtro por sede: las cuentas de la sede + las GLOBALES (sede_id null, como
   // Daviplata o Bancolombia), que reciben dinero de todas las sedes y antes
-  // desaparecían al filtrar.
-  const visibles = (sedeId ? filas.filter(f => f.sede_id === sedeId || f.sede_id === null) : filas)
-    .filter(f => f.saldo !== 0 || f.ingresos !== 0 || f.egresos !== 0 || f.saldo_inicial !== 0)
+  // desaparecían al filtrar. Se muestran TODAS las cuentas activas (aun en $0)
+  // para ver cuánto hay en cada una.
+  const visibles = sedeId ? filas.filter(f => f.sede_id === sedeId || f.sede_id === null) : filas
 
-  const efectivo = visibles.filter(f => f.tipo === 'efectivo')
-  const otras    = visibles.filter(f => f.tipo !== 'efectivo')
+  const efectivo  = visibles.filter(f => f.tipo === 'efectivo')
+  const porCobrar = visibles.filter(f => TIPOS_POR_COBRAR.includes(f.tipo))
+  const otras     = visibles.filter(f => f.tipo !== 'efectivo' && !TIPOS_POR_COBRAR.includes(f.tipo))
 
-  const totalEfectivo = efectivo.reduce((s, f) => s + f.saldo, 0)
-  const totalCuentas  = otras.reduce((s, f) => s + f.saldo, 0)
-  const totalGeneral  = totalEfectivo + totalCuentas
+  const totalEfectivo  = efectivo.reduce((s, f) => s + f.saldo, 0)
+  const totalCuentas   = otras.reduce((s, f) => s + f.saldo, 0)
+  const totalPorCobrar = porCobrar.reduce((s, f) => s + f.saldo, 0)
+  // El total disponible NO incluye lo por cobrar: esa plata aún no ha entrado.
+  const totalGeneral   = totalEfectivo + totalCuentas
 
   const sedeActual = sedes?.find(s => s.id === sedeId)
 
@@ -99,12 +107,18 @@ export default async function FlujoCajaPage({
     return sid ? `/flujo-caja?sede=${sid}` : '/flujo-caja'
   }
 
-  const renderTabla = (titulo: string, icono: string, filas: Fila[], total: number, verde?: boolean) => {
+  const renderTabla = (titulo: string, icono: string, filas: Fila[], total: number, esquema: 'verde' | 'azul' | 'naranja', nota?: string) => {
     if (filas.length === 0) return null
+    const header = esquema === 'verde' ? 'bg-green-50/60 border-green-100 text-green-800'
+      : esquema === 'naranja' ? 'bg-amber-50/60 border-amber-100 text-amber-800'
+      : 'bg-blue-50/60 border-blue-100 text-blue-800'
     return (
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className={`px-5 py-3 border-b flex items-center justify-between ${verde ? 'bg-green-50/60 border-green-100' : 'bg-blue-50/60 border-blue-100'}`}>
-          <p className={`text-sm font-bold ${verde ? 'text-green-800' : 'text-blue-800'}`}>{icono} {titulo}</p>
+        <div className={`px-5 py-3 border-b flex items-center justify-between gap-3 flex-wrap ${header}`}>
+          <div>
+            <p className="text-sm font-bold">{icono} {titulo}</p>
+            {nota && <p className="text-[11px] opacity-80 mt-0.5">{nota}</p>}
+          </div>
           <p className="text-sm font-bold text-gray-900">{formatCOP(total)}</p>
         </div>
         <table className="w-full text-sm">
@@ -158,6 +172,7 @@ export default async function FlujoCajaPage({
         <div className="flex gap-2 flex-wrap">
           <AgregarDineroButton cuentas={cuentasOpc} />
           <EntregaEfectivoButton cuentas={cuentasOpc} />
+          <PagoFinancieraButton cuentas={cuentasOpc} />
         </div>
       </div>
 
@@ -180,7 +195,7 @@ export default async function FlujoCajaPage({
       </div>
 
       {/* Totales */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-green-50 rounded-xl border border-green-200 p-5">
           <p className="text-xs text-green-700 uppercase font-semibold">💵 Efectivo</p>
           <p className="text-2xl font-bold text-green-800 mt-2">{formatCOP(totalEfectivo)}</p>
@@ -190,9 +205,14 @@ export default async function FlujoCajaPage({
           <p className="text-2xl font-bold text-blue-800 mt-2">{formatCOP(totalCuentas)}</p>
         </div>
         <div className="rounded-xl p-5 bg-blue-600">
-          <p className="text-xs uppercase text-blue-100 font-semibold">Total</p>
+          <p className="text-xs uppercase text-blue-100 font-semibold">Total disponible</p>
           <p className="text-2xl font-bold text-white mt-2">{formatCOP(totalGeneral)}</p>
           <p className="text-[10px] text-blue-200">efectivo + cuentas</p>
+        </div>
+        <div className="bg-amber-50 rounded-xl border border-amber-200 p-5">
+          <p className="text-xs text-amber-700 uppercase font-semibold">📋 Por cobrar</p>
+          <p className="text-2xl font-bold text-amber-800 mt-2">{formatCOP(totalPorCobrar)}</p>
+          <p className="text-[10px] text-amber-600">Addi · Sistecrédito · Bold (aún no consignan)</p>
         </div>
       </div>
 
@@ -202,8 +222,10 @@ export default async function FlujoCajaPage({
         </div>
       ) : (
         <div className="space-y-4">
-          {renderTabla('Efectivo', '💵', efectivo, totalEfectivo, true)}
-          {renderTabla('Cuentas', '🏦', otras, totalCuentas)}
+          {renderTabla('Efectivo', '💵', efectivo, totalEfectivo, 'verde')}
+          {renderTabla('Cuentas', '🏦', otras, totalCuentas, 'azul')}
+          {renderTabla('Por cobrar — financieras y datáfono', '📋', porCobrar, totalPorCobrar, 'naranja',
+            'Ventas por Addi, Sistecrédito y Bold que AÚN no te consignan. Cuando te paguen, usa "📋 Pago de financiera".')}
         </div>
       )}
     </div>
