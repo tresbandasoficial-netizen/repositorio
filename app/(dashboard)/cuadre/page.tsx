@@ -199,19 +199,19 @@ export default async function CuadrePage({
             {/* Efectivo */}
             {efectivoCajas.length > 0 && (
               <div className="mt-4">
-                <p className="text-[11px] text-green-700 uppercase font-semibold mb-1.5">💵 Efectivo</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {efectivoCajas.map(c => <FilaCuenta key={c.cuenta_id} c={c} labelDia={labelDia} verde />)}
+                <p className="text-[11px] text-green-700 uppercase font-semibold mb-1.5">💵 Efectivo ({efectivoCajas.length})</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
+                  {efectivoCajas.map((c, i) => <FilaCuenta key={c.cuenta_id} c={c} n={i + 1} labelDia={labelDia} verde />)}
                 </div>
               </div>
             )}
 
-            {/* Cuentas (Nequi, Bancolombia, Daviplata…) */}
+            {/* Cuentas (Nequi, Bancolombia, Davivienda…) */}
             {cuentasBanco.length > 0 && (
               <div className="mt-4">
-                <p className="text-[11px] text-blue-700 uppercase font-semibold mb-1.5">🏦 Cuentas</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {cuentasBanco.map(c => <FilaCuenta key={c.cuenta_id} c={c} labelDia={labelDia} />)}
+                <p className="text-[11px] text-blue-700 uppercase font-semibold mb-1.5">🏦 Cuentas ({cuentasBanco.length})</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
+                  {cuentasBanco.map((c, i) => <FilaCuenta key={c.cuenta_id} c={c} n={i + 1} labelDia={labelDia} />)}
                 </div>
               </div>
             )}
@@ -441,17 +441,23 @@ export default async function CuadrePage({
   )
 }
 
-// Fila de una cuenta en el panel: nombre + "Hoy X" y "Total Y" (el total solo
-// si el usuario puede verlo; si no, muestra "—").
-function FilaCuenta({ c, labelDia, verde }: { c: SaldoCuenta; labelDia: string; verde?: boolean }) {
+// Casilla de una cuenta en el panel: número + nombre destacado, "Hoy X" y el
+// Total grande (el total solo si el usuario puede verlo; si no, muestra "—").
+function FilaCuenta({ c, n, labelDia, verde }: { c: SaldoCuenta; n: number; labelDia: string; verde?: boolean }) {
+  const negativo = c.total < 0 && c.verTotal
   return (
-    <div className={`rounded-lg px-3 py-2 ${verde ? 'bg-green-50/60' : c.total < 0 && c.verTotal ? 'bg-red-50' : 'bg-gray-50'}`}>
-      <p className="text-sm text-gray-800 truncate">{c.nombre}</p>
-      <div className="flex items-center justify-between mt-1 text-xs">
-        <span className="text-gray-500">{labelDia} <span className="font-semibold text-gray-700">{formatCOP(c.hoy)}</span></span>
+    <div className={`rounded-xl border px-3.5 py-3 ${
+      negativo ? 'bg-red-50 border-red-200' : verde ? 'bg-green-50/50 border-green-200' : 'bg-white border-gray-200'
+    }`}>
+      <div className="flex items-center gap-2">
+        <span className={`w-5 h-5 rounded-md text-white text-[11px] font-bold flex items-center justify-center shrink-0 ${verde ? 'bg-green-600' : 'bg-blue-600'}`}>{n}</span>
+        <p className="text-sm font-bold text-gray-900 truncate">{c.nombre}</p>
+      </div>
+      <div className="flex items-end justify-between mt-2 pt-2 border-t border-gray-100">
+        <span className="text-xs text-gray-500">{labelDia} <span className="font-semibold text-gray-700">{formatCOP(c.hoy)}</span></span>
         {c.verTotal
-          ? <span className="text-gray-500">Total <span className={`font-bold ${verde ? 'text-green-700' : c.total < 0 ? 'text-red-600' : 'text-gray-900'}`}>{formatCOP(c.total)}</span></span>
-          : <span className="text-gray-300">Total —</span>}
+          ? <span className="text-xs text-gray-400">Total <span className={`text-base font-bold ${verde ? 'text-green-700' : negativo ? 'text-red-600' : 'text-gray-900'}`}>{formatCOP(c.total)}</span></span>
+          : <span className="text-gray-300 text-xs">Total —</span>}
       </div>
     </div>
   )
