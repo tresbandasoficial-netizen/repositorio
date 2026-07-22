@@ -22,6 +22,8 @@ export type GastoResult = { ok: true; id: string } | { ok: false; error: string 
 
 export async function crearGastoAction(data: GastoInput): Promise<GastoResult> {
   if (data.valor <= 0) return { ok: false, error: 'El valor debe ser mayor a cero' }
+  if (!data.cuenta_id)
+    return { ok: false, error: 'Selecciona la cuenta con la que se pagó el gasto (efectivo, Nequi, Bancolombia…)' }
 
   const sesion = await getSesion()
   if (sesion.rol === 'visor') return { ok: false, error: 'Sin permisos para crear gastos' }
@@ -42,7 +44,7 @@ export async function crearGastoAction(data: GastoInput): Promise<GastoResult> {
       valor:          data.valor,
       categoria:      data.categoria,
       sede_id:        sedeId,
-      cuenta_id:      data.cuenta_id || null,
+      cuenta_id:      data.cuenta_id,
       responsable_id: sesion.id,
       observacion:    data.observacion.trim() || null,
       origen:         'manual',

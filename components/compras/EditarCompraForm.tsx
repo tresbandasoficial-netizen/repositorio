@@ -176,6 +176,8 @@ export function EditarCompraForm({ compraId, inicial, itemsIniciales, cuentas }:
       pedido_ref:         item.destino === 'pedido' ? (item.pedidoRef?.trim() || undefined) : undefined,
     }))
 
+    if (!cuentaId) { setError('Selecciona la cuenta de pago: de dónde salió el dinero de esta compra'); return }
+
     const payload: EditarCompraInput = {
       tipo,
       proveedor: proveedor.trim(),
@@ -277,7 +279,7 @@ export function EditarCompraForm({ compraId, inicial, itemsIniciales, cuentas }:
           <div>
             <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Cuenta de pago</label>
             <select value={cuentaId} onChange={e => setCuentaId(e.target.value)} className={inputCls}>
-              <option value="">— Sin especificar (no descuenta saldo) —</option>
+              <option value="">— Elige la cuenta… —</option>
               {cuentas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
             </select>
             {cuentaId ? (

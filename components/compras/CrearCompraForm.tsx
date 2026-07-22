@@ -320,6 +320,7 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
     setError(null)
 
     if (!proveedor.trim()) { setError('El proveedor es obligatorio'); return }
+    if (!cuentaId) { setError('Selecciona la cuenta de pago: de dónde salió el dinero de esta compra'); return }
     // Total en COP: si no lo digitaron, se calcula solo sumando los productos
     // (costo unitario × cantidad). Así no se bloquea la compra por el campo.
     const totalItemsCop = items.reduce(
@@ -666,13 +667,13 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
 
           {/* Cuenta de pago */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Cuenta de pago</label>
+            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Cuenta de pago *</label>
             <select
               value={cuentaId}
               onChange={(e) => setCuentaId(e.target.value)}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="">— Sin especificar —</option>
+              <option value="">— Elige la cuenta… —</option>
               {cuentas.map(c => (
                 <option key={c.id} value={c.id}>{c.nombre}</option>
               ))}

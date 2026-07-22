@@ -53,6 +53,7 @@ export function GastosClientPage({ gastos, cuentas, sedes, sedeRestringida, esAd
     if (!valor || valor <= 0) { setError('Ingresa un valor válido'); return }
     if (!form.categoria)      { setError('Selecciona una categoría'); return }
     if (!form.sede_id)        { setError('Selecciona la sede'); return }
+    if (!form.cuenta_id)      { setError('Selecciona la cuenta con la que se pagó el gasto'); return }
 
     start(async () => {
       const r = await crearGastoAction({
@@ -158,10 +159,10 @@ export function GastosClientPage({ gastos, cuentas, sedes, sedeRestringida, esAd
               </div>
             )}
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Cuenta de egreso</label>
+              <label className="block text-xs text-gray-500 mb-1">Cuenta con la que se pagó *</label>
               <select value={form.cuenta_id} onChange={e => set('cuenta_id', e.target.value)}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="">Sin especificar</option>
+                <option value="">Elige la cuenta…</option>
                 {cuentas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
               </select>
             </div>

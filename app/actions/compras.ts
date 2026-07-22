@@ -151,6 +151,9 @@ export type CrearCompraResult =
 export async function crearCompraAction(data: CrearCompraInput): Promise<CrearCompraResult> {
   const { userId, adminClient } = await verificarAdmin()
 
+  if (!data.cuenta_id)
+    return { ok: false, error: 'Selecciona la cuenta de pago: de dónde salió el dinero de esta compra' }
+
   const numeroFactura = data.numero_factura.trim() || null
 
   // Verificar duplicado por número de factura
@@ -505,6 +508,9 @@ export type EditarCompraResult =
 
 export async function editarCompraAction(compraId: string, data: EditarCompraInput): Promise<EditarCompraResult> {
   const { userId, adminClient } = await verificarAdmin()
+
+  if (!data.cuenta_id)
+    return { ok: false, error: 'Selecciona la cuenta de pago: de dónde salió el dinero de esta compra' }
 
   const numeroFactura = data.numero_factura.trim() || null
 

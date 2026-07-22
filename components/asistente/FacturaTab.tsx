@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useTransition, useRef } from 'react'
+import { useState, useTransition, useRef, useEffect } from 'react'
 import { parsearFacturaAction } from '@/app/actions/parsear-factura'
 import { crearCompraAction, CompraItemInput } from '@/app/actions/compras'
+import { getCuentasAction } from '@/app/actions/cuentas'
 import { formatCOP, formatMiles, hoyBogota } from '@/lib/utils/format'
 import { MarcaSelect } from '@/components/ui/MarcaSelect'
 
@@ -28,9 +29,15 @@ export function FacturaTab() {
   const [items, setItems] = useState<ItemForm[]>([])
   const [error, setError] = useState<string | null>(null)
   const [compraId, setCompraId] = useState<string | null>(null)
+  const [cuentas, setCuentas] = useState<Array<{ id: string; nombre: string }>>([])
+  const [cuentaId, setCuentaId] = useState('')
   const [isParsing, startParsing] = useTransition()
   const [isSaving, startSaving] = useTransition()
   const fileRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    getCuentasAction().then(cs => setCuentas(cs.map(c => ({ id: c.id, nombre: c.nombre })))).catch(() => {})
+  }, [])
 
   const totalCopNum = parseInt(totalCop.replace(/\D/g, ''), 10) || 0
   const trmCalc =
@@ -113,6 +120,7 @@ export function FacturaTab() {
     if (tipo === 'usa' && (!totalUsd || parseFloat(totalUsd) <= 0)) {
       setError('El total en USD es obligatorio'); return
     }
+    if (!cuentaId) { setError('Selecciona la cuenta de pago: de dónde salió el dinero de esta compra'); return }
     for (let i = 0; i < items.length; i++) {
       if (!items[i].descripcion.trim()) { setError(`Producto ${i + 1}: falta la descripción`); return }
     }
@@ -134,7 +142,7 @@ export function FacturaTab() {
         trm: tipo === 'usa' ? trmCalc : null,
         total_cop: totalCopNum,
         notas,
-        cuenta_id: null,
+        cuenta_id: cuentaId,
         items: itemsInput,
       })
       if (!result.ok) { setError(result.error); return }
@@ -271,6 +279,15 @@ export function FacturaTab() {
               onChange={e => setTotalCop(e.target.value.replace(/\D/g, ''))}
               className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
             {totalCopNum > 0 && <p className="text-xs text-gray-400 mt-0.5">{formatCOP(totalCopNum)}</p>}
+          </div>
+          <div className="col-span-2">
+            <label className="block text-xs text-gray-500 mb-1">Cuenta de pago *</label>
+            <select value={cuentaId} onChange={e => setCuentaId(e.target.value)}
+              className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+              <option value="">— Elige la cuenta… —</option>
+              {cuentas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            </select>
+            <p className="text-xs text-gray-400 mt-0.5">Cuenta desde la que salió el dinero de esta compra</p>
           </div>
         </div>
         {tipo === 'usa' && trmCalc && (
