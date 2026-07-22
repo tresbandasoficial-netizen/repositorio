@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { getCuadre, getSaldosCuentas, getGastosAcumulado, type SaldoCuenta } from '@/lib/queries/cuadre'
+import { getCuadre, getSaldosCuentas, type SaldoCuenta } from '@/lib/queries/cuadre'
 import { getSesion } from '@/lib/auth/acceso'
 import { createClient } from '@/lib/supabase/server'
 import { formatCOP, formatFecha, hoyBogota } from '@/lib/utils/format'
@@ -32,20 +32,19 @@ export default async function CuadrePage({
   const hasta = sp.hasta || desde
   const sede = sp.sede || ''
 
-  const [sesion, cuadre, saldosCuentas, gastosAcumulado] = await Promise.all([
+  const [sesion, cuadre, saldosCuentas] = await Promise.all([
     getSesion(),
     getCuadre({ desde, hasta, sede: sede || undefined }),
     getSaldosCuentas(sede || undefined, { desde, hasta }),
-    getGastosAcumulado(sede || undefined),
   ])
   const esAdmin = sesion.rol === 'admin'
-  // Mostrar: efectivo siempre; y las cuentas que tuvieron movimiento en el rango
-  // o cuyo acumulado es visible y no es cero.
-  const cuentasVisibles = saldosCuentas.filter(c => c.es_efectivo || c.hoy !== 0 || (c.verTotal && c.total !== 0))
+  // El cuadre muestra SOLO lo del día/rango (los acumulados viven en Flujo de
+  // caja): efectivo siempre, y las demás cuentas solo si les entró plata.
+  const cuentasVisibles = saldosCuentas.filter(c => c.es_efectivo || c.hoy !== 0)
   const efectivoCajas  = cuentasVisibles.filter(c => c.es_efectivo)
   const cuentasBanco   = cuentasVisibles.filter(c => !c.es_efectivo)
-  const totalEfectivo  = efectivoCajas.reduce((s, c) => s + c.total, 0)
-  const totalCuentas   = cuentasBanco.filter(c => c.verTotal).reduce((s, c) => s + c.total, 0)
+  const efectivoHoy    = efectivoCajas.reduce((s, c) => s + c.hoy, 0)
+  const cuentasHoy     = cuentasBanco.reduce((s, c) => s + c.hoy, 0)
   const recogidoHoy    = cuentasVisibles.reduce((s, c) => s + c.hoy, 0)
   const labelDia       = desde === hasta ? 'Hoy' : 'Período'
   const totalGastosRango = cuadre.gastosDetalle.reduce((s, g) => s + g.valor, 0)
@@ -166,28 +165,21 @@ export default async function CuadrePage({
         )}
       </div>
 
-      {/* ═══ 2 · DINERO POR CUENTA ═════════════════════════════════════ */}
+      {/* ═══ 2 · DINERO RECOGIDO POR CUENTA (solo el día/rango) ════════ */}
       {cuentasVisibles.length > 0 && (
         <>
-          <TituloSeccion n={2} titulo="Dinero por cuenta" color="bg-emerald-600"
-            extra={`${labelDia} = lo recogido · Total = acumulado`} />
+          <TituloSeccion n={2} titulo={`Dinero recogido por cuenta (${labelDia.toLowerCase()})`} color="bg-emerald-600"
+            extra="los acumulados están en Flujo de caja" />
           <div className="rounded-2xl border border-gray-100 shadow-sm bg-white p-5">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 flex-1">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex gap-3 flex-wrap">
                 <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-2.5">
-                  <p className="text-[11px] text-green-700 uppercase font-semibold">💵 Efectivo (total)</p>
-                  <p className="text-lg font-bold text-green-800">{formatCOP(totalEfectivo)}</p>
+                  <p className="text-[11px] text-green-700 uppercase font-semibold">💵 Efectivo {labelDia.toLowerCase()}</p>
+                  <p className="text-lg font-bold text-green-800">{formatCOP(efectivoHoy)}</p>
                 </div>
-                {cuentasBanco.some(c => c.verTotal) && (
-                  <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-2.5">
-                    <p className="text-[11px] text-blue-700 uppercase font-semibold">🏦 Cuentas (total)</p>
-                    <p className="text-lg font-bold text-blue-800">{formatCOP(totalCuentas)}</p>
-                  </div>
-                )}
-                <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-2.5">
-                  <p className="text-[11px] text-red-700 uppercase font-semibold">Gastos acumulados</p>
-                  <p className="text-lg font-bold text-red-800">{formatCOP(gastosAcumulado)}</p>
-                  <p className="text-[10px] text-red-500">todos los días</p>
+                <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-2.5">
+                  <p className="text-[11px] text-blue-700 uppercase font-semibold">🏦 Cuentas {labelDia.toLowerCase()}</p>
+                  <p className="text-lg font-bold text-blue-800">{formatCOP(cuentasHoy)}</p>
                 </div>
               </div>
               <div className="text-right shrink-0">
@@ -206,10 +198,10 @@ export default async function CuadrePage({
               </div>
             )}
 
-            {/* Cuentas (Nequi, Bancolombia, Davivienda…) */}
+            {/* Cuentas (Nequi, Bancolombia, Davivienda…) que recibieron plata */}
             {cuentasBanco.length > 0 && (
               <div className="mt-4">
-                <p className="text-[11px] text-blue-700 uppercase font-semibold mb-1.5">🏦 Cuentas ({cuentasBanco.length})</p>
+                <p className="text-[11px] text-blue-700 uppercase font-semibold mb-1.5">🏦 Cuentas con movimiento ({cuentasBanco.length})</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
                   {cuentasBanco.map((c, i) => <FilaCuenta key={c.cuenta_id} c={c} n={i + 1} labelDia={labelDia} />)}
                 </div>
@@ -441,23 +433,18 @@ export default async function CuadrePage({
   )
 }
 
-// Casilla de una cuenta en el panel: número + nombre destacado, "Hoy X" y el
-// Total grande (el total solo si el usuario puede verlo; si no, muestra "—").
+// Casilla de una cuenta en el panel: número + nombre destacado y lo recogido
+// en el día/rango en grande. Los acumulados se consultan en Flujo de caja.
 function FilaCuenta({ c, n, labelDia, verde }: { c: SaldoCuenta; n: number; labelDia: string; verde?: boolean }) {
-  const negativo = c.total < 0 && c.verTotal
   return (
-    <div className={`rounded-xl border px-3.5 py-3 ${
-      negativo ? 'bg-red-50 border-red-200' : verde ? 'bg-green-50/50 border-green-200' : 'bg-white border-gray-200'
-    }`}>
+    <div className={`rounded-xl border px-3.5 py-3 ${verde ? 'bg-green-50/50 border-green-200' : 'bg-white border-gray-200'}`}>
       <div className="flex items-center gap-2">
         <span className={`w-5 h-5 rounded-md text-white text-[11px] font-bold flex items-center justify-center shrink-0 ${verde ? 'bg-green-600' : 'bg-blue-600'}`}>{n}</span>
         <p className="text-sm font-bold text-gray-900 truncate">{c.nombre}</p>
       </div>
       <div className="flex items-end justify-between mt-2 pt-2 border-t border-gray-100">
-        <span className="text-xs text-gray-500">{labelDia} <span className="font-semibold text-gray-700">{formatCOP(c.hoy)}</span></span>
-        {c.verTotal
-          ? <span className="text-xs text-gray-400">Total <span className={`text-base font-bold ${verde ? 'text-green-700' : negativo ? 'text-red-600' : 'text-gray-900'}`}>{formatCOP(c.total)}</span></span>
-          : <span className="text-gray-300 text-xs">Total —</span>}
+        <span className="text-xs text-gray-400 uppercase">{labelDia}</span>
+        <span className={`text-base font-bold ${verde ? 'text-green-700' : 'text-gray-900'}`}>{formatCOP(c.hoy)}</span>
       </div>
     </div>
   )
