@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { PedidoRow } from '@/lib/queries/pedidos'
-import { ESTADO_LABELS } from '@/types'
+import { EstadoInline } from './PedidoCard'
 import { formatCOP, formatFecha } from '@/lib/utils/format'
 import { formatearTelefono } from '@/lib/utils/phone'
 import { ImageOff, X, ArrowUpRight, Check, Phone, ShoppingCart, LayoutGrid, Package } from 'lucide-react'
@@ -180,9 +180,22 @@ export function GaleriaPedidos({
             <p className="text-sm font-bold text-gray-900 truncate">{sel.pedido.cliente_nombre}</p>
             <p className="text-xs text-gray-400 flex items-center gap-1 flex-wrap">
               <Phone size={11} className="shrink-0" />
-              {formatearTelefono(sel.pedido.cliente_telefono)} · {formatFecha(sel.pedido.fecha_creacion)} · {sel.pedido.sede_codigo} · {ESTADO_LABELS[sel.pedido.estado]}
+              {formatearTelefono(sel.pedido.cliente_telefono)} · {formatFecha(sel.pedido.fecha_creacion)} · {sel.pedido.sede_codigo}
             </p>
           </div>
+        </div>
+
+        {/* Estado del pedido: clic para cambiarlo aquí mismo */}
+        <div className="flex items-center justify-between gap-2 mx-4 mb-3 bg-gray-50 rounded-xl px-3 py-2">
+          <span className="text-xs text-gray-500 font-medium">Estado del pedido</span>
+          <EstadoInline
+            key={sel.pedido.id}
+            pedidoId={sel.pedido.id}
+            estadoActual={sel.pedido.estado}
+            sedeCodigo={sel.pedido.sede_codigo}
+            esAdmin={esAdmin}
+            facturado={!!sel.pedido.factura_id}
+          />
         </div>
 
         {/* Artículos: el elegido queda resaltado */}

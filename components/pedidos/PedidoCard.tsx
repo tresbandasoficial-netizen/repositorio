@@ -13,7 +13,9 @@ import { transicionesDisponibles } from '@/lib/domain/estados'
 import { cambiarEstadoInlineAction } from '@/app/actions/pedidos'
 import { cn } from '@/lib/utils/cn'
 
-function EstadoInline({ pedidoId, estadoActual, sedeCodigo, esAdmin, facturado }: { pedidoId: string; estadoActual: EstadoPedido; sedeCodigo: string; esAdmin: boolean; facturado: boolean }) {
+// Badge de estado clicable con menú de transiciones (se usa en la lista de
+// pedidos y en el visor de la galería).
+export function EstadoInline({ pedidoId, estadoActual, sedeCodigo, esAdmin, facturado }: { pedidoId: string; estadoActual: EstadoPedido; sedeCodigo: string; esAdmin: boolean; facturado: boolean }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [coords, setCoords] = useState<{ top: number; left: number } | null>(null)
