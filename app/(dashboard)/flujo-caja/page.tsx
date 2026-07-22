@@ -108,55 +108,56 @@ export default async function FlujoCajaPage({
     return sid ? `/flujo-caja?sede=${sid}` : '/flujo-caja'
   }
 
-  const renderTabla = (titulo: string, icono: string, filas: Fila[], total: number, esquema: 'verde' | 'azul' | 'naranja', nota?: string) => {
+  // Cada cuenta en su CASILLA numerada: nombre, corte, entradas/salidas y el
+  // saldo grande — más fácil de leer que la tabla corrida.
+  const renderGrupo = (titulo: string, icono: string, filas: Fila[], total: number, esquema: 'verde' | 'azul' | 'naranja', nota?: string) => {
     if (filas.length === 0) return null
-    const header = esquema === 'verde' ? 'bg-green-50/60 border-green-100 text-green-800'
-      : esquema === 'naranja' ? 'bg-amber-50/60 border-amber-100 text-amber-800'
-      : 'bg-blue-50/60 border-blue-100 text-blue-800'
+    const colores = esquema === 'verde'
+      ? { chip: 'bg-green-600', titulo: 'text-green-800', borde: 'border-green-200', fondo: 'bg-green-50/60' }
+      : esquema === 'naranja'
+      ? { chip: 'bg-amber-600', titulo: 'text-amber-800', borde: 'border-amber-200', fondo: 'bg-amber-50/60' }
+      : { chip: 'bg-blue-600', titulo: 'text-blue-800', borde: 'border-blue-200', fondo: 'bg-blue-50/60' }
     return (
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className={`px-5 py-3 border-b flex items-center justify-between gap-3 flex-wrap ${header}`}>
+      <div>
+        <div className={`rounded-xl border ${colores.borde} ${colores.fondo} px-5 py-3 flex items-center justify-between gap-3 flex-wrap mb-3`}>
           <div>
-            <p className="text-sm font-bold">{icono} {titulo}</p>
+            <p className={`text-sm font-bold ${colores.titulo}`}>{icono} {titulo} <span className="font-normal text-xs opacity-70">({filas.length} cuenta{filas.length !== 1 ? 's' : ''})</span></p>
             {nota && <p className="text-[11px] opacity-80 mt-0.5">{nota}</p>}
           </div>
-          <p className="text-sm font-bold text-gray-900">{formatCOP(total)}</p>
+          <p className="text-base font-bold text-gray-900">{formatCOP(total)}</p>
         </div>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase">
-              <th className="text-left px-5 py-2">Cuenta</th>
-              <th className="text-left px-3 py-2">Corte</th>
-              <th className="text-right px-3 py-2">Saldo inicial</th>
-              <th className="text-right px-3 py-2">Ingresos</th>
-              <th className="text-right px-3 py-2">Egresos</th>
-              <th className="text-right px-5 py-2">Saldo actual</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {filas.map(f => (
-              <tr key={f.id} className={`hover:bg-gray-50 ${f.saldo < 0 ? 'bg-red-50/60' : ''}`}>
-                <td className="px-5 py-2.5">
-                  <Link href={`/flujo-caja/${f.id}`} className="text-gray-800 hover:text-blue-600 hover:underline font-medium">
-                    {f.nombre}
-                  </Link>
-                  {sedeId && f.sede_id === null && (
-                    <span className="ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500" title="Cuenta global: recibe dinero de todas las sedes">global</span>
-                  )}
-                </td>
-                <td className="px-3 py-2.5 text-xs text-gray-400" title="Los ingresos/egresos se cuentan desde esta fecha (el saldo inicial ya absorbe lo anterior)">
-                  {f.fecha_corte ? formatFecha(f.fecha_corte) : '—'}
-                </td>
-                <td className="px-3 py-2.5 text-right text-gray-500">{formatCOP(f.saldo_inicial)}</td>
-                <td className="px-3 py-2.5 text-right text-green-700">{f.ingresos ? '+' + formatCOP(f.ingresos) : '—'}</td>
-                <td className="px-3 py-2.5 text-right text-red-600">{f.egresos ? '−' + formatCOP(f.egresos) : '—'}</td>
-                <td className={`px-5 py-2.5 text-right font-bold ${f.saldo < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+          {filas.map((f, i) => (
+            <Link
+              key={f.id}
+              href={`/flujo-caja/${f.id}`}
+              className={`block rounded-xl border p-4 transition-all hover:shadow-md hover:border-blue-300 ${
+                f.saldo < 0 ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <span className={`w-6 h-6 rounded-lg ${colores.chip} text-white text-xs font-bold flex items-center justify-center shrink-0`}>{i + 1}</span>
+                <p className="text-sm font-bold text-gray-900 truncate">{f.nombre}</p>
+                {f.sede_id === null && (
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 shrink-0" title="Cuenta global: recibe dinero de todas las sedes">global</span>
+                )}
+              </div>
+              <p className="text-[11px] text-gray-400 mt-1.5" title="Los ingresos/egresos se cuentan desde esta fecha (el saldo inicial ya absorbe lo anterior)">
+                Corte {f.fecha_corte ? formatFecha(f.fecha_corte) : '—'} · Inicial {formatCOP(f.saldo_inicial)}
+              </p>
+              <div className="flex items-center gap-3 mt-1.5 text-xs">
+                <span className="text-green-700 font-medium">{f.ingresos ? '+' + formatCOP(f.ingresos) : '+$ 0'}</span>
+                <span className="text-red-600 font-medium">{f.egresos ? '−' + formatCOP(f.egresos) : '−$ 0'}</span>
+              </div>
+              <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between">
+                <span className="text-[11px] text-gray-400 uppercase">Saldo actual</span>
+                <span className={`text-lg font-bold ${f.saldo < 0 ? 'text-red-600' : 'text-gray-900'}`}>
                   {formatCOP(f.saldo)}{f.saldo < 0 ? ' ⚠' : ''}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </span>
+              </div>
+            </Link>
+          ))}
+        </div>
       </div>
     )
   }
@@ -222,10 +223,10 @@ export default async function FlujoCajaPage({
           No hay cuentas con saldo{sedeActual ? ` en ${sedeActual.codigo}` : ''}.
         </div>
       ) : (
-        <div className="space-y-4">
-          {renderTabla('Efectivo', '💵', efectivo, totalEfectivo, 'verde')}
-          {renderTabla('Cuentas', '🏦', otras, totalCuentas, 'azul')}
-          {renderTabla('Por cobrar — financieras', '📋', porCobrar, totalPorCobrar, 'naranja',
+        <div className="space-y-6">
+          {renderGrupo('Efectivo', '💵', efectivo, totalEfectivo, 'verde')}
+          {renderGrupo('Cuentas', '🏦', otras, totalCuentas, 'azul')}
+          {renderGrupo('Por cobrar — financieras', '📋', porCobrar, totalPorCobrar, 'naranja',
             'Ventas por Addi y Sistecrédito que AÚN no te consignan. Cuando te paguen, usa "📋 Pago de financiera".')}
         </div>
       )}
