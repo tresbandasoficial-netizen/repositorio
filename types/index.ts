@@ -55,6 +55,7 @@ export type MetodoPago =
   | 'davivienda'
   | 'addi'
   | 'bold'
+  | 'bold_santa_rosa'
   | 'bold_cucuta'
   | 'sistecredito'
   | 'credito'
@@ -83,8 +84,9 @@ export const METODO_PAGO_LABELS: Record<MetodoPago, string> = {
   bancolombia_mayra:     'Bancolombia Mayra',
   davivienda:            'Davivienda',
   addi:                  'Addi',
-  bold:                  'Bold',
+  bold:                  'Bold Bucaramanga',
   bold_cucuta:           'Bold Cúcuta',
+  bold_santa_rosa:       'Bold Santa Rosa',
   sistecredito:          'Sistecrédito',
   credito:               'Crédito',
   bono:                  'Bono de regalo',
@@ -104,7 +106,7 @@ export const METODOS_PAGO: MetodoPago[] = [
   'nequi_johan', 'nequi_marisol', 'nequi_luisa',
   'bancolombia_ronaldo', 'bancolombia_johan', 'bancolombia_carlos',
   'bancolombia_cristian', 'bancolombia_huber', 'bancolombia_mayra',
-  'davivienda', 'addi', 'bold', 'bold_cucuta', 'sistecredito', 'credito',
+  'davivienda', 'addi', 'bold', 'bold_cucuta', 'bold_santa_rosa', 'sistecredito', 'credito',
 ]
 
 // Métodos permitidos por sede (código). Si una sede no está aquí, se muestran
@@ -120,7 +122,7 @@ export const METODOS_PAGO_POR_SEDE: Record<string, MetodoPago[]> = {
     'bancolombia_cristian', 'bancolombia_huber',
     'davivienda', 'addi', 'bold', 'sistecredito', 'credito',
   ],
-  SR: ['efectivo', 'nequi_luisa', 'addi', 'sistecredito', 'bold', 'credito'],
+  SR: ['efectivo', 'nequi_luisa', 'addi', 'sistecredito', 'bold_santa_rosa', 'credito'],
   CR: ['efectivo', 'bancolombia_mayra', 'bold_cucuta', 'credito'],
 }
 

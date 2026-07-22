@@ -153,7 +153,7 @@ export async function getEstadisticas(dias: number): Promise<Estadisticas> {
 
   // ── Por método de pago ────────────────────────────────────────────────────
   const pagos = (pagosRes.data ?? []) as Array<{ metodo: string; monto: number; fecha: string }>
-  const METODOS = ['efectivo', 'transferencia', 'datafono', 'addi', 'bold', 'sistecredito', 'credito', 'otro']
+  const METODOS = ['efectivo', 'transferencia', 'datafono', 'addi', 'bold', 'bold_cucuta', 'bold_santa_rosa', 'sistecredito', 'credito', 'otro']
   const metodoMap = new Map<string, { count: number; monto: number }>()
   let total_recaudado = 0
   for (const p of pagos) {

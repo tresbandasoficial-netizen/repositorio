@@ -308,7 +308,7 @@ export type Cuadre = {
 // aparecen aunque estén en $0). Si una sede no está aquí, se muestran solo los
 // métodos que tuvieron movimiento. Editable a medida que se confirmen las sedes.
 const METODOS_POR_SEDE: Record<string, MetodoPago[]> = {
-  SR: ['efectivo', 'addi', 'sistecredito', 'bold', 'nequi_luisa', 'credito'],
+  SR: ['efectivo', 'addi', 'sistecredito', 'bold_santa_rosa', 'nequi_luisa', 'credito'],
 }
 
 // ── Helpers de fecha (zona horaria Colombia = UTC−5, sin horario de verano) ──
