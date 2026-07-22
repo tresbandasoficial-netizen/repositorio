@@ -77,8 +77,10 @@ export default async function FlujoCajaPage({
     return { ...c, ingresos, egresos, saldo: c.saldo_inicial + ingresos - egresos }
   })
 
-  // Filtro por sede (según la sede de la cuenta).
-  const visibles = (sedeId ? filas.filter(f => f.sede_id === sedeId) : filas)
+  // Filtro por sede: las cuentas de la sede + las GLOBALES (sede_id null, como
+  // Daviplata o Bancolombia), que reciben dinero de todas las sedes y antes
+  // desaparecían al filtrar.
+  const visibles = (sedeId ? filas.filter(f => f.sede_id === sedeId || f.sede_id === null) : filas)
     .filter(f => f.saldo !== 0 || f.ingresos !== 0 || f.egresos !== 0 || f.saldo_inicial !== 0)
 
   const efectivo = visibles.filter(f => f.tipo === 'efectivo')
@@ -123,6 +125,9 @@ export default async function FlujoCajaPage({
                   <Link href={`/flujo-caja/${f.id}`} className="text-gray-800 hover:text-blue-600 hover:underline font-medium">
                     {f.nombre}
                   </Link>
+                  {sedeId && f.sede_id === null && (
+                    <span className="ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500" title="Cuenta global: recibe dinero de todas las sedes">global</span>
+                  )}
                 </td>
                 <td className="px-3 py-2.5 text-xs text-gray-400" title="Los ingresos/egresos se cuentan desde esta fecha (el saldo inicial ya absorbe lo anterior)">
                   {f.fecha_corte ? formatFecha(f.fecha_corte) : '—'}
