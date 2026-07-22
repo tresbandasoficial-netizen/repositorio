@@ -102,6 +102,9 @@ export function MensajeriasClientPage({
   const [diaLiquidando, setDiaLiquidando] = useState<string | null>(null)
   // true = el neto que se está liquidando es negativo: TB le paga al mensajero
   const [tbPaga, setTbPaga] = useState(false)
+  // Selección de domicilios TB del cuadre: qué cobra la mensajería y por cuánto.
+  // Solo los marcados se liquidan/descuentan; el resto queda pendiente.
+  const [domSel, setDomSel] = useState<Record<string, { on: boolean; monto: string }>>({})
   // Las liquidaciones entran por defecto al efectivo de Bucaramanga (hub de domicilios).
   const cuentaEfectivoTR = cuentas.find(c => c.metodo_pago === 'efectivo' && c.sede?.codigo === 'TR')?.id ?? ''
   const [form, setForm] = useState({ monto: '', fecha: hoy(), cuenta_id: cuentaEfectivoTR, notas: '' })
@@ -134,22 +137,61 @@ export function MensajeriasClientPage({
     window.location.reload()
   }
 
+  // Recaudos base del cuadre abierto (del día, o todos si es cuadre general)
+  function recaudosBaseDe(dia: string | null): number {
+    return dia
+      ? recaudos.filter(r => r.fecha === dia).reduce((s, r) => s + r.monto, 0)
+      : recaudos.reduce((s, r) => s + r.monto, 0)
+  }
+
+  // Total de los domicilios marcados con el valor digitado
+  function totalDomSel(sel: Record<string, { on: boolean; monto: string }>): number {
+    return domiciliosTB.reduce((s, d) => {
+      const e = sel[d.id]
+      return e?.on ? s + (parseInt((e.monto || '').replace(/\D/g, ''), 10) || 0) : s
+    }, 0)
+  }
+
+  // Recalcula monto y dirección (ingreso o pago a la mensajería) según la selección
+  function aplicarSeleccion(sel: Record<string, { on: boolean; monto: string }>, dia: string | null) {
+    const neto = recaudosBaseDe(dia) - totalDomSel(sel)
+    setDomSel(sel)
+    setTbPaga(neto < 0)
+    setForm(f => ({ ...f, monto: Math.abs(neto).toString() }))
+  }
+
+  function toggleDom(id: string) {
+    const actual = domSel[id] ?? { on: false, monto: String(domiciliosTB.find(d => d.id === id)?.monto ?? 0) }
+    aplicarSeleccion({ ...domSel, [id]: { ...actual, on: !actual.on } }, diaLiquidando)
+  }
+
+  function setDomMonto(id: string, monto: string) {
+    const actual = domSel[id] ?? { on: true, monto: '' }
+    aplicarSeleccion({ ...domSel, [id]: { ...actual, monto } }, diaLiquidando)
+  }
+
   function abrirLiquidar() {
     setError(null)
     setDiaLiquidando(null)
-    setTbPaga(cuadreActivo.saldo_neto < 0)
-    setForm({
-      monto: Math.abs(cuadreActivo.saldo_neto).toString(),
-      fecha: hoy(),
-      cuenta_id: cuentaEfectivoTR,
-      notas: '',
-    })
+    // Cuadre general: arranca con todos los domicilios pendientes marcados
+    const sel: Record<string, { on: boolean; monto: string }> = {}
+    for (const d of domiciliosTB) sel[d.id] = { on: true, monto: String(d.monto) }
+    const neto = recaudosBaseDe(null) - totalDomSel(sel)
+    setDomSel(sel)
+    setTbPaga(neto < 0)
+    setForm({ monto: Math.abs(neto).toString(), fecha: hoy(), cuenta_id: cuentaEfectivoTR, notas: '' })
     setMostrarLiquidar(true)
   }
 
-  function abrirLiquidarDia(fecha: string, neto: number) {
+  function abrirLiquidarDia(fecha: string) {
     setError(null)
     setDiaLiquidando(fecha)
+    // Arrancan marcados solo los domicilios de ese día; los demás quedan
+    // disponibles para agregarlos al cuadre si la mensajería los cobra hoy.
+    const sel: Record<string, { on: boolean; monto: string }> = {}
+    for (const d of domiciliosTB) sel[d.id] = { on: d.fecha === fecha, monto: String(d.monto) }
+    const neto = recaudosBaseDe(fecha) - totalDomSel(sel)
+    setDomSel(sel)
     setTbPaga(neto < 0)
     setForm({ monto: Math.abs(neto).toString(), fecha, cuenta_id: cuentaEfectivoTR, notas: `Cuadre del día ${fecha}` })
     setMostrarLiquidar(true)
@@ -159,14 +201,19 @@ export function MensajeriasClientPage({
 
   function handleLiquidar() {
     setError(null)
-    const monto = parseInt(form.monto.replace(/\D/g, ''), 10)
-    if (!monto || monto <= 0) { setError('Ingresa el monto liquidado'); return }
-    if (!form.cuenta_id) { setError('Selecciona la cuenta donde entró el dinero (ej: Efectivo Bucaramanga) para que se sume al flujo de caja'); return }
+    const monto = parseInt(form.monto.replace(/\D/g, ''), 10) || 0
+    if (monto < 0) { setError('Ingresa el monto liquidado'); return }
+    if (!form.cuenta_id) { setError(tbPaga ? 'Selecciona la cuenta de la que sale el dinero' : 'Selecciona la cuenta donde entró el dinero (ej: Efectivo Bucaramanga) para que se sume al flujo de caja'); return }
+
+    // Solo los domicilios marcados se liquidan, con el valor digitado
+    const domicilios = domiciliosTB
+      .filter(d => domSel[d.id]?.on)
+      .map(d => ({ id: d.id, monto: parseInt((domSel[d.id].monto || '').replace(/\D/g, ''), 10) || 0 }))
 
     start(async () => {
       const r = diaLiquidando
-        ? await liquidarMensajeriaDiaAction({ mensajeria: activa, fecha: diaLiquidando, monto, cuenta_id: form.cuenta_id || null, notas: form.notas, tb_paga: tbPaga })
-        : await liquidarMensajeriaAction({ mensajeria: activa, monto, fecha: form.fecha, cuenta_id: form.cuenta_id || null, notas: form.notas, tb_paga: tbPaga })
+        ? await liquidarMensajeriaDiaAction({ mensajeria: activa, fecha: diaLiquidando, monto, cuenta_id: form.cuenta_id || null, notas: form.notas, tb_paga: tbPaga, domicilios })
+        : await liquidarMensajeriaAction({ mensajeria: activa, monto, fecha: form.fecha, cuenta_id: form.cuenta_id || null, notas: form.notas, tb_paga: tbPaga, domicilios })
       if (!r.ok) { setError(r.error); return }
       setMostrarLiquidar(false)
       setDiaLiquidando(null)
@@ -275,21 +322,62 @@ export function MensajeriasClientPage({
             </p>
           </div>
 
-          {/* Desglose */}
+          {/* Desglose según lo seleccionado */}
           <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1.5">
             <div className="flex justify-between text-gray-700">
-              <span>Recaudos que mensajero trae</span>
-              <span className="font-medium text-green-700">+ {formatCOP(cuadreActivo.recaudos_pendientes)}</span>
+              <span>Recaudos que el mensajero trae{diaLiquidando ? ' (del día)' : ''}</span>
+              <span className="font-medium text-green-700">+ {formatCOP(recaudosBaseDe(diaLiquidando))}</span>
             </div>
             <div className="flex justify-between text-gray-700">
-              <span>Domicilios que TB asumió</span>
-              <span className="font-medium text-red-600">− {formatCOP(cuadreActivo.domicilios_tb)}</span>
+              <span>Domicilios que cobra en este cuadre ({domiciliosTB.filter(d => domSel[d.id]?.on).length})</span>
+              <span className="font-medium text-red-600">− {formatCOP(totalDomSel(domSel))}</span>
             </div>
             <div className="flex justify-between font-semibold text-gray-900 pt-1.5 border-t border-gray-200">
-              <span>Neto a {cuadreActivo.saldo_neto >= 0 ? 'recibir' : 'pagar'}</span>
-              <span>{formatCOP(Math.abs(cuadreActivo.saldo_neto))}</span>
+              <span>Neto a {tbPaga ? 'pagarle' : 'recibir'}</span>
+              <span>{formatCOP(Math.abs(recaudosBaseDe(diaLiquidando) - totalDomSel(domSel)))}</span>
             </div>
           </div>
+
+          {/* Domicilios pendientes: cuáles cobra la mensajería en este cuadre y por cuánto */}
+          {domiciliosTB.length > 0 && (
+            <div className="rounded-lg border border-orange-200 overflow-hidden">
+              <div className="px-3 py-2 bg-orange-50 border-b border-orange-100">
+                <p className="text-xs font-semibold text-orange-700">Domicilios que la mensajería cobra en este cuadre</p>
+                <p className="text-[11px] text-orange-600/80 mt-0.5">
+                  Marca solo los que te cobran hoy y ajusta el valor si es distinto. Los que no marques siguen pendientes para otro cuadre.
+                </p>
+              </div>
+              <ul className="divide-y divide-gray-50 max-h-56 overflow-y-auto">
+                {domiciliosTB.map(d => {
+                  const s = domSel[d.id] ?? { on: false, monto: String(d.monto) }
+                  return (
+                    <li key={d.id} className={`px-3 py-2 flex items-center gap-3 text-xs ${s.on ? '' : 'opacity-60'}`}>
+                      <input
+                        type="checkbox"
+                        checked={s.on}
+                        onChange={() => toggleDom(d.id)}
+                        className="w-4 h-4 accent-orange-600 shrink-0 cursor-pointer"
+                      />
+                      <span className="flex-1 min-w-0 text-gray-700 truncate">
+                        {d.fecha} · {d.cliente_nombre ?? d.notas ?? 'Domicilio'}
+                        {d.numero_factura ? ` · ${d.numero_factura}` : ''}
+                      </span>
+                      <span className="relative shrink-0">
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                        <input
+                          type="text" inputMode="numeric"
+                          value={formatMiles(s.monto)}
+                          disabled={!s.on}
+                          onChange={e => setDomMonto(d.id, e.target.value.replace(/\D/g, ''))}
+                          className="w-24 pl-5 pr-2 py-1 rounded border border-gray-300 text-right focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:bg-gray-50 disabled:text-gray-400"
+                        />
+                      </span>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -443,7 +531,7 @@ export function MensajeriasClientPage({
                           <div className="mt-3 flex items-center justify-end gap-3">
                             <span className="text-xs text-gray-500">Neto del día: <span className={`font-bold ${d.neto >= 0 ? 'text-green-700' : 'text-orange-600'}`}>{formatCOP(d.neto)}</span></span>
                             <button
-                              onClick={() => abrirLiquidarDia(d.fecha, d.neto)}
+                              onClick={() => abrirLiquidarDia(d.fecha)}
                               className="px-3 py-1.5 rounded-lg bg-gray-900 text-white text-xs font-medium hover:bg-gray-700 transition-colors"
                             >
                               Liquidar este día
