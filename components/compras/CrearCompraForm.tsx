@@ -327,10 +327,11 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
     const totalItemsCop = items.reduce(
       (s, it) => s + ((parseInt(it.costo_unitario_cop, 10) || 0) * (parseInt(it.cantidad, 10) || 0)), 0)
     const totalCopFinal = totalCopNum > 0 ? totalCopNum : totalItemsCop
-    // La suma de los productos debe cuadrar con el total de la factura
-    // (tolerancia de $2.000 por el redondeo USD→COP). Atrapa filas duplicadas
-    // o costos mal digitados.
-    if (totalCopNum > 0 && totalItemsCop > 0 && Math.abs(totalCopNum - totalItemsCop) > 2000) {
+    // La suma de los productos debe cuadrar con el total de la factura.
+    // Tolerancia SOLO para el redondeo USD→COP: $50 por producto (mín $200);
+    // una diferencia de $1.000 ya es un dígito mal puesto y se bloquea.
+    const toleranciaCuadre = Math.max(200, items.length * 50)
+    if (totalCopNum > 0 && totalItemsCop > 0 && Math.abs(totalCopNum - totalItemsCop) > toleranciaCuadre) {
       setError(`La suma de los productos (${formatCOP(totalItemsCop)}) no cuadra con el total de la factura (${formatCOP(totalCopNum)}) — diferencia de ${formatCOP(Math.abs(totalCopNum - totalItemsCop))}. Revisa los costos, las cantidades o si hay una fila repetida.`)
       return
     }

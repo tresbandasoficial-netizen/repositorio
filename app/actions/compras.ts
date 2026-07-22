@@ -177,12 +177,12 @@ export async function crearCompraAction(data: CrearCompraInput): Promise<CrearCo
     }
   }
 
-  // La suma de los productos debe cuadrar con el total de la factura (con una
-  // tolerancia pequeña por el redondeo de la conversión USD→COP). Atrapa filas
-  // duplicadas o costos mal digitados antes de guardar.
+  // La suma de los productos debe cuadrar con el total de la factura. La única
+  // tolerancia es el redondeo USD→COP: $50 por producto (mín $200); $1.000 de
+  // diferencia ya es un dígito mal puesto y se bloquea.
   const sumaItems = data.items.reduce((s, it) => s + (it.costo_unitario_cop || 0) * (it.cantidad || 0), 0)
   const diferencia = Math.abs((data.total_cop || 0) - sumaItems)
-  if (data.total_cop > 0 && sumaItems > 0 && diferencia > 2000) {
+  if (data.total_cop > 0 && sumaItems > 0 && diferencia > Math.max(200, data.items.length * 50)) {
     return {
       ok: false,
       error: `La suma de los productos ($${sumaItems.toLocaleString('es-CO')}) no cuadra con el total de la factura ($${data.total_cop.toLocaleString('es-CO')}) — diferencia de $${diferencia.toLocaleString('es-CO')}. Revisa los costos, las cantidades o si hay una fila repetida.`,
@@ -551,10 +551,10 @@ export async function editarCompraAction(compraId: string, data: EditarCompraInp
   }
 
   // La suma de los productos debe cuadrar con el total de la factura (misma
-  // regla que al crear; tolerancia pequeña por redondeo USD→COP).
+  // regla que al crear; tolerancia solo de redondeo: $50/producto, mín $200).
   const sumaItemsEd = data.items.reduce((s, it) => s + (it.costo_unitario_cop || 0) * (it.cantidad || 0), 0)
   const diferenciaEd = Math.abs((data.total_cop || 0) - sumaItemsEd)
-  if (data.total_cop > 0 && sumaItemsEd > 0 && diferenciaEd > 2000) {
+  if (data.total_cop > 0 && sumaItemsEd > 0 && diferenciaEd > Math.max(200, data.items.length * 50)) {
     return {
       ok: false,
       error: `La suma de los productos ($${sumaItemsEd.toLocaleString('es-CO')}) no cuadra con el total de la factura ($${data.total_cop.toLocaleString('es-CO')}) — diferencia de $${diferenciaEd.toLocaleString('es-CO')}. Revisa los costos, las cantidades o si hay una fila repetida.`,
