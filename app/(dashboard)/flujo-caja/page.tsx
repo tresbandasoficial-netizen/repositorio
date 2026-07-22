@@ -89,7 +89,6 @@ export default async function FlujoCajaPage({
   const totalGeneral  = totalEfectivo + totalCuentas
 
   const sedeActual = sedes?.find(s => s.id === sedeId)
-  const corteLabel = cortes.length ? formatFecha(corteMin) : '—'
 
   // Cuentas para el selector de "Entrega de efectivo".
   const cuentasOpc = cuentas.map(c => ({ id: c.id, nombre: c.nombre, tipo: c.tipo }))
@@ -98,18 +97,19 @@ export default async function FlujoCajaPage({
     return sid ? `/flujo-caja?sede=${sid}` : '/flujo-caja'
   }
 
-  const renderTabla = (titulo: string, filas: Fila[], total: number) => {
+  const renderTabla = (titulo: string, icono: string, filas: Fila[], total: number, verde?: boolean) => {
     if (filas.length === 0) return null
     return (
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-          <p className="text-sm font-semibold text-gray-900">{titulo}</p>
+        <div className={`px-5 py-3 border-b flex items-center justify-between ${verde ? 'bg-green-50/60 border-green-100' : 'bg-blue-50/60 border-blue-100'}`}>
+          <p className={`text-sm font-bold ${verde ? 'text-green-800' : 'text-blue-800'}`}>{icono} {titulo}</p>
           <p className="text-sm font-bold text-gray-900">{formatCOP(total)}</p>
         </div>
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase">
               <th className="text-left px-5 py-2">Cuenta</th>
+              <th className="text-left px-3 py-2">Corte</th>
               <th className="text-right px-3 py-2">Saldo inicial</th>
               <th className="text-right px-3 py-2">Ingresos</th>
               <th className="text-right px-3 py-2">Egresos</th>
@@ -118,16 +118,21 @@ export default async function FlujoCajaPage({
           </thead>
           <tbody className="divide-y divide-gray-50">
             {filas.map(f => (
-              <tr key={f.id} className="hover:bg-gray-50">
+              <tr key={f.id} className={`hover:bg-gray-50 ${f.saldo < 0 ? 'bg-red-50/60' : ''}`}>
                 <td className="px-5 py-2.5">
-                  <Link href={`/flujo-caja/${f.id}`} className="text-gray-800 hover:text-blue-600 hover:underline">
+                  <Link href={`/flujo-caja/${f.id}`} className="text-gray-800 hover:text-blue-600 hover:underline font-medium">
                     {f.nombre}
                   </Link>
+                </td>
+                <td className="px-3 py-2.5 text-xs text-gray-400" title="Los ingresos/egresos se cuentan desde esta fecha (el saldo inicial ya absorbe lo anterior)">
+                  {f.fecha_corte ? formatFecha(f.fecha_corte) : '—'}
                 </td>
                 <td className="px-3 py-2.5 text-right text-gray-500">{formatCOP(f.saldo_inicial)}</td>
                 <td className="px-3 py-2.5 text-right text-green-700">{f.ingresos ? '+' + formatCOP(f.ingresos) : '—'}</td>
                 <td className="px-3 py-2.5 text-right text-red-600">{f.egresos ? '−' + formatCOP(f.egresos) : '—'}</td>
-                <td className="px-5 py-2.5 text-right font-bold text-gray-900">{formatCOP(f.saldo)}</td>
+                <td className={`px-5 py-2.5 text-right font-bold ${f.saldo < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                  {formatCOP(f.saldo)}{f.saldo < 0 ? ' ⚠' : ''}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -142,7 +147,7 @@ export default async function FlujoCajaPage({
         <div>
           <h1 className="text-xl font-bold text-gray-900">Flujo de caja</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {sedeActual ? sedeActual.nombre : 'Todas las sedes'} · saldos desde el corte ({corteLabel})
+            {sedeActual ? sedeActual.nombre : 'Todas las sedes'} · cada cuenta suma desde su propio corte (columna Corte)
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -171,17 +176,18 @@ export default async function FlujoCajaPage({
 
       {/* Totales */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl border border-gray-100 p-5">
-          <p className="text-xs text-gray-500 uppercase">Efectivo</p>
-          <p className="text-2xl font-bold text-gray-900 mt-2">{formatCOP(totalEfectivo)}</p>
+        <div className="bg-green-50 rounded-xl border border-green-200 p-5">
+          <p className="text-xs text-green-700 uppercase font-semibold">💵 Efectivo</p>
+          <p className="text-2xl font-bold text-green-800 mt-2">{formatCOP(totalEfectivo)}</p>
         </div>
-        <div className="bg-white rounded-xl border border-gray-100 p-5">
-          <p className="text-xs text-gray-500 uppercase">Cuentas</p>
-          <p className="text-2xl font-bold text-gray-900 mt-2">{formatCOP(totalCuentas)}</p>
+        <div className="bg-blue-50 rounded-xl border border-blue-200 p-5">
+          <p className="text-xs text-blue-700 uppercase font-semibold">🏦 Cuentas</p>
+          <p className="text-2xl font-bold text-blue-800 mt-2">{formatCOP(totalCuentas)}</p>
         </div>
         <div className="rounded-xl p-5 bg-blue-600">
-          <p className="text-xs uppercase text-blue-100">Total</p>
+          <p className="text-xs uppercase text-blue-100 font-semibold">Total</p>
           <p className="text-2xl font-bold text-white mt-2">{formatCOP(totalGeneral)}</p>
+          <p className="text-[10px] text-blue-200">efectivo + cuentas</p>
         </div>
       </div>
 
@@ -191,8 +197,8 @@ export default async function FlujoCajaPage({
         </div>
       ) : (
         <div className="space-y-4">
-          {renderTabla('Efectivo', efectivo, totalEfectivo)}
-          {renderTabla('Cuentas', otras, totalCuentas)}
+          {renderTabla('Efectivo', '💵', efectivo, totalEfectivo, true)}
+          {renderTabla('Cuentas', '🏦', otras, totalCuentas)}
         </div>
       )}
     </div>
