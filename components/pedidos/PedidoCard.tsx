@@ -72,8 +72,9 @@ export function EstadoInline({ pedidoId, estadoActual, sedeCodigo, esAdmin, fact
     e.stopPropagation()
     // Saltar de Pendiente directo a un estado avanzado: se permite, pero con
     // aviso — normalmente el pedido pasa a Comprado al registrarle la compra,
-    // y sin compra queda sin costo (se puede asignar después, aun facturado).
-    if (estadoLocal === 'pendiente' && ['usa', 'bucaramanga', 'santa_rosa', 'entregado'].includes(nuevoEstado)) {
+    // y sin compra queda sin costo (se puede asignar después). Si ya está
+    // facturado no se avisa: la mercancía ya se entregó/vendió.
+    if (!facturado && estadoLocal === 'pendiente' && ['usa', 'bucaramanga', 'santa_rosa', 'entregado'].includes(nuevoEstado)) {
       if (!window.confirm('⚠ Este pedido sigue en PENDIENTE: no tiene compra registrada.\n\n¿Seguro que lo pasas de estado? Recuerda registrarle la compra o el costo después para que las ganancias no queden infladas.')) {
         setOpen(false)
         return

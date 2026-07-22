@@ -91,6 +91,9 @@ export function GaleriaPedidos({
       const imagenPedido = (p as any).primera_imagen as string | null
       const items = itemsPorPedido[p.id] ?? []
       const pedidoComprado = !['pendiente', 'cancelado'].includes(p.estado)
+      // Si el pedido ya tiene FACTURA, se da por comprado (la mercancía ya
+      // se entregó/vendió) aunque no tenga compra de proveedor registrada.
+      const facturado = !!p.factura_id
       if (vista === 'pedido' || items.length === 0) {
         out.push({
           ref: p.numero_orden,
@@ -98,9 +101,9 @@ export function GaleriaPedidos({
           item: null,
           itemIdx: null,
           imagen: imagenPedido,
-          comprado: vista === 'pedido'
+          comprado: facturado || (vista === 'pedido'
             ? (items.length > 0 ? items.every(it => it.comprado) : pedidoComprado)
-            : pedidoComprado,
+            : pedidoComprado),
         })
       } else {
         items.forEach((it, i) => {
@@ -110,7 +113,7 @@ export function GaleriaPedidos({
             item: it,
             itemIdx: i,
             imagen: it.imagen_url ?? imagenPedido,
-            comprado: it.comprado,
+            comprado: facturado || it.comprado,
           })
         })
       }
@@ -131,12 +134,14 @@ export function GaleriaPedidos({
 
   const saldoSel = sel ? sel.pedido.total - sel.pedido.total_pagado : 0
   const itemsSel = sel ? (itemsPorPedido[sel.pedido.id] ?? []) : []
-  // "Ya comprado" sale de las COMPRAS REGISTRADAS (igual que los punticos),
-  // no del estado — así no se contradice si marcan USA sin registrar compra.
+  // "Ya comprado" sale de las COMPRAS REGISTRADAS (igual que los punticos) o
+  // de que el pedido ya esté FACTURADO — no del estado, así no se contradice
+  // si marcan USA sin registrar compra.
   const yaComprado = sel
-    ? (itemsSel.length > 0
+    ? (!!sel.pedido.factura_id ||
+       (itemsSel.length > 0
         ? itemsSel.every(it => it.comprado)
-        : !['pendiente', 'cancelado'].includes(sel.pedido.estado))
+        : !['pendiente', 'cancelado'].includes(sel.pedido.estado)))
     : false
   const cancelado = sel?.pedido.estado === 'cancelado'
 
@@ -166,7 +171,7 @@ export function GaleriaPedidos({
             <span className="inline-flex items-center gap-1 bg-gray-200 text-gray-600 text-xs font-bold px-3 py-1 rounded-full">
               Cancelado
             </span>
-          ) : !esAdmin ? null : (sel.item ? sel.comprado : yaComprado) ? (
+          ) : !esAdmin ? null : (sel.item ? (sel.comprado || !!sel.pedido.factura_id) : yaComprado) ? (
             <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-full">
               <Check size={13} /> Ya comprado
             </span>
