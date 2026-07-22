@@ -6,6 +6,7 @@ import { formatCOP, formatFecha, hoyBogota } from '@/lib/utils/format'
 import { EntregaEfectivoButton } from '@/components/flujo/EntregaEfectivoButton'
 import { AgregarDineroButton } from '@/components/flujo/AgregarDineroButton'
 import { PagoFinancieraButton } from '@/components/flujo/PagoFinancieraButton'
+import { metodosDeSede } from '@/types'
 
 // Addi/Sistecrédito pagan después (al mes): su saldo es plata POR COBRAR,
 // no dinero disponible todavía. Bold (datáfono) sí entra de una — va con
@@ -17,6 +18,7 @@ type Cuenta = {
   nombre: string
   tipo: string
   sede_id: string | null
+  metodo_pago: string | null
   saldo_inicial: number
   fecha_corte: string | null
   orden: number
@@ -42,7 +44,7 @@ export default async function FlujoCajaPage({
 
   const { data: cuentasRaw } = await supabase
     .from('cuentas')
-    .select('id, nombre, tipo, sede_id, saldo_inicial, fecha_corte, orden')
+    .select('id, nombre, tipo, sede_id, metodo_pago, saldo_inicial, fecha_corte, orden')
     .eq('activa', true)
     .neq('tipo', 'credito')   // el crédito no es dinero real
     .order('orden')
@@ -83,11 +85,18 @@ export default async function FlujoCajaPage({
     return { ...c, ingresos, egresos, saldo: c.saldo_inicial + ingresos - egresos }
   })
 
-  // Filtro por sede: las cuentas de la sede + las GLOBALES (sede_id null, como
-  // Daviplata o Bancolombia), que reciben dinero de todas las sedes y antes
-  // desaparecían al filtrar. Se muestran TODAS las cuentas activas (aun en $0)
-  // para ver cuánto hay en cada una.
-  const visibles = sedeId ? filas.filter(f => f.sede_id === sedeId || f.sede_id === null) : filas
+  // Filtro por sede: las cuentas propias de la sede + las que esa sede USA
+  // según sus métodos de pago (igual que el cuadre). Así en Santa Rosa salen
+  // Nequi Luisa, Addi, Sistecrédito y Bold — y las cuentas globales de bancos
+  // (que son plata de Bucaramanga) solo aparecen en la pestaña Bucaramanga.
+  // Se muestran TODAS las activas (aun en $0) para ver cuánto hay en cada una.
+  const sedeCodigoFiltro = sedes?.find(s => s.id === sedeId)?.codigo
+  const metodosSede = sedeCodigoFiltro ? new Set<string>(metodosDeSede(sedeCodigoFiltro)) : null
+  const visibles = sedeId
+    ? filas.filter(f =>
+        f.sede_id === sedeId ||
+        (f.sede_id === null && !!f.metodo_pago && metodosSede!.has(f.metodo_pago)))
+    : filas
 
   const efectivo  = visibles.filter(f => f.tipo === 'efectivo')
   const porCobrar = visibles.filter(f => TIPOS_POR_COBRAR.includes(f.tipo))
