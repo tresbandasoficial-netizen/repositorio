@@ -131,7 +131,13 @@ export function GaleriaPedidos({
 
   const saldoSel = sel ? sel.pedido.total - sel.pedido.total_pagado : 0
   const itemsSel = sel ? (itemsPorPedido[sel.pedido.id] ?? []) : []
-  const yaComprado = sel ? !['pendiente', 'cancelado'].includes(sel.pedido.estado) : false
+  // "Ya comprado" sale de las COMPRAS REGISTRADAS (igual que los punticos),
+  // no del estado — así no se contradice si marcan USA sin registrar compra.
+  const yaComprado = sel
+    ? (itemsSel.length > 0
+        ? itemsSel.every(it => it.comprado)
+        : !['pendiente', 'cancelado'].includes(sel.pedido.estado))
+    : false
   const cancelado = sel?.pedido.estado === 'cancelado'
 
   const Visor = sel && (
