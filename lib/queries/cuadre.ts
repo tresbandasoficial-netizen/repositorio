@@ -286,6 +286,9 @@ export type CuadreGasto = {
   valor: number
 }
 
+// Unidades vendidas por categoría (conteo físico: pares, prendas, accesorios)
+export type UnidadesCategoria = { tenis: number; ropa: number; accesorios: number; otros: number }
+
 export type Cuadre = {
   filtros: CuadreFiltros
   sedes: CuadreSede[]
@@ -302,6 +305,8 @@ export type Cuadre = {
   totalGastos: number
   totalNetoCaja: number
   registros: number
+  unidadesTotal: UnidadesCategoria
+  unidadesPorSede: Record<string, UnidadesCategoria>
 }
 
 // Métodos de pago que se muestran en el cuadre de cada sede (checklist fijo,
@@ -387,12 +392,41 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
   const sedeGastosId = sedeForzadaId ?? sedeFiltroId
   if (sedeGastosId) qGastos = qGastos.eq('sede_id', sedeGastosId)
 
-  const [ventasRes, recaudoRes, gastosRes, facturasRes] = await Promise.all([
+  // ── Unidades vendidas por categoría (pares de tenis, ropa, accesorios) ──────
+  // Mismos filtros que las ventas: pedidos creados en el rango, sin cancelados
+  // ni saldos anteriores. La categoría sale del item o del artículo del catálogo.
+  let qUnidades = supabase
+    .from('pedido_items')
+    .select('cantidad, categoria, articulos(categoria), pedidos!inner(sede_id, fecha_creacion, estado, tipo)')
+    .gte('pedidos.fecha_creacion', bogotaDayStartUTC(filtros.desde))
+    .lt('pedidos.fecha_creacion', bogotaDayStartUTC(sumarDias(filtros.hasta, 1)))
+    .neq('pedidos.estado', 'cancelado')
+    .neq('pedidos.tipo', 'saldo_anterior')
+    .limit(20000)
+  const sedeUnidadesId = sedeForzadaId ?? (sedeFiltroCodigo ? sedes.find(s => s.codigo === sedeFiltroCodigo)?.id ?? null : null)
+  if (sedeUnidadesId) qUnidades = qUnidades.eq('pedidos.sede_id', sedeUnidadesId)
+
+  const [ventasRes, recaudoRes, gastosRes, facturasRes, unidadesRes] = await Promise.all([
     qVentas,
     qRecaudo,
     qGastos,
     qFacturas,
+    qUnidades,
   ])
+
+  const vacioUnidades = (): UnidadesCategoria => ({ tenis: 0, ropa: 0, accesorios: 0, otros: 0 })
+  const unidadesTotal = vacioUnidades()
+  const unidadesPorSede: Record<string, UnidadesCategoria> = {}
+  for (const row of (unidadesRes.data ?? []) as any[]) {
+    const ped = Array.isArray(row.pedidos) ? row.pedidos[0] : row.pedidos
+    const art = Array.isArray(row.articulos) ? row.articulos[0] : row.articulos
+    const cat = (row.categoria ?? art?.categoria ?? null) as string | null
+    const key: keyof UnidadesCategoria = cat === 'tenis' ? 'tenis' : cat === 'ropa' ? 'ropa' : cat === 'accesorios' ? 'accesorios' : 'otros'
+    const n = row.cantidad || 1
+    const codigo = codigoPorId.get(ped?.sede_id) ?? ''
+    unidadesTotal[key] += n
+    ;(unidadesPorSede[codigo] ??= vacioUnidades())[key] += n
+  }
 
   if (ventasRes.error) throw new Error(`Error cargando ventas del cuadre: ${ventasRes.error.message}`)
   if (recaudoRes.error) throw new Error(`Error cargando recaudo del cuadre: ${recaudoRes.error.message}`)
@@ -568,5 +602,7 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
     totalGastos,
     totalNetoCaja: totalRecaudadoCaja - totalGastos,
     registros: ventasRows.length + recaudoRows.length,
+    unidadesTotal,
+    unidadesPorSede,
   }
 }

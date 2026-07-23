@@ -165,6 +165,20 @@ export default async function CuadrePage({
         )}
       </div>
 
+      {/* Unidades vendidas por categoría (conteo físico del día/rango) */}
+      <div className="mt-3 bg-white rounded-2xl border border-gray-200 shadow-sm px-4 py-3 flex items-center gap-4 flex-wrap">
+        <p className="text-xs text-gray-500 uppercase font-semibold">Unidades vendidas</p>
+        <span className="text-sm font-bold text-gray-900">👟 {cuadre.unidadesTotal.tenis} par{cuadre.unidadesTotal.tenis !== 1 ? 'es' : ''} de tenis</span>
+        <span className="text-sm font-bold text-gray-900">👕 {cuadre.unidadesTotal.ropa} prenda{cuadre.unidadesTotal.ropa !== 1 ? 's' : ''} de ropa</span>
+        <span className="text-sm font-bold text-gray-900">🧢 {cuadre.unidadesTotal.accesorios} accesorio{cuadre.unidadesTotal.accesorios !== 1 ? 's' : ''}</span>
+        {cuadre.unidadesTotal.otros > 0 && (
+          <span className="text-sm text-gray-500">❓ {cuadre.unidadesTotal.otros} sin categoría</span>
+        )}
+        <span className="ml-auto text-xs text-gray-400">
+          Total {cuadre.unidadesTotal.tenis + cuadre.unidadesTotal.ropa + cuadre.unidadesTotal.accesorios + cuadre.unidadesTotal.otros} unidades
+        </span>
+      </div>
+
       {/* ═══ 2 · DINERO RECOGIDO POR CUENTA (solo el día/rango) ════════ */}
       {cuentasVisibles.length > 0 && (
         <>
@@ -219,11 +233,18 @@ export default async function CuadrePage({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {cuadre.sedes.map(s => (
             <div key={s.sede_codigo} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="px-5 py-3 border-b border-gray-100 bg-purple-50/50 flex items-center justify-between">
+              <div className="px-5 py-3 border-b border-gray-100 bg-purple-50/50 flex items-center justify-between gap-2 flex-wrap">
                 <p className="text-sm font-bold text-gray-900">
                   {s.sede_nombre} <span className="text-xs text-gray-400 font-normal">({s.sede_codigo})</span>
                 </p>
-                <p className="text-xs text-gray-500">Vendido <span className="font-bold text-gray-900">{formatCOP(s.vendido)}</span></p>
+                <div className="flex items-center gap-3">
+                  {cuadre.unidadesPorSede[s.sede_codigo] && (
+                    <p className="text-xs text-gray-500">
+                      👟{cuadre.unidadesPorSede[s.sede_codigo].tenis} · 👕{cuadre.unidadesPorSede[s.sede_codigo].ropa} · 🧢{cuadre.unidadesPorSede[s.sede_codigo].accesorios}
+                    </p>
+                  )}
+                  <p className="text-xs text-gray-500">Vendido <span className="font-bold text-gray-900">{formatCOP(s.vendido)}</span></p>
+                </div>
               </div>
 
               {/* Resumen de la sede */}
