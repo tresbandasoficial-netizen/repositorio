@@ -1,8 +1,8 @@
 'use client'
 
 import {
-  AreaChart,
-  Area,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -16,6 +16,7 @@ interface DatoDia {
   fecha: string
   pedidos: number
   ventas: number
+  por_sede?: Record<string, number>
 }
 
 interface Props {
@@ -25,6 +26,13 @@ interface Props {
   desde: string
   hasta: string
 }
+
+// Color fijo por sede (mismas tres sedes del negocio)
+const SEDES = [
+  { codigo: 'TR', nombre: 'Bucaramanga', color: '#3b82f6' },  // azul
+  { codigo: 'SR', nombre: 'Santa Rosa',  color: '#10b981' },  // verde
+  { codigo: 'CR', nombre: 'Cúcuta',      color: '#8b5cf6' },  // morado
+]
 
 function labelFecha(fecha: string) {
   const d = new Date(fecha + 'T12:00:00Z')
@@ -37,29 +45,45 @@ function formatCOPShort(v: number) {
   return `$${v}`
 }
 
+// Barras APILADAS por día: cada sede con su color; la altura total es el
+// total de pedidos del día.
 export function PedidosAreaChart({ datos, totalPedidos, totalVentas, desde, hasta }: Props) {
-  // Llenar días faltantes con 0
+  // Llenar días faltantes con 0 y aplanar los conteos por sede
   const mapaFechas = new Map(datos.map(d => [d.fecha, d]))
-  const dias: DatoDia[] = []
+  const dias: Array<{ fecha: string; label: string; TR: number; SR: number; CR: number; total: number }> = []
   const inicio = new Date(desde + 'T12:00:00Z')
   const fin = new Date(hasta + 'T12:00:00Z')
   for (const d = new Date(inicio); d <= fin; d.setDate(d.getDate() + 1)) {
     const f = d.toISOString().slice(0, 10)
-    dias.push(mapaFechas.get(f) ?? { fecha: f, pedidos: 0, ventas: 0 })
+    const dia = mapaFechas.get(f)
+    dias.push({
+      fecha: f,
+      label: '',
+      TR: dia?.por_sede?.TR ?? 0,
+      SR: dia?.por_sede?.SR ?? 0,
+      CR: dia?.por_sede?.CR ?? 0,
+      total: dia?.pedidos ?? 0,
+    })
   }
-
   // Mostrar cada 5 días en el eje X
-  const datosTick = dias.map((d, i) => ({
-    ...d,
-    label: i % 5 === 0 || i === dias.length - 1 ? labelFecha(d.fecha) : '',
-  }))
+  dias.forEach((d, i) => {
+    d.label = i % 5 === 0 || i === dias.length - 1 ? labelFecha(d.fecha) : ''
+  })
 
   return (
     <div className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100">
-      <div className="flex items-start justify-between mb-5">
+      <div className="flex items-start justify-between gap-3 flex-wrap mb-4">
         <div>
-          <h2 className="text-sm font-bold text-gray-900">Pedidos — últimos 30 días</h2>
+          <h2 className="text-sm font-bold text-gray-900">Pedidos por día y sede — últimos 30 días</h2>
           <p className="text-xs text-gray-400 mt-0.5">{labelFecha(desde)} → {labelFecha(hasta)}</p>
+          <div className="flex items-center gap-3 mt-1.5">
+            {SEDES.map(s => (
+              <span key={s.codigo} className="flex items-center gap-1 text-xs text-gray-500">
+                <span className="w-2.5 h-2.5 rounded-sm" style={{ background: s.color }} />
+                {s.nombre}
+              </span>
+            ))}
+          </div>
         </div>
         <div className="text-right">
           <p className="text-2xl font-bold text-gray-900">{totalPedidos}</p>
@@ -67,20 +91,15 @@ export function PedidosAreaChart({ datos, totalPedidos, totalVentas, desde, hast
         </div>
       </div>
 
-      <ResponsiveContainer width="100%" height={160}>
-        <AreaChart data={datosTick} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-          <defs>
-            <linearGradient id="gradPedidos" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%"  stopColor="#3b82f6" stopOpacity={0.25} />
-              <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-            </linearGradient>
-          </defs>
+      <ResponsiveContainer width="100%" height={170}>
+        <BarChart data={dias} margin={{ top: 4, right: 4, left: -20, bottom: 0 }} barCategoryGap="22%">
           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
           <XAxis
             dataKey="label"
             tick={{ fontSize: 10, fill: '#94a3b8' }}
             axisLine={false}
             tickLine={false}
+            interval={0}
           />
           <YAxis
             tick={{ fontSize: 10, fill: '#94a3b8' }}
@@ -97,20 +116,21 @@ export function PedidosAreaChart({ datos, totalPedidos, totalVentas, desde, hast
               fontSize: 12,
               padding: '8px 12px',
             }}
-            formatter={(v) => [`${v ?? 0} pedidos`, '']}
-            labelFormatter={(l) => l}
-            cursor={{ stroke: '#3b82f6', strokeWidth: 1, strokeDasharray: '4 2' }}
+            formatter={(v, name) => [
+              `${Number(v) || 0} pedido${Number(v) === 1 ? '' : 's'}`,
+              SEDES.find(s => s.codigo === String(name))?.nombre ?? String(name),
+            ]}
+            labelFormatter={(_, payload) => {
+              const p = payload?.[0]?.payload
+              return p ? `${labelFecha(p.fecha)} — ${p.total} en total` : ''
+            }}
+            cursor={{ fill: '#f1f5f9', opacity: 0.6 }}
           />
-          <Area
-            type="monotone"
-            dataKey="pedidos"
-            stroke="#3b82f6"
-            strokeWidth={2.5}
-            fill="url(#gradPedidos)"
-            dot={false}
-            activeDot={{ r: 4, fill: '#3b82f6', stroke: '#fff', strokeWidth: 2 }}
-          />
-        </AreaChart>
+          {/* Apiladas: Bucaramanga abajo, Santa Rosa en medio, Cúcuta arriba */}
+          <Bar dataKey="TR" stackId="dia" fill="#3b82f6" maxBarSize={16} />
+          <Bar dataKey="SR" stackId="dia" fill="#10b981" maxBarSize={16} />
+          <Bar dataKey="CR" stackId="dia" fill="#8b5cf6" maxBarSize={16} radius={[2, 2, 0, 0]} />
+        </BarChart>
       </ResponsiveContainer>
 
       <Link
