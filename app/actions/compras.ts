@@ -104,7 +104,7 @@ export async function buscarPedidoPorOrdenAction(numeroOrden: string): Promise<
     supabase.from('clientes').select('nombre').eq('id', data.cliente_id).maybeSingle(),
     supabase
       .from('pedido_items')
-      .select('marca, descripcion, talla, cantidad, articulo_id, articulos(codigo)')
+      .select('marca, descripcion, talla, cantidad, articulo_id, articulos(codigo, nombre, marca)')
       .eq('pedido_id', data.id)
       .order('id'),
     supabase.from('compra_items').select('cantidad').eq('pedido_id', data.id),
@@ -112,10 +112,13 @@ export async function buscarPedidoPorOrdenAction(numeroOrden: string): Promise<
 
   const items: PedidoItemBusqueda[] = (itemsRaw ?? []).map((it: Record<string, unknown>) => {
     const art = Array.isArray(it.articulos) ? it.articulos[0] : it.articulos
+    const cat = art as { codigo?: string; nombre?: string; marca?: string } | null
     return {
-      codigo:      (art as { codigo?: string } | null)?.codigo ?? '',
-      descripcion: (it.descripcion as string) ?? '',
-      marca:       (it.marca as string) ?? '',
+      codigo:      cat?.codigo ?? '',
+      // Si el artículo está en el catálogo, manda el NOMBRE OFICIAL del
+      // catálogo (cada pedido puede tener la descripción escrita a su manera).
+      descripcion: cat?.nombre || ((it.descripcion as string) ?? ''),
+      marca:       cat?.marca || ((it.marca as string) ?? ''),
       talla:       (it.talla as string) ?? '',
       articulo_id: (it.articulo_id as string) ?? null,
     }
