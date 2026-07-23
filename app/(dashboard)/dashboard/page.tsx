@@ -7,6 +7,7 @@ import { ComprasChart } from '@/components/clientes/ComprasChart'
 import { PedidosAreaChart } from '@/components/dashboard/PedidosAreaChart'
 import { SedeDonutChart } from '@/components/dashboard/SedeDonutChart'
 import { VentasPorSemanaSede } from '@/components/dashboard/VentasPorSemanaSede'
+import { PorEntregarBox } from '@/components/dashboard/PorEntregarBox'
 import { EstadoBadge } from '@/components/pedidos/EstadoBadge'
 import { EstadoPedido } from '@/types'
 import { formatCOP, hoyBogota } from '@/lib/utils/format'
@@ -326,12 +327,7 @@ export default async function DashboardPage() {
                       <p className="text-[10px] text-gray-400 uppercase font-semibold">Pedidos</p>
                       <p className="text-base font-bold text-gray-800">{a.pedidos_mes}</p>
                     </div>
-                    <div className={`rounded-lg px-2 py-1.5 text-center border ${
-                      a.pedidos_activos > 0 ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-100'
-                    }`}>
-                      <p className={`text-[10px] uppercase font-semibold ${a.pedidos_activos > 0 ? 'text-amber-700' : 'text-gray-400'}`}>📦 Por entregar</p>
-                      <p className={`text-base font-bold ${a.pedidos_activos > 0 ? 'text-amber-700' : 'text-gray-800'}`}>{a.pedidos_activos}</p>
-                    </div>
+                    <PorEntregarBox asesorId={a.asesor_id} asesorNombre={a.asesor_nombre} count={a.pedidos_activos} />
                     <div className="rounded-lg bg-gray-50 border border-gray-100 px-2 py-1.5 text-center">
                       <p className="text-[10px] text-gray-400 uppercase font-semibold">Ticket prom.</p>
                       <p className="text-sm font-bold text-gray-600 pt-0.5">{formatCOP(a.ticket_promedio)}</p>

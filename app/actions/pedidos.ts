@@ -657,6 +657,31 @@ export async function eliminarPedidoAction(pedidoId: string): Promise<EliminarPe
   redirect('/pedidos')
 }
 
+export type PedidoPorEntregar = {
+  id: string
+  numero_orden: string
+  cliente_nombre: string
+  estado: EstadoPedido
+  total: number
+  total_pagado: number
+  fecha_creacion: string
+  sede_codigo: string
+}
+
+// Pedidos de un asesor que faltan por entregar (ni entregados ni cancelados).
+// Para la ventana del dashboard "Por entregar".
+export async function pedidosPorEntregarAction(asesorId: string): Promise<PedidoPorEntregar[]> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('vista_pedidos_asesor')
+    .select('id, numero_orden, cliente_nombre, estado, total, total_pagado, fecha_creacion, sede_codigo')
+    .eq('asesor_id', asesorId)
+    .not('estado', 'in', '("entregado","cancelado")')
+    .order('fecha_creacion', { ascending: true })
+    .limit(300)
+  return (data ?? []) as PedidoPorEntregar[]
+}
+
 export type SepararPedidoResult =
   | { ok: true; partes: string[] }
   | { ok: false; error: string }
