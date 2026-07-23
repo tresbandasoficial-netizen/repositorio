@@ -299,35 +299,41 @@ export default async function DashboardPage() {
         {/* Por asesor */}
         {asesores.length > 0 && (
           <TableCard title="Por asesor (30 días)">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-50 bg-gray-50/60">
-                  <th className="text-left px-5 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Asesor</th>
-                  <th className="text-right px-5 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Pedidos</th>
-                  <th className="text-right px-5 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Ventas</th>
-                  <th className="text-right px-5 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Ticket prom.</th>
-                  <th className="text-right px-5 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Activos</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {asesores.map((a) => (
-                  <tr key={a.asesor_id} className="hover:bg-gray-50/60 transition-colors">
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                          <span className="text-xs font-bold text-blue-700">{a.asesor_nombre.charAt(0)}</span>
-                        </div>
-                        <span className="font-semibold text-gray-900">{a.asesor_nombre}</span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3.5 text-right font-semibold text-gray-700">{a.pedidos_mes}</td>
-                    <td className="px-5 py-3.5 text-right font-bold text-gray-900">{formatCOP(a.ventas_mes)}</td>
-                    <td className="px-5 py-3.5 text-right text-gray-500">{formatCOP(a.ticket_promedio)}</td>
-                    <td className="px-5 py-3.5 text-right font-semibold text-gray-700">{a.pedidos_activos}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            {/* Ranking en celdas: 1º dorado, 2º plateado, 3º bronce */}
+            <div className="p-3 space-y-1.5">
+              {asesores.map((a, i) => (
+                <div key={a.asesor_id} className="border border-gray-200 rounded-xl px-3.5 py-2.5 flex items-center gap-3 flex-wrap hover:border-blue-200 transition-colors">
+                  <span className={`w-6 h-6 rounded-lg text-xs font-bold flex items-center justify-center shrink-0 ${
+                    i === 0 ? 'bg-amber-400 text-white'
+                    : i === 1 ? 'bg-gray-300 text-gray-700'
+                    : i === 2 ? 'bg-orange-300 text-orange-900'
+                    : 'bg-gray-100 text-gray-500'
+                  }`}>{i + 1}</span>
+                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                    <span className="text-xs font-bold text-blue-700">{a.asesor_nombre.charAt(0).toUpperCase()}</span>
+                  </div>
+                  <span className="font-bold text-gray-900 flex-1 min-w-24 truncate">{a.asesor_nombre}</span>
+                  <div className="flex items-center gap-4 ml-auto text-right">
+                    <div>
+                      <p className="text-[10px] text-gray-400 uppercase">Pedidos</p>
+                      <p className="text-sm font-semibold text-gray-700">{a.pedidos_mes}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-gray-400 uppercase">Activos</p>
+                      <p className="text-sm font-semibold text-gray-700">{a.pedidos_activos}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-gray-400 uppercase">Ticket prom.</p>
+                      <p className="text-sm text-gray-500">{formatCOP(a.ticket_promedio)}</p>
+                    </div>
+                    <div className="min-w-28">
+                      <p className="text-[10px] text-gray-400 uppercase">Ventas</p>
+                      <p className="text-base font-bold text-gray-900">{formatCOP(a.ventas_mes)}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </TableCard>
         )}
       </div>

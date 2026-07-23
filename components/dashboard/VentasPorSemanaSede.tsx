@@ -1,4 +1,3 @@
-import { Fragment } from 'react'
 import { EstadisticaDia } from '@/lib/queries/estadisticas'
 import { formatCOP } from '@/lib/utils/format'
 
@@ -106,71 +105,60 @@ export function VentasPorSemanaSede({ dias }: { dias: EstadisticaDia[] }) {
       {semanas.length === 0 ? (
         <p className="px-5 py-8 text-center text-sm text-gray-400">Sin ventas en el período</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50/60">
-                <th rowSpan={2} className="text-left px-5 py-2.5 text-xs font-bold text-gray-400 uppercase tracking-wider align-bottom">Semana</th>
-                {SEDES.map((s, i) => (
-                  <th key={s.codigo} colSpan={2} className={`text-center px-5 py-2 text-xs font-bold text-gray-500 uppercase tracking-wider ${i > 0 ? 'border-l border-gray-100' : ''}`}>
-                    {s.nombre} <span className="text-gray-300">({s.codigo})</span>
-                  </th>
-                ))}
-                <th rowSpan={2} className="text-right px-5 py-2.5 text-xs font-bold text-gray-500 uppercase tracking-wider align-bottom">Total</th>
-              </tr>
-              <tr className="bg-gray-50/60 border-b border-gray-100">
-                {SEDES.map((s, i) => (
-                  <Fragment key={s.codigo}>
-                    <th className={`text-right px-5 py-2 text-[11px] font-semibold text-blue-600 ${i > 0 ? 'border-l border-gray-100' : ''}`}>Pedidos</th>
-                    <th className="text-right px-5 py-2 text-[11px] font-semibold text-emerald-600">Tienda</th>
-                  </Fragment>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {semanas.map((sem) => (
-                <tr key={sem.key} className="hover:bg-gray-50/60 transition-colors">
-                  <td className="px-5 py-3 font-semibold text-gray-700 whitespace-nowrap">
-                    {sem.label}
-                    <span className="ml-2 text-xs font-normal text-gray-400">{sem.pedidosCount} ped.</span>
-                  </td>
-                  {SEDES.map((s, i) => {
-                    const v = sem.porSede[s.codigo] ?? { pedido: 0, tienda: 0 }
-                    return (
-                      <Fragment key={s.codigo}>
-                        <td className={`px-5 py-3 text-right whitespace-nowrap ${i > 0 ? 'border-l border-gray-100' : ''}`}>
-                          <Monto valor={v.pedido} />
-                        </td>
-                        <td className="px-5 py-3 text-right whitespace-nowrap">
-                          <Monto valor={v.tienda} className="text-emerald-700" />
-                        </td>
-                      </Fragment>
-                    )
-                  })}
-                  <td className="px-5 py-3 text-right font-bold text-gray-900 whitespace-nowrap">{formatCOP(sem.ventasTotal)}</td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="border-t-2 border-gray-100 bg-gray-50/40">
-                <td className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Total período</td>
-                {SEDES.map((s, i) => {
-                  const t = tot[s.codigo] ?? { pedido: 0, tienda: 0 }
+        <div className="p-3 space-y-2.5">
+          {semanas.map((sem, idx) => (
+            <div key={sem.key} className="border border-gray-200 rounded-xl p-3">
+              {/* Encabezado de la semana */}
+              <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
+                <span className="flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-md bg-gray-700 text-white text-[11px] font-bold flex items-center justify-center shrink-0">{idx + 1}</span>
+                  <span className="text-sm font-bold text-gray-900">{sem.label}</span>
+                  <span className="text-xs text-gray-400">{sem.pedidosCount} pedidos</span>
+                </span>
+                <span className="text-sm font-bold text-gray-900">{formatCOP(sem.ventasTotal)}</span>
+              </div>
+              {/* Una celda por sede */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {SEDES.map(s => {
+                  const v = sem.porSede[s.codigo] ?? { pedido: 0, tienda: 0 }
+                  const sinVentas = v.pedido === 0 && v.tienda === 0
                   return (
-                    <Fragment key={s.codigo}>
-                      <td className={`px-5 py-3 text-right font-bold text-gray-700 whitespace-nowrap ${i > 0 ? 'border-l border-gray-100' : ''}`}>
-                        {formatCOP(t.pedido)}
-                      </td>
-                      <td className="px-5 py-3 text-right font-bold text-emerald-700 whitespace-nowrap">
-                        {formatCOP(t.tienda)}
-                      </td>
-                    </Fragment>
+                    <div key={s.codigo} className={`rounded-lg border px-3 py-2 ${sinVentas ? 'border-gray-100 bg-gray-50/60' : 'border-gray-200 bg-white'}`}>
+                      <p className={`text-[11px] uppercase font-semibold ${sinVentas ? 'text-gray-300' : 'text-gray-500'}`}>
+                        {s.nombre} <span className="font-normal opacity-60">({s.codigo})</span>
+                      </p>
+                      <div className="flex items-center justify-between mt-1 text-xs">
+                        <span className="text-blue-600">Pedidos <Monto valor={v.pedido} className="text-blue-700" /></span>
+                        <span className="text-emerald-600">Tienda <Monto valor={v.tienda} className="text-emerald-700" /></span>
+                      </div>
+                    </div>
                   )
                 })}
-                <td className="px-5 py-3 text-right font-bold text-blue-700 whitespace-nowrap">{formatCOP(granTotal)}</td>
-              </tr>
-            </tfoot>
-          </table>
+              </div>
+            </div>
+          ))}
+
+          {/* Total del período */}
+          <div className="border-2 border-blue-200 bg-blue-50 rounded-xl p-3">
+            <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
+              <span className="text-xs font-bold text-blue-800 uppercase tracking-wide">Total período</span>
+              <span className="text-base font-bold text-blue-700">{formatCOP(granTotal)}</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {SEDES.map(s => {
+                const t = tot[s.codigo] ?? { pedido: 0, tienda: 0 }
+                return (
+                  <div key={s.codigo} className="rounded-lg bg-white border border-blue-100 px-3 py-2">
+                    <p className="text-[11px] uppercase font-semibold text-gray-500">{s.nombre}</p>
+                    <div className="flex items-center justify-between mt-1 text-xs">
+                      <span className="text-blue-600">Pedidos <span className="font-bold text-blue-700">{formatCOP(t.pedido)}</span></span>
+                      <span className="text-emerald-600">Tienda <span className="font-bold text-emerald-700">{formatCOP(t.tienda)}</span></span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
         </div>
       )}
     </div>
