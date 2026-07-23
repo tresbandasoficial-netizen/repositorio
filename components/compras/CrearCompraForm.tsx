@@ -335,13 +335,10 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
       setError(`La suma de los productos (${formatCOP(totalItemsCop)}) no cuadra con el total de la factura (${formatCOP(totalCopNum)}) — diferencia de ${formatCOP(Math.abs(totalCopNum - totalItemsCop))}. Revisa los costos, las cantidades o si hay una fila repetida.`)
       return
     }
-    if (tipo === 'usa') {
-      if (!totalUsd || parseFloat(totalUsd) <= 0) { setError('El total en USD es obligatorio'); return }
-      if (!totalCopPagado || totalCopNum <= 0) { setError('Ingresa el total que pagaste en COP'); return }
-    } else {
-      if (totalCopFinal <= 0) { setError('Ingresa el total en COP o el costo de los productos'); return }
-      if (totalCopNum <= 0) setTotalCopPagado(String(totalCopFinal))
-    }
+    // El país de la compra solo cambia las ayudas (USD/TRM): lo único
+    // obligatorio es el valor en PESOS. Los dólares son opcionales.
+    if (totalCopFinal <= 0) { setError('Ingresa el total en COP o el costo de los productos'); return }
+    if (totalCopNum <= 0) setTotalCopPagado(String(totalCopFinal))
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i]
@@ -367,7 +364,7 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
       proveedor: proveedor.trim(),
       fecha,
       numero_factura: numeroFactura.trim(),
-      total_usd: tipo === 'usa' ? parseFloat(totalUsd) : null,
+      total_usd: tipo === 'usa' && totalUsd && parseFloat(totalUsd) > 0 ? parseFloat(totalUsd) : null,
       trm: tipo === 'usa' ? (trmCalculada ?? null) : null,
       total_cop: totalCopFinal,
       notas,
@@ -544,7 +541,7 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
               {/* Fila 1: Total USD | Total COP pagado | TRM calculada */}
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Total USD (factura)</label>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Total USD (opcional)</label>
                   <input
                     type="number"
                     min="0"
@@ -590,7 +587,7 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
               {/* Fila 2: Subtotal USD | Impuestos USD | Envío USD */}
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Subtotal USD</label>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Subtotal USD (opcional)</label>
                   <input
                     type="number"
                     min="0"
@@ -602,7 +599,7 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Impuestos USD</label>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Impuestos USD (opcional)</label>
                   <input
                     type="number"
                     min="0"
@@ -619,7 +616,7 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Envío USD</label>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Envío USD (opcional)</label>
                   <input
                     type="number"
                     min="0"
