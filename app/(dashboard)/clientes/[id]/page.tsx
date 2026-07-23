@@ -1,4 +1,5 @@
 import { notFound, redirect } from 'next/navigation'
+import { BotonVolver } from '@/components/ui/BotonVolver'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getClienteDetalle } from '@/lib/queries/clientes'
@@ -66,12 +67,7 @@ export default async function ClienteDetallePage({
   return (
     <div className="p-4 md:p-6 max-w-[1400px] mx-auto">
       <div className="flex items-center gap-3 mb-6 flex-wrap">
-        <Link
-          href="/clientes"
-          className="px-4 py-2 text-sm font-medium border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 transition-colors inline-flex items-center gap-1.5 whitespace-nowrap"
-        >
-          ← Clientes
-        </Link>
+        <BotonVolver href="/clientes">Clientes</BotonVolver>
         <h1 className="text-xl font-bold text-gray-900 flex-1">{cliente.nombre}</h1>
         <div className="flex items-center gap-2">
           <AbonarClienteButton clienteId={id} deudaTotal={saldoTotal} sedeCodigo={sedeCodigo} />

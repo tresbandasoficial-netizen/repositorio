@@ -1,4 +1,5 @@
 import { notFound, redirect } from 'next/navigation'
+import { BotonVolver } from '@/components/ui/BotonVolver'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { Badge } from '@/components/ui/Badge'
@@ -57,9 +58,7 @@ export default async function CompraDetallePage({
     <div className="p-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <Link href="/compras" className="text-gray-400 hover:text-gray-600 text-sm">
-            ← Compras
-          </Link>
+          <BotonVolver href="/compras">Compras</BotonVolver>
           <span className="text-gray-300">/</span>
           <span className="font-semibold text-gray-900">{compra.proveedor}</span>
           {(compra as any).numero_factura && (

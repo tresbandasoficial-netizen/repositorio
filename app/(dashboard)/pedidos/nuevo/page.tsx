@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { BotonVolver } from '@/components/ui/BotonVolver'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getSiguienteNumeroOrden } from '@/lib/queries/pedidos'
@@ -19,9 +20,7 @@ export default async function NuevoPedidoPage() {
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
-        <Link href="/pedidos" className="text-gray-400 hover:text-gray-600 text-sm">
-          ← Pedidos
-        </Link>
+        <BotonVolver href="/pedidos">Pedidos</BotonVolver>
         <span className="text-gray-300">/</span>
         <h1 className="text-lg font-bold text-gray-900">Nuevo pedido</h1>
       </div>

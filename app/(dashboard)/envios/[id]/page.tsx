@@ -1,4 +1,5 @@
 import { redirect, notFound } from 'next/navigation'
+import { BotonVolver } from '@/components/ui/BotonVolver'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getEnvioDetalle } from '@/lib/queries/envios'
@@ -30,7 +31,7 @@ export default async function EnvioDetallePage({
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <div className="flex items-center gap-3 mb-6 flex-wrap">
-        <Link href="/envios" className="text-gray-400 hover:text-gray-600 text-sm">← Envíos</Link>
+        <BotonVolver href="/envios">Envíos</BotonVolver>
         <span className="text-gray-300">/</span>
         <h1 className="text-lg font-bold text-gray-900">Envío #{envio.consecutivo} → {envio.destino_nombre}</h1>
         <div className="ml-auto flex items-center gap-2">

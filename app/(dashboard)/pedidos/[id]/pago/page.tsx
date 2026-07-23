@@ -1,4 +1,5 @@
 import { notFound, redirect } from 'next/navigation'
+import { BotonVolver } from '@/components/ui/BotonVolver'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
@@ -27,9 +28,7 @@ export default async function RegistrarPagoPage({
   return (
     <div className="p-6 max-w-xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
-        <Link href={`/pedidos/${id}`} className="text-gray-400 hover:text-gray-600 text-sm">
-          ← {pedido.numero_orden}
-        </Link>
+        <BotonVolver href={`/pedidos/${id}`}>{pedido.numero_orden}</BotonVolver>
         <span className="text-gray-300">/</span>
         <h1 className="text-lg font-bold text-gray-900">Registrar pago</h1>
       </div>

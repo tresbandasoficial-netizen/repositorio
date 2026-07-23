@@ -1,4 +1,5 @@
 import { notFound, redirect } from 'next/navigation'
+import { BotonVolver } from '@/components/ui/BotonVolver'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getClienteDetalle } from '@/lib/queries/clientes'
@@ -20,9 +21,7 @@ export default async function EditarClientePage({
   return (
     <div className="p-6 max-w-lg mx-auto">
       <div className="flex items-center gap-3 mb-6">
-        <Link href={`/clientes/${id}`} className="text-gray-400 hover:text-gray-600 text-sm">
-          ← {cliente.nombre}
-        </Link>
+        <BotonVolver href={`/clientes/${id}`}>{cliente.nombre}</BotonVolver>
         <span className="text-gray-300">/</span>
         <h1 className="text-lg font-bold text-gray-900">Editar cliente</h1>
       </div>

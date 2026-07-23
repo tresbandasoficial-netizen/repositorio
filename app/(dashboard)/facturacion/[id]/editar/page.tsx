@@ -1,4 +1,5 @@
 import { notFound, redirect } from 'next/navigation'
+import { BotonVolver } from '@/components/ui/BotonVolver'
 import Link from 'next/link'
 import { getFacturaDetalle } from '@/lib/queries/facturas'
 import { getSesion } from '@/lib/auth/acceso'
@@ -28,7 +29,7 @@ export default async function EditarFacturaPage({
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
-      <Link href={`/facturacion/${id}`} className="text-sm text-gray-500 hover:text-gray-700">← Volver a la factura</Link>
+      <BotonVolver href={`/facturacion/${id}`}>Volver a la factura</BotonVolver>
       <h1 className="text-xl font-bold text-gray-900 mt-3 mb-1">Editar factura</h1>
       <p className="text-sm text-gray-500 font-mono mb-6">{factura.numero_factura}</p>
 

@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { BotonVolver } from '@/components/ui/BotonVolver'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getSesion } from '@/lib/auth/acceso'
@@ -20,7 +21,7 @@ export default async function ConteoInventarioPage() {
       <div className="flex items-center gap-3 mb-6">
         {sesion.rol === 'admin' && (
           <>
-            <Link href="/inventario" className="text-gray-400 hover:text-gray-600 text-sm">← Inventario</Link>
+            <BotonVolver href="/inventario">Inventario</BotonVolver>
             <span className="text-gray-300">/</span>
           </>
         )}

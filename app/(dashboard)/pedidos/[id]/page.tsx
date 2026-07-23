@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation'
+import { BotonVolver } from '@/components/ui/BotonVolver'
 import Link from 'next/link'
 import { getPedidoDetalle } from '@/lib/queries/pedidos'
 import { EstadoBadge } from '@/components/pedidos/EstadoBadge'
@@ -47,12 +48,7 @@ export default async function PedidoDetallePage({
       {/* Cabecera */}
       <div className="mb-4 md:mb-6 space-y-4">
         <div className="flex items-center gap-3 text-sm">
-          <Link
-            href="/pedidos"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 font-medium hover:bg-gray-50 transition-colors shadow-sm"
-          >
-            ← Pedidos
-          </Link>
+          <BotonVolver href="/pedidos">Pedidos</BotonVolver>
           <span className="font-mono font-bold text-gray-900">{esSaldo ? 'Saldo anterior' : pedido.numero_orden}</span>
           {esSaldo
             ? <span className="inline-block rounded-full px-2.5 py-0.5 text-xs font-medium bg-amber-100 text-amber-800">Deuda</span>

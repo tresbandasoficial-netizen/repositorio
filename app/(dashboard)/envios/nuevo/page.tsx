@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { BotonVolver } from '@/components/ui/BotonVolver'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { EnvioBuilder } from '@/components/envios/EnvioBuilder'
@@ -18,7 +19,7 @@ export default async function NuevoEnvioPage() {
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
-        <Link href="/envios" className="text-gray-400 hover:text-gray-600 text-sm">← Envíos</Link>
+        <BotonVolver href="/envios">Envíos</BotonVolver>
         <span className="text-gray-300">/</span>
         <h1 className="text-lg font-bold text-gray-900">Nuevo envío</h1>
       </div>

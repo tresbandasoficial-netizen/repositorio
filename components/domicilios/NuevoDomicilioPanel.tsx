@@ -497,7 +497,7 @@ export function NuevoDomicilioPanel({ fecha, onCreado }: Props) {
             <button
               type="button"
               onClick={() => setModo('auto')}
-              className="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-gray-200 bg-white text-sm font-bold text-gray-700 hover:bg-gray-50 shadow-sm transition-colors"
             >
               ← Volver
             </button>

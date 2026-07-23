@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { BotonVolver } from '@/components/ui/BotonVolver'
 import { createClient } from '@/lib/supabase/server'
 import { getDomiciliosPorFecha, getCuadreDia, getCierreDia, calcularCuadreDomicilio } from '@/lib/queries/domicilios'
 import Link from 'next/link'
@@ -37,9 +38,9 @@ export default async function CuadreDiaPage({
       {/* Header */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
-          <Link href={`/domicilios?fecha=${fecha}`} className="text-sm text-gray-400 hover:text-gray-600 mb-1 inline-block">
-            ← Volver
-          </Link>
+          <div className="mb-2">
+            <BotonVolver href={`/domicilios?fecha=${fecha}`}>Volver</BotonVolver>
+          </div>
           <h1 className="text-xl font-bold text-gray-900">Cuadre diario</h1>
           <p className="text-sm text-gray-500">{fecha}</p>
         </div>

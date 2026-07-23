@@ -1,4 +1,5 @@
 import { notFound, redirect } from 'next/navigation'
+import { BotonVolver } from '@/components/ui/BotonVolver'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { EditarCompraForm } from '@/components/compras/EditarCompraForm'
@@ -68,12 +69,7 @@ export default async function EditarCompraPage({
   return (
     <div className="p-6 max-w-3xl">
       <div className="flex items-center gap-3 mb-6">
-        <Link
-          href={`/compras/${id}`}
-          className="px-4 py-2 text-sm font-medium border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 transition-colors"
-        >
-          ← Volver
-        </Link>
+        <BotonVolver href={`/compras/${id}`}>Volver</BotonVolver>
         <h1 className="text-lg font-bold text-gray-900">
           Editar compra — {(compra as any).proveedor}
         </h1>
