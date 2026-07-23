@@ -233,58 +233,82 @@ export function GastosClientPage({ gastos, cuentas, sedes, sedeRestringida, esAd
         </div>
       )}
 
-      {/* Tabla de gastos */}
+      {/* Lista de gastos agrupada por día, cada gasto en su celda */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="px-5 py-3 border-b border-gray-100">
-          <p className="text-sm font-semibold text-gray-900">
-            {gastos.length} gastos — {formatCOP(totalGeneral)}
+        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+          <p className="text-sm font-bold text-gray-900">
+            {gastos.length} gasto{gastos.length !== 1 ? 's' : ''}
           </p>
+          <p className="text-sm font-bold text-red-600">{formatCOP(totalGeneral)}</p>
         </div>
         {gastos.length === 0 ? (
           <div className="text-center py-12 text-gray-400 text-sm">No hay gastos en este período</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase">
-                  <th className="text-left px-5 py-2">Fecha</th>
-                  <th className="text-left px-3 py-2">Categoría</th>
-                  <th className="text-left px-3 py-2">Sede</th>
-                  <th className="text-left px-3 py-2">Cuenta</th>
-                  <th className="text-right px-3 py-2">Valor</th>
-                  <th className="text-left px-3 py-2">Observación</th>
-                  {esAdmin && <th className="px-3 py-2"></th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {gastos.map(g => (
-                  <tr key={g.id} className="hover:bg-gray-50">
-                    <td className="px-5 py-2.5 text-gray-600 whitespace-nowrap">
-                      {g.fecha}
-                      <span className="block text-xs text-gray-400">{formatHora(g.creado_en)}</span>
-                    </td>
-                    <td className="px-3 py-2.5 text-gray-800 font-medium">{CATEGORIA_GASTO_LABELS[g.categoria]}</td>
-                    <td className="px-3 py-2.5 text-gray-500">{(g.sede as any)?.codigo ?? '—'}</td>
-                    <td className="px-3 py-2.5 text-gray-500">{(g.cuenta as any)?.nombre ?? '—'}</td>
-                    <td className="px-3 py-2.5 text-right font-semibold text-red-700">{formatCOP(g.valor)}</td>
-                    <td className="px-3 py-2.5 text-gray-500 max-w-xs truncate">{g.observacion ?? '—'}</td>
-                    {esAdmin && (
-                      <td className="px-3 py-2.5">
+          <div className="p-3 space-y-4">
+            {agruparPorDia(gastos).map(grupo => (
+              <div key={grupo.fecha}>
+                {/* Encabezado del día con su subtotal */}
+                <div className="flex items-center justify-between px-2 py-1.5 mb-1.5 rounded-lg bg-gray-100">
+                  <p className="text-xs font-bold text-gray-700">📅 {grupo.fecha} <span className="font-normal text-gray-400">({grupo.items.length})</span></p>
+                  <p className="text-xs font-bold text-red-600">{formatCOP(grupo.total)}</p>
+                </div>
+                <div className="space-y-1.5">
+                  {grupo.items.map((g, i) => (
+                    <div key={g.id} className="border border-gray-200 rounded-lg px-3 py-2 flex items-center gap-2.5 flex-wrap hover:border-red-200 transition-colors">
+                      <span className="w-5 h-5 rounded-md bg-gray-200 text-gray-600 text-[11px] font-bold flex items-center justify-center shrink-0">{i + 1}</span>
+                      <span className="text-xs text-gray-400 w-14 shrink-0">{formatHora(g.creado_en)}</span>
+                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 ${COLOR_CATEGORIA[g.categoria] ?? 'bg-gray-100 text-gray-600'}`}>
+                        {CATEGORIA_GASTO_LABELS[g.categoria]}
+                      </span>
+                      <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 shrink-0">{(g.sede as any)?.codigo ?? '—'}</span>
+                      <span className="text-xs text-gray-500 shrink-0">{(g.cuenta as any)?.nombre ?? 'sin cuenta'}</span>
+                      <span className="text-xs text-gray-400 truncate flex-1 min-w-24">{g.observacion ?? ''}</span>
+                      <span className="text-sm font-bold text-red-600 shrink-0 ml-auto">{formatCOP(g.valor)}</span>
+                      {esAdmin && (
                         <button
                           onClick={() => handleEliminar(g.id)}
-                          className="text-xs text-gray-400 hover:text-red-600 transition-colors"
+                          className="text-xs text-gray-300 hover:text-red-600 transition-colors shrink-0"
+                          title="Eliminar gasto"
                         >
-                          Eliminar
+                          ✕
                         </button>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
     </div>
   )
+}
+
+// Color de la etiqueta según la categoría del gasto
+const COLOR_CATEGORIA: Record<string, string> = {
+  compras_mercancia: 'bg-purple-100 text-purple-700',
+  domicilios:        'bg-amber-100 text-amber-700',
+  publicidad:        'bg-pink-100 text-pink-700',
+  nomina:            'bg-blue-100 text-blue-700',
+  arriendo:          'bg-indigo-100 text-indigo-700',
+  servicios:         'bg-cyan-100 text-cyan-700',
+  transporte:        'bg-orange-100 text-orange-700',
+  papeleria:         'bg-teal-100 text-teal-700',
+  otros:             'bg-gray-100 text-gray-600',
+}
+
+// Agrupa los gastos (que ya vienen ordenados por fecha desc) por día
+function agruparPorDia<T extends { fecha: string; valor: number }>(gastos: T[]): Array<{ fecha: string; items: T[]; total: number }> {
+  const grupos: Array<{ fecha: string; items: T[]; total: number }> = []
+  for (const g of gastos) {
+    const ultimo = grupos[grupos.length - 1]
+    if (ultimo && ultimo.fecha === g.fecha) {
+      ultimo.items.push(g)
+      ultimo.total += g.valor
+    } else {
+      grupos.push({ fecha: g.fecha, items: [g], total: g.valor })
+    }
+  }
+  return grupos
 }
