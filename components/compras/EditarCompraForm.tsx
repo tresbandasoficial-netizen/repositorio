@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { editarCompraAction, EditarCompraInput, EditarCompraItemInput, buscarPedidoPorOrdenAction } from '@/app/actions/compras'
 import { buscarPorCodigoAction } from '@/app/actions/articulos'
@@ -101,6 +101,14 @@ export function EditarCompraForm({ compraId, inicial, itemsIniciales, cuentas }:
 
   function actualizarItem(idx: number, campo: keyof ItemForm, valor: string) {
     setItems(prev => prev.map((item, i) => (i === idx ? { ...item, [campo]: valor } : item)))
+  }
+
+  // Búsqueda EN VIVO por código: mientras se escribe, con una pequeña espera
+  const codigoTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({})
+  function codigoEnVivo(idx: number, valor: string) {
+    actualizarItem(idx, 'codigo', valor)
+    if (codigoTimers.current[idx]) clearTimeout(codigoTimers.current[idx])
+    codigoTimers.current[idx] = setTimeout(() => buscarPorCodigo(idx, valor), 450)
   }
 
   async function buscarPorCodigo(idx: number, codigo: string) {
@@ -336,7 +344,7 @@ export function EditarCompraForm({ compraId, inicial, itemsIniciales, cuentas }:
                     <input
                       type="text"
                       value={item.codigo}
-                      onChange={e => actualizarItem(idx, 'codigo', e.target.value)}
+                      onChange={e => codigoEnVivo(idx, e.target.value)}
                       onBlur={e => buscarPorCodigo(idx, e.target.value)}
                       placeholder="Ej: DV3337-100 — opcional"
                       className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 bg-white font-mono ${

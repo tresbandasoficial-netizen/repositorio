@@ -81,7 +81,15 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
   const [isParsing, startParsing] = useTransition()
   const [isSaving, startSaving] = useTransition()
   const fileRef = useRef<HTMLInputElement>(null)
+  // Búsqueda EN VIVO por código: mientras se escribe, con una pequeña espera
+  const codigoTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({})
   const router = useRouter()
+
+  function codigoEnVivo(idx: number, valor: string) {
+    actualizarItem(idx, 'codigo', valor)
+    if (codigoTimers.current[idx]) clearTimeout(codigoTimers.current[idx])
+    codigoTimers.current[idx] = setTimeout(() => buscarPorCodigo(idx, valor), 450)
+  }
 
   // Pedidos/artículos seleccionados desde la galería
   // (?pedidos=TR6821,TR6835-2,TR6835-4): se abre directo el formulario con
@@ -771,7 +779,7 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
                   <input
                     type="text"
                     value={item.codigo}
-                    onChange={(e) => actualizarItem(idx, 'codigo', e.target.value)}
+                    onChange={(e) => codigoEnVivo(idx, e.target.value)}
                     onBlur={(e) => buscarPorCodigo(idx, e.target.value)}
                     placeholder="Código (SKU)"
                     className={`w-full rounded-lg border px-2 py-1.5 text-sm focus:outline-none focus:ring-2 bg-white font-mono ${
