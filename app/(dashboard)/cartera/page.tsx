@@ -143,7 +143,9 @@ export default async function CarteraPage({
                   <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Pedidos</th>
                   <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Total comprado</th>
                   <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Total pagado</th>
-                  <th className="text-right px-6 py-3 text-xs font-medium text-gray-500 uppercase">Saldo</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-red-600 uppercase" title="Pedidos ya entregados o facturados sin pagar — deuda real por cobrar">🚚 Entregado debe</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-amber-600 uppercase" title="Pedidos aún sin facturar/entregar — mercancía en camino">⏳ En proceso</th>
+                  <th className="text-right px-6 py-3 text-xs font-medium text-gray-500 uppercase">Saldo total</th>
                   <th className="px-4 py-3" />
                 </tr>
               </thead>
@@ -170,8 +172,24 @@ export default async function CarteraPage({
                     <td className="px-4 py-4 text-right text-green-700 hidden md:table-cell">
                       {formatCOP(c.total_pagado)}
                     </td>
+                    <td className="px-4 py-4 text-right">
+                      {c.saldo_entregado > 0 ? (
+                        <>
+                          <span className="font-bold text-red-600">{formatCOP(c.saldo_entregado)}</span>
+                          <span className="block text-[10px] text-gray-400">{c.pedidos_entregados} entregado{c.pedidos_entregados !== 1 ? 's' : ''}</span>
+                        </>
+                      ) : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-4 py-4 text-right">
+                      {c.saldo_proceso > 0 ? (
+                        <>
+                          <span className="font-semibold text-amber-600">{formatCOP(c.saldo_proceso)}</span>
+                          <span className="block text-[10px] text-gray-400">{c.pedidos_proceso} en camino</span>
+                        </>
+                      ) : <span className="text-gray-300">—</span>}
+                    </td>
                     <td className="px-6 py-4 text-right">
-                      <span className="font-bold text-red-600">{formatCOP(c.saldo)}</span>
+                      <span className="font-bold text-gray-900">{formatCOP(c.saldo)}</span>
                     </td>
                     <td className="px-4 py-4 text-right">
                       <Link

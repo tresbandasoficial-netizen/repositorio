@@ -12,6 +12,12 @@ export type CarteraRow = {
   total_pagado: number
   saldo: number
   pedidos_activos: number
+  // Los dos bolsillos del crédito: lo ya entregado/facturado (deuda real por
+  // cobrar) y lo que está en pedidos sin facturar (mercancía en camino).
+  saldo_entregado: number
+  saldo_proceso: number
+  pedidos_entregados: number
+  pedidos_proceso: number
 }
 
 export type CarteraResult = {
