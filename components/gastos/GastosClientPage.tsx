@@ -249,7 +249,10 @@ export function GastosClientPage({ gastos, cuentas, sedes, sedeRestringida, esAd
               <div key={grupo.fecha}>
                 {/* Encabezado del día con su subtotal */}
                 <div className="flex items-center justify-between px-2 py-1.5 mb-1.5 rounded-lg bg-gray-100">
-                  <p className="text-xs font-bold text-gray-700">📅 {grupo.fecha} <span className="font-normal text-gray-400">({grupo.items.length})</span></p>
+                  <p className="text-xs font-bold text-gray-700">
+                    📅 {etiquetaDia(grupo.fecha)}
+                    <span className="font-normal text-gray-400"> ({grupo.items.length})</span>
+                  </p>
                   <p className="text-xs font-bold text-red-600">{formatCOP(grupo.total)}</p>
                 </div>
                 <div className="space-y-1.5">
@@ -296,6 +299,21 @@ const COLOR_CATEGORIA: Record<string, string> = {
   transporte:        'bg-orange-100 text-orange-700',
   papeleria:         'bg-teal-100 text-teal-700',
   otros:             'bg-gray-100 text-gray-600',
+}
+
+// Nombre del día para el encabezado: "Hoy", "Ayer" o el día de la semana en
+// la última semana; después de una semana ya sale la fecha completa.
+function etiquetaDia(fecha: string): string {
+  const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
+  const diffDias = Math.round((Date.parse(hoy + 'T12:00:00') - Date.parse(fecha + 'T12:00:00')) / 86400000)
+  const d = new Date(fecha + 'T12:00:00')
+  if (diffDias === 0) return 'Hoy'
+  if (diffDias === 1) return 'Ayer'
+  if (diffDias > 1 && diffDias < 7) {
+    const dia = d.toLocaleDateString('es-CO', { weekday: 'long' })
+    return dia.charAt(0).toUpperCase() + dia.slice(1)
+  }
+  return d.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
 // Agrupa los gastos (que ya vienen ordenados por fecha desc) por día
