@@ -10,6 +10,16 @@ import type { DetalleCuenta } from '@/app/actions/cierres'
 
 type Sede = { id: string; nombre: string; codigo: string }
 
+// Título numerado de sección dentro del cierre (mismo lenguaje del cuadre)
+function SeccionCierre({ n, titulo, color }: { n: number; titulo: string; color: string }) {
+  return (
+    <div className="flex items-center gap-2 mt-1">
+      <span className={`w-5 h-5 rounded-md ${color} text-white text-[11px] font-bold flex items-center justify-center shrink-0`}>{n}</span>
+      <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">{titulo}</p>
+    </div>
+  )
+}
+
 export function CerrarCajaButton({
   yaCerrada = false,
   sedes,
@@ -130,10 +140,10 @@ export function CerrarCajaButton({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
 
-            {/* Header */}
-            <div className="px-6 py-4 border-b border-gray-100">
-              <h2 className="text-base font-bold text-gray-900">Cierre de Caja</h2>
-              <p className="text-xs text-gray-500 mt-0.5">
+            {/* Header: título grande y centrado */}
+            <div className="px-6 py-5 border-b border-gray-100 text-center bg-gray-50 rounded-t-2xl">
+              <h2 className="text-2xl font-bold text-gray-900">🔒 Cierre de caja</h2>
+              <p className="text-xs text-gray-500 mt-1 capitalize">
                 {new Date().toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
               </p>
             </div>
@@ -164,33 +174,37 @@ export function CerrarCajaButton({
                 <p className="text-sm text-gray-500 text-center py-4">Sin movimientos registrados hoy</p>
               ) : flujo.length > 0 ? (
                 <>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Movimientos del día</p>
+                  <SeccionCierre n={1} titulo="Movimientos del día" color="bg-blue-600" />
                   <div className="space-y-2">
-                    {flujo.map(f => (
-                      <div key={f.cuenta_id} className="flex items-center justify-between text-sm">
-                        <span className="text-gray-700">{f.cuenta_nombre}</span>
-                        <div className="text-right">
+                    {flujo.map((f, i) => (
+                      <div key={f.cuenta_id} className="border border-gray-200 rounded-lg px-3 py-2 flex items-center justify-between text-sm bg-white">
+                        <span className="flex items-center gap-2 min-w-0">
+                          <span className="w-5 h-5 rounded-md bg-gray-200 text-gray-600 text-[11px] font-bold flex items-center justify-center shrink-0">{i + 1}</span>
+                          <span className="text-gray-800 font-medium truncate">{f.cuenta_nombre}</span>
+                        </span>
+                        <div className="text-right shrink-0">
                           {f.ingresos_hoy > 0 && <span className="text-green-600 text-xs mr-2">+{formatCOP(f.ingresos_hoy)}</span>}
                           {f.egresos_hoy > 0  && <span className="text-red-600 text-xs mr-2">-{formatCOP(f.egresos_hoy)}</span>}
-                          <span className={`font-semibold ${f.neto_hoy >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                          <span className={`font-bold ${f.neto_hoy >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
                             {formatCOP(f.neto_hoy)}
                           </span>
                         </div>
                       </div>
                     ))}
                   </div>
-                  <div className="border-t border-gray-100 pt-3 space-y-1">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Total ingresos</span>
-                      <span className="font-semibold text-green-600">+{formatCOP(flujo.reduce((s, f) => s + f.ingresos_hoy, 0))}</span>
+                  {/* Totales en celdas */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="rounded-lg border border-green-200 bg-green-50 px-2 py-2 text-center">
+                      <p className="text-[10px] text-green-700 uppercase font-semibold">Ingresos</p>
+                      <p className="text-sm font-bold text-green-700">+{formatCOP(flujo.reduce((s, f) => s + f.ingresos_hoy, 0))}</p>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Total egresos</span>
-                      <span className="font-semibold text-red-600">-{formatCOP(flujo.reduce((s, f) => s + f.egresos_hoy, 0))}</span>
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-2 py-2 text-center">
+                      <p className="text-[10px] text-red-700 uppercase font-semibold">Egresos</p>
+                      <p className="text-sm font-bold text-red-600">−{formatCOP(flujo.reduce((s, f) => s + f.egresos_hoy, 0))}</p>
                     </div>
-                    <div className="flex justify-between text-sm font-bold bg-blue-50 px-2 py-1.5 rounded-lg mt-1">
-                      <span>Neto del día</span>
-                      <span className="text-blue-700">{formatCOP(flujo.reduce((s, f) => s + f.neto_hoy, 0))}</span>
+                    <div className="rounded-lg bg-blue-600 px-2 py-2 text-center">
+                      <p className="text-[10px] text-blue-100 uppercase font-semibold">Neto del día</p>
+                      <p className="text-sm font-bold text-white">{formatCOP(flujo.reduce((s, f) => s + f.neto_hoy, 0))}</p>
                     </div>
                   </div>
                 </>
@@ -198,6 +212,8 @@ export function CerrarCajaButton({
 
               {/* Pagos electrónicos sin confirmar */}
               {!loading && (!esAdmin || sedeId) && sinConfirmar.length > 0 && (
+                <>
+                <SeccionCierre n={2} titulo="Transferencias por confirmar" color="bg-amber-500" />
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
                   <p className="text-xs font-semibold text-amber-800">⚠️ Faltan {sinConfirmar.length} pago(s) por confirmar</p>
                   <p className="text-[11px] text-amber-700 mb-1.5">Verifica que estas transferencias entraron (chuléalas en el cuadre):</p>
@@ -210,18 +226,23 @@ export function CerrarCajaButton({
                     ))}
                   </ul>
                 </div>
+                </>
               )}
               {!loading && (!esAdmin || sedeId) && sinConfirmar.length === 0 && flujo.length > 0 && (
+                <>
+                <SeccionCierre n={2} titulo="Transferencias" color="bg-green-600" />
                 <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
                   ✓ Todas las transferencias del día están confirmadas
                 </p>
+                </>
               )}
 
               {/* Arqueo de efectivo */}
               {!loading && (!esAdmin || sedeId) && esperado !== null && (
+                <>
+                <SeccionCierre n={3} titulo="Arqueo de efectivo" color="bg-emerald-600" />
                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-2">
-                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Arqueo de efectivo</p>
-                  <div className="flex justify-between text-sm">
+                  <div className="flex justify-between items-center text-sm border border-gray-200 bg-white rounded-lg px-3 py-2">
                     <span className="text-gray-500">El sistema espera en caja</span>
                     <span className="font-bold text-gray-900">{formatCOP(esperado)}</span>
                   </div>
@@ -249,13 +270,15 @@ export function CerrarCajaButton({
                     </div>
                   )}
                 </div>
+                </>
               )}
 
               {/* Notas */}
               {(!esAdmin || sedeId) && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">
-                    Observaciones <span className="font-normal text-gray-400">(diferencias, faltantes, sobrantes...)</span>
+                  <SeccionCierre n={4} titulo="Observaciones" color="bg-gray-500" />
+                  <label className="block text-xs font-normal text-gray-400 mb-1 mt-1.5">
+                    Diferencias, faltantes, sobrantes… (opcional)
                   </label>
                   <textarea
                     value={notas}
