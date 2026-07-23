@@ -1,8 +1,10 @@
 'use client'
 
+import { useState } from 'react'
 import {
-  BarChart,
-  Bar,
+  ComposedChart,
+  Area,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -21,124 +23,173 @@ interface DatoDia {
 
 interface Props {
   datos: DatoDia[]
+  datosPrevios?: DatoDia[]   // los 30 días ANTERIORES, para comparar
   totalPedidos: number
   totalVentas: number
   desde: string
   hasta: string
 }
 
-// Color fijo por sede (mismas tres sedes del negocio)
-const SEDES = [
-  { codigo: 'TR', nombre: 'Bucaramanga', color: '#3b82f6' },  // azul
-  { codigo: 'SR', nombre: 'Santa Rosa',  color: '#10b981' },  // verde
-  { codigo: 'CR', nombre: 'Cúcuta',      color: '#8b5cf6' },  // morado
-]
+type Metrica = 'ventas' | 'pedidos' | 'ticket'
 
 function labelFecha(fecha: string) {
   const d = new Date(fecha + 'T12:00:00Z')
   return d.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })
 }
 
-function formatCOPShort(v: number) {
-  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`
-  if (v >= 1_000) return `$${(v / 1_000).toFixed(0)}K`
-  return `$${v}`
+function formatCOP(v: number) {
+  return `$ ${Math.round(v).toLocaleString('es-CO')}`
+}
+function formatValor(metrica: Metrica, v: number) {
+  return metrica === 'pedidos' ? String(Math.round(v)) : formatCOP(v)
 }
 
-// Barras AGRUPADAS por día: una barra por sede (lado a lado), cada una con
-// su color; el tooltip muestra el desglose y el total del día.
-export function PedidosAreaChart({ datos, totalPedidos, totalVentas, desde, hasta }: Props) {
-  // Llenar días faltantes con 0 y aplanar los conteos por sede
+// Estilo "información general": tarjetas de métricas arriba (con el cambio %
+// frente a los 30 días anteriores) y la gráfica de línea de la métrica elegida,
+// con el período anterior punteado para comparar.
+export function PedidosAreaChart({ datos, datosPrevios = [], totalPedidos, totalVentas, desde, hasta }: Props) {
+  const [metrica, setMetrica] = useState<Metrica>('ventas')
+
+  // ── Serie diaria del período actual (rellenando días sin ventas) ────────────
   const mapaFechas = new Map(datos.map(d => [d.fecha, d]))
-  const dias: Array<{ fecha: string; label: string; TR: number; SR: number; CR: number; total: number }> = []
+  const dias: Array<{ fecha: string; label: string; pedidos: number; ventas: number }> = []
   const inicio = new Date(desde + 'T12:00:00Z')
   const fin = new Date(hasta + 'T12:00:00Z')
   for (const d = new Date(inicio); d <= fin; d.setDate(d.getDate() + 1)) {
     const f = d.toISOString().slice(0, 10)
-    const dia = mapaFechas.get(f)
-    dias.push({
-      fecha: f,
-      label: '',
-      TR: dia?.por_sede?.TR ?? 0,
-      SR: dia?.por_sede?.SR ?? 0,
-      CR: dia?.por_sede?.CR ?? 0,
-      total: dia?.pedidos ?? 0,
-    })
+    const x = mapaFechas.get(f)
+    dias.push({ fecha: f, label: '', pedidos: x?.pedidos ?? 0, ventas: x?.ventas ?? 0 })
   }
-  // Mostrar cada 5 días en el eje X
-  dias.forEach((d, i) => {
-    d.label = i % 5 === 0 || i === dias.length - 1 ? labelFecha(d.fecha) : ''
-  })
+  dias.forEach((d, i) => { d.label = i % 5 === 0 || i === dias.length - 1 ? labelFecha(d.fecha) : '' })
+
+  // ── Serie del período anterior, alineada por posición (día 1 con día 1…) ────
+  const prevOrdenado = [...datosPrevios].sort((a, b) => a.fecha.localeCompare(b.fecha))
+  const prevMapa = new Map(prevOrdenado.map(d => [d.fecha, d]))
+  const prevSerie: Array<{ pedidos: number; ventas: number; fecha: string }> = []
+  if (datosPrevios.length > 0) {
+    const pIni = new Date(desde + 'T12:00:00Z'); pIni.setDate(pIni.getDate() - dias.length)
+    for (let i = 0; i < dias.length; i++) {
+      const d = new Date(pIni); d.setDate(d.getDate() + i)
+      const f = d.toISOString().slice(0, 10)
+      const x = prevMapa.get(f)
+      prevSerie.push({ fecha: f, pedidos: x?.pedidos ?? 0, ventas: x?.ventas ?? 0 })
+    }
+  }
+
+  const valorDia = (d: { pedidos: number; ventas: number }): number =>
+    metrica === 'ventas' ? d.ventas
+    : metrica === 'pedidos' ? d.pedidos
+    : (d.pedidos > 0 ? Math.round(d.ventas / d.pedidos) : 0)
+
+  const serie = dias.map((d, i) => ({
+    ...d,
+    valor: valorDia(d),
+    previo: prevSerie[i] ? valorDia(prevSerie[i]) : null,
+    fechaPrevia: prevSerie[i]?.fecha ?? null,
+  }))
+
+  // ── Totales y cambio % frente al período anterior ───────────────────────────
+  const ticketActual = totalPedidos > 0 ? Math.round(totalVentas / totalPedidos) : 0
+  const prevVentas  = prevSerie.reduce((s, d) => s + d.ventas, 0)
+  const prevPedidos = prevSerie.reduce((s, d) => s + d.pedidos, 0)
+  const prevTicket  = prevPedidos > 0 ? Math.round(prevVentas / prevPedidos) : 0
+
+  const cambio = (actual: number, previo: number): number | null =>
+    datosPrevios.length === 0 || previo === 0 ? null : ((actual - previo) / previo) * 100
+
+  const TARJETAS: Array<{ id: Metrica; titulo: string; valor: string; cambio: number | null }> = [
+    { id: 'ventas',  titulo: 'Total ventas',    valor: formatCOP(totalVentas),  cambio: cambio(totalVentas, prevVentas) },
+    { id: 'pedidos', titulo: 'Pedidos',         valor: String(totalPedidos),    cambio: cambio(totalPedidos, prevPedidos) },
+    { id: 'ticket',  titulo: 'Ticket promedio', valor: formatCOP(ticketActual), cambio: cambio(ticketActual, prevTicket) },
+  ]
+
+  const ejeY = (v: number) =>
+    metrica === 'pedidos' ? String(v)
+    : v >= 1_000_000 ? `$${(v / 1_000_000).toFixed(1).replace('.0', '')}M`
+    : v >= 1_000 ? `$${Math.round(v / 1_000)}K`
+    : `$${v}`
 
   return (
     <div className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100">
-      <div className="flex items-start justify-between gap-3 flex-wrap mb-4">
-        <div>
-          <h2 className="text-sm font-bold text-gray-900">Pedidos por día y sede — últimos 30 días</h2>
-          <p className="text-xs text-gray-400 mt-0.5">{labelFecha(desde)} → {labelFecha(hasta)}</p>
-          <div className="flex items-center gap-3 mt-1.5">
-            {SEDES.map(s => (
-              <span key={s.codigo} className="flex items-center gap-1 text-xs text-gray-500">
-                <span className="w-2.5 h-2.5 rounded-sm" style={{ background: s.color }} />
-                {s.nombre}
-              </span>
-            ))}
-          </div>
-        </div>
-        <div className="text-right">
-          <p className="text-2xl font-bold text-gray-900">{totalPedidos}</p>
-          <p className="text-xs text-gray-400">{formatCOPShort(totalVentas)} en ventas</p>
-        </div>
+      <h2 className="text-sm font-bold text-gray-900 mb-3">Información general — últimos 30 días</h2>
+
+      {/* Tarjetas de métricas: la elegida se resalta y manda la gráfica */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">
+        {TARJETAS.map(t => {
+          const activa = metrica === t.id
+          return (
+            <button
+              key={t.id}
+              onClick={() => setMetrica(t.id)}
+              className={`text-left rounded-xl border px-3.5 py-2.5 transition-all ${
+                activa ? 'bg-blue-600 border-blue-600 shadow-md shadow-blue-200' : 'bg-white border-gray-200 hover:border-blue-300'
+              }`}
+            >
+              <p className={`text-xs font-medium ${activa ? 'text-blue-100' : 'text-gray-500'}`}>{t.titulo}</p>
+              <p className={`text-base font-bold flex items-center gap-1.5 flex-wrap ${activa ? 'text-white' : 'text-gray-900'}`}>
+                {t.valor}
+                {t.cambio !== null && (
+                  <span className={`text-xs font-semibold ${
+                    activa ? (t.cambio >= 0 ? 'text-green-200' : 'text-red-200')
+                    : (t.cambio >= 0 ? 'text-green-600' : 'text-red-500')
+                  }`}>
+                    {t.cambio >= 0 ? '↗' : '↘'} {Math.abs(t.cambio).toFixed(1)}%
+                  </span>
+                )}
+              </p>
+            </button>
+          )
+        })}
       </div>
 
-      <ResponsiveContainer width="100%" height={170}>
-        <BarChart data={dias} margin={{ top: 4, right: 4, left: -20, bottom: 0 }} barCategoryGap="25%" barGap={1}>
+      <ResponsiveContainer width="100%" height={200}>
+        <ComposedChart data={serie} margin={{ top: 4, right: 4, left: -10, bottom: 0 }}>
+          <defs>
+            <linearGradient id="gradMetrica" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%"  stopColor="#3b82f6" stopOpacity={0.18} />
+              <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+            </linearGradient>
+          </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-          <XAxis
-            dataKey="label"
-            tick={{ fontSize: 10, fill: '#94a3b8' }}
-            axisLine={false}
-            tickLine={false}
-            interval={0}
-          />
-          <YAxis
-            tick={{ fontSize: 10, fill: '#94a3b8' }}
-            axisLine={false}
-            tickLine={false}
-            allowDecimals={false}
-          />
+          <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} interval={0} />
+          <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} tickFormatter={ejeY} width={54} />
           <Tooltip
-            contentStyle={{
-              background: '#1e293b',
-              border: 'none',
-              borderRadius: '12px',
-              color: '#f8fafc',
-              fontSize: 12,
-              padding: '8px 12px',
+            contentStyle={{ background: '#1e293b', border: 'none', borderRadius: '12px', color: '#f8fafc', fontSize: 12, padding: '8px 12px' }}
+            formatter={(v, name, item) => {
+              const p: any = item?.payload
+              if (name === 'previo') {
+                return [formatValor(metrica, Number(v) || 0), `Período anterior${p?.fechaPrevia ? ` (${labelFecha(p.fechaPrevia)})` : ''}`]
+              }
+              return [formatValor(metrica, Number(v) || 0), TARJETAS.find(t => t.id === metrica)?.titulo ?? '']
             }}
-            formatter={(v, name) => [
-              `${Number(v) || 0} pedido${Number(v) === 1 ? '' : 's'}`,
-              SEDES.find(s => s.codigo === String(name))?.nombre ?? String(name),
-            ]}
             labelFormatter={(_, payload) => {
               const p = payload?.[0]?.payload
-              return p ? `${labelFecha(p.fecha)} — ${p.total} en total` : ''
+              return p ? labelFecha(p.fecha) : ''
             }}
-            cursor={{ fill: '#f1f5f9', opacity: 0.6 }}
+            cursor={{ stroke: '#3b82f6', strokeWidth: 1, strokeDasharray: '4 2' }}
           />
-          {/* Agrupadas: una barra por sede, lado a lado en cada día */}
-          <Bar dataKey="TR" fill="#3b82f6" maxBarSize={8} radius={[2, 2, 0, 0]} />
-          <Bar dataKey="SR" fill="#10b981" maxBarSize={8} radius={[2, 2, 0, 0]} />
-          <Bar dataKey="CR" fill="#8b5cf6" maxBarSize={8} radius={[2, 2, 0, 0]} />
-        </BarChart>
+          {/* Período anterior punteado, para comparar */}
+          {prevSerie.length > 0 && (
+            <Line type="monotone" dataKey="previo" stroke="#93c5fd" strokeWidth={1.5} strokeDasharray="5 4" dot={false} activeDot={{ r: 3, fill: '#93c5fd' }} />
+          )}
+          {/* Métrica elegida */}
+          <Area type="monotone" dataKey="valor" stroke="#3b82f6" strokeWidth={2.5} fill="url(#gradMetrica)" dot={false} activeDot={{ r: 4, fill: '#3b82f6', stroke: '#fff', strokeWidth: 2 }} />
+        </ComposedChart>
       </ResponsiveContainer>
 
-      <Link
-        href="/estadisticas"
-        className="mt-2 inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-semibold"
-      >
-        Ver estadísticas completas <ArrowUpRight size={11} />
-      </Link>
+      <div className="flex items-center justify-between gap-2 flex-wrap mt-2">
+        <div className="flex items-center gap-3 text-xs text-gray-400">
+          <span className="flex items-center gap-1.5"><span className="w-4 h-0.5 rounded bg-blue-500 inline-block" /> {labelFecha(desde)} → {labelFecha(hasta)}</span>
+          {prevSerie.length > 0 && (
+            <span className="flex items-center gap-1.5">
+              <span className="w-4 border-t-2 border-dashed border-blue-300 inline-block" /> 30 días anteriores
+            </span>
+          )}
+        </div>
+        <Link href="/estadisticas" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-semibold">
+          Ver estadísticas completas <ArrowUpRight size={11} />
+        </Link>
+      </div>
     </div>
   )
 }

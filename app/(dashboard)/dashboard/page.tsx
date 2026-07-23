@@ -143,13 +143,16 @@ export default async function DashboardPage() {
   const { data: cierreHoy } = await cierreQuery.maybeSingle()
 
   if (esAdmin) {
-    const [m, sedes, asesores, stats, deudaSedes] = await Promise.all([
+    const [m, sedes, asesores, stats, stats60, deudaSedes] = await Promise.all([
       getMetricasAdmin(),
       getMetricasPorSede(),
       getMetricasPorAsesor(),
       getEstadisticas(30),
+      getEstadisticas(60),   // para comparar contra los 30 días anteriores
       getDeudaPorSede(),
     ])
+    // Días del período ANTERIOR (los 30 previos al rango actual)
+    const diasPrevios = stats60.por_dia.filter(d => d.fecha < stats.desde)
     const deudaPorCodigo = new Map(deudaSedes.map(d => [d.codigo, d.saldo]))
     const deudaTotal = deudaSedes.reduce((s, d) => s + d.saldo, 0)
 
@@ -210,6 +213,7 @@ export default async function DashboardPage() {
             <div className="lg:col-span-2">
               <PedidosAreaChart
                 datos={stats.por_dia}
+                datosPrevios={diasPrevios}
                 totalPedidos={stats.total_pedidos}
                 totalVentas={stats.total_ventas}
                 desde={stats.desde}
@@ -343,12 +347,14 @@ export default async function DashboardPage() {
   }
 
   // ── Vista Asesor ─────────────────────────────────────────────────────────────
-  const [m, ultimosPedidos, stats, ventasMensuales] = await Promise.all([
+  const [m, ultimosPedidos, stats, stats60, ventasMensuales] = await Promise.all([
     getMetricasAsesor(usuario.id),
     getUltimosPedidosAsesor(usuario.id),
     getEstadisticas(30),
+    getEstadisticas(60),
     getVentasMensualesAsesor(usuario.id),
   ])
+  const diasPrevios = stats60.por_dia.filter(d => d.fecha < stats.desde)
 
   return (
     <div className="p-5 md:p-6 space-y-5 max-w-2xl">
@@ -396,6 +402,7 @@ export default async function DashboardPage() {
       {/* Gráfica */}
       <PedidosAreaChart
         datos={stats.por_dia}
+        datosPrevios={diasPrevios}
         totalPedidos={stats.total_pedidos}
         totalVentas={stats.total_ventas}
         desde={stats.desde}
