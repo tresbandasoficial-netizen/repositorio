@@ -247,30 +247,30 @@ export default async function CuadrePage({
                 </div>
               </div>
 
-              {/* Resumen de la sede */}
-              <div className="grid grid-cols-2 gap-px bg-gray-100">
-                <div className="bg-white px-5 py-3">
-                  <p className="text-[11px] text-gray-500 uppercase">Recaudado en caja</p>
-                  <p className="text-sm font-bold text-green-600">{formatCOP(s.recaudadoCaja)}</p>
+              {/* Resumen de la sede: celdas de color */}
+              <div className="grid grid-cols-2 gap-2 p-3">
+                <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2">
+                  <p className="text-[11px] text-green-700 uppercase font-semibold">Recaudado en caja</p>
+                  <p className="text-sm font-bold text-green-700">{formatCOP(s.recaudadoCaja)}</p>
                 </div>
-                <div className="bg-white px-5 py-3">
-                  <p className="text-[11px] text-gray-500 uppercase">Por cobrar mensajería</p>
-                  <p className="text-sm font-bold text-amber-600">{formatCOP(s.porCobrarMensajeria)}</p>
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                  <p className="text-[11px] text-amber-700 uppercase font-semibold">Por cobrar mensajería</p>
+                  <p className="text-sm font-bold text-amber-700">{formatCOP(s.porCobrarMensajeria)}</p>
                 </div>
-                <div className="bg-white px-5 py-3">
-                  <p className="text-[11px] text-gray-500 uppercase">A crédito</p>
+                <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                  <p className="text-[11px] text-gray-500 uppercase font-semibold">A crédito</p>
                   <p className="text-sm font-bold text-gray-700">{formatCOP(s.credito)}</p>
                 </div>
                 {esAdmin && (
-                  <div className="bg-white px-5 py-3">
-                    <p className="text-[11px] text-gray-500 uppercase">Gastos</p>
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2">
+                    <p className="text-[11px] text-red-700 uppercase font-semibold">Gastos</p>
                     <p className="text-sm font-bold text-red-600">{formatCOP(s.gastos)}</p>
                   </div>
                 )}
                 {esAdmin && (
-                  <div className="bg-white px-5 py-3 col-span-2 border-t border-gray-100">
-                    <p className="text-[11px] text-gray-500 uppercase">Neto en caja (recaudado − gastos)</p>
-                    <p className={`text-sm font-bold ${s.netoCaja >= 0 ? 'text-blue-600' : 'text-red-600'}`}>{formatCOP(s.netoCaja)}</p>
+                  <div className={`rounded-lg px-3 py-2 col-span-2 ${s.netoCaja >= 0 ? 'bg-blue-600' : 'bg-red-600'}`}>
+                    <p className="text-[11px] text-white/80 uppercase font-semibold">Neto en caja (recaudado − gastos)</p>
+                    <p className="text-base font-bold text-white">{formatCOP(s.netoCaja)}</p>
                   </div>
                 )}
               </div>

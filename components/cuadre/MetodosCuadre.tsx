@@ -39,79 +39,77 @@ export function MetodosCuadre({ metodos }: { metodos: CuadreMetodo[] }) {
   }
 
   return (
-    <table className="w-full text-sm">
-      <thead>
-        <tr className="border-y border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase">
-          <th className="text-left px-5 py-2">Método</th>
-          <th className="text-right px-5 py-2">Recaudado</th>
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-gray-50">
-        {metodos.map(m => {
+    <div className="px-3 pb-3">
+      <p className="text-[11px] text-gray-400 uppercase font-semibold px-2 py-2">Recaudo por método</p>
+      <div className="space-y-1.5">
+        {metodos.map((m, idx) => {
           const tieneDetalle = m.detalle.length > 0
           const expandido = abierto === m.metodo
           const confirmable = requiereConfirmacion(m.metodo)
           const conf = m.detalle.filter(d => confirmados.has(d.id)).length
           const todos = tieneDetalle && conf === m.detalle.length
           return (
-            <Fragment key={m.metodo}>
-              <tr
-                className={`${m.monto === 0 ? 'text-gray-400' : ''} ${tieneDetalle ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+            <div key={m.metodo} className={`rounded-lg border overflow-hidden ${m.monto > 0 ? 'border-gray-200 bg-white' : 'border-gray-100 bg-gray-50/60'}`}>
+              <div
+                className={`px-3 py-2 flex items-center justify-between gap-2 text-sm ${m.monto === 0 ? 'text-gray-400' : ''} ${tieneDetalle ? 'cursor-pointer hover:bg-gray-50' : ''}`}
                 onClick={tieneDetalle ? () => setAbierto(expandido ? null : m.metodo) : undefined}
               >
-                <td className="px-5 py-2">
-                  {tieneDetalle && <span className="text-gray-400 mr-1 inline-block w-3">{expandido ? '▾' : '▸'}</span>}
-                  {m.label}
-                  {m.tipo === 'mensajeria' && <span className="ml-1.5 text-[10px] text-amber-600">por cobrar</span>}
-                  {m.tipo === 'credito' && <span className="ml-1.5 text-[10px] text-gray-400">a crédito</span>}
-                  {!m.esperado && m.monto > 0 && <span className="ml-1.5 text-[10px] text-purple-500">no esperado</span>}
+                <span className="flex items-center gap-2 min-w-0 flex-wrap">
+                  <span className={`w-5 h-5 rounded-md text-[11px] font-bold flex items-center justify-center shrink-0 ${m.monto > 0 ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-500'}`}>{idx + 1}</span>
+                  <span className={m.monto > 0 ? 'font-medium text-gray-800' : ''}>{m.label}</span>
+                  {tieneDetalle && <span className="text-gray-400 text-xs">{expandido ? '▾' : '▸'}</span>}
+                  {m.tipo === 'mensajeria' && <span className="text-[10px] text-amber-600">por cobrar</span>}
+                  {m.tipo === 'credito' && <span className="text-[10px] text-gray-400">a crédito</span>}
+                  {!m.esperado && m.monto > 0 && <span className="text-[10px] text-purple-500">no esperado</span>}
                   {tieneDetalle && confirmable && (
-                    <span className={`ml-1.5 text-[10px] font-medium ${todos ? 'text-green-600' : 'text-gray-400'}`}>
+                    <span className={`text-[10px] font-medium ${todos ? 'text-green-600' : 'text-gray-400'}`}>
                       {todos ? '✓ confirmado' : `${conf}/${m.detalle.length} confirmados`}
                     </span>
                   )}
-                </td>
-                <td className="px-5 py-2 text-right font-medium text-gray-900">{m.monto ? formatCOP(m.monto) : '—'}</td>
-              </tr>
-              {expandido && m.detalle.map((d, i) => {
-                const ok = confirmable && confirmados.has(d.id)
-                return (
-                  <tr key={m.metodo + '-' + i} className={`text-xs ${ok ? 'bg-green-50' : 'bg-gray-50/60'}`}>
-                    <td className="px-5 py-1.5 pl-10">
-                      <span className="flex items-center gap-2">
-                        {confirmable && (
-                          <input
-                            type="checkbox"
-                            checked={ok}
-                            onChange={() => toggle(d.id, d.origen)}
-                            className="w-4 h-4 accent-green-600 cursor-pointer"
-                            title="Confirmar que el dinero entró"
-                          />
-                        )}
-                        {d.origen === 'cartera' ? (
-                          <Link
-                            href={`/facturacion/n/${encodeURIComponent(d.referencia)}`}
-                            className={`font-mono hover:underline ${ok ? 'text-green-700 font-medium' : 'text-blue-600'}`}
-                          >
-                            {d.referencia}
-                          </Link>
-                        ) : (
-                          <span className={`font-mono ${ok ? 'text-green-700 font-medium' : 'text-gray-600'}`}>{d.referencia}</span>
-                        )}
-                        <span className="text-gray-400">{ORIGEN_LABEL[d.origen] ?? d.origen}</span>
-                      </span>
-                    </td>
-                    <td className={`px-5 py-1.5 text-right ${ok ? 'text-green-700 font-medium' : 'text-gray-700'}`}>{formatCOP(d.monto)}</td>
-                  </tr>
-                )
-              })}
-            </Fragment>
+                </span>
+                <span className={`font-bold shrink-0 ${m.monto ? 'text-gray-900' : 'text-gray-300'}`}>{m.monto ? formatCOP(m.monto) : '—'}</span>
+              </div>
+              {expandido && (
+                <div className="border-t border-gray-100 divide-y divide-gray-50">
+                  {m.detalle.map((d, i) => {
+                    const ok = confirmable && confirmados.has(d.id)
+                    return (
+                      <div key={m.metodo + '-' + i} className={`px-3 py-1.5 pl-9 flex items-center justify-between text-xs ${ok ? 'bg-green-50' : 'bg-gray-50/60'}`}>
+                        <span className="flex items-center gap-2">
+                          {confirmable && (
+                            <input
+                              type="checkbox"
+                              checked={ok}
+                              onChange={() => toggle(d.id, d.origen)}
+                              className="w-4 h-4 accent-green-600 cursor-pointer"
+                              title="Confirmar que el dinero entró"
+                            />
+                          )}
+                          {d.origen === 'cartera' ? (
+                            <Link
+                              href={`/facturacion/n/${encodeURIComponent(d.referencia)}`}
+                              className={`font-mono hover:underline ${ok ? 'text-green-700 font-medium' : 'text-blue-600'}`}
+                            >
+                              {d.referencia}
+                            </Link>
+                          ) : (
+                            <span className={`font-mono ${ok ? 'text-green-700 font-medium' : 'text-gray-600'}`}>{d.referencia}</span>
+                          )}
+                          <span className="text-gray-400">{ORIGEN_LABEL[d.origen] ?? d.origen}</span>
+                        </span>
+                        <span className={ok ? 'text-green-700 font-medium' : 'text-gray-700'}>{formatCOP(d.monto)}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           )
         })}
         {metodos.length === 0 && (
-          <tr><td colSpan={2} className="px-5 py-3 text-gray-400 text-center">Sin recaudo</td></tr>
+          <p className="px-3 py-3 text-sm text-gray-400 text-center">Sin recaudo</p>
         )}
-      </tbody>
-    </table>
+      </div>
+    </div>
   )
 }
