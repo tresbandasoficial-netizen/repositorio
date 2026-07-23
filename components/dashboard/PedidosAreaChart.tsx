@@ -45,8 +45,8 @@ function formatCOPShort(v: number) {
   return `$${v}`
 }
 
-// Barras APILADAS por día: cada sede con su color; la altura total es el
-// total de pedidos del día.
+// Barras AGRUPADAS por día: una barra por sede (lado a lado), cada una con
+// su color; el tooltip muestra el desglose y el total del día.
 export function PedidosAreaChart({ datos, totalPedidos, totalVentas, desde, hasta }: Props) {
   // Llenar días faltantes con 0 y aplanar los conteos por sede
   const mapaFechas = new Map(datos.map(d => [d.fecha, d]))
@@ -92,7 +92,7 @@ export function PedidosAreaChart({ datos, totalPedidos, totalVentas, desde, hast
       </div>
 
       <ResponsiveContainer width="100%" height={170}>
-        <BarChart data={dias} margin={{ top: 4, right: 4, left: -20, bottom: 0 }} barCategoryGap="22%">
+        <BarChart data={dias} margin={{ top: 4, right: 4, left: -20, bottom: 0 }} barCategoryGap="25%" barGap={1}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
           <XAxis
             dataKey="label"
@@ -126,10 +126,10 @@ export function PedidosAreaChart({ datos, totalPedidos, totalVentas, desde, hast
             }}
             cursor={{ fill: '#f1f5f9', opacity: 0.6 }}
           />
-          {/* Apiladas: Bucaramanga abajo, Santa Rosa en medio, Cúcuta arriba */}
-          <Bar dataKey="TR" stackId="dia" fill="#3b82f6" maxBarSize={16} />
-          <Bar dataKey="SR" stackId="dia" fill="#10b981" maxBarSize={16} />
-          <Bar dataKey="CR" stackId="dia" fill="#8b5cf6" maxBarSize={16} radius={[2, 2, 0, 0]} />
+          {/* Agrupadas: una barra por sede, lado a lado en cada día */}
+          <Bar dataKey="TR" fill="#3b82f6" maxBarSize={8} radius={[2, 2, 0, 0]} />
+          <Bar dataKey="SR" fill="#10b981" maxBarSize={8} radius={[2, 2, 0, 0]} />
+          <Bar dataKey="CR" fill="#8b5cf6" maxBarSize={8} radius={[2, 2, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
 
