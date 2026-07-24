@@ -379,7 +379,7 @@ export function GaleriaPedidos({
         </div>
 
         {/* Visor lateral (pantallas grandes): la foto EN GRANDE a un lado */}
-        <aside className="hidden lg:block w-[360px] xl:w-[420px] shrink-0 sticky top-20">
+        <aside className="hidden lg:block w-[420px] xl:w-[500px] shrink-0 sticky top-20">
           {Visor ?? (
             <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center text-sm text-gray-400">
               Toca un artículo para ver su foto en grande
