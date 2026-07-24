@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Trophy, ChevronDown, ChevronUp, ArrowUpRight, Gift } from 'lucide-react'
-import type { AvanceReto, Reto } from '@/lib/queries/retos'
-import { RankingReto, etiquetaMeta } from './RetoUI'
+import type { AvanceGrupo, AvanceReto, Reto } from '@/lib/queries/retos'
+import { BarraGrupo, RankingReto, etiquetaMeta } from './RetoUI'
 
 // Cada cuánto se vuelve a leer el avance desde el servidor.
 const REFRESCO_MS = 30_000
@@ -16,10 +16,12 @@ const REFRESCO_MS = 30_000
 export function AvisoReto({
   reto,
   avances,
+  grupo,
   usuarioId,
 }: {
   reto: Reto
   avances: AvanceReto[]
+  grupo: AvanceGrupo | null
   usuarioId: string
 }) {
   const router = useRouter()
@@ -39,8 +41,13 @@ export function AvisoReto({
     }
   }, [router])
 
+  const grupal = reto.modo === 'grupal'
   const yo = avances.find(a => a.usuario_id === usuarioId)
-  const ganador = avances.find(a => a.completado_en !== null)
+  const ganador = grupal ? undefined : avances.find(a => a.completado_en !== null)
+  // En la burbuja minimizada: el % del grupo si es grupal, el mío si es individual
+  const pctBurbuja = grupal
+    ? (grupo ? Math.min(100, Math.round((grupo.valor / reto.objetivo) * 100)) : null)
+    : (yo ? Math.min(100, Math.round((yo.valor / reto.objetivo) * 100)) : null)
 
   if (!abierto) {
     return (
@@ -50,7 +57,7 @@ export function AvisoReto({
       >
         <Trophy size={16} />
         Reto
-        {yo && <span className="text-violet-200">· {Math.min(100, Math.round((yo.valor / reto.objetivo) * 100))}%</span>}
+        {pctBurbuja !== null && <span className="text-violet-200">· {pctBurbuja}%</span>}
         <ChevronUp size={14} />
       </button>
     )
@@ -97,7 +104,8 @@ export function AvisoReto({
             )}
             <div className="min-w-0 flex-1">
               <p className="text-xs font-bold text-gray-900">
-                Meta: {etiquetaMeta(reto.metrica, reto.categoria, reto.objetivo)}
+                Meta {grupal ? 'entre todos' : 'de cada uno'}:{' '}
+                {etiquetaMeta(reto.metrica, reto.categoria, reto.objetivo)}
               </p>
               {reto.descripcion && (
                 <p className="text-xs text-gray-500 mt-0.5 whitespace-pre-wrap">{reto.descripcion}</p>
@@ -111,11 +119,22 @@ export function AvisoReto({
             </div>
           </div>
 
+          {grupal && grupo && (
+            <BarraGrupo
+              grupo={grupo}
+              objetivo={reto.objetivo}
+              metrica={reto.metrica}
+              categoria={reto.categoria}
+            />
+          )}
+
           {ganador && (
             <p className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-2.5 py-1.5">
               🏆 {ganador.nombre} fue el primero en completarlo
             </p>
           )}
+
+          {grupal && <p className="text-[11px] font-semibold text-gray-500">Lo que puso cada uno</p>}
 
           <RankingReto
             avances={avances}
@@ -123,6 +142,7 @@ export function AvisoReto({
             metrica={reto.metrica}
             categoria={reto.categoria}
             usuarioId={usuarioId}
+            modo={reto.modo}
             compacto
           />
 

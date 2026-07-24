@@ -36,7 +36,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <DashboardShell usuario={usuario}>
       {children}
       <AvisoTareas tareas={tareasPendientes ?? []} />
-      {reto && <AvisoReto reto={reto.reto} avances={reto.avances} usuarioId={usuario.id} />}
+      {reto && (
+        <AvisoReto reto={reto.reto} avances={reto.avances} grupo={reto.grupo} usuarioId={usuario.id} />
+      )}
     </DashboardShell>
   )
 }

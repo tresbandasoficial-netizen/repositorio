@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getSesion } from '@/lib/auth/acceso'
-import type { CategoriaReto, MetricaReto } from '@/lib/queries/retos'
+import type { CategoriaReto, MetricaReto, ModoReto } from '@/lib/queries/retos'
 
 export type RetoResult = { ok: true } | { ok: false; error: string }
 
@@ -12,6 +12,7 @@ export type NuevoReto = {
   descripcion: string
   metrica: MetricaReto
   categoria: CategoriaReto | null
+  modo: ModoReto
   objetivo: number
   sedes: string[]
   premio: string
@@ -41,6 +42,7 @@ export async function crearRetoAction(data: NuevoReto): Promise<RetoResult> {
     descripcion: data.descripcion.trim() || null,
     metrica: data.metrica,
     categoria,
+    modo: data.modo,
     objetivo: data.objetivo,
     sedes: data.sedes,
     premio: data.premio.trim() || null,

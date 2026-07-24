@@ -3,6 +3,9 @@ import { hoyBogota } from '@/lib/utils/format'
 
 export type MetricaReto = 'ventas' | 'pedidos' | 'unidades'
 export type CategoriaReto = 'ropa' | 'tenis' | 'accesorios'
+// 'individual': cada uno debe llegar a la meta. 'grupal': la meta es una sola
+// y la suman todos entre sí.
+export type ModoReto = 'individual' | 'grupal'
 
 export type Reto = {
   id: string
@@ -10,6 +13,7 @@ export type Reto = {
   descripcion: string | null
   metrica: MetricaReto
   categoria: CategoriaReto | null
+  modo: ModoReto
   objetivo: number
   sedes: string[]
   premio: string | null
@@ -28,10 +32,13 @@ export type AvanceReto = {
   completado_en: string | null
 }
 
-export type RetoConAvance = { reto: Reto; avances: AvanceReto[] }
+// Total del equipo en un reto grupal (null en los individuales)
+export type AvanceGrupo = { valor: number; completado_en: string | null }
+
+export type RetoConAvance = { reto: Reto; avances: AvanceReto[]; grupo: AvanceGrupo | null }
 
 const CAMPOS =
-  'id, titulo, descripcion, metrica, categoria, objetivo, sedes, premio, imagen_url, desde, hasta, activo, creado_en'
+  'id, titulo, descripcion, metrica, categoria, modo, objetivo, sedes, premio, imagen_url, desde, hasta, activo, creado_en'
 
 // Orden del ranking: primero quienes completaron (por hora, el más temprano
 // gana), después el resto por lo que llevan.
@@ -51,6 +58,23 @@ export async function getAvanceReto(retoId: string): Promise<AvanceReto[]> {
   return ordenarAvances(filas.map(f => ({ ...f, valor: Number(f.valor) })))
 }
 
+// Total del equipo, solo para retos grupales.
+export async function getAvanceGrupo(retoId: string): Promise<AvanceGrupo | null> {
+  const supabase = await createClient()
+  const { data } = await supabase.rpc('reto_avance_grupo', { p_reto_id: retoId })
+  const fila = (data ?? [])[0] as { valor: number | string; completado_en: string | null } | undefined
+  if (!fila) return null
+  return { valor: Number(fila.valor), completado_en: fila.completado_en }
+}
+
+async function conAvance(reto: Reto): Promise<RetoConAvance> {
+  const [avances, grupo] = await Promise.all([
+    getAvanceReto(reto.id),
+    reto.modo === 'grupal' ? getAvanceGrupo(reto.id) : Promise.resolve(null),
+  ])
+  return { reto, avances, grupo }
+}
+
 // El reto vigente HOY que le corresponde a quien está conectado. El RLS ya
 // filtra por sede: a Cúcuta no le llega un reto de Bucaramanga/Santa Rosa.
 export async function getRetoVigente(): Promise<RetoConAvance | null> {
@@ -68,7 +92,7 @@ export async function getRetoVigente(): Promise<RetoConAvance | null> {
     .maybeSingle()
 
   if (!reto) return null
-  return { reto: reto as Reto, avances: await getAvanceReto(reto.id) }
+  return conAvance(reto as Reto)
 }
 
 // Todos los retos visibles (para la página /retos), con el avance de cada uno.
@@ -82,5 +106,5 @@ export async function getRetos(): Promise<RetoConAvance[]> {
     .limit(30)
 
   const retos = (data ?? []) as Reto[]
-  return Promise.all(retos.map(async reto => ({ reto, avances: await getAvanceReto(reto.id) })))
+  return Promise.all(retos.map(conAvance))
 }

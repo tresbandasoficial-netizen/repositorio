@@ -6,7 +6,7 @@ import { Trophy, Upload, X } from 'lucide-react'
 import { crearRetoAction } from '@/app/actions/retos'
 import { uploadPedidoImage } from '@/lib/utils/uploadPedidoImage'
 import { hoyBogota, formatMiles } from '@/lib/utils/format'
-import type { CategoriaReto, MetricaReto } from '@/lib/queries/retos'
+import type { CategoriaReto, MetricaReto, ModoReto } from '@/lib/queries/retos'
 
 const SEDES = [
   { codigo: 'TR', nombre: 'Bucaramanga' },
@@ -35,6 +35,7 @@ export function CrearRetoForm() {
 
   const [titulo, setTitulo] = useState('Reto de hoy')
   const [descripcion, setDescripcion] = useState('')
+  const [modo, setModo] = useState<ModoReto>('individual')
   const [metrica, setMetrica] = useState<MetricaReto>('unidades')
   const [categoria, setCategoria] = useState<CategoriaReto | ''>('tenis')
   const [objetivo, setObjetivo] = useState('')
@@ -72,6 +73,7 @@ export function CrearRetoForm() {
         descripcion,
         metrica,
         categoria: metrica === 'unidades' && categoria !== '' ? categoria : null,
+        modo,
         objetivo: objetivoNum,
         sedes,
         premio,
@@ -112,6 +114,29 @@ export function CrearRetoForm() {
           />
         </div>
 
+        {/* Individual vs grupal: cambia el significado de la meta */}
+        <div className="sm:col-span-2">
+          <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">¿Cómo se gana?</label>
+          <div className="flex gap-2">
+            {([
+              { valor: 'individual' as ModoReto, label: 'Cada uno por su cuenta', ayuda: 'Todos deben llegar a la meta; gana el primero' },
+              { valor: 'grupal' as ModoReto,     label: 'Todos juntos',            ayuda: 'Una sola meta y la suman entre todos' },
+            ]).map(m => (
+              <button
+                key={m.valor} type="button" onClick={() => setModo(m.valor)}
+                className={`flex-1 text-left rounded-lg border px-3 py-2 transition-colors ${
+                  modo === m.valor
+                    ? 'bg-violet-600 border-violet-600 text-white'
+                    : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <span className="block text-sm font-bold">{m.label}</span>
+                <span className={`block text-[11px] ${modo === m.valor ? 'text-violet-200' : 'text-gray-400'}`}>{m.ayuda}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div>
           <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">¿Qué se cuenta?</label>
           <select
@@ -139,7 +164,7 @@ export function CrearRetoForm() {
 
         <div>
           <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
-            Meta de cada persona
+            {modo === 'grupal' ? 'Meta del grupo' : 'Meta de cada persona'}
           </label>
           <input
             type="text" inputMode="numeric"
@@ -148,7 +173,11 @@ export function CrearRetoForm() {
             placeholder={metrica === 'ventas' ? '5.000.000' : '10'}
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
           />
-          <p className="text-xs text-gray-400 mt-1">Cada participante debe llegar a este número</p>
+          <p className="text-xs text-gray-400 mt-1">
+            {modo === 'grupal'
+              ? 'Se suma lo de todos hasta llegar a este número'
+              : 'Cada participante debe llegar a este número'}
+          </p>
         </div>
 
         <div>

@@ -4,7 +4,7 @@ import { getRetos } from '@/lib/queries/retos'
 import { hoyBogota, formatFecha } from '@/lib/utils/format'
 import { CrearRetoForm } from '@/components/retos/CrearRetoForm'
 import { RetoAcciones } from '@/components/retos/RetoAcciones'
-import { RankingReto, etiquetaMeta } from '@/components/retos/RetoUI'
+import { BarraGrupo, RankingReto, etiquetaMeta } from '@/components/retos/RetoUI'
 
 // El avance se calcula al vuelo desde los pedidos: no se debe cachear.
 export const dynamic = 'force-dynamic'
@@ -48,8 +48,9 @@ export default async function RetosPage() {
         <div key={titulo} className="space-y-3">
           <p className="text-xs font-bold text-gray-400 uppercase tracking-widest px-1">{titulo}</p>
 
-          {grupo.map(({ reto, avances }) => {
-            const ganador = avances.find(a => a.completado_en !== null)
+          {grupo.map(({ reto, avances, grupo: totalGrupo }) => {
+            const grupal = reto.modo === 'grupal'
+            const ganador = grupal ? undefined : avances.find(a => a.completado_en !== null)
             const unDia = reto.desde === reto.hasta
             return (
               <div key={reto.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -58,7 +59,7 @@ export default async function RetosPage() {
                     <div className="min-w-0">
                       <h2 className="text-base font-bold text-gray-900">{reto.titulo}</h2>
                       <p className="text-xs text-gray-500 mt-0.5">
-                        Meta de cada uno: <span className="font-semibold text-gray-700">
+                        {grupal ? 'Meta entre todos' : 'Meta de cada uno'}: <span className="font-semibold text-gray-700">
                           {etiquetaMeta(reto.metrica, reto.categoria, reto.objetivo)}
                         </span>
                         {' · '}
@@ -102,11 +103,22 @@ export default async function RetosPage() {
                     </div>
                   )}
 
+                  {grupal && totalGrupo && (
+                    <BarraGrupo
+                      grupo={totalGrupo}
+                      objetivo={reto.objetivo}
+                      metrica={reto.metrica}
+                      categoria={reto.categoria}
+                    />
+                  )}
+
                   {ganador && (
                     <p className="text-sm font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2">
                       🏆 {ganador.nombre} fue el primero en completarlo
                     </p>
                   )}
+
+                  {grupal && <p className="text-xs font-semibold text-gray-500">Lo que puso cada uno</p>}
 
                   <RankingReto
                     avances={avances}
@@ -114,6 +126,7 @@ export default async function RetosPage() {
                     metrica={reto.metrica}
                     categoria={reto.categoria}
                     usuarioId={sesion.id}
+                    modo={reto.modo}
                   />
 
                   {esAdmin && <RetoAcciones retoId={reto.id} activo={reto.activo} />}
