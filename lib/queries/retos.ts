@@ -17,7 +17,8 @@ export type Reto = {
   objetivo: number
   sedes: string[]
   premio: string | null
-  imagen_url: string | null
+  // Hasta dos fotos del premio (tope en la base: retos_imagenes_max)
+  imagenes: string[]
   desde: string
   hasta: string
   activo: boolean
@@ -38,7 +39,7 @@ export type AvanceGrupo = { valor: number; completado_en: string | null }
 export type RetoConAvance = { reto: Reto; avances: AvanceReto[]; grupo: AvanceGrupo | null }
 
 const CAMPOS =
-  'id, titulo, descripcion, metrica, categoria, modo, objetivo, sedes, premio, imagen_url, desde, hasta, activo, creado_en'
+  'id, titulo, descripcion, metrica, categoria, modo, objetivo, sedes, premio, imagenes, desde, hasta, activo, creado_en'
 
 // Orden del ranking: primero quienes completaron (por hora, el más temprano
 // gana), después el resto por lo que llevan.

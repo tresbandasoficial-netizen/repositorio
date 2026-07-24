@@ -91,33 +91,42 @@ export function AvisoReto({
         </div>
 
         <div className="px-3.5 py-3 space-y-3 max-h-[60vh] overflow-y-auto">
-          {/* La meta y el premio */}
-          <div className="flex items-start gap-3">
-            {reto.imagen_url && (
-              <a href={reto.imagen_url} target="_blank" rel="noopener noreferrer" className="shrink-0">
-                <img
-                  src={reto.imagen_url}
-                  alt="Premio"
-                  loading="lazy"
-                  className="w-16 h-16 rounded-xl object-cover border border-gray-200"
-                />
-              </a>
-            )}
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-gray-900">
-                Meta {grupal ? 'entre todos' : 'de cada uno'}:{' '}
-                {etiquetaMeta(reto.metrica, reto.categoria, reto.objetivo)}
-              </p>
-              {reto.descripcion && (
-                <p className="text-xs text-gray-500 mt-0.5 whitespace-pre-wrap">{reto.descripcion}</p>
-              )}
-              {reto.premio && (
-                <p className="text-xs font-semibold text-amber-700 mt-1 flex items-start gap-1">
-                  <Gift size={12} className="shrink-0 mt-0.5" />
-                  <span>{reto.premio}</span>
-                </p>
-              )}
+          {/* Fotos del premio: a lo ancho del aviso, para que se vean bien */}
+          {reto.imagenes.length > 0 && (
+            <div className={`grid gap-2 ${reto.imagenes.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              {reto.imagenes.map((url, i) => (
+                <a
+                  key={url} href={url} target="_blank" rel="noopener noreferrer"
+                  title="Ver la foto completa"
+                >
+                  <img
+                    src={url}
+                    alt={`Premio ${i + 1}`}
+                    loading="lazy"
+                    className={`w-full rounded-xl object-cover border border-gray-200 hover:opacity-90 transition-opacity ${
+                      reto.imagenes.length > 1 ? 'h-36' : 'h-48'
+                    }`}
+                  />
+                </a>
+              ))}
             </div>
+          )}
+
+          {/* La meta y el premio */}
+          <div>
+            <p className="text-xs font-bold text-gray-900">
+              Meta {grupal ? 'entre todos' : 'de cada uno'}:{' '}
+              {etiquetaMeta(reto.metrica, reto.categoria, reto.objetivo)}
+            </p>
+            {reto.descripcion && (
+              <p className="text-xs text-gray-500 mt-0.5 whitespace-pre-wrap">{reto.descripcion}</p>
+            )}
+            {reto.premio && (
+              <p className="text-xs font-semibold text-amber-700 mt-1 flex items-start gap-1">
+                <Gift size={12} className="shrink-0 mt-0.5" />
+                <span>{reto.premio}</span>
+              </p>
+            )}
           </div>
 
           {grupal && grupo && (

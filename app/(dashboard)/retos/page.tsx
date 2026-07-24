@@ -78,19 +78,28 @@ export default async function RetosPage() {
                     )}
                   </div>
 
-                  {(reto.descripcion || reto.premio || reto.imagen_url) && (
-                    <div className="flex items-start gap-3 bg-gray-50 rounded-xl p-3">
-                      {reto.imagen_url && (
-                        <a href={reto.imagen_url} target="_blank" rel="noopener noreferrer" className="shrink-0">
-                          <img
-                            src={reto.imagen_url}
-                            alt="Premio"
-                            loading="lazy"
-                            className="w-20 h-20 rounded-xl object-cover border border-gray-200"
-                          />
-                        </a>
+                  {(reto.descripcion || reto.premio || reto.imagenes.length > 0) && (
+                    <div className="bg-gray-50 rounded-xl p-3 space-y-3">
+                      {reto.imagenes.length > 0 && (
+                        <div className={`grid gap-3 ${reto.imagenes.length > 1 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
+                          {reto.imagenes.map((url, i) => (
+                            <a
+                              key={url} href={url} target="_blank" rel="noopener noreferrer"
+                              title="Ver la foto completa"
+                            >
+                              <img
+                                src={url}
+                                alt={`Premio ${i + 1}`}
+                                loading="lazy"
+                                className={`w-full rounded-xl object-cover border border-gray-200 hover:opacity-90 transition-opacity ${
+                                  reto.imagenes.length > 1 ? 'h-56' : 'h-72'
+                                }`}
+                              />
+                            </a>
+                          ))}
+                        </div>
                       )}
-                      <div className="min-w-0 flex-1">
+                      <div className="min-w-0">
                         {reto.descripcion && (
                           <p className="text-sm text-gray-700 whitespace-pre-wrap">{reto.descripcion}</p>
                         )}

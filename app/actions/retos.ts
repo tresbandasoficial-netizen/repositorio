@@ -16,7 +16,7 @@ export type NuevoReto = {
   objetivo: number
   sedes: string[]
   premio: string
-  imagen_url: string | null
+  imagenes: string[]
   desde: string
   hasta: string
 }
@@ -46,7 +46,9 @@ export async function crearRetoAction(data: NuevoReto): Promise<RetoResult> {
     objetivo: data.objetivo,
     sedes: data.sedes,
     premio: data.premio.trim() || null,
-    imagen_url: data.imagen_url,
+    // Tope de 2: lo exige el CHECK retos_imagenes_max, se recorta acá para dar
+    // un error claro en vez de uno de base de datos.
+    imagenes: data.imagenes.filter(Boolean).slice(0, 2),
     desde: data.desde,
     hasta: data.hasta,
     creado_por: sesion.id,

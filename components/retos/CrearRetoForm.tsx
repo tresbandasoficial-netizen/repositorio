@@ -8,6 +8,8 @@ import { uploadPedidoImage } from '@/lib/utils/uploadPedidoImage'
 import { hoyBogota, formatMiles } from '@/lib/utils/format'
 import type { CategoriaReto, MetricaReto, ModoReto } from '@/lib/queries/retos'
 
+const MAX_FOTOS = 2
+
 const SEDES = [
   { codigo: 'TR', nombre: 'Bucaramanga' },
   { codigo: 'SR', nombre: 'Santa Rosa' },
@@ -41,7 +43,7 @@ export function CrearRetoForm() {
   const [objetivo, setObjetivo] = useState('')
   const [sedes, setSedes] = useState<string[]>(['TR', 'SR'])
   const [premio, setPremio] = useState('')
-  const [imagenUrl, setImagenUrl] = useState<string | null>(null)
+  const [imagenes, setImagenes] = useState<string[]>([])
   const [subiendo, setSubiendo] = useState(false)
   const [desde, setDesde] = useState(hoy)
   const [hasta, setHasta] = useState(hoy)
@@ -56,13 +58,20 @@ export function CrearRetoForm() {
     setSedes(prev => prev.includes(codigo) ? prev.filter(s => s !== codigo) : [...prev, codigo])
   }
 
-  async function elegirImagen(file: File) {
+  // Se pueden elegir varias de una; se aceptan hasta completar las 2.
+  async function elegirImagenes(files: File[]) {
     setError('')
+    const cupo = MAX_FOTOS - imagenes.length
+    if (cupo <= 0) return
     setSubiendo(true)
-    const url = await uploadPedidoImage(file)
+    const urls: string[] = []
+    for (const file of files.slice(0, cupo)) {
+      const url = await uploadPedidoImage(file)
+      if (url) urls.push(url)
+    }
     setSubiendo(false)
-    if (!url) { setError('No se pudo subir la imagen. Intenta con otra (JPG o PNG).'); return }
-    setImagenUrl(url)
+    if (urls.length === 0) { setError('No se pudo subir la imagen. Intenta con otra (JPG o PNG).'); return }
+    setImagenes(prev => [...prev, ...urls].slice(0, MAX_FOTOS))
   }
 
   function guardar() {
@@ -77,12 +86,12 @@ export function CrearRetoForm() {
         objetivo: objetivoNum,
         sedes,
         premio,
-        imagen_url: imagenUrl,
+        imagenes,
         desde,
         hasta,
       })
       if (!res.ok) { setError(res.error); return }
-      setDescripcion(''); setObjetivo(''); setPremio(''); setImagenUrl(null)
+      setDescripcion(''); setObjetivo(''); setPremio(''); setImagenes([])
       router.refresh()
     })
   }
@@ -227,28 +236,44 @@ export function CrearRetoForm() {
 
         {/* Foto del premio */}
         <div className="sm:col-span-2">
-          <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Foto del premio</label>
-          {imagenUrl ? (
-            <div className="flex items-center gap-3">
-              <img src={imagenUrl} alt="Premio" className="w-20 h-20 rounded-xl object-cover border border-gray-200" />
-              <button
-                type="button" onClick={() => setImagenUrl(null)}
-                className="flex items-center gap-1 text-xs text-red-600 hover:text-red-800 font-semibold"
-              >
-                <X size={13} /> Quitar
-              </button>
+          <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+            Fotos del premio <span className="text-gray-400 normal-case">(hasta 2)</span>
+          </label>
+
+          {imagenes.length > 0 && (
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              {imagenes.map((url, i) => (
+                <div key={url} className="relative">
+                  <img src={url} alt={`Premio ${i + 1}`} className="w-full h-40 rounded-xl object-cover border border-gray-200" />
+                  <button
+                    type="button"
+                    onClick={() => setImagenes(prev => prev.filter(u => u !== url))}
+                    title="Quitar esta foto"
+                    className="absolute top-1.5 right-1.5 bg-white/90 hover:bg-white text-red-600 rounded-full p-1 shadow"
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+              ))}
             </div>
-          ) : (
+          )}
+
+          {imagenes.length < MAX_FOTOS && (
             <label className="flex items-center justify-center gap-2 border-2 border-dashed border-gray-300 rounded-xl py-4 cursor-pointer hover:border-violet-400 hover:bg-gray-50 transition-colors">
               <input
-                type="file" accept="image/*" className="hidden" disabled={subiendo}
-                onChange={e => { const f = e.target.files?.[0]; if (f) elegirImagen(f) }}
+                type="file" accept="image/*" multiple className="hidden" disabled={subiendo}
+                onChange={e => {
+                  const fs = Array.from(e.target.files ?? [])
+                  if (fs.length > 0) elegirImagenes(fs)
+                  e.target.value = ''
+                }}
               />
               {subiendo ? (
                 <span className="text-sm text-violet-600 font-medium">Subiendo…</span>
               ) : (
                 <span className="text-sm text-gray-500 flex items-center gap-2">
-                  <Upload size={15} /> Subir una foto (opcional)
+                  <Upload size={15} />
+                  {imagenes.length === 0 ? 'Subir fotos (opcional)' : 'Agregar otra foto'}
                 </span>
               )}
             </label>
