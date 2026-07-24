@@ -234,6 +234,39 @@ export default async function ClienteDetallePage({
                   <p className="font-medium text-gray-900 break-all">{cliente.email}</p>
                 </div>
               )}
+              {(cliente.direccion || cliente.ciudad) && (
+                <div>
+                  <p className="text-xs text-gray-500">Dirección</p>
+                  {cliente.direccion && (
+                    <p className="font-medium text-gray-900 whitespace-pre-wrap">{cliente.direccion}</p>
+                  )}
+                  {cliente.ciudad && <p className="text-gray-600">{cliente.ciudad}</p>}
+                </div>
+              )}
+              {/* Direcciones de los domicilios: la ficha guarda una sola, pero
+                  cada pedido a domicilio lleva la suya */}
+              {cliente.direcciones.length > 0 && (
+                <div>
+                  <p className="text-xs text-gray-500">
+                    {cliente.direcciones.length === 1
+                      ? 'Dirección de entrega'
+                      : `Direcciones de entrega (${cliente.direcciones.length})`}
+                  </p>
+                  <div className="space-y-2 mt-1">
+                    {cliente.direcciones.map((d) => (
+                      <div key={d.pedido_id}>
+                        <p className="text-gray-900 whitespace-pre-wrap">{d.direccion}</p>
+                        <Link
+                          href={`/pedidos/${d.pedido_id}`}
+                          className="text-xs text-blue-600 hover:text-blue-800"
+                        >
+                          {d.pedido} · {formatFecha(d.fecha)}
+                        </Link>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div>
                 <p className="text-xs text-gray-500">Cliente desde</p>
                 <p className="text-gray-700">{formatFecha(cliente.creado_en)}</p>

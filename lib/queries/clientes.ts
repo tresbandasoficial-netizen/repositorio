@@ -3,6 +3,17 @@ import { terminoBusquedaSeguro } from '@/lib/utils/busqueda'
 
 const PAGE_SIZE = 30
 
+// Clave para comparar direcciones escritas de formas distintas: sin acentos,
+// sin espacios de más y en mayúsculas. Solo se usa para detectar repetidas;
+// lo que se muestra es siempre el texto original.
+function claveDireccion(dir: string): string {
+  return dir
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase()
+}
+
 export type ClientesResult = {
   clientes: ClienteRow[]
   total: number
@@ -59,6 +70,13 @@ export type ClienteDetalle = {
   creado_en: string
   cumple_dia: number | null
   cumple_mes: number | null
+  // Direcciones usadas en los domicilios del cliente (la ficha solo guarda una)
+  direcciones: Array<{
+    direccion: string
+    pedido: string
+    pedido_id: string
+    fecha: string
+  }>
   pedidos: Array<{
     id: string
     numero_orden: string
@@ -148,7 +166,7 @@ export async function getClienteDetalle(id: string): Promise<ClienteDetalle | nu
   const { data: pedidosRaw } = await supabase
     .from('pedidos')
     .select(`
-      id, numero_orden, estado, total, fecha_creacion,
+      id, numero_orden, estado, total, fecha_creacion, tipo_entrega, direccion_entrega,
       sede:sedes(nombre),
       asesor:usuarios(nombre),
       pagos(id, monto, metodo, fecha, notas, anulado, creado_en),
@@ -243,5 +261,29 @@ export async function getClienteDetalle(id: string): Promise<ClienteDetalle | nu
   }
   const abonos = [...grupos.values()].sort((a, b) => b.creado_en.localeCompare(a.creado_en))
 
-  return { ...cliente, pedidos, pagos, abonos }
+  // ── Direcciones de entrega usadas en los pedidos ───────────────────────────
+  // La ficha del cliente guarda una sola dirección, pero cada domicilio lleva
+  // la suya. Se juntan las repetidas y, cuando una es parte de otra más
+  // completa ("calle 100" dentro de "calle 100 Bucaramanga"), se deja la larga.
+  // También se omite la que ya está en la ficha, para no mostrarla dos veces.
+  const vistas = new Map<string, { direccion: string; clave: string; pedido: string; pedido_id: string; fecha: string }>()
+  for (const _p of pedidosRaw ?? []) {
+    const p = _p as any
+    const dir = (p.direccion_entrega ?? '').trim()
+    if (!dir) continue
+    const clave = claveDireccion(dir)
+    // pedidosRaw viene ordenado por fecha desc: el primero que entra es el más reciente
+    if (!vistas.has(clave)) {
+      vistas.set(clave, { direccion: dir, clave, pedido: p.numero_orden, pedido_id: p.id, fecha: p.fecha_creacion })
+    }
+  }
+  const claveFicha = cliente.direccion ? claveDireccion(cliente.direccion) : null
+  const candidatas = [...vistas.values()]
+  const direcciones = candidatas
+    .filter(a => !candidatas.some(b => b.clave.length > a.clave.length && b.clave.includes(a.clave)))
+    .filter(a => !claveFicha || !claveFicha.includes(a.clave))
+    .sort((a, b) => b.fecha.localeCompare(a.fecha))
+    .map(({ clave: _clave, ...resto }) => resto)
+
+  return { ...cliente, direcciones, pedidos, pagos, abonos }
 }
