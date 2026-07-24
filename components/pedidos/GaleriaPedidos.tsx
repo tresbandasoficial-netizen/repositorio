@@ -153,7 +153,7 @@ export function GaleriaPedidos({
         <img
           src={sel.imagen}
           alt={sel.ref}
-          className="w-full aspect-square object-contain bg-white rounded-2xl border border-gray-200 shadow-sm"
+          className="w-full aspect-square object-cover rounded-2xl border border-gray-200 shadow-sm"
         />
       ) : (
         <div className="w-full aspect-square bg-gray-50 rounded-2xl border border-gray-200 flex flex-col items-center justify-center gap-2 text-gray-300">
@@ -357,7 +357,7 @@ export function GaleriaPedidos({
                 )}
                 {t.imagen ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={t.imagen} alt={t.ref} loading="lazy" className="w-full aspect-square object-contain bg-white" />
+                  <img src={t.imagen} alt={t.ref} loading="lazy" className="w-full aspect-square object-cover" />
                 ) : (
                   <div className="w-full aspect-square bg-gray-50 flex items-center justify-center text-gray-300">
                     <ImageOff size={20} />
@@ -379,7 +379,7 @@ export function GaleriaPedidos({
         </div>
 
         {/* Visor lateral (pantallas grandes): la foto EN GRANDE a un lado */}
-        <aside className="hidden lg:block w-[420px] xl:w-[500px] shrink-0 sticky top-20">
+        <aside className="hidden lg:block w-[360px] xl:w-[420px] shrink-0 sticky top-20">
           {Visor ?? (
             <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center text-sm text-gray-400">
               Toca un artículo para ver su foto en grande
