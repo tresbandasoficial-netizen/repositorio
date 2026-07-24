@@ -1,5 +1,4 @@
 import { notFound } from 'next/navigation'
-import { miniaturaUrl } from '@/lib/utils/imagen'
 import { BotonVolver } from '@/components/ui/BotonVolver'
 import Link from 'next/link'
 import { getPedidoDetalle } from '@/lib/queries/pedidos'
@@ -104,7 +103,7 @@ export default async function PedidoDetallePage({
                 {pedido.items.map((item) => (
                   <div key={item.id} className="px-4 py-3 flex items-start gap-3">
                     {item.imagen_url && (
-                      <img src={miniaturaUrl(item.imagen_url, 128) ?? item.imagen_url} alt="Producto" className="w-12 h-12 object-cover rounded-lg border border-gray-200 flex-shrink-0" />
+                      <img src={item.imagen_url} alt="Producto" className="w-12 h-12 object-cover rounded-lg border border-gray-200 flex-shrink-0" />
                     )}
                     <div className="min-w-0 flex-1">
                       {item.codigo && <span className="font-mono text-xs text-blue-600 mr-1.5">{item.codigo}</span>}
@@ -139,7 +138,7 @@ export default async function PedidoDetallePage({
                       <td className="px-6 py-3">
                         <div className="flex items-center gap-3">
                           {item.imagen_url && (
-                            <img src={miniaturaUrl(item.imagen_url, 128) ?? item.imagen_url} alt="Producto" className="w-10 h-10 object-cover rounded-lg border border-gray-200 flex-shrink-0" />
+                            <img src={item.imagen_url} alt="Producto" className="w-10 h-10 object-cover rounded-lg border border-gray-200 flex-shrink-0" />
                           )}
                           <div>
                             {item.codigo && <span className="font-mono text-xs text-blue-600 mr-2">{item.codigo}</span>}
