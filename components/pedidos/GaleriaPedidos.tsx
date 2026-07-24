@@ -6,7 +6,6 @@ import type { PedidoRow } from '@/lib/queries/pedidos'
 import { EstadoInline } from './PedidoCard'
 import { formatCOP, formatFecha } from '@/lib/utils/format'
 import { formatearTelefono } from '@/lib/utils/phone'
-import { miniaturaUrl } from '@/lib/utils/imagen'
 import { ImageOff, X, ArrowUpRight, Check, Phone, ShoppingCart, LayoutGrid, Package } from 'lucide-react'
 
 export type ItemGaleria = {
@@ -152,7 +151,7 @@ export function GaleriaPedidos({
       {sel.imagen ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={miniaturaUrl(sel.imagen, 900, 75) ?? sel.imagen}
+          src={sel.imagen}
           alt={sel.ref}
           className="w-full aspect-square object-cover rounded-2xl border border-gray-200 shadow-sm"
         />
@@ -358,7 +357,7 @@ export function GaleriaPedidos({
                 )}
                 {t.imagen ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={miniaturaUrl(t.imagen, 320) ?? t.imagen} alt={t.ref} loading="lazy" className="w-full aspect-square object-cover" />
+                  <img src={t.imagen} alt={t.ref} loading="lazy" className="w-full aspect-square object-cover" />
                 ) : (
                   <div className="w-full aspect-square bg-gray-50 flex items-center justify-center text-gray-300">
                     <ImageOff size={20} />
