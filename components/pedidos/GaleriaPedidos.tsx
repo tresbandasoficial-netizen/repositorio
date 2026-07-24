@@ -154,7 +154,7 @@ export function GaleriaPedidos({
         <img
           src={miniaturaUrl(sel.imagen, 900, 75) ?? sel.imagen}
           alt={sel.ref}
-          className="w-full aspect-square object-contain bg-white rounded-2xl border border-gray-200 shadow-sm"
+          className="w-full aspect-square object-cover rounded-2xl border border-gray-200 shadow-sm"
         />
       ) : (
         <div className="w-full aspect-square bg-gray-50 rounded-2xl border border-gray-200 flex flex-col items-center justify-center gap-2 text-gray-300">
@@ -358,7 +358,7 @@ export function GaleriaPedidos({
                 )}
                 {t.imagen ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={miniaturaUrl(t.imagen, 320) ?? t.imagen} alt={t.ref} loading="lazy" className="w-full aspect-square object-contain bg-white" />
+                  <img src={miniaturaUrl(t.imagen, 320) ?? t.imagen} alt={t.ref} loading="lazy" className="w-full aspect-square object-cover" />
                 ) : (
                   <div className="w-full aspect-square bg-gray-50 flex items-center justify-center text-gray-300">
                     <ImageOff size={20} />
