@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { PedidoRow } from '@/lib/queries/pedidos'
 import { EstadoBadge } from './EstadoBadge'
 import { FotoConPreview } from './FotoConPreview'
+import { AvisarLlegoButton } from './AvisarLlegoButton'
 import { formatCOP, formatFecha, formatHora } from '@/lib/utils/format'
 import { formatearTelefono } from '@/lib/utils/phone'
 import { ChevronRight, Loader2 } from 'lucide-react'
@@ -211,6 +212,12 @@ export function PedidoCard({ pedido, esAdmin, seleccionado = false, onToggleSele
             ) : (
               <p className="text-xs text-emerald-600 font-medium">Pagado ✓</p>
             )}
+            <AvisarLlegoButton
+              estado={pedido.estado}
+              telefono={pedido.cliente_telefono}
+              saldo={saldo}
+              className="mt-1.5"
+            />
           </div>
         </div>
       </div>
@@ -249,6 +256,12 @@ export function PedidoCard({ pedido, esAdmin, seleccionado = false, onToggleSele
         </div>
         <div className="w-40 shrink-0">
           <EstadoInline pedidoId={pedido.id} estadoActual={pedido.estado} sedeCodigo={pedido.sede_codigo} esAdmin={esAdmin} facturado={facturado} />
+          <AvisarLlegoButton
+            estado={pedido.estado}
+            telefono={pedido.cliente_telefono}
+            saldo={saldo}
+            className="mt-1.5"
+          />
         </div>
         <div className="w-32 shrink-0 text-right">
           <p className="text-sm font-bold text-gray-900">{formatCOP(pedido.total)}</p>

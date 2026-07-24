@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { PedidoRow } from '@/lib/queries/pedidos'
 import { EstadoInline } from './PedidoCard'
+import { AvisarLlegoButton } from './AvisarLlegoButton'
 import { formatCOP, formatFecha } from '@/lib/utils/format'
 import { formatearTelefono } from '@/lib/utils/phone'
 import { ImageOff, X, ArrowUpRight, Check, Phone, ShoppingCart, LayoutGrid, Package } from 'lucide-react'
@@ -280,7 +281,13 @@ export function GaleriaPedidos({
           )}
         </div>
 
-        <div className="px-4 pb-4">
+        <div className="px-4 pb-4 space-y-2">
+          <AvisarLlegoButton
+            estado={sel.pedido.estado}
+            telefono={sel.pedido.cliente_telefono}
+            saldo={saldoSel}
+            variante="ancho"
+          />
           <button
             onClick={() => router.push(`/pedidos/${sel.pedido.id}`)}
             className="w-full flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl py-2.5 transition-colors"
