@@ -5,7 +5,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Trophy, ChevronDown, ChevronUp, ArrowUpRight, Gift } from 'lucide-react'
 import type { AvanceGrupo, AvanceReto, Reto } from '@/lib/queries/retos'
-import { BarraGrupo, RankingReto, etiquetaMeta } from './RetoUI'
+import { BarraGrupo, RankingReto } from './RetoUI'
+import { etiquetaMeta } from './formato'
 
 // Cada cuánto se vuelve a leer el avance desde el servidor.
 const REFRESCO_MS = 30_000

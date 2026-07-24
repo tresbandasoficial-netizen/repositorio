@@ -4,7 +4,8 @@ import { getRetos } from '@/lib/queries/retos'
 import { hoyBogota, formatFecha } from '@/lib/utils/format'
 import { CrearRetoForm } from '@/components/retos/CrearRetoForm'
 import { RetoAcciones } from '@/components/retos/RetoAcciones'
-import { BarraGrupo, RankingReto, etiquetaMeta } from '@/components/retos/RetoUI'
+import { BarraGrupo, RankingReto } from '@/components/retos/RetoUI'
+import { etiquetaMeta } from '@/components/retos/formato'
 
 // El avance se calcula al vuelo desde los pedidos: no se debe cachear.
 export const dynamic = 'force-dynamic'
