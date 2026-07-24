@@ -543,6 +543,28 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
             </div>
           </div>
 
+          {/* Moneda: también se elige aquí, porque al entrar desde la galería
+              (?pedidos=...) no se pasa por el paso de subir la factura */}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">¿La factura es en...?</label>
+            <div className="flex gap-2 max-w-xs">
+              {(['usa', 'colombia'] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setTipo(t)}
+                  className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors ${
+                    tipo === t
+                      ? t === 'usa' ? 'bg-blue-600 text-white border-blue-600' : 'bg-green-600 text-white border-green-600'
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  {t === 'usa' ? 'Dólares (USD)' : 'Pesos (COP)'}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Montos */}
           {tipo === 'usa' ? (
             <div className="space-y-4">
