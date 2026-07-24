@@ -12,11 +12,12 @@ import { EstadoPedido } from '@/types'
 // —web en el computador, la app en el celular—; enviarlo es manual, porque
 // WhatsApp no permite enviar un mensaje desde un enlace.
 
+// Texto tal como lo dictó el usuario (sin acentos, a propósito).
 export function mensajeLlego(saldo: number): string {
   const base =
-    'Hola, ¿cómo estás? Queremos avisarte que ya tenemos tu pedido, ' +
-    'quedamos atentos a la confirmación para enviarte.'
-  return saldo > 0 ? `${base}\n\nAún tenemos un saldo de: ${formatCOP(saldo)}` : base
+    'Hola como estas? queremos avisarte que ya tenemos tu pedido, ' +
+    'quedamos atentos a la confirmacion para enviarte.'
+  return saldo > 0 ? `${base}\n\naun tenemos un saldo de : ${formatCOP(saldo)}` : base
 }
 
 export function AvisarLlegoButton({
