@@ -7,6 +7,7 @@ import { PedidoRow } from '@/lib/queries/pedidos'
 import { EstadoBadge } from './EstadoBadge'
 import { formatCOP, formatFecha, formatHora } from '@/lib/utils/format'
 import { formatearTelefono } from '@/lib/utils/phone'
+import { miniaturaUrl } from '@/lib/utils/imagen'
 import { ChevronRight, Loader2 } from 'lucide-react'
 import { EstadoPedido, ESTADO_LABELS, ESTADO_COLORES } from '@/types'
 import { transicionesDisponibles } from '@/lib/domain/estados'
@@ -190,7 +191,7 @@ export function PedidoCard({ pedido, esAdmin, seleccionado = false, onToggleSele
               />
             )}
             {imagen && (
-              <img src={imagen} alt="" className="w-8 h-8 rounded-lg object-cover border border-gray-200 shrink-0" />
+              <img src={miniaturaUrl(imagen, 96) ?? imagen} alt="" className="w-8 h-8 rounded-lg object-cover border border-gray-200 shrink-0" />
             )}
             <span className="font-mono font-bold text-sm text-gray-900">{pedido.numero_orden}</span>
             {pedido.es_zombie && <span className="text-xs text-orange-500" title="Pedido zombie">🧟</span>}
@@ -228,7 +229,7 @@ export function PedidoCard({ pedido, esAdmin, seleccionado = false, onToggleSele
         )}
         <div className="w-24 shrink-0 flex items-center gap-2">
           {imagen && (
-            <img src={imagen} alt="" className="w-9 h-9 rounded-lg object-cover border border-gray-200 shrink-0" />
+            <img src={miniaturaUrl(imagen, 96) ?? imagen} alt="" className="w-9 h-9 rounded-lg object-cover border border-gray-200 shrink-0" />
           )}
           <div>
             <div className="flex items-center gap-1.5">
