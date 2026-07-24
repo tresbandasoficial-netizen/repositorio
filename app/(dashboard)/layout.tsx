@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { DashboardShell } from '@/components/layout/DashboardShell'
 import { AvisoTareas } from '@/components/tareas/AvisoTareas'
+import { AvisoReto } from '@/components/retos/AvisoReto'
+import { getRetoVigente } from '@/lib/queries/retos'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -26,10 +28,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .eq('estado', 'pendiente')
     .order('creado_en', { ascending: true })
 
+  // Reto vigente de hoy. El RLS decide quién lo ve: un reto de Bucaramanga y
+  // Santa Rosa no le llega a Cúcuta.
+  const reto = await getRetoVigente()
+
   return (
     <DashboardShell usuario={usuario}>
       {children}
       <AvisoTareas tareas={tareasPendientes ?? []} />
+      {reto && <AvisoReto reto={reto.reto} avances={reto.avances} usuarioId={usuario.id} />}
     </DashboardShell>
   )
 }
