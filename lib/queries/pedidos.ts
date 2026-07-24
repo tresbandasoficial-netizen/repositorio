@@ -114,9 +114,26 @@ export async function getPedidos(filtros?: {
   if (filtros?.fecha_hasta) query = query.lte('fecha_creacion', `${filtros.fecha_hasta}T23:59:59`)
   if (filtros?.q) {
     const q = terminoBusquedaSeguro(filtros.q)
-    if (q) query = query.or(
-      `numero_orden.ilike.%${q}%,cliente_nombre.ilike.%${q}%,cliente_telefono.ilike.%${q}%`
-    )
+    if (q) {
+      // También se puede buscar por CÓDIGO del artículo: se buscan los pedidos
+      // cuyos items tengan ese código (propio o del catálogo enlazado).
+      const [porCodigoItem, porCodigoCatalogo] = await Promise.all([
+        supabase.from('pedido_items').select('pedido_id').ilike('codigo', `%${q}%`).limit(150),
+        supabase.from('pedido_items').select('pedido_id, articulos!inner(id)').ilike('articulos.codigo', `%${q}%`).limit(150),
+      ])
+      const idsPorCodigo = [...new Set([
+        ...((porCodigoItem.data ?? []) as Array<{ pedido_id: string }>).map(r => r.pedido_id),
+        ...((porCodigoCatalogo.data ?? []) as Array<{ pedido_id: string }>).map(r => r.pedido_id),
+      ])].slice(0, 200)
+
+      const condiciones = [
+        `numero_orden.ilike.%${q}%`,
+        `cliente_nombre.ilike.%${q}%`,
+        `cliente_telefono.ilike.%${q}%`,
+        ...(idsPorCodigo.length > 0 ? [`id.in.(${idsPorCodigo.join(',')})`] : []),
+      ]
+      query = query.or(condiciones.join(','))
+    }
   }
 
   const { data, error, count } = await query

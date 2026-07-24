@@ -170,7 +170,7 @@ export default async function GaleriaPedidosPage({
           type="search"
           name="q"
           defaultValue={params.q ?? ''}
-          placeholder="Buscar número, cliente o teléfono…"
+          placeholder="Buscar número, cliente, teléfono o código del artículo…"
           className="flex-1 min-w-48 rounded-xl border border-gray-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         {/* Rango de fechas (fecha de creación del pedido) */}

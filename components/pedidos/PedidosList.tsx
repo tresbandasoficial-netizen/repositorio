@@ -105,7 +105,7 @@ export function PedidosList({ resultado, esAdmin }: PedidosListProps) {
             <input
               key={busqueda}
               type="search"
-              placeholder="Buscar por número, cliente o teléfono..."
+              placeholder="Buscar por número, cliente, teléfono o código del artículo..."
               defaultValue={busqueda}
               onChange={(e) => {
                 const val = e.target.value
