@@ -19,6 +19,25 @@ interface DatoDia {
   pedidos: number
   ventas: number
   por_sede?: Record<string, number>
+  ventas_por_sede_tipo?: Record<string, { pedido: number; tienda: number }>
+}
+
+// Filtro de sede del panel (los datos por sede ya vienen en cada día)
+type SedeFiltro = 'ALL' | 'TR' | 'SR' | 'CR'
+const SEDES_FILTRO: Array<{ codigo: SedeFiltro; nombre: string }> = [
+  { codigo: 'ALL', nombre: 'Todas' },
+  { codigo: 'TR', nombre: 'Bucaramanga' },
+  { codigo: 'SR', nombre: 'Santa Rosa' },
+  { codigo: 'CR', nombre: 'Cúcuta' },
+]
+
+function pedidosDia(d: DatoDia, sede: SedeFiltro): number {
+  return sede === 'ALL' ? d.pedidos : (d.por_sede?.[sede] ?? 0)
+}
+function ventasDia(d: DatoDia, sede: SedeFiltro): number {
+  if (sede === 'ALL') return d.ventas
+  const v = d.ventas_por_sede_tipo?.[sede]
+  return (v?.pedido ?? 0) + (v?.tienda ?? 0)
 }
 
 interface Props {
@@ -47,10 +66,12 @@ function formatValor(metrica: Metrica, v: number) {
 // Estilo "información general": tarjetas de métricas arriba (con el cambio %
 // frente a los 30 días anteriores) y la gráfica de línea de la métrica elegida,
 // con el período anterior punteado para comparar.
-export function PedidosAreaChart({ datos, datosPrevios = [], totalPedidos, totalVentas, desde, hasta }: Props) {
+export function PedidosAreaChart({ datos, datosPrevios = [], desde, hasta }: Props) {
   const [metrica, setMetrica] = useState<Metrica>('ventas')
+  const [sede, setSede] = useState<SedeFiltro>('ALL')
 
   // ── Serie diaria del período actual (rellenando días sin ventas) ────────────
+  // Los montos y conteos se toman de la sede elegida (o de todas).
   const mapaFechas = new Map(datos.map(d => [d.fecha, d]))
   const dias: Array<{ fecha: string; label: string; pedidos: number; ventas: number }> = []
   const inicio = new Date(desde + 'T12:00:00Z')
@@ -58,7 +79,7 @@ export function PedidosAreaChart({ datos, datosPrevios = [], totalPedidos, total
   for (const d = new Date(inicio); d <= fin; d.setDate(d.getDate() + 1)) {
     const f = d.toISOString().slice(0, 10)
     const x = mapaFechas.get(f)
-    dias.push({ fecha: f, label: '', pedidos: x?.pedidos ?? 0, ventas: x?.ventas ?? 0 })
+    dias.push({ fecha: f, label: '', pedidos: x ? pedidosDia(x, sede) : 0, ventas: x ? ventasDia(x, sede) : 0 })
   }
   dias.forEach((d, i) => { d.label = i % 5 === 0 || i === dias.length - 1 ? labelFecha(d.fecha) : '' })
 
@@ -72,7 +93,7 @@ export function PedidosAreaChart({ datos, datosPrevios = [], totalPedidos, total
       const d = new Date(pIni); d.setDate(d.getDate() + i)
       const f = d.toISOString().slice(0, 10)
       const x = prevMapa.get(f)
-      prevSerie.push({ fecha: f, pedidos: x?.pedidos ?? 0, ventas: x?.ventas ?? 0 })
+      prevSerie.push({ fecha: f, pedidos: x ? pedidosDia(x, sede) : 0, ventas: x ? ventasDia(x, sede) : 0 })
     }
   }
 
@@ -88,8 +109,10 @@ export function PedidosAreaChart({ datos, datosPrevios = [], totalPedidos, total
     fechaPrevia: prevSerie[i]?.fecha ?? null,
   }))
 
-  // ── Totales y cambio % frente al período anterior ───────────────────────────
-  const ticketActual = totalPedidos > 0 ? Math.round(totalVentas / totalPedidos) : 0
+  // ── Totales (de la sede elegida) y cambio % frente al período anterior ──────
+  const ventasSede  = dias.reduce((s, d) => s + d.ventas, 0)
+  const pedidosSede = dias.reduce((s, d) => s + d.pedidos, 0)
+  const ticketActual = pedidosSede > 0 ? Math.round(ventasSede / pedidosSede) : 0
   const prevVentas  = prevSerie.reduce((s, d) => s + d.ventas, 0)
   const prevPedidos = prevSerie.reduce((s, d) => s + d.pedidos, 0)
   const prevTicket  = prevPedidos > 0 ? Math.round(prevVentas / prevPedidos) : 0
@@ -98,8 +121,8 @@ export function PedidosAreaChart({ datos, datosPrevios = [], totalPedidos, total
     datosPrevios.length === 0 || previo === 0 ? null : ((actual - previo) / previo) * 100
 
   const TARJETAS: Array<{ id: Metrica; titulo: string; valor: string; cambio: number | null }> = [
-    { id: 'ventas',  titulo: 'Total ventas',    valor: formatCOP(totalVentas),  cambio: cambio(totalVentas, prevVentas) },
-    { id: 'pedidos', titulo: 'Pedidos',         valor: String(totalPedidos),    cambio: cambio(totalPedidos, prevPedidos) },
+    { id: 'ventas',  titulo: 'Total ventas',    valor: formatCOP(ventasSede),   cambio: cambio(ventasSede, prevVentas) },
+    { id: 'pedidos', titulo: 'Pedidos',         valor: String(pedidosSede),     cambio: cambio(pedidosSede, prevPedidos) },
     { id: 'ticket',  titulo: 'Ticket promedio', valor: formatCOP(ticketActual), cambio: cambio(ticketActual, prevTicket) },
   ]
 
@@ -111,7 +134,23 @@ export function PedidosAreaChart({ datos, datosPrevios = [], totalPedidos, total
 
   return (
     <div className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100">
-      <h2 className="text-sm font-bold text-gray-900 mb-3">Información general — últimos 30 días</h2>
+      <div className="flex items-center justify-between gap-2 flex-wrap mb-3">
+        <h2 className="text-sm font-bold text-gray-900">Información general — últimos 30 días</h2>
+        {/* Selector de sede: filtra tarjetas y gráfica al instante */}
+        <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+          {SEDES_FILTRO.map(s => (
+            <button
+              key={s.codigo}
+              onClick={() => setSede(s.codigo)}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors ${
+                sede === s.codigo ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {s.nombre}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* Tarjetas de métricas: la elegida se resalta y manda la gráfica */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">
@@ -170,10 +209,10 @@ export function PedidosAreaChart({ datos, datosPrevios = [], totalPedidos, total
           />
           {/* Período anterior punteado, para comparar */}
           {prevSerie.length > 0 && (
-            <Line type="monotone" dataKey="previo" stroke="#93c5fd" strokeWidth={1.5} strokeDasharray="5 4" dot={false} activeDot={{ r: 3, fill: '#93c5fd' }} />
+            <Line type="linear" dataKey="previo" stroke="#93c5fd" strokeWidth={1.5} strokeDasharray="5 4" dot={false} activeDot={{ r: 3, fill: '#93c5fd' }} />
           )}
           {/* Métrica elegida */}
-          <Area type="monotone" dataKey="valor" stroke="#3b82f6" strokeWidth={2.5} fill="url(#gradMetrica)" dot={false} activeDot={{ r: 4, fill: '#3b82f6', stroke: '#fff', strokeWidth: 2 }} />
+          <Area type="linear" dataKey="valor" stroke="#3b82f6" strokeWidth={2.5} fill="url(#gradMetrica)" dot={false} activeDot={{ r: 4, fill: '#3b82f6', stroke: '#fff', strokeWidth: 2 }} />
         </ComposedChart>
       </ResponsiveContainer>
 
