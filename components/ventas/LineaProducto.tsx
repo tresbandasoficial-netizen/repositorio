@@ -66,6 +66,8 @@ export function LineaProducto({
   const [noEncontrado, setNoEncontrado] = useState(false)
   const [guardando, setGuardando]       = useState(false)
   const [errorGuardar, setErrorGuardar] = useState<string | null>(null)
+  const [descripcionGuardada, setDescripcionGuardada] = useState<boolean>(false)
+  const [guardandoDescripcion, setGuardandoDescripcion] = useState(false)
 
   useEffect(() => {
     if (linea.articulo_id) { setOpciones([]); setAbierto(false); setNoEncontrado(false); return }
@@ -120,6 +122,30 @@ export function LineaProducto({
       setNoEncontrado(false)
     } else {
       setErrorGuardar(result.error)
+    }
+  }
+
+  async function guardarDescripcion() {
+    if (!linea.codigo?.trim() || !linea.descripcion.trim() || !linea.marca.trim()) return
+    setGuardandoDescripcion(true)
+    setDescripcionGuardada(false)
+
+    const result = await guardarArticuloCatalogoAction({
+      codigo: linea.codigo.trim(),
+      nombre: linea.descripcion.trim(),
+      marca: linea.marca.trim(),
+      referencia: '',
+      color: linea.color?.trim() ?? '',
+      sexo: (linea.sexo ?? '') as any,
+      categoria: (linea.categoria ?? '') as any,
+      descripcion: '',
+    })
+
+    setGuardandoDescripcion(false)
+    if (result.ok) {
+      setDescripcionGuardada(true)
+      onChange({ articulo_id: result.articuloId })
+      setTimeout(() => setDescripcionGuardada(false), 2000)
     }
   }
 
@@ -183,13 +209,22 @@ export function LineaProducto({
             </div>
           )}
         </div>
-        <input
-          type="text"
-          value={linea.descripcion}
-          onChange={e => onChange({ descripcion: e.target.value })}
-          placeholder="Nombre del producto"
-          className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+        <div className="relative">
+          <input
+            type="text"
+            value={linea.descripcion}
+            onChange={e => onChange({ descripcion: e.target.value })}
+            onBlur={guardarDescripcion}
+            placeholder="Nombre del producto"
+            className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          {guardandoDescripcion && (
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 text-blue-500 text-sm animate-spin">⏳</div>
+          )}
+          {descripcionGuardada && !guardandoDescripcion && (
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 text-green-600 font-bold text-sm">✓</div>
+          )}
+        </div>
       </div>
 
       {/* No encontrado → botón Guardar */}

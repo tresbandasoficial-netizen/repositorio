@@ -68,6 +68,7 @@ const navItems: { href: string; label: string; icon: NavIcon; rol: string[] }[] 
   { href: '/inventario',   label: 'Inventario',   icon: Boxes,       rol: ['admin'] },
   { href: '/inventario/conteo', label: 'Conteo inventario', icon: Boxes, rol: ['asesor'] },
   { href: '/cartera',      label: 'Cartera',      icon: Wallet,      rol: ['admin'] },
+  { href: '/recompras',    label: 'Recompra RFM', icon: TrendingUp,  rol: ['admin'] },
   { href: '/estadisticas', label: 'Estadísticas', icon: BarChart2,   rol: ['admin'] },
   { href: '/compras',      label: 'Compras',      icon: ShoppingBag, rol: ['admin'] },
   { href: '/usuarios',     label: 'Usuarios',     icon: UserCog,     rol: ['admin'] },

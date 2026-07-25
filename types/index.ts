@@ -30,6 +30,8 @@ export type Cliente = {
   actualizado_en: string
 }
 
+export type ClienteSegmentoRfm = 'campeon' | 'leal' | 'potencial' | 'nuevo' | 'en_riesgo' | 'dormido' | 'perdido'
+
 export type EstadoPedido =
   | 'pendiente'
   | 'comprado'
