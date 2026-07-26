@@ -73,6 +73,7 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
   const [totalCopPagado, setTotalCopPagado] = useState('')
   const [subtotalUsd, setSubtotalUsd] = useState('')
   const [impuestosUsd, setImpuestosUsd] = useState('')
+  const [taxPct, setTaxPct] = useState('')       // % del tax; si está, manda sobre impuestosUsd
   const [envioUsd, setEnvioUsd] = useState('')
   const [notas, setNotas] = useState('')
   const [items, setItems] = useState<ItemForm[]>([])
@@ -166,13 +167,21 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
   }
 
   // Recalcular costos COP. precio_usd es el precio UNITARIO del artículo;
-  // tax y envío se reparten en proporción al precio de cada uno (no en partes iguales).
-  // subtotalTexto se pasa cuando el propio cambio es el del Subtotal: el estado
-  // aún no se actualizó y leerlo del closure daría el valor anterior.
-  function recalcularCostos(trm: number, taxUsd: number, shippingUsd: number, subtotalTexto?: string) {
+  // tax y envío se aplican como % sobre el precio de cada uno (no en partes
+  // iguales): con tax 7%, unos leggings de $70 quedan en $74.90.
+  //
+  // El % del tax se toma de la casilla Tax %; si está vacía se deduce
+  // dividiendo los impuestos USD entre el subtotal. Los valores que cambian se
+  // pasan por parámetro porque el estado de React aún no se actualizó cuando
+  // corre el onChange que dispara el recálculo.
+  function recalcularCostos(
+    trm: number, taxUsd: number, shippingUsd: number,
+    subtotalTexto?: string, taxPctTexto?: string,
+  ) {
     setItems(prev => {
       const base = baseReparto(prev, subtotalTexto ?? subtotalUsd)
-      const taxRate = base > 0 ? taxUsd / base : 0
+      const pct = parseFloat(taxPctTexto ?? taxPct)
+      const taxRate = pct > 0 ? pct / 100 : (base > 0 ? taxUsd / base : 0)
       const shippingRate = base > 0 ? shippingUsd / base : 0
       return prev.map(item => {
         if (!item.precio_usd) return item
@@ -322,12 +331,19 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
           setTotalUsd('')
           setSubtotalUsd('')
           setImpuestosUsd('')
+          setTaxPct('')
           setEnvioUsd('')
         } else {
           setTotalUsd(String(data.total_usd))
           setSubtotalUsd(String(data.subtotal_usd || ''))
           setImpuestosUsd(String(data.tax_usd || ''))
           setEnvioUsd(String(data.shipping_usd || ''))
+          // El % que trae la factura queda escrito para poder ajustarlo a mano.
+          setTaxPct(
+            data.subtotal_usd && data.tax_usd
+              ? (data.tax_usd / data.subtotal_usd * 100).toFixed(2)
+              : ''
+          )
         }
         setItems(facturaToItems(data.items, tipo === 'colombia' ? 'COP' : 'USD'))
         setPaso('revisar')
@@ -626,8 +642,29 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
                 </div>
               </div>
 
-              {/* Fila 2: Subtotal USD | Impuestos USD | Envío USD */}
-              <div className="grid grid-cols-3 gap-4">
+              {/* Fila 2: Tax % | Subtotal USD | Impuestos USD | Envío USD */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-1">Tax %</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={taxPct}
+                    onChange={(e) => {
+                      setTaxPct(e.target.value)
+                      if (trmCalculada) {
+                        recalcularCostos(
+                          trmCalculada, parseFloat(impuestosUsd) || 0, parseFloat(envioUsd) || 0,
+                          undefined, e.target.value,
+                        )
+                      }
+                    }}
+                    placeholder="7"
+                    className="w-full rounded-lg border-2 border-emerald-300 bg-emerald-50/40 px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                  <p className="text-xs text-emerald-600 mt-1">Se suma a cada precio</p>
+                </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Subtotal USD</label>
                   <input
@@ -644,10 +681,10 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
                     placeholder="0.00"
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                  <p className="text-xs text-gray-400 mt-1">Base para repartir tax y envío</p>
+                  <p className="text-xs text-gray-400 mt-1">Base del envío</p>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Impuestos USD (opcional)</label>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Impuestos USD</label>
                   <input
                     type="number"
                     min="0"
@@ -660,11 +697,15 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
                       }
                     }}
                     placeholder="0.00"
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled={parseFloat(taxPct) > 0}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-400"
                   />
+                  <p className="text-xs text-gray-400 mt-1">
+                    {parseFloat(taxPct) > 0 ? 'Manda el Tax %' : 'O el monto, si no sabes el %'}
+                  </p>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Envío USD (opcional)</label>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Envío USD</label>
                   <input
                     type="number"
                     min="0"
@@ -687,19 +728,24 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
                 <p className="text-xs text-gray-400">
                   {(() => {
                     const base = baseReparto(items)
-                    if (base <= 0) return null
+                    const pct = parseFloat(taxPct)
+                    if (base <= 0 && !(pct > 0)) return null
+                    const tasaTax = pct > 0 ? pct : (base > 0 ? parseFloat(impuestosUsd || '0') / base * 100 : 0)
                     const sumaItems = items.reduce((s, it) => s + (it.precio_usd ?? 0) * (parseInt(it.cantidad, 10) || 1), 0)
-                    const falta = !parseFloat(subtotalUsd) && sumaItems > 0
+                    const faltaSubtotal = !parseFloat(subtotalUsd) && sumaItems > 0 && parseFloat(envioUsd) > 0
                     return (
                       <>
-                        Base USD: ${base.toFixed(2)}
-                        {' | '}
-                        Tax: {(parseFloat(impuestosUsd || '0') / base * 100).toFixed(2)}%
-                        {' | '}
-                        Envío: {(parseFloat(envioUsd || '0') / base * 100).toFixed(2)}%
-                        {falta && (
+                        Tax: <span className="font-semibold text-emerald-700">{tasaTax.toFixed(2)}%</span>
+                        {pct > 0 ? ' (a mano)' : ' (de la factura)'}
+                        {base > 0 && (
+                          <>
+                            {' | '}Envío: {(parseFloat(envioUsd || '0') / base * 100).toFixed(2)}%
+                            {' | '}Base USD: ${base.toFixed(2)}
+                          </>
+                        )}
+                        {faltaSubtotal && (
                           <span className="text-amber-600">
-                            {' '}— escribe el Subtotal USD de la factura para que la tasa no cambie mientras digitas precios
+                            {' '}— escribe el Subtotal USD para repartir bien el envío
                           </span>
                         )}
                       </>
