@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { buscarArticulosAction, guardarArticuloCatalogoAction, ArticuloBusqueda } from '@/app/actions/articulos'
+import { buscarArticulosAction, guardarArticuloCatalogoAction, guardarNombreArticuloAction, ArticuloBusqueda } from '@/app/actions/articulos'
 import { ItemVenta } from '@/app/actions/ventas'
 import { TallaSelect } from '@/components/ui/TallaSelect'
 import { MarcaSelect } from '@/components/ui/MarcaSelect'
@@ -68,6 +68,8 @@ export function LineaProducto({
   const [errorGuardar, setErrorGuardar] = useState<string | null>(null)
   const [descripcionGuardada, setDescripcionGuardada] = useState<boolean>(false)
   const [guardandoDescripcion, setGuardandoDescripcion] = useState(false)
+  const [avisoRenombrado, setAvisoRenombrado] = useState<string | null>(null)
+  const [errorNombre, setErrorNombre] = useState<string | null>(null)
 
   useEffect(() => {
     if (linea.articulo_id) { setOpciones([]); setAbierto(false); setNoEncontrado(false); return }
@@ -129,8 +131,10 @@ export function LineaProducto({
     if (!linea.codigo?.trim() || !linea.descripcion.trim() || !linea.marca.trim()) return
     setGuardandoDescripcion(true)
     setDescripcionGuardada(false)
+    setAvisoRenombrado(null)
+    setErrorNombre(null)
 
-    const result = await guardarArticuloCatalogoAction({
+    const result = await guardarNombreArticuloAction({
       codigo: linea.codigo.trim(),
       nombre: linea.descripcion.trim(),
       marca: linea.marca.trim(),
@@ -145,7 +149,14 @@ export function LineaProducto({
     if (result.ok) {
       setDescripcionGuardada(true)
       onChange({ articulo_id: result.articuloId })
+      // Renombrar toca el catálogo, así que se avisa: el nombre nuevo va a
+      // salir en todo lo que use ese código, no solo en esta línea.
+      if (result.renombrado) {
+        setAvisoRenombrado(result.nombreAnterior ?? null)
+      }
       setTimeout(() => setDescripcionGuardada(false), 2000)
+    } else {
+      setErrorNombre(result.error)
     }
   }
 
@@ -226,6 +237,26 @@ export function LineaProducto({
           )}
         </div>
       </div>
+
+      {errorNombre && (
+        <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5">
+          No se pudo guardar el nombre: {errorNombre}
+        </p>
+      )}
+
+      {avisoRenombrado && (
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+          En el catálogo este código se llamaba <strong>{avisoRenombrado}</strong> — se renombró a{' '}
+          <strong>{linea.descripcion}</strong>, así que ese nombre sale ahora en todas las pantallas.
+          <button
+            type="button"
+            onClick={() => setAvisoRenombrado(null)}
+            className="ml-2 underline hover:no-underline"
+          >
+            Entendido
+          </button>
+        </p>
+      )}
 
       {/* No encontrado → botón Guardar */}
       {noEncontrado && !linea.articulo_id && (

@@ -41,6 +41,61 @@ export async function guardarArticuloCatalogoAction(data: CrearArticuloInput): P
   return _crearArticulo(data)
 }
 
+export type GuardarNombreResult =
+  | { ok: true; articuloId: string; renombrado: boolean; nombreAnterior?: string }
+  | { ok: false; error: string }
+
+// Guarda el nombre escrito en la línea del producto DENTRO del catálogo.
+//
+// Se separa de guardarArticuloCatalogoAction porque esa, cuando el código ya
+// existe, devuelve el artículo tal cual y NO le cambia el nombre: el nombre
+// nuevo se quedaba solo en el pedido y el catálogo seguía con el viejo, así que
+// la galería (que lee pedido_items.descripcion) y las compras (que leen
+// articulos.nombre) mostraban nombres distintos para el mismo código.
+export async function guardarNombreArticuloAction(
+  data: CrearArticuloInput
+): Promise<GuardarNombreResult> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'No autenticado' }
+
+  const codigo = data.codigo.trim()
+  const nombre = data.nombre.trim()
+  if (!codigo || !nombre) return { ok: false, error: 'Faltan código o nombre' }
+
+  const { data: existente } = await supabase
+    .from('articulos')
+    .select('id, nombre')
+    .ilike('codigo', codigo)
+    .maybeSingle()
+
+  if (existente) {
+    if (existente.nombre === nombre) {
+      return { ok: true, articuloId: existente.id, renombrado: false }
+    }
+    // Se pide la fila de vuelta para confirmar que el UPDATE tocó algo: si RLS
+    // lo filtra no hay error, solo cero filas, y el ✓ mentiría.
+    const { data: actualizado, error } = await supabase
+      .from('articulos')
+      .update({ nombre })
+      .eq('id', existente.id)
+      .select('id')
+      .maybeSingle()
+
+    if (error) return { ok: false, error: error.message }
+    if (!actualizado) {
+      return { ok: false, error: 'No tienes permiso para cambiarle el nombre a este artículo' }
+    }
+
+    revalidatePath('/inventario')
+    return { ok: true, articuloId: existente.id, renombrado: true, nombreAnterior: existente.nombre }
+  }
+
+  const creado = await _crearArticulo(data)
+  if (!creado.ok) return creado
+  return { ok: true, articuloId: creado.articuloId, renombrado: false }
+}
+
 async function _crearArticulo(data: CrearArticuloInput): Promise<ArticuloResult> {
   const supabase = await createClient()
 
