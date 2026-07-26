@@ -104,6 +104,58 @@ async function _crearArticulo(data: CrearArticuloInput): Promise<ArticuloResult>
   return { ok: true as const, articuloId: articulo.id }
 }
 
+export type EditarArticuloInput = CrearArticuloInput & {
+  id: string
+  precio_venta: number | null
+}
+
+// Edita la ficha de un artículo del catálogo (solo admin, desde /inventario).
+export async function editarArticuloAction(data: EditarArticuloInput): Promise<SimpleResult> {
+  await soloAdmin()
+  const supabase = await createClient()
+
+  const nombre = data.nombre.trim()
+  const marca  = data.marca.trim()
+  const codigo = data.codigo.trim() || null
+
+  if (!nombre || !marca) return { ok: false, error: 'Marca y nombre son obligatorios' }
+  if (!data.categoria) return { ok: false, error: 'Indica si es ropa, tenis o accesorio' }
+  if (data.categoria !== 'accesorios' && !data.sexo) {
+    return { ok: false, error: 'Indica si es de hombre, de mujer o de niño' }
+  }
+
+  // El código identifica el modelo: no puede quedar repetido en otro artículo.
+  if (codigo) {
+    const { data: otro } = await supabase
+      .from('articulos')
+      .select('id')
+      .ilike('codigo', codigo)
+      .neq('id', data.id)
+      .maybeSingle()
+    if (otro) return { ok: false, error: `Ya hay otro artículo con el código ${codigo}` }
+  }
+
+  const { error } = await supabase
+    .from('articulos')
+    .update({
+      codigo,
+      nombre,
+      marca,
+      referencia:   data.referencia.trim() || null,
+      color:        data.color.trim() || null,
+      sexo:         data.sexo || null,
+      categoria:    data.categoria || null,
+      descripcion:  data.descripcion.trim() || null,
+      precio_venta: data.precio_venta,
+    })
+    .eq('id', data.id)
+
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/inventario')
+  return { ok: true }
+}
+
 // Busca un artículo por código SKU (para auto-completar al crear pedidos).
 export async function buscarPorCodigoAction(codigo: string): Promise<Articulo | null> {
   if (!codigo.trim()) return null

@@ -434,6 +434,7 @@ export type Articulo = {
   categoria: CategoriaArticulo | null
   fotos: string[]
   descripcion: string | null
+  precio_venta: number | null  // informativo (migración 110)
   activo: boolean
   creado_en: string
 }

@@ -11,6 +11,7 @@ import { Articulo, CategoriaArticulo, SexoArticulo } from '@/types'
 import { TallaSelect } from '@/components/ui/TallaSelect'
 import { formatMiles } from '@/lib/utils/format'
 import { CrearArticuloModal, ArticuloCreado } from './CrearArticuloModal'
+import { EditarArticuloModal } from './EditarArticuloModal'
 
 type Sede = { id: string; codigo: string; nombre: string }
 
@@ -24,6 +25,7 @@ export function InventarioPanel({
 }) {
   const [accion, setAccion] = useState<'none' | 'articulo' | 'entrada' | 'transferencia'>('none')
   const [q, setQ] = useState('')
+  const [editando, setEditando] = useState<Articulo | null>(null)
   // Artículos creados en esta sesión desde el buscador (antes de que llegue el refresh)
   const [extras, setExtras] = useState<Articulo[]>([])
   const todos = [
@@ -34,11 +36,29 @@ export function InventarioPanel({
     setExtras(prev => [...prev, { ...art, activo: true } as unknown as Articulo])
   }
 
-  const filtradas = q.trim()
-    ? filas.filter(f =>
-        (f.marca + ' ' + f.nombre + ' ' + (f.talla ?? '')).toLowerCase().includes(q.toLowerCase())
-      )
+  // El stock no trae el código ni el color: se leen del catálogo por articulo_id.
+  const porId = new Map(todos.map(a => [a.id, a]))
+
+  const texto = q.trim().toLowerCase()
+  const filtradas = texto
+    ? filas.filter(f => {
+        const a = porId.get(f.articulo_id)
+        return `${a?.codigo ?? ''} ${f.marca} ${f.nombre} ${a?.color ?? ''} ${a?.referencia ?? ''} ${f.talla ?? ''}`
+          .toLowerCase().includes(texto)
+      })
     : filas
+
+  // La tabla de arriba sale del stock: un artículo sin movimientos no aparece.
+  // Al buscar se listan aparte los que coinciden pero no tienen stock, para
+  // poder abrir su ficha igual.
+  const conStock = new Set(filas.map(f => f.articulo_id))
+  const sinStock = texto
+    ? todos.filter(a =>
+        !conStock.has(a.id) &&
+        `${a.codigo ?? ''} ${a.marca} ${a.nombre} ${a.color ?? ''} ${a.referencia ?? ''}`
+          .toLowerCase().includes(texto)
+      )
+    : []
 
   return (
     <div className="space-y-4">
@@ -62,34 +82,46 @@ export function InventarioPanel({
         type="text"
         value={q}
         onChange={e => setQ(e.target.value)}
-        placeholder="Buscar artículo…"
-        className="w-full max-w-sm rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        placeholder="Buscar por código, marca, nombre, color o talla…"
+        className="w-full max-w-md rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
+
+      {editando && <EditarArticuloModal articulo={editando} onClose={() => setEditando(null)} />}
 
       {filtradas.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
           {filas.length === 0
             ? 'Aún no hay artículos con stock. Crea un artículo y registra una entrada.'
-            : 'Sin resultados'}
+            : sinStock.length > 0
+              ? 'Ninguno con stock coincide — mira los del catálogo abajo.'
+              : 'Sin resultados'}
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
-                <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">Artículo</th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">Código</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Artículo</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Talla</th>
                 {columnasSedes.map(s => (
                   <th key={s} className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">{s}</th>
                 ))}
                 <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Total</th>
+                <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filtradas.map(f => (
+              {filtradas.map(f => {
+                const art = porId.get(f.articulo_id)
+                return (
                 <tr key={f.key} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-3">
+                  <td className="px-6 py-3 font-mono text-xs text-gray-500">
+                    {art?.codigo ?? '—'}
+                  </td>
+                  <td className="px-4 py-3">
                     <p className="font-medium text-gray-900">{f.marca} {f.nombre}</p>
+                    {art?.color && <p className="text-xs text-gray-400">{art.color}</p>}
                   </td>
                   <td className="px-4 py-3 text-gray-500 text-sm">
                     {f.talla ?? '—'}
@@ -105,10 +137,56 @@ export function InventarioPanel({
                     )
                   })}
                   <td className="px-4 py-3 text-center font-semibold text-gray-900">{f.total}</td>
+                  <td className="px-4 py-3 text-right">
+                    {art && (
+                      <button
+                        type="button"
+                        onClick={() => setEditando(art)}
+                        className="text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                        title="Editar la ficha del artículo"
+                      >
+                        Editar
+                      </button>
+                    )}
+                  </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {sinStock.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="border-b border-gray-100 bg-gray-50 px-6 py-2.5">
+            <p className="text-xs font-medium text-gray-500 uppercase">
+              En catálogo, sin stock ({sinStock.length})
+            </p>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {sinStock.slice(0, 30).map(a => (
+              <div key={a.id} className="flex items-center gap-3 px-6 py-3 hover:bg-gray-50 transition-colors">
+                <span className="font-mono text-xs text-gray-500 w-32 shrink-0">{a.codigo ?? '—'}</span>
+                <span className="flex-1 text-sm text-gray-900 truncate">
+                  {a.marca} {a.nombre}
+                  {a.color && <span className="text-gray-400"> · {a.color}</span>}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setEditando(a)}
+                  className="text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline shrink-0"
+                >
+                  Editar
+                </button>
+              </div>
+            ))}
+          </div>
+          {sinStock.length > 30 && (
+            <p className="px-6 py-2 text-xs text-gray-400 border-t border-gray-100">
+              Se muestran 30 de {sinStock.length} — afina la búsqueda.
+            </p>
+          )}
         </div>
       )}
     </div>
