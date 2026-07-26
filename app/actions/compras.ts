@@ -291,10 +291,9 @@ export async function crearCompraAction(data: CrearCompraInput): Promise<CrearCo
 
     // Regla de inventario: si el ítem NO está asignado a un pedido, entra al
     // stock de Bucaramanga (centro de distribución) con su costo de compra.
-    // Si trae código pero aún no está vinculado al catálogo, se resuelve/crea
-    // el artículo (igual que en el camino de pedido) para que el sobrante con
-    // código nuevo también quede en stock valorado. Sin código → no entra
-    // (no se puede valorar un producto sin identificar).
+    // Si aún no está vinculado al catálogo se resuelve o se crea la ficha —
+    // por código si lo trae, o por marca + nombre si no — para que todo
+    // sobrante quede en stock valorado y se pueda asignar a un pedido después.
     if (item.destino === 'sin_asignar') {
       if (!articuloId) {
         await _resolverArticuloCompraItem(itemCreado.id, null, null, adminClient)
@@ -343,7 +342,7 @@ export async function asignarItemAction(
   destino: 'pedido' | 'contoda' | 'sin_asignar',
   pedidoRef?: string
 ): Promise<AsignarItemResult> {
-  const { adminClient } = await verificarAdmin()
+  const { userId, adminClient } = await verificarAdmin()
 
   let pedidoId: string | null = null
   let pedidoItemIndice: number | null = null
@@ -353,23 +352,16 @@ export async function asignarItemAction(
       return { ok: false, error: 'Debes indicar el número de orden del pedido' }
     }
 
-    // Parsear "TR1025-1" → numeroOrden="TR1025", indice=1
     const ref = pedidoRef.trim().toUpperCase()
-    const match = ref.match(/^(.+)-(\d+)$/)
-    const numeroOrden = match ? match[1] : ref
-    pedidoItemIndice = match ? parseInt(match[2], 10) : null
-
-    const { data: pedido } = await adminClient
-      .from('pedidos')
-      .select('id, estado')
-      .eq('numero_orden', numeroOrden)
-      .single()
-
+    // "TR6835-1" puede ser un pedido separado real O el artículo 1 de TR6835:
+    // el número exacto manda, el sufijo es el respaldo.
+    const pedido = await _resolverPedidoPorRef(adminClient, ref)
     if (!pedido) {
-      return { ok: false, error: `Pedido "${numeroOrden}" no encontrado` }
+      return { ok: false, error: `Pedido "${ref}" no encontrado` }
     }
 
     pedidoId = pedido.id
+    pedidoItemIndice = pedido.indice
 
     if (pedido.estado === 'pendiente') {
       await adminClient
@@ -397,7 +389,79 @@ export async function asignarItemAction(
     await _resolverArticuloCompraItem(itemId, pedidoId, pedidoItemIndice, adminClient)
   }
 
+  // El stock de Bucaramanga sigue al destino: entra si queda sin asignar,
+  // sale cuando se le asigna a un pedido o se va para Contoda.
+  await _sincronizarStockCompraItem(itemId, destino, userId, adminClient)
+
+  revalidatePath('/inventario')
+  revalidatePath('/compras')
+
   return { ok: true }
+}
+
+// Deja el stock de Bucaramanga acorde al destino del ítem, sin importar cuántas
+// veces se reasigne:
+//   destino 'sin_asignar'          → el ítem debe estar EN stock (neto = cantidad)
+//   destino 'pedido' / 'contoda'   → el ítem sale del stock (neto = 0)
+// Se calcula el neto de los movimientos que ya tiene y se inserta solo la
+// diferencia, así que llamarla dos veces no duplica nada.
+//
+// El movimiento va con pedido_id NULL a propósito: el costo del pedido ya lo
+// aporta compra_items.pedido_id en vista_ganancia_pedidos, y una salida con
+// pedido_id lo sumaría por segunda vez.
+async function _sincronizarStockCompraItem(
+  itemId: string,
+  destino: 'pedido' | 'contoda' | 'sin_asignar',
+  usuarioId: string,
+  adminClient: ReturnType<typeof import('@/lib/supabase/admin').createAdminClient>,
+  notasEntrada?: string,
+) {
+  const { data: item } = await adminClient
+    .from('compra_items')
+    .select('articulo_id, talla, cantidad, costo_unitario_cop')
+    .eq('id', itemId)
+    .single()
+
+  if (!item) return
+
+  let articuloId = item.articulo_id as string | null
+
+  // Para entrar al stock hace falta un artículo del catálogo que lo valore.
+  if (!articuloId && destino === 'sin_asignar') {
+    await _resolverArticuloCompraItem(itemId, null, null, adminClient)
+    const { data: act } = await adminClient
+      .from('compra_items').select('articulo_id').eq('id', itemId).single()
+    articuloId = act?.articulo_id ?? null
+  }
+  if (!articuloId) return
+
+  const { data: movs } = await adminClient
+    .from('movimientos_inventario')
+    .select('delta')
+    .eq('compra_item_id', itemId)
+
+  const neto = (movs ?? []).reduce((s: number, m: { delta: number }) => s + m.delta, 0)
+  const objetivo = destino === 'sin_asignar' ? item.cantidad : 0
+  const ajuste = objetivo - neto
+  if (ajuste === 0) return
+
+  const { data: tr } = await adminClient
+    .from('sedes').select('id').eq('codigo', 'TR').maybeSingle()
+
+  await adminClient.from('movimientos_inventario').insert({
+    articulo_id:        articuloId,
+    talla:              item.talla || null,
+    sede_id:            tr?.id ?? null,
+    delta:              ajuste,
+    tipo:               ajuste > 0 ? 'entrada' : 'salida',
+    compra_item_id:     itemId,
+    pedido_id:          null,
+    costo_unitario_cop: item.costo_unitario_cop,
+    usuario_id:         usuarioId,
+    notas: ajuste > 0
+      ? (notasEntrada || 'Vuelve al stock de Bucaramanga (compra sin asignar)')
+      : `Sale del stock de Bucaramanga (compra asignada a ${destino === 'pedido' ? 'pedido' : 'Contoda'})`,
+  })
 }
 
 async function _resolverArticuloCompraItem(
@@ -449,6 +513,33 @@ async function _resolverArticuloCompraItem(
           nombre:  item.descripcion.trim(),
           marca:   item.marca?.trim() || 'Sin marca',
         })
+        .select('id')
+        .single()
+      articuloId = nuevo?.id ?? null
+    }
+  }
+
+  // Prioridad 3: sin código, por marca + nombre. Antes esto se dejaba sin
+  // vincular y el sobrante NO entraba al stock de Bucaramanga; ahora se crea
+  // la ficha (sin código, editable después en /inventario) para que entre.
+  if (!articuloId && item.descripcion?.trim()) {
+    const nombre = item.descripcion.trim()
+    const marca  = item.marca?.trim() || 'Sin marca'
+
+    const { data: existente } = await adminClient
+      .from('articulos')
+      .select('id')
+      .ilike('marca', marca)
+      .ilike('nombre', nombre)
+      .limit(1)
+      .maybeSingle()
+
+    if (existente) {
+      articuloId = existente.id
+    } else {
+      const { data: nuevo } = await adminClient
+        .from('articulos')
+        .insert({ nombre, marca })
         .select('id')
         .single()
       articuloId = nuevo?.id ?? null
@@ -638,27 +729,15 @@ export async function editarCompraAction(compraId: string, data: EditarCompraInp
         .from('compra_items').insert({ compra_id: compraId, ...campos }).select('id').single()
       if (errIns || !creado) return { ok: false, error: `Error creando item: ${errIns?.message}` }
       itemId = creado.id
-
-      // Solo los items NUEVOS sin asignar entran al inventario (los existentes
-      // ya entraron cuando se creó la compra; no se duplica la entrada).
-      if (item.destino === 'sin_asignar') {
-        await _resolverArticuloCompraItem(itemId, null, null, adminClient)
-        const { data: itemAct } = await adminClient
-          .from('compra_items').select('articulo_id').eq('id', itemId).single()
-        if (itemAct?.articulo_id) {
-          await adminClient.rpc('registrar_entrada_inventario', {
-            p_articulo_id:    itemAct.articulo_id,
-            p_talla:          item.talla.trim() || null,
-            p_cantidad:       item.cantidad,
-            p_costo_unitario: item.costo_unitario_cop,
-            p_usuario_id:     userId,
-            p_compra_item_id: itemId,
-            p_sede_id:        null,
-            p_notas:          `Compra ${numeroFactura ?? ''} — ${data.proveedor.trim()}`.trim(),
-          })
-        }
-      }
     }
+
+    // El stock queda acorde al destino, tanto en items nuevos como en los que
+    // se editaron: entra si es sobrante, sale si se le asignó un pedido. La
+    // función mira lo que ya movió este item, así que no duplica entradas.
+    await _sincronizarStockCompraItem(
+      itemId, item.destino, userId, adminClient,
+      `Compra ${numeroFactura ?? ''} — ${data.proveedor.trim()}`.trim(),
+    )
 
     // Avanzar el pedido y vincular artículo del catálogo si se asignó a pedido
     if (pedidoId) {
