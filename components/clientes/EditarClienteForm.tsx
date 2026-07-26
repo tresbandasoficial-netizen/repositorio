@@ -3,6 +3,7 @@
 import { useTransition, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { editarClienteAction } from '@/app/actions/clientes'
+import { useAviso } from '@/components/ui/Aviso'
 import { ClienteDetalle } from '@/lib/queries/clientes'
 
 interface EditarClienteFormProps {
@@ -16,6 +17,7 @@ export function EditarClienteForm({ cliente }: EditarClienteFormProps) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [guardado, setGuardado] = useState(false)
+  const { avisar, avisarError } = useAviso()
 
   // Display phone without +57 prefix for easier editing
   const telefonoDisplay = cliente.telefono_normalizado.startsWith('+57')
@@ -30,8 +32,10 @@ export function EditarClienteForm({ cliente }: EditarClienteFormProps) {
       const result = await editarClienteAction(cliente.id, formData)
       if (!result.ok) {
         setError(result.error)
+        avisarError(result.error)
       } else {
         setGuardado(true)
+        avisar('Cambio realizado')
         router.refresh()
       }
     })

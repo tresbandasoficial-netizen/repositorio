@@ -6,6 +6,7 @@ import { CheckCircle2, Circle, Loader2 } from 'lucide-react'
 import { EstadoPedido, ESTADO_LABELS } from '@/types'
 import { FLUJO_ESTADOS } from '@/lib/domain/estados'
 import { cambiarEstadoAction } from '@/app/actions/pedidos'
+import { useAviso } from '@/components/ui/Aviso'
 
 interface SeguimientoBarProps {
   pedidoId: string
@@ -20,6 +21,7 @@ export function SeguimientoBar({ pedidoId, estadoActual, rolUsuario, sedeCodigo 
   const [error, setError] = useState<string | null>(null)
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [loadingEstado, setLoadingEstado] = useState<EstadoPedido | null>(null)
+  const { avisar, avisarError } = useAviso()
 
   const esSantaRosa = sedeCodigo === 'SR'
   const flujo = esSantaRosa ? FLUJO_ESTADOS : FLUJO_ESTADOS.filter(e => e !== 'santa_rosa')
@@ -37,7 +39,10 @@ export function SeguimientoBar({ pedidoId, estadoActual, rolUsuario, sedeCodigo 
       const result = await cambiarEstadoAction(pedidoId, estadoActual, nuevoEstado)
       if (!result.ok) {
         setError(result.error)
+        avisarError(result.error)
         setLoadingEstado(null)
+      } else {
+        avisar(`Pedido en ${ESTADO_LABELS[nuevoEstado]}`)
       }
       // on success, the server action redirects
     })

@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { formatCOP, formatFecha } from '@/lib/utils/format'
 import { METODO_PAGO_LABELS, MetodoPago } from '@/types'
 import { editarAbonoAction, eliminarAbonoAction } from '@/app/actions/abonos'
+import { useAviso } from '@/components/ui/Aviso'
 import type { AbonoCliente } from '@/lib/queries/clientes'
 
 const metodoLabel = (m: string) => METODO_PAGO_LABELS[m as MetodoPago] ?? m
@@ -20,6 +21,7 @@ export function HistorialPagos({ abonos, esAdmin }: { abonos: AbonoCliente[]; es
   const [montos, setMontos] = useState<Record<string, string>>({})
   const [error, setError] = useState('')
   const [pending, start] = useTransition()
+  const { avisar, avisarError } = useAviso()
 
   if (abonos.length === 0) {
     return <p className="px-6 py-4 text-sm text-gray-400">Sin pagos registrados.</p>
@@ -41,15 +43,22 @@ export function HistorialPagos({ abonos, esAdmin }: { abonos: AbonoCliente[]; es
   function guardar(a: AbonoCliente) {
     setError('')
     start(async () => {
+      let cambios = 0
       for (const p of a.partes) {
         const nuevo = parseInt(montos[p.id] ?? '', 10)
-        if (!Number.isFinite(nuevo) || nuevo <= 0) { setError('Los montos deben ser mayores a cero'); return }
+        if (!Number.isFinite(nuevo) || nuevo <= 0) {
+          setError('Los montos deben ser mayores a cero')
+          avisarError('Los montos deben ser mayores a cero')
+          return
+        }
         if (nuevo !== p.monto) {
           const r = await editarAbonoAction(p.id, p.origen, nuevo)
-          if (!r.ok) { setError(r.error); return }
+          if (!r.ok) { setError(r.error); avisarError(r.error); return }
+          cambios++
         }
       }
       setEditando(null)
+      if (cambios > 0) avisar('Cambio realizado')
       router.refresh()
     })
   }
@@ -60,7 +69,8 @@ export function HistorialPagos({ abonos, esAdmin }: { abonos: AbonoCliente[]; es
     setError('')
     start(async () => {
       const r = await eliminarAbonoAction(a.partes.map(p => ({ id: p.id, origen: p.origen })))
-      if (!r.ok) { setError(r.error); return }
+      if (!r.ok) { setError(r.error); avisarError(r.error); return }
+      avisar('Abono eliminado')
       router.refresh()
     })
   }

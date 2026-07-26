@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { asignarItemAction } from '@/app/actions/compras'
 import { Button } from '@/components/ui/Button'
+import { useAviso } from '@/components/ui/Aviso'
 
 type Destino = 'pedido' | 'contoda' | 'sin_asignar'
 
@@ -18,6 +19,7 @@ export function AsignarItemForm({ itemId, destinoActual, pedidoActual, onDone }:
   const [numeroPedido, setNumeroPedido] = useState(pedidoActual ?? '')
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const { avisar, avisarError } = useAviso()
 
   function handleGuardar() {
     setError(null)
@@ -31,7 +33,9 @@ export function AsignarItemForm({ itemId, destinoActual, pedidoActual, onDone }:
 
       if (!result.ok) {
         setError(result.error)
+        avisarError(result.error)
       } else {
+        avisar('Cambio realizado')
         onDone?.()
       }
     })

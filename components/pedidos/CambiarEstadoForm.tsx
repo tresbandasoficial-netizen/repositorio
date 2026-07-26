@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { EstadoPedido, ESTADO_LABELS, ESTADO_COLORES } from '@/types'
 import { transicionesDisponibles } from '@/lib/domain/estados'
 import { cambiarEstadoAction } from '@/app/actions/pedidos'
+import { useAviso } from '@/components/ui/Aviso'
 import { cn } from '@/lib/utils/cn'
 
 interface CambiarEstadoFormProps {
@@ -16,6 +17,7 @@ export function CambiarEstadoForm({ pedidoId, estadoActual, rol }: CambiarEstado
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [confirmando, setConfirmando] = useState<EstadoPedido | null>(null)
+  const { avisar, avisarError } = useAviso()
 
   const disponibles = transicionesDisponibles(estadoActual, rol)
 
@@ -33,7 +35,10 @@ export function CambiarEstadoForm({ pedidoId, estadoActual, rol }: CambiarEstado
       const result = await cambiarEstadoAction(pedidoId, estadoActual, estado)
       if (!result.ok) {
         setError(result.error)
+        avisarError(result.error)
         setConfirmando(null)
+      } else {
+        avisar(`Pedido en ${ESTADO_LABELS[estado]}`)
       }
     })
   }

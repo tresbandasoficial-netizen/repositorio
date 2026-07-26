@@ -5,6 +5,7 @@ import { buscarArticulosAction, guardarArticuloCatalogoAction, guardarNombreArti
 import { ItemVenta } from '@/app/actions/ventas'
 import { TallaSelect } from '@/components/ui/TallaSelect'
 import { MarcaSelect } from '@/components/ui/MarcaSelect'
+import { useAviso } from '@/components/ui/Aviso'
 import type { CategoriaArticulo } from '@/types'
 import { formatMiles } from '@/lib/utils/format'
 
@@ -70,6 +71,7 @@ export function LineaProducto({
   const [guardandoDescripcion, setGuardandoDescripcion] = useState(false)
   const [avisoRenombrado, setAvisoRenombrado] = useState<string | null>(null)
   const [errorNombre, setErrorNombre] = useState<string | null>(null)
+  const { avisar, avisarError } = useAviso()
 
   useEffect(() => {
     if (linea.articulo_id) { setOpciones([]); setAbierto(false); setNoEncontrado(false); return }
@@ -153,10 +155,12 @@ export function LineaProducto({
       // salir en todo lo que use ese código, no solo en esta línea.
       if (result.renombrado) {
         setAvisoRenombrado(result.nombreAnterior ?? null)
+        avisar('Cambio realizado')
       }
       setTimeout(() => setDescripcionGuardada(false), 2000)
     } else {
       setErrorNombre(result.error)
+      avisarError(result.error)
     }
   }
 

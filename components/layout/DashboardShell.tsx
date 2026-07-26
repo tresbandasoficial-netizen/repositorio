@@ -5,6 +5,7 @@ import { Menu } from 'lucide-react'
 import { Sidebar } from './Sidebar'
 import { CampanaNotificaciones } from './CampanaNotificaciones'
 import { NavGuard } from './NavGuard'
+import { AvisoProvider } from '@/components/ui/Aviso'
 import { Usuario } from '@/types'
 
 interface Props {
@@ -26,6 +27,7 @@ export function DashboardShell({ usuario, children }: Props) {
   const primerNombre = usuario.nombre.split(' ')[0]
 
   return (
+    <AvisoProvider>
     <div className="flex min-h-screen bg-[#eef2ff]">
       <NavGuard />
       {/* Mobile overlay */}
@@ -91,5 +93,6 @@ export function DashboardShell({ usuario, children }: Props) {
         </main>
       </div>
     </div>
+    </AvisoProvider>
   )
 }

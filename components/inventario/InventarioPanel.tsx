@@ -6,6 +6,7 @@ import {
   crearArticuloAction, registrarEntradaAction, transferirStockAction,
 } from '@/app/actions/articulos'
 import { Button } from '@/components/ui/Button'
+import { useAviso } from '@/components/ui/Aviso'
 import { StockAgrupado } from '@/lib/queries/inventario'
 import { Articulo, CategoriaArticulo, SexoArticulo } from '@/types'
 import { TallaSelect } from '@/components/ui/TallaSelect'
@@ -209,6 +210,7 @@ const inputCls = 'w-full rounded-lg border border-gray-200 px-3 py-2 text-sm foc
 
 function CrearArticulo({ onClose }: { onClose: () => void }) {
   const router = useRouter()
+  const { avisar, avisarError } = useAviso()
   const [codigo, setCodigo] = useState('')
   const [nombre, setNombre] = useState('')
   const [marca, setMarca] = useState('')
@@ -226,7 +228,8 @@ function CrearArticulo({ onClose }: { onClose: () => void }) {
     setError('')
     start(async () => {
       const r = await crearArticuloAction({ codigo, nombre, marca, referencia, color, sexo, categoria, descripcion: '' })
-      if (!r.ok) { setError(r.error); return }
+      if (!r.ok) { setError(r.error); avisarError(r.error); return }
+      avisar('Artículo creado')
       router.refresh(); onClose()
     })
   }
@@ -360,6 +363,7 @@ function SelectArticulo({ articulos, value, onChange, onCreado }: {
 
 function Entrada({ articulos, sedes, onCreado, onClose }: { articulos: Articulo[]; sedes: Sede[]; onCreado?: (a: ArticuloCreado) => void; onClose: () => void }) {
   const router = useRouter()
+  const { avisar, avisarError } = useAviso()
   const tr = sedes.find(s => s.codigo === 'TR')
   const [articuloId, setArticuloId] = useState('')
   const [talla, setTalla] = useState('')
@@ -384,7 +388,8 @@ function Entrada({ articulos, sedes, onCreado, onClose }: { articulos: Articulo[
         articulo_id: articuloId, talla: talla.trim(), cantidad: c,
         costo_unitario_cop: co, sede_id: sedeId || null, notas,
       })
-      if (!r.ok) { setError(r.error); return }
+      if (!r.ok) { setError(r.error); avisarError(r.error); return }
+      avisar('Entrada registrada')
       router.refresh(); onClose()
     })
   }
@@ -418,6 +423,7 @@ function Entrada({ articulos, sedes, onCreado, onClose }: { articulos: Articulo[
 
 function Transferencia({ articulos, sedes, onCreado, onClose }: { articulos: Articulo[]; sedes: Sede[]; onCreado?: (a: ArticuloCreado) => void; onClose: () => void }) {
   const router = useRouter()
+  const { avisar, avisarError } = useAviso()
   const tr = sedes.find(s => s.codigo === 'TR')
   const [articuloId, setArticuloId] = useState('')
   const [talla, setTalla] = useState('')
@@ -442,7 +448,8 @@ function Transferencia({ articulos, sedes, onCreado, onClose }: { articulos: Art
         articulo_id: articuloId, talla: talla.trim(),
         sede_origen: origen, sede_destino: destino, cantidad: c, notas,
       })
-      if (!r.ok) { setError(r.error); return }
+      if (!r.ok) { setError(r.error); avisarError(r.error); return }
+      avisar('Transferencia realizada')
       router.refresh(); onClose()
     })
   }

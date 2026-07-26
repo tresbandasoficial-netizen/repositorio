@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { editarArticuloAction } from '@/app/actions/articulos'
 import { Button } from '@/components/ui/Button'
+import { useAviso } from '@/components/ui/Aviso'
 import { MarcaSelect } from '@/components/ui/MarcaSelect'
 import { formatMiles } from '@/lib/utils/format'
 import { Articulo, CategoriaArticulo, SexoArticulo } from '@/types'
@@ -12,6 +13,7 @@ const inputCls = 'w-full rounded-lg border border-gray-200 px-3 py-2 text-sm foc
 
 export function EditarArticuloModal({ articulo, onClose }: { articulo: Articulo; onClose: () => void }) {
   const router = useRouter()
+  const { avisar, avisarError } = useAviso()
   const [codigo, setCodigo]         = useState(articulo.codigo ?? '')
   const [nombre, setNombre]         = useState(articulo.nombre)
   const [marca, setMarca]           = useState(articulo.marca)
@@ -36,8 +38,9 @@ export function EditarArticuloModal({ articulo, onClose }: { articulo: Articulo;
         descripcion: articulo.descripcion ?? '',
         precio_venta: precio ? parseInt(precio, 10) : null,
       })
-      if (!r.ok) { setError(r.error); return }
+      if (!r.ok) { setError(r.error); avisarError(r.error); return }
       setGuardado(true)
+      avisar('Cambio realizado')
       router.refresh()
       setTimeout(onClose, 700)
     })
