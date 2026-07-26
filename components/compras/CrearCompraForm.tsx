@@ -154,17 +154,16 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
 
   const totalCopNum = parseInt(totalCopPagado.replace(/\D/g, ''), 10) || 0
 
-  // Recalcular costos COP usando tasas reales de tax y envío
+  // Recalcular costos COP. precio_usd es el precio UNITARIO del artículo;
+  // tax y envío se reparten en proporción al precio de cada uno (no en partes iguales).
   function recalcularCostos(trm: number, taxUsd: number, shippingUsd: number) {
     setItems(prev => {
-      const subtotal = prev.reduce((s, item) => s + (item.precio_usd ?? 0), 0)
+      const subtotal = prev.reduce((s, it) => s + (it.precio_usd ?? 0) * (parseInt(it.cantidad, 10) || 1), 0)
       const taxRate = subtotal > 0 ? taxUsd / subtotal : 0
       const shippingRate = subtotal > 0 ? shippingUsd / subtotal : 0
       return prev.map(item => {
         if (!item.precio_usd) return item
-        const cantidad = parseInt(item.cantidad, 10) || 1
-        const unitPriceUsd = item.precio_usd / cantidad
-        const realCostUsd = unitPriceUsd * (1 + taxRate + shippingRate)
+        const realCostUsd = item.precio_usd * (1 + taxRate + shippingRate)
         return { ...item, costo_unitario_cop: String(Math.round(realCostUsd * trm)) }
       })
     })
@@ -667,13 +666,20 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
               {/* Tasas calculadas y botón recalcular */}
               <div className="flex items-center justify-between">
                 <p className="text-xs text-gray-400">
-                  {subtotalUsd && parseFloat(subtotalUsd) > 0 ? (
-                    <>
-                      Tasa impuestos: {(parseFloat(impuestosUsd || '0') / parseFloat(subtotalUsd) * 100).toFixed(2)}%
-                      {' | '}
-                      Tasa envío: {(parseFloat(envioUsd || '0') / parseFloat(subtotalUsd) * 100).toFixed(2)}%
-                    </>
-                  ) : null}
+                  {(() => {
+                    const base = items.reduce((s, it) => s + (it.precio_usd ?? 0) * (parseInt(it.cantidad, 10) || 1), 0)
+                      || parseFloat(subtotalUsd || '0')
+                    if (base <= 0) return null
+                    return (
+                      <>
+                        Tasa impuestos: {(parseFloat(impuestosUsd || '0') / base * 100).toFixed(2)}%
+                        {' | '}
+                        Tasa envío: {(parseFloat(envioUsd || '0') / base * 100).toFixed(2)}%
+                        {' | '}
+                        Base USD: ${base.toFixed(2)}
+                      </>
+                    )
+                  })()}
                 </p>
                 {trmCalculada && (
                   <button
@@ -829,8 +835,8 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
                 <p className="text-xs text-amber-600">Artículo nuevo — se creará en el catálogo al asignar el pedido</p>
               )}
 
-              {/* Fila 3: marca / talla / cantidad / costo */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {/* Fila 3: marca / talla / cantidad / precio USD / costo COP */}
+              <div className={`grid grid-cols-2 gap-2 ${tipo === 'usa' ? 'sm:grid-cols-5' : 'sm:grid-cols-4'}`}>
                 <MarcaSelect
                   value={item.marca}
                   onChange={marca => actualizarItem(idx, 'marca', marca)}
@@ -851,6 +857,22 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
                   title="Cantidad"
                   className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 />
+                {tipo === 'usa' && (
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={item.precio_usd ?? ''}
+                    onChange={(e) => {
+                      const usd = e.target.value === '' ? null : parseFloat(e.target.value)
+                      setItems(prev => prev.map((it, i) => i === idx ? { ...it, precio_usd: usd } : it))
+                      if (trmCalculada) recalcularCostos(trmCalculada, parseFloat(impuestosUsd) || 0, parseFloat(envioUsd) || 0)
+                    }}
+                    placeholder="Precio USD"
+                    title="Precio en dólares del artículo"
+                    className="w-full rounded-lg border border-green-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-green-50/40"
+                  />
+                )}
                 <input
                   type="text"
                   inputMode="numeric"
