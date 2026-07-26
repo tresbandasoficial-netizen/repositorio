@@ -154,13 +154,26 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
 
   const totalCopNum = parseInt(totalCopPagado.replace(/\D/g, ''), 10) || 0
 
+  // Base sobre la que se reparten tax y envío. Manda el Subtotal USD de la
+  // factura: la suma de los precios ya escritos serviría solo si estuvieran
+  // TODOS, y mientras se van digitando uno por uno daría una tasa inflada
+  // (con subtotal 156.97 y tax 10.99 la tasa es 7%, pero con un solo precio
+  // de 45 escrito saldría 24%).
+  function baseReparto(lista: ItemForm[], subtotalTexto = subtotalUsd) {
+    const declarado = parseFloat(subtotalTexto)
+    if (declarado > 0) return declarado
+    return lista.reduce((s, it) => s + (it.precio_usd ?? 0) * (parseInt(it.cantidad, 10) || 1), 0)
+  }
+
   // Recalcular costos COP. precio_usd es el precio UNITARIO del artículo;
   // tax y envío se reparten en proporción al precio de cada uno (no en partes iguales).
-  function recalcularCostos(trm: number, taxUsd: number, shippingUsd: number) {
+  // subtotalTexto se pasa cuando el propio cambio es el del Subtotal: el estado
+  // aún no se actualizó y leerlo del closure daría el valor anterior.
+  function recalcularCostos(trm: number, taxUsd: number, shippingUsd: number, subtotalTexto?: string) {
     setItems(prev => {
-      const subtotal = prev.reduce((s, it) => s + (it.precio_usd ?? 0) * (parseInt(it.cantidad, 10) || 1), 0)
-      const taxRate = subtotal > 0 ? taxUsd / subtotal : 0
-      const shippingRate = subtotal > 0 ? shippingUsd / subtotal : 0
+      const base = baseReparto(prev, subtotalTexto ?? subtotalUsd)
+      const taxRate = base > 0 ? taxUsd / base : 0
+      const shippingRate = base > 0 ? shippingUsd / base : 0
       return prev.map(item => {
         if (!item.precio_usd) return item
         const realCostUsd = item.precio_usd * (1 + taxRate + shippingRate)
@@ -616,16 +629,22 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
               {/* Fila 2: Subtotal USD | Impuestos USD | Envío USD */}
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Subtotal USD (opcional)</label>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Subtotal USD</label>
                   <input
                     type="number"
                     min="0"
                     step="0.01"
                     value={subtotalUsd}
-                    onChange={(e) => setSubtotalUsd(e.target.value)}
+                    onChange={(e) => {
+                      setSubtotalUsd(e.target.value)
+                      if (trmCalculada) {
+                        recalcularCostos(trmCalculada, parseFloat(impuestosUsd) || 0, parseFloat(envioUsd) || 0, e.target.value)
+                      }
+                    }}
                     placeholder="0.00"
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
+                  <p className="text-xs text-gray-400 mt-1">Base para repartir tax y envío</p>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Impuestos USD (opcional)</label>
@@ -667,16 +686,22 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
               <div className="flex items-center justify-between">
                 <p className="text-xs text-gray-400">
                   {(() => {
-                    const base = items.reduce((s, it) => s + (it.precio_usd ?? 0) * (parseInt(it.cantidad, 10) || 1), 0)
-                      || parseFloat(subtotalUsd || '0')
+                    const base = baseReparto(items)
                     if (base <= 0) return null
+                    const sumaItems = items.reduce((s, it) => s + (it.precio_usd ?? 0) * (parseInt(it.cantidad, 10) || 1), 0)
+                    const falta = !parseFloat(subtotalUsd) && sumaItems > 0
                     return (
                       <>
-                        Tasa impuestos: {(parseFloat(impuestosUsd || '0') / base * 100).toFixed(2)}%
-                        {' | '}
-                        Tasa envío: {(parseFloat(envioUsd || '0') / base * 100).toFixed(2)}%
-                        {' | '}
                         Base USD: ${base.toFixed(2)}
+                        {' | '}
+                        Tax: {(parseFloat(impuestosUsd || '0') / base * 100).toFixed(2)}%
+                        {' | '}
+                        Envío: {(parseFloat(envioUsd || '0') / base * 100).toFixed(2)}%
+                        {falta && (
+                          <span className="text-amber-600">
+                            {' '}— escribe el Subtotal USD de la factura para que la tasa no cambie mientras digitas precios
+                          </span>
+                        )}
                       </>
                     )
                   })()}
