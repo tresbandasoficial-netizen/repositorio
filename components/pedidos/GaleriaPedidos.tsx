@@ -2,12 +2,13 @@
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import type { PedidoRow } from '@/lib/queries/pedidos'
 import { EstadoInline } from './PedidoCard'
 import { AvisarLlegoButton } from './AvisarLlegoButton'
 import { formatCOP, formatFecha } from '@/lib/utils/format'
 import { formatearTelefono } from '@/lib/utils/phone'
-import { ImageOff, X, ArrowUpRight, Check, Phone, ShoppingCart, LayoutGrid, Package } from 'lucide-react'
+import { ImageOff, X, ArrowUpRight, Check, Phone, ShoppingCart, LayoutGrid, Package, ExternalLink } from 'lucide-react'
 
 export type ItemGaleria = {
   codigo: string | null
@@ -72,10 +73,13 @@ function iniciales(nombre: string): string {
 export function GaleriaPedidos({
   pedidos,
   itemsPorPedido,
+  facturasCompraPorPedido = {},
   esAdmin = false,
 }: {
   pedidos: PedidoRow[]
   itemsPorPedido: Record<string, ItemGaleria[]>
+  // Facturas de compra del pedido (puede traer artículos de varias compras).
+  facturasCompraPorPedido?: Record<string, Array<{ id: string; numero: string | null }>>
   esAdmin?: boolean
 }) {
   const router = useRouter()
@@ -145,6 +149,8 @@ export function GaleriaPedidos({
         : !['pendiente', 'cancelado'].includes(sel.pedido.estado)))
     : false
   const cancelado = sel?.pedido.estado === 'cancelado'
+  // Facturas de compra del pedido seleccionado, para abrirlas desde el badge.
+  const facturasSel = sel ? (facturasCompraPorPedido[sel.pedido.id] ?? []) : []
 
   const Visor = sel && (
     <div className="space-y-3">
@@ -173,9 +179,28 @@ export function GaleriaPedidos({
               Cancelado
             </span>
           ) : !esAdmin ? null : (sel.item ? (sel.comprado || !!sel.pedido.factura_id) : yaComprado) ? (
-            <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-full">
-              <Check size={13} /> Ya comprado
-            </span>
+            // Ya comprado: si se sabe de qué compra vino, el badge lleva el
+            // número de factura y abre esa compra. Si vino de varias, se listan.
+            facturasSel.length > 0 ? (
+              <div className="flex flex-wrap items-center gap-1.5 justify-end">
+                {facturasSel.map(f => (
+                  <Link
+                    key={f.id}
+                    href={`/compras/${f.id}`}
+                    title="Abrir la factura de compra"
+                    className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-full hover:bg-emerald-200 transition-colors"
+                  >
+                    <Check size={13} />
+                    {f.numero ? `Fac ${f.numero}` : 'Ver compra'}
+                    <ExternalLink size={11} className="opacity-70" />
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-full">
+                <Check size={13} /> Ya comprado
+              </span>
+            )
           ) : (
             <span className="inline-flex items-center gap-1 bg-red-100 text-red-700 text-xs font-bold px-3 py-1 rounded-full">
               <X size={13} /> Sin comprar

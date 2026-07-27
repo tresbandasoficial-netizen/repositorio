@@ -91,6 +91,7 @@ export default async function GaleriaPedidosPage({
   // Artículos de los pedidos en pantalla (con su foto) + compras ya asignadas
   // (para pintar en verde las piezas que ya se compraron).
   const itemsPorPedido: Record<string, ItemGaleria[]> = {}
+  const facturasCompraPorPedido: Record<string, Array<{ id: string; numero: string | null }>> = {}
   if (pedidos.length > 0) {
     const ids = pedidos.map(p => p.id)
     const [{ data: items }, { data: compras }] = await Promise.all([
@@ -101,7 +102,7 @@ export default async function GaleriaPedidosPage({
         .order('id'),
       supabase
         .from('compra_items')
-        .select('pedido_id, codigo, talla, articulo_id, cantidad')
+        .select('pedido_id, codigo, talla, articulo_id, cantidad, compra_id, compras(numero_factura)')
         .in('pedido_id', ids),
     ])
     for (const it of (items ?? []) as any[]) {
@@ -123,6 +124,17 @@ export default async function GaleriaPedidosPage({
     const comprasPorPedido: Record<string, Array<{ codigo: string | null; talla: string | null; articulo_id: string | null; cantidad: number }>> = {}
     for (const c of (compras ?? []) as any[]) {
       ;(comprasPorPedido[c.pedido_id] ??= []).push(c)
+
+      // Facturas de compra del pedido, para poder abrirlas desde la galería.
+      // Un pedido puede traer artículos de varias compras, así que es una lista
+      // y se de-duplica por compra.
+      const compra = Array.isArray(c.compras) ? c.compras[0] : c.compras
+      if (c.compra_id) {
+        const lista = (facturasCompraPorPedido[c.pedido_id] ??= [])
+        if (!lista.some(f => f.id === c.compra_id)) {
+          lista.push({ id: c.compra_id, numero: compra?.numero_factura ?? null })
+        }
+      }
     }
     for (const pid of Object.keys(itemsPorPedido)) {
       marcarComprados(itemsPorPedido[pid], comprasPorPedido[pid] ?? [])
@@ -211,7 +223,12 @@ export default async function GaleriaPedidosPage({
           No hay pedidos con estos filtros
         </div>
       ) : (
-        <GaleriaPedidos pedidos={pedidos} itemsPorPedido={itemsPorPedido} esAdmin={esAdmin} />
+        <GaleriaPedidos
+          pedidos={pedidos}
+          itemsPorPedido={itemsPorPedido}
+          facturasCompraPorPedido={facturasCompraPorPedido}
+          esAdmin={esAdmin}
+        />
       )}
 
       {/* Paginación */}
