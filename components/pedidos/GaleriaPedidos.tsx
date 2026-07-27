@@ -157,9 +157,9 @@ export function GaleriaPedidos({
 
   const saldoSel = sel ? sel.pedido.total - sel.pedido.total_pagado : 0
   const itemsSel = sel ? (itemsPorPedido[sel.pedido.id] ?? []) : []
-  // "Ya comprado" sale de las COMPRAS REGISTRADAS (igual que los punticos) o
-  // de que el pedido ya esté FACTURADO — no del estado, así no se contradice
-  // si marcan USA sin registrar compra.
+  // "Ya comprado" sale de las COMPRAS REGISTRADAS (igual que el recuadro rojo de
+  // las tarjetas) o de que el pedido ya esté FACTURADO — no del estado, así no
+  // se contradice si marcan USA sin registrar compra.
   const yaComprado = sel
     ? (!!sel.pedido.factura_id ||
        (itemsSel.length > 0
@@ -371,25 +371,29 @@ export function GaleriaPedidos({
             const activa = sel?.ref === t.ref
             const marcado = marcados.includes(t.ref)
             const esCancelado = t.pedido.estado === 'cancelado'
+            // Recuadro ROJO = falta comprarlo. Reemplaza al punto de color, que
+            // era chiquito y había que buscarlo. Solo lo ve el admin: es
+            // información de compras.
+            const faltaComprar = esAdmin && !esCancelado && !t.comprado
             return (
               <button
                 key={t.ref}
                 onClick={() => elegir(t)}
-                className={`group relative text-left bg-white rounded-xl border overflow-hidden transition-all ${
-                  marcado ? 'border-purple-500 ring-2 ring-purple-300 shadow-md'
-                  : activa ? 'border-blue-500 ring-2 ring-blue-300 shadow-md'
-                  : 'border-gray-100 shadow-sm hover:border-blue-200 hover:shadow'
+                title={faltaComprar ? 'Sin comprar' : esCancelado ? 'Cancelado' : esAdmin ? 'Ya comprado' : undefined}
+                // El BORDE dice el estado de compra y el ANILLO lo que está
+                // seleccionado, así los dos se leen a la vez y no se tapan.
+                // El grosor es siempre 2 para que la tarjeta no cambie de tamaño
+                // cuando cambia de estado.
+                className={`group relative text-left bg-white rounded-xl border-2 overflow-hidden transition-all ${
+                  faltaComprar ? 'border-red-500'
+                  : esCancelado ? 'border-gray-300'
+                  : 'border-gray-200'
+                } ${
+                  marcado ? 'ring-2 ring-purple-400 shadow-md'
+                  : activa ? 'ring-2 ring-blue-400 shadow-md'
+                  : 'shadow-sm hover:shadow'
                 }`}
               >
-                {/* Punto verde = ya comprado · rojo = sin comprar · gris = cancelado.
-                    Es información de compras: SOLO la ve el admin. */}
-                {esAdmin && (
-                  <span
-                    className={`absolute top-1.5 right-1.5 z-10 w-3 h-3 rounded-full ring-2 ring-white ${
-                      esCancelado ? 'bg-gray-400' : t.comprado ? 'bg-emerald-500' : 'bg-red-500'
-                    }`}
-                  />
-                )}
                 {/* Casilla de selección (admin): marcar varios para registrar compra */}
                 {esAdmin && !esCancelado && (
                   <span
