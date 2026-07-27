@@ -6,8 +6,6 @@ import Link from 'next/link'
 import { marcarEtiquetadoAction } from '@/app/actions/clientes'
 import { useAviso } from '@/components/ui/Aviso'
 import { PanelRFMCliente } from './PanelRFMCliente'
-import { SEMAFORO } from '@/components/clientes/SemaforoSeguimiento'
-import type { Seguimiento } from '@/app/actions/clientes'
 
 export type ClienteFila = {
   id: string
@@ -17,7 +15,6 @@ export type ClienteFila = {
   f: number | null
   m: number | null
   etiquetado: string | null
-  semaforo: { estado: Seguimiento; nota: string | null } | null
 }
 
 // Una fila de la lista de etiquetado: abre el chat de WhatsApp, y al volver se
@@ -55,11 +52,6 @@ export function FilaEtiquetar({ cliente, soloLectura = false }: { cliente: Clien
 
       <Link href={`/clientes/${cliente.id}`} className="flex-1 min-w-[11rem] group">
         <div className={`font-medium truncate ${listo ? 'text-gray-400 line-through' : 'text-gray-900 group-hover:text-blue-700'}`}>
-          {cliente.semaforo && (
-            <span aria-hidden="true" className="mr-1.5" title={SEMAFORO[cliente.semaforo.estado].label}>
-              {SEMAFORO[cliente.semaforo.estado].punto}
-            </span>
-          )}
           {cliente.nombre}
         </div>
         <div className="text-xs text-gray-500 mt-0.5 font-mono">{cliente.telefono}</div>

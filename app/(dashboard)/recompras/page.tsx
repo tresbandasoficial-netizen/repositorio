@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { BadgeSegmento, SEGMENTO_CONFIG } from '@/components/recompras/BadgeSegmento'
 import { FilaEtiquetar, CopiarEtiqueta, ClienteFila } from '@/components/recompras/FilaEtiquetar'
 import { ClienteSegmentoRfm } from '@/types'
-import type { Seguimiento } from '@/app/actions/clientes'
 
 // Orden de atención: primero a quien hay que perseguir.
 const ORDEN: ClienteSegmentoRfm[] = [
@@ -49,35 +48,26 @@ export default async function RecomprasPage({
     )
   }
 
-  // El avance del etiquetado y el semáforo viven en `clientes`, no en la vista:
-  // se traen en una sola consulta y se cruzan en memoria.
+  // El avance del etiquetado vive en `clientes`, no en la vista: se trae en una
+  // sola consulta y se cruza en memoria (no una consulta por fila).
   const { data: marcas } = await supabase
     .from('clientes')
-    .select('id, etiquetado_whatsapp, seguimiento, seguimiento_nota')
+    .select('id, etiquetado_whatsapp')
 
-  const marcaPorId = new Map(
-    (marcas ?? []).map((m: any) => [m.id as string, {
-      etiquetado: (m.etiquetado_whatsapp ?? null) as string | null,
-      semaforo: m.seguimiento
-        ? { estado: m.seguimiento as Seguimiento, nota: (m.seguimiento_nota ?? null) as string | null }
-        : null,
-    }])
+  const etiquetadoPorId = new Map(
+    (marcas ?? []).map((m: any) => [m.id as string, (m.etiquetado_whatsapp ?? null) as string | null])
   )
 
-  const clientes: Array<ClienteFila & { segmento: ClienteSegmentoRfm }> = (filas ?? []).map((c: any) => {
-    const marca = marcaPorId.get(c.cliente_id as string)
-    return {
-      id: c.cliente_id as string,
-      nombre: c.nombre as string,
-      telefono: (c.telefono_normalizado ?? '') as string,
-      r: c.dias_desde_ultima_compra as number | null,
-      f: c.frecuencia as number | null,
-      m: c.monto_total as number | null,
-      segmento: (c.segmento ?? 'nuevo') as ClienteSegmentoRfm,
-      etiquetado: marca?.etiquetado ?? null,
-      semaforo: marca?.semaforo ?? null,
-    }
-  })
+  const clientes: Array<ClienteFila & { segmento: ClienteSegmentoRfm }> = (filas ?? []).map((c: any) => ({
+    id: c.cliente_id as string,
+    nombre: c.nombre as string,
+    telefono: (c.telefono_normalizado ?? '') as string,
+    r: c.dias_desde_ultima_compra as number | null,
+    f: c.frecuencia as number | null,
+    m: c.monto_total as number | null,
+    segmento: (c.segmento ?? 'nuevo') as ClienteSegmentoRfm,
+    etiquetado: etiquetadoPorId.get(c.cliente_id as string) ?? null,
+  }))
 
   const porSegmento = new Map<ClienteSegmentoRfm, typeof clientes>()
   for (const c of clientes) {

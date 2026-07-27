@@ -10,8 +10,6 @@ import { formatearTelefono, whatsappUrl } from '@/lib/utils/phone'
 import { EstadoPedido, METODO_PAGO_LABELS, MetodoPago, ClienteSegmentoRfm } from '@/types'
 import { BadgeSegmento, SEGMENTO_CONFIG } from '@/components/recompras/BadgeSegmento'
 import { PanelRFMCliente } from '@/components/recompras/PanelRFMCliente'
-import { SemaforoSeguimiento } from '@/components/clientes/SemaforoSeguimiento'
-import { Seguimiento } from '@/app/actions/clientes'
 import { AbonarClienteButton } from '@/components/clientes/AbonarClienteButton'
 import { HistorialPagos } from '@/components/clientes/HistorialPagos'
 import { ComprasChart, MesCompra } from '@/components/clientes/ComprasChart'
@@ -64,13 +62,6 @@ export default async function ClienteDetallePage({
     .eq('cliente_id', id)
     .maybeSingle()
 
-  // Semáforo de seguimiento (migración 138): marca manual, con quién la puso.
-  const { data: seg } = await supabase
-    .from('clientes')
-    .select('seguimiento, seguimiento_nota, seguimiento_en, usuarios:seguimiento_por(nombre)')
-    .eq('id', id)
-    .maybeSingle()
-
   const totalComprado = cliente.pedidos
     .filter((p) => p.estado !== 'cancelado')
     .reduce((sum, p) => sum + p.total, 0)
@@ -101,30 +92,19 @@ export default async function ClienteDetallePage({
         </div>
       </div>
 
-      {/* Recompra: lo que calcula el sistema (RFM) y lo que marca la persona */}
-      <div className="mb-4 grid gap-3 lg:grid-cols-[2fr_1fr]">
-        {rfm?.segmento && (
-          <div className="flex flex-wrap items-center gap-4 rounded-xl border border-gray-200 bg-white px-4 py-3">
-            <PanelRFMCliente
-              r={rfm.dias_desde_ultima_compra}
-              f={rfm.frecuencia}
-              m={rfm.monto_total}
-            />
-            <p className="flex-1 min-w-[14rem] text-sm text-gray-600">
-              {SEGMENTO_CONFIG[rfm.segmento as ClienteSegmentoRfm]?.queHacer}
-            </p>
-          </div>
-        )}
-
-        <SemaforoSeguimiento
-          clienteId={id}
-          actual={(seg?.seguimiento ?? null) as Seguimiento | null}
-          nota={seg?.seguimiento_nota ?? null}
-          marcadoEn={seg?.seguimiento_en ?? null}
-          marcadoPor={(seg?.usuarios as any)?.nombre ?? null}
-          soloLectura={usuario?.rol === 'visor'}
-        />
-      </div>
+      {/* Recompra: R/F/M del último año y qué hacer con este cliente */}
+      {rfm?.segmento && (
+        <div className="mb-4 flex flex-wrap items-center gap-4 rounded-xl border border-gray-200 bg-white px-4 py-3">
+          <PanelRFMCliente
+            r={rfm.dias_desde_ultima_compra}
+            f={rfm.frecuencia}
+            m={rfm.monto_total}
+          />
+          <p className="flex-1 min-w-[14rem] text-sm text-gray-600">
+            {SEGMENTO_CONFIG[rfm.segmento as ClienteSegmentoRfm]?.queHacer}
+          </p>
+        </div>
+      )}
 
       {/* Resumen financiero — fila completa */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">

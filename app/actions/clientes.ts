@@ -177,62 +177,7 @@ export async function editarClienteAction(
   redirect(`/clientes/${id}`)
 }
 
-export type Seguimiento = 'verde' | 'naranja' | 'rojo'
-export type SeguimientoResult = { ok: true } | { ok: false; error: string }
-
-// Semáforo de seguimiento del cliente (migración 138). Es una marca MANUAL —
-// distinta del segmento RFM, que lo calcula el sistema — para que cualquiera que
-// abra el perfil sepa cómo va el contacto. null = quitar la marca.
-export async function marcarSeguimientoAction(
-  clienteId: string,
-  seguimiento: Seguimiento | null,
-  nota: string,
-): Promise<SeguimientoResult> {
-  const sesion = await getSesion()
-  if (sesion.rol === 'visor') return { ok: false, error: 'Sin permisos para marcar clientes' }
-
-  const supabase = await createClient()
-
-  // Se pide la fila de vuelta para confirmar que el UPDATE tocó algo: si RLS lo
-  // filtra no hay error, solo cero filas, y el aviso de éxito mentiría.
-  const { data: actualizado, error } = await supabase
-    .from('clientes')
-    .update({
-      seguimiento,
-      seguimiento_nota: nota.trim() || null,
-      seguimiento_en: seguimiento ? new Date().toISOString() : null,
-      seguimiento_por: seguimiento ? sesion.id : null,
-    })
-    .eq('id', clienteId)
-    .select('id')
-    .maybeSingle()
-
-  if (error) return { ok: false, error: error.message }
-  if (!actualizado) return { ok: false, error: 'No tienes permiso para marcar este cliente' }
-
-  // Histórico de contactos: queda quién marcó qué y cuándo, para poder ver
-  // después si el seguimiento sirvió. Secundario — no debe tumbar la marca.
-  if (seguimiento) {
-    const { data: rfm } = await supabase
-      .from('vista_rfm_clientes')
-      .select('segmento')
-      .eq('cliente_id', clienteId)
-      .maybeSingle()
-
-    await supabase.from('alertas_recompra').insert({
-      cliente_id:  clienteId,
-      segmento:    rfm?.segmento ?? 'nuevo',
-      tipo:        'seguimiento',
-      descripcion: `${seguimiento}${nota.trim() ? ` — ${nota.trim()}` : ''}`,
-      enviado_por: sesion.id,
-    })
-  }
-
-  revalidatePath(`/clientes/${clienteId}`)
-  revalidatePath('/clientes')
-  revalidatePath('/recompras')
-  return { ok: true }
-}
+export type EtiquetadoResult = { ok: true } | { ok: false; error: string }
 
 // Avance del etiquetado manual en WhatsApp (migración 139). Las etiquetas de
 // WhatsApp Business se ponen a mano — no hay API — así que esto solo registra
@@ -240,7 +185,7 @@ export async function marcarSeguimientoAction(
 export async function marcarEtiquetadoAction(
   clienteId: string,
   listo: boolean,
-): Promise<SeguimientoResult> {
+): Promise<EtiquetadoResult> {
   const sesion = await getSesion()
   if (sesion.rol === 'visor') return { ok: false, error: 'Sin permisos para marcar clientes' }
 
