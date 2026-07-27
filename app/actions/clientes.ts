@@ -234,6 +234,32 @@ export async function marcarSeguimientoAction(
   return { ok: true }
 }
 
+// Avance del etiquetado manual en WhatsApp (migración 139). Las etiquetas de
+// WhatsApp Business se ponen a mano — no hay API — así que esto solo registra
+// por dónde va el trabajo para no repetir clientes.
+export async function marcarEtiquetadoAction(
+  clienteId: string,
+  listo: boolean,
+): Promise<SeguimientoResult> {
+  const sesion = await getSesion()
+  if (sesion.rol === 'visor') return { ok: false, error: 'Sin permisos para marcar clientes' }
+
+  const supabase = await createClient()
+  const { data: actualizado, error } = await supabase
+    .from('clientes')
+    .update({ etiquetado_whatsapp: listo ? new Date().toISOString() : null })
+    .eq('id', clienteId)
+    .select('id')
+    .maybeSingle()
+
+  if (error) return { ok: false, error: error.message }
+  if (!actualizado) return { ok: false, error: 'No tienes permiso para marcar este cliente' }
+
+  revalidatePath('/recompras')
+  revalidatePath(`/clientes/${clienteId}`)
+  return { ok: true }
+}
+
 export type CrearClienteResult =
   | { ok: true; id: string }
   | { ok: false; error: string }

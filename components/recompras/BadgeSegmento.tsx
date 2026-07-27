@@ -2,44 +2,54 @@ import { ClienteSegmentoRfm } from '@/types'
 
 // Un solo lugar define cómo se ve y se llama cada segmento, para que la etiqueta
 // sea igual en /recompras, en la ficha del cliente y donde se use después.
+// `etiquetaWhatsapp` es el nombre EXACTO que hay que usar en la etiqueta de
+// WhatsApp Business, para que todas las asesoras usen el mismo en sus celulares
+// y la etiqueta signifique lo mismo en todos lados.
 export const SEGMENTO_CONFIG: Record<
   ClienteSegmentoRfm,
-  { label: string; icono: string; clases: string; queHacer: string }
+  { label: string; icono: string; clases: string; queHacer: string; etiquetaWhatsapp: string }
 > = {
   campeon: {
     label: 'Campeón', icono: '🏆',
     clases: 'bg-amber-50 text-amber-800 border-amber-200',
     queHacer: 'Compra seguido y en volumen. Trato VIP: primero en enterarse, descuento exclusivo.',
+    etiquetaWhatsapp: '🏆 Campeón',
   },
   leal: {
     label: 'Leal', icono: '⭐',
     clases: 'bg-blue-50 text-blue-800 border-blue-200',
     queHacer: 'Compra seguido. Mantenerlo cerca: cumpleaños, preventas.',
+    etiquetaWhatsapp: '⭐ Leal',
   },
   potencial: {
     label: 'Potencial', icono: '💡',
     clases: 'bg-violet-50 text-violet-800 border-violet-200',
     queHacer: 'Compraba seguido y en volumen, pero se alejó. Es el que más vale reactivar.',
+    etiquetaWhatsapp: '💡 Potencial',
   },
   nuevo: {
     label: 'Nuevo', icono: '🆕',
     clases: 'bg-emerald-50 text-emerald-800 border-emerald-200',
     queHacer: 'Compró hace poco, pocas veces. Buscar la segunda compra.',
+    etiquetaWhatsapp: '🆕 Nuevo',
   },
   en_riesgo: {
     label: 'En riesgo', icono: '⚠️',
     clases: 'bg-orange-50 text-orange-800 border-orange-200',
     queHacer: 'Se está espaciando. Contactar ya, antes de que se duerma.',
+    etiquetaWhatsapp: '⚠️ En riesgo',
   },
   dormido: {
     label: 'Dormido', icono: '💤',
     clases: 'bg-gray-100 text-gray-700 border-gray-200',
     queHacer: 'Más de 6 meses sin comprar. Campaña de reactivación con oferta.',
+    etiquetaWhatsapp: '💤 Dormido',
   },
   perdido: {
     label: 'Perdido', icono: '❌',
     clases: 'bg-red-50 text-red-800 border-red-200',
     queHacer: 'Se fue y nunca fue frecuente. Bajo esfuerzo.',
+    etiquetaWhatsapp: '❌ Perdido',
   },
 }
 
