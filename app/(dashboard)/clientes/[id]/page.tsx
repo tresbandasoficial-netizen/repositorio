@@ -7,7 +7,9 @@ import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { EstadoBadge } from '@/components/pedidos/EstadoBadge'
 import { formatCOP, formatFecha } from '@/lib/utils/format'
 import { formatearTelefono, whatsappUrl } from '@/lib/utils/phone'
-import { EstadoPedido, METODO_PAGO_LABELS, MetodoPago } from '@/types'
+import { EstadoPedido, METODO_PAGO_LABELS, MetodoPago, ClienteSegmentoRfm } from '@/types'
+import { BadgeSegmento, SEGMENTO_CONFIG } from '@/components/recompras/BadgeSegmento'
+import { PanelRFMCliente } from '@/components/recompras/PanelRFMCliente'
 import { AbonarClienteButton } from '@/components/clientes/AbonarClienteButton'
 import { HistorialPagos } from '@/components/clientes/HistorialPagos'
 import { ComprasChart, MesCompra } from '@/components/clientes/ComprasChart'
@@ -52,6 +54,14 @@ export default async function ClienteDetallePage({
   const cliente = await getClienteDetalle(id)
   if (!cliente) notFound()
 
+  // Segmento RFM en vivo desde la vista (nunca de clientes.segmento_rfm, que se
+  // queda viejo porque la recencia cambia con el tiempo — ver migración 137).
+  const { data: rfm } = await supabase
+    .from('vista_rfm_clientes')
+    .select('dias_desde_ultima_compra, frecuencia, monto_total, segmento')
+    .eq('cliente_id', id)
+    .maybeSingle()
+
   const totalComprado = cliente.pedidos
     .filter((p) => p.estado !== 'cancelado')
     .reduce((sum, p) => sum + p.total, 0)
@@ -68,7 +78,9 @@ export default async function ClienteDetallePage({
     <div className="p-4 md:p-6 max-w-[1400px] mx-auto">
       <div className="flex items-center gap-3 mb-6 flex-wrap">
         <BotonVolver href="/clientes">Clientes</BotonVolver>
-        <h1 className="text-xl font-bold text-gray-900 flex-1">{cliente.nombre}</h1>
+        <h1 className="text-xl font-bold text-gray-900">{cliente.nombre}</h1>
+        {rfm?.segmento && <BadgeSegmento segmento={rfm.segmento as ClienteSegmentoRfm} />}
+        <div className="flex-1" />
         <div className="flex items-center gap-2">
           <AbonarClienteButton clienteId={id} deudaTotal={saldoTotal} sedeCodigo={sedeCodigo} />
           <Link
@@ -79,6 +91,20 @@ export default async function ClienteDetallePage({
           </Link>
         </div>
       </div>
+
+      {/* Recompra: R/F/M del último año y qué hacer con este cliente */}
+      {rfm?.segmento && (
+        <div className="mb-4 flex flex-wrap items-center gap-4 rounded-xl border border-gray-200 bg-white px-4 py-3">
+          <PanelRFMCliente
+            r={rfm.dias_desde_ultima_compra}
+            f={rfm.frecuencia}
+            m={rfm.monto_total}
+          />
+          <p className="flex-1 min-w-[14rem] text-sm text-gray-600">
+            {SEGMENTO_CONFIG[rfm.segmento as ClienteSegmentoRfm]?.queHacer}
+          </p>
+        </div>
+      )}
 
       {/* Resumen financiero — fila completa */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">

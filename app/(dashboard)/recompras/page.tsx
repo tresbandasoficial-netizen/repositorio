@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { BadgeSegmento } from '@/components/recompras/BadgeSegmento'
 import { PanelRFMCliente } from '@/components/recompras/PanelRFMCliente'
-import { formatCOP, formatFecha } from '@/lib/utils/format'
+import { ClienteSegmentoRfm } from '@/types'
 
 export default async function RecomprasPage() {
   const sesion = await getSesion()
@@ -16,28 +16,32 @@ export default async function RecomprasPage() {
 
   const supabase = await createClient()
 
-  // Obtener clientes con RFM
-  const { data: clientes } = await supabase
+  // El segmento sale de la vista, no de clientes.segmento_rfm: la recencia
+  // cambia con el paso del tiempo y la columna guardada se queda vieja (solo la
+  // mueven los triggers de pedidos/pagos). Ver migración 137.
+  const { data: clientes, error } = await supabase
     .from('vista_rfm_clientes')
-    .select(`
-      cliente_id,
-      nombre,
-      telefono_normalizado,
-      dias_desde_ultima_compra,
-      frecuencia,
-      monto_total,
-      clientes!inner(segmento_rfm)
-    `)
-    .order('dias_desde_ultima_compra', { ascending: true })
+    .select('cliente_id, nombre, telefono_normalizado, dias_desde_ultima_compra, frecuencia, monto_total, segmento')
+    .not('cliente_id', 'is', null)
+    .order('dias_desde_ultima_compra', { ascending: true, nullsFirst: false })
+
+  if (error) {
+    return (
+      <div className="rounded-lg border border-red-200 bg-red-50 p-6">
+        <p className="font-medium text-red-800">No se pudo cargar la segmentación</p>
+        <p className="mt-1 text-sm text-red-700">{error.message}</p>
+      </div>
+    )
+  }
 
   const clientesConSegmento = (clientes ?? []).map((c: any) => ({
-    id: c.cliente_id,
-    nombre: c.nombre,
-    telefono: c.telefono_normalizado,
-    r: c.dias_desde_ultima_compra,
-    f: c.frecuencia,
-    m: c.monto_total,
-    segmento: c.clientes?.segmento_rfm || 'nuevo',
+    id: c.cliente_id as string,
+    nombre: c.nombre as string,
+    telefono: c.telefono_normalizado as string,
+    r: c.dias_desde_ultima_compra as number | null,
+    f: c.frecuencia as number | null,
+    m: c.monto_total as number | null,
+    segmento: (c.segmento ?? 'nuevo') as ClienteSegmentoRfm,
   }))
 
   // Agrupar por segmento
@@ -47,66 +51,93 @@ export default async function RecomprasPage() {
     porSegmento[c.segmento].push(c)
   }
 
-  const orden = ['campeon', 'leal', 'potencial', 'nuevo', 'en_riesgo', 'dormido', 'perdido'] as const
+  // Orden de atención: primero a quien hay que perseguir, después el resto.
+  const orden: ClienteSegmentoRfm[] = [
+    'potencial', 'en_riesgo', 'dormido', 'perdido', 'campeon', 'leal', 'nuevo',
+  ]
+
+  // Tope por segmento: "nuevo" trae 400+ y renderizarlos todos hace la página
+  // impasable. Se avisa cuántos quedaron fuera — nunca recortar en silencio.
+  const TOPE = 50
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Recompra de Clientes</h1>
-        <p className="mt-1 text-sm text-gray-600">Segmentación RFM por estado de actividad</p>
+        <h1 className="text-xl font-bold text-gray-900">Recompra de clientes</h1>
+        <p className="text-sm text-gray-500 mt-0.5">
+          Segmentación RFM: qué tan reciente compró, cuántas veces y cuánto, sobre los últimos 365 días.
+          Se calcula en vivo cada vez que abres la página.
+        </p>
+      </div>
+
+      {/* Resumen: cuántos hay en cada segmento */}
+      <div className="flex flex-wrap gap-2">
+        {orden.map(seg => {
+          const n = (porSegmento[seg] ?? []).length
+          if (n === 0) return null
+          return (
+            <a
+              key={seg}
+              href={`#seg-${seg}`}
+              className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 hover:border-gray-300 transition-colors"
+            >
+              <BadgeSegmento segmento={seg} />
+              <span className="text-sm font-bold text-gray-900 tabular-nums">{n}</span>
+            </a>
+          )
+        })}
       </div>
 
       {orden.map(seg => {
-        const clientes = porSegmento[seg] ?? []
-        if (clientes.length === 0) return null
+        const lista = porSegmento[seg] ?? []
+        if (lista.length === 0) return null
+        const visibles = lista.slice(0, TOPE)
 
         return (
-          <div key={seg} className="rounded-lg border border-gray-200 overflow-hidden">
-            <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <BadgeSegmento segmento={seg as any} />
-                  <span className="text-sm text-gray-600 font-medium">{clientes.length} clientes</span>
-                </div>
-              </div>
+          <div key={seg} id={`seg-${seg}`} className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+            <div className="bg-gray-50 px-6 py-3 border-b border-gray-100 flex items-center gap-3">
+              <BadgeSegmento segmento={seg} />
+              <span className="text-sm text-gray-500">
+                {lista.length} {lista.length === 1 ? 'cliente' : 'clientes'}
+              </span>
             </div>
 
-            <div className="divide-y divide-gray-200">
-              {clientes.map(c => (
-                <Link
-                  key={c.id}
-                  href={`/clientes/${c.id}`}
-                  className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex-1">
-                    <div className="font-medium text-gray-900">{c.nombre}</div>
-                    <div className="text-sm text-gray-600 mt-0.5">{c.telefono}</div>
-                  </div>
+            <div className="divide-y divide-gray-50">
+              {visibles.map(c => (
+                <div key={c.id} className="flex flex-wrap items-center gap-3 px-6 py-3 hover:bg-gray-50 transition-colors">
+                  <Link href={`/clientes/${c.id}`} className="flex-1 min-w-[12rem] group">
+                    <div className="font-medium text-gray-900 group-hover:text-blue-700 truncate">{c.nombre}</div>
+                    <div className="text-xs text-gray-500 mt-0.5">{c.telefono}</div>
+                  </Link>
 
                   <PanelRFMCliente r={c.r} f={c.f} m={c.m} />
 
-                  <div className="ml-4 flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={e => {
-                        e.preventDefault()
-                        // TODO: Abrir modal de WhatsApp después
-                      }}
-                      className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  {c.telefono && (
+                    <a
+                      href={`https://wa.me/${c.telefono.replace(/\D/g, '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-100 transition-colors"
                     >
-                      📱 Contactar
-                    </button>
-                  </div>
-                </Link>
+                      WhatsApp
+                    </a>
+                  )}
+                </div>
               ))}
             </div>
+
+            {lista.length > TOPE && (
+              <p className="px-6 py-2.5 text-xs text-gray-500 border-t border-gray-100 bg-gray-50/60">
+                Se muestran los {TOPE} de compra más antigua. Faltan {lista.length - TOPE} en este segmento.
+              </p>
+            )}
           </div>
         )
       })}
 
-      {Object.keys(porSegmento).length === 0 && (
-        <div className="rounded-lg border border-gray-200 bg-gray-50 p-8 text-center">
-          <p className="text-gray-600">Sin clientes para recompra aún.</p>
+      {clientesConSegmento.length === 0 && (
+        <div className="rounded-xl border border-gray-200 bg-gray-50 p-8 text-center">
+          <p className="text-gray-500">Todavía no hay clientes con compras para segmentar.</p>
         </div>
       )}
     </div>
