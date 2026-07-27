@@ -34,6 +34,7 @@ export function InventarioPanel({
 }) {
   const [accion, setAccion] = useState<'none' | 'articulo' | 'entrada' | 'transferencia'>('none')
   const [q, setQ] = useState('')
+  const [sedeFiltro, setSedeFiltro] = useState<string | null>(null)   // null = todas
   const [editando, setEditando] = useState<Articulo | null>(null)
   // Artículos creados en esta sesión desde el buscador (antes de que llegue el refresh)
   const [extras, setExtras] = useState<Articulo[]>([])
@@ -48,14 +49,35 @@ export function InventarioPanel({
   // El stock no trae el código ni el color: se leen del catálogo por articulo_id.
   const porId = new Map(todos.map(a => [a.id, a]))
 
+  // Unidades y referencias por sede, para los botones de filtro.
+  const resumenSede = new Map<string, { unidades: number; refs: number }>()
+  for (const cod of columnasSedes) resumenSede.set(cod, { unidades: 0, refs: 0 })
+  for (const f of filas) {
+    for (const cod of columnasSedes) {
+      const v = f.porSede[cod] ?? 0
+      if (v === 0) continue
+      const r = resumenSede.get(cod)!
+      r.unidades += v
+      r.refs += 1
+    }
+  }
+
   const texto = q.trim().toLowerCase()
-  const filtradas = texto
-    ? filas.filter(f => {
-        const a = porId.get(f.articulo_id)
-        return `${a?.codigo ?? ''} ${f.marca} ${f.nombre} ${a?.color ?? ''} ${a?.referencia ?? ''} ${f.talla ?? ''}`
-          .toLowerCase().includes(texto)
-      })
-    : filas
+  const filtradas = filas.filter(f => {
+    // Filtro por sede: se muestran las filas con movimiento en esa sede. El 0 se
+    // esconde, pero el NEGATIVO no — es justo lo que hay que ver ahí.
+    if (sedeFiltro && (f.porSede[sedeFiltro] ?? 0) === 0) return false
+    if (!texto) return true
+    const a = porId.get(f.articulo_id)
+    return `${a?.codigo ?? ''} ${f.marca} ${f.nombre} ${a?.color ?? ''} ${a?.referencia ?? ''} ${f.talla ?? ''}`
+      .toLowerCase().includes(texto)
+  })
+
+  // Al filtrar por sede, esa columna se muestra primero para poder leerla de
+  // corrido; las demás quedan como referencia para decidir traslados.
+  const columnasVista = sedeFiltro
+    ? [sedeFiltro, ...columnasSedes.filter(c => c !== sedeFiltro)]
+    : columnasSedes
 
   // La tabla de arriba sale del stock: un artículo sin movimientos no aparece.
   // Al buscar se listan aparte los que coinciden pero no tienen stock, para
@@ -87,6 +109,52 @@ export function InventarioPanel({
       {accion === 'entrada'       && <Entrada articulos={todos} sedes={sedes} onCreado={registrarCreado} onClose={() => setAccion('none')} />}
       {accion === 'transferencia' && <Transferencia articulos={todos} sedes={sedes} onCreado={registrarCreado} onClose={() => setAccion('none')} />}
 
+      {/* Filtro por sede */}
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setSedeFiltro(null)}
+          aria-pressed={sedeFiltro === null}
+          className={`rounded-xl border px-3.5 py-2 text-left transition-colors ${
+            sedeFiltro === null
+              ? 'bg-blue-600 border-blue-600 text-white'
+              : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+          }`}
+        >
+          <span className="block text-xs font-semibold uppercase tracking-wide">Todas</span>
+          <span className={`block text-sm font-bold tabular-nums ${sedeFiltro === null ? 'text-white' : 'text-gray-900'}`}>
+            {filas.length} <span className="font-normal opacity-70">refs</span>
+          </span>
+        </button>
+
+        {columnasSedes.map(cod => {
+          const r = resumenSede.get(cod) ?? { unidades: 0, refs: 0 }
+          const activo = sedeFiltro === cod
+          const nombre = cod === 'CENTRAL'
+            ? 'Central'
+            : sedes.find(s => s.codigo === cod)?.nombre ?? cod
+          return (
+            <button
+              key={cod}
+              type="button"
+              onClick={() => setSedeFiltro(activo ? null : cod)}
+              aria-pressed={activo}
+              title={`${r.refs} referencias · ${r.unidades} unidades en ${nombre}`}
+              className={`rounded-xl border px-3.5 py-2 text-left transition-colors ${
+                activo
+                  ? 'bg-blue-600 border-blue-600 text-white'
+                  : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+              }`}
+            >
+              <span className="block text-xs font-semibold uppercase tracking-wide">{nombre}</span>
+              <span className={`block text-sm font-bold tabular-nums ${activo ? 'text-white' : 'text-gray-900'}`}>
+                {r.refs} <span className="font-normal opacity-70">refs · {r.unidades} u</span>
+              </span>
+            </button>
+          )
+        })}
+      </div>
+
       <input
         type="text"
         value={q}
@@ -94,6 +162,16 @@ export function InventarioPanel({
         placeholder="Buscar por código, marca, nombre, color o talla…"
         className="w-full max-w-md rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
+
+      {sedeFiltro && (
+        <p className="text-xs text-gray-500">
+          Mostrando solo lo que tiene movimiento en{' '}
+          <strong className="text-gray-700">
+            {sedeFiltro === 'CENTRAL' ? 'Central' : sedes.find(s => s.codigo === sedeFiltro)?.nombre ?? sedeFiltro}
+          </strong>
+          . Las demás sedes siguen visibles como referencia para decidir traslados.
+        </p>
+      )}
 
       {editando && <EditarArticuloModal articulo={editando} onClose={() => setEditando(null)} />}
 
@@ -103,7 +181,9 @@ export function InventarioPanel({
             ? 'Aún no hay artículos con stock. Crea un artículo y registra una entrada.'
             : sinStock.length > 0
               ? 'Ninguno con stock coincide — mira los del catálogo abajo.'
-              : 'Sin resultados'}
+              : sedeFiltro
+                ? `Sin existencias en ${sedeFiltro === 'CENTRAL' ? 'Central' : sedes.find(s => s.codigo === sedeFiltro)?.nombre ?? sedeFiltro}${texto ? ' para esa búsqueda' : ''}.`
+                : 'Sin resultados'}
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
@@ -115,8 +195,15 @@ export function InventarioPanel({
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Nombre</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Talla</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Categoría</th>
-                {columnasSedes.map(s => (
-                  <th key={s} className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">{s}</th>
+                {columnasVista.map(s => (
+                  <th
+                    key={s}
+                    className={`text-center px-4 py-3 text-xs font-medium uppercase ${
+                      s === sedeFiltro ? 'text-blue-700 bg-blue-50' : 'text-gray-500'
+                    }`}
+                  >
+                    {s}
+                  </th>
                 ))}
                 <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Total</th>
                 <th className="px-4 py-3" />
@@ -146,11 +233,17 @@ export function InventarioPanel({
                       : <span className="text-xs text-gray-300">Sin categoría</span>}
                     {art?.sexo && <p className="text-[11px] text-gray-400">{SEXO_LABEL[art.sexo] ?? art.sexo}</p>}
                   </td>
-                  {columnasSedes.map(s => {
+                  {columnasVista.map(s => {
                     const v = f.porSede[s] ?? 0
+                    const esFiltrada = s === sedeFiltro
                     return (
-                      <td key={s} className="px-4 py-3 text-center">
-                        <span className={v < 0 ? 'text-red-600 font-semibold' : v === 0 ? 'text-gray-300' : 'text-gray-700'}>
+                      <td key={s} className={`px-4 py-3 text-center tabular-nums ${esFiltrada ? 'bg-blue-50/60' : ''}`}>
+                        <span className={
+                          v < 0 ? 'text-red-600 font-semibold'
+                          : v === 0 ? 'text-gray-300'
+                          : esFiltrada ? 'text-gray-900 font-semibold'
+                          : 'text-gray-700'
+                        }>
                           {v}
                         </span>
                       </td>
