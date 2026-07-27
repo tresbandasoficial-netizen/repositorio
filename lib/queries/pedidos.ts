@@ -74,6 +74,7 @@ export async function getPedidos(filtros?: {
   sede?: string
   asesor_id?: string
   q?: string
+  marca?: string
   alerta?: boolean
   pagina?: number
   fecha_desde?: string
@@ -112,25 +113,52 @@ export async function getPedidos(filtros?: {
   }
   if (filtros?.fecha_desde) query = query.gte('fecha_creacion', `${filtros.fecha_desde}T00:00:00`)
   if (filtros?.fecha_hasta) query = query.lte('fecha_creacion', `${filtros.fecha_hasta}T23:59:59`)
+  // Filtro por MARCA: los pedidos que tengan al menos un artículo de esa marca,
+  // ya sea la escrita en el pedido o la del catálogo enlazado. Se compara sin
+  // distinguir mayúsculas porque en los pedidos está escrita de varias formas
+  // (Adidas / adidas / ADIDAS).
+  if (filtros?.marca?.trim()) {
+    const m = terminoBusquedaSeguro(filtros.marca)
+    if (m) {
+      const [porItem, porCatalogo] = await Promise.all([
+        supabase.from('pedido_items').select('pedido_id').ilike('marca', m).limit(1500),
+        supabase.from('pedido_items').select('pedido_id, articulos!inner(id)').ilike('articulos.marca', m).limit(1500),
+      ])
+      const ids = [...new Set([
+        ...((porItem.data ?? []) as Array<{ pedido_id: string }>).map(r => r.pedido_id),
+        ...((porCatalogo.data ?? []) as Array<{ pedido_id: string }>).map(r => r.pedido_id),
+      ])]
+      // Sin coincidencias se fuerza un resultado vacío: si no, el filtro se
+      // ignoraría y saldrían TODOS los pedidos, que es peor que no encontrar nada.
+      query = ids.length > 0
+        ? query.in('id', ids)
+        : query.eq('id', '00000000-0000-0000-0000-000000000000')
+    }
+  }
+
   if (filtros?.q) {
     const q = terminoBusquedaSeguro(filtros.q)
     if (q) {
-      // También se puede buscar por CÓDIGO del artículo: se buscan los pedidos
-      // cuyos items tengan ese código (propio o del catálogo enlazado).
-      const [porCodigoItem, porCodigoCatalogo] = await Promise.all([
+      // También se puede buscar por CÓDIGO o MARCA del artículo: se buscan los
+      // pedidos cuyos items coincidan (propios o del catálogo enlazado).
+      const [porCodigoItem, porCodigoCatalogo, porMarcaItem, porMarcaCatalogo] = await Promise.all([
         supabase.from('pedido_items').select('pedido_id').ilike('codigo', `%${q}%`).limit(150),
         supabase.from('pedido_items').select('pedido_id, articulos!inner(id)').ilike('articulos.codigo', `%${q}%`).limit(150),
+        supabase.from('pedido_items').select('pedido_id').ilike('marca', `%${q}%`).limit(150),
+        supabase.from('pedido_items').select('pedido_id, articulos!inner(id)').ilike('articulos.marca', `%${q}%`).limit(150),
       ])
-      const idsPorCodigo = [...new Set([
+      const idsPorItem = [...new Set([
         ...((porCodigoItem.data ?? []) as Array<{ pedido_id: string }>).map(r => r.pedido_id),
         ...((porCodigoCatalogo.data ?? []) as Array<{ pedido_id: string }>).map(r => r.pedido_id),
-      ])].slice(0, 200)
+        ...((porMarcaItem.data ?? []) as Array<{ pedido_id: string }>).map(r => r.pedido_id),
+        ...((porMarcaCatalogo.data ?? []) as Array<{ pedido_id: string }>).map(r => r.pedido_id),
+      ])].slice(0, 400)
 
       const condiciones = [
         `numero_orden.ilike.%${q}%`,
         `cliente_nombre.ilike.%${q}%`,
         `cliente_telefono.ilike.%${q}%`,
-        ...(idsPorCodigo.length > 0 ? [`id.in.(${idsPorCodigo.join(',')})`] : []),
+        ...(idsPorItem.length > 0 ? [`id.in.(${idsPorItem.join(',')})`] : []),
       ]
       query = query.or(condiciones.join(','))
     }

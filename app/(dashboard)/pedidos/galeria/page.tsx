@@ -75,7 +75,7 @@ const ESTADOS: Array<{ value: string; label: string }> = [
 export default async function GaleriaPedidosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ estado?: string; q?: string; pagina?: string; desde?: string; hasta?: string }>
+  searchParams: Promise<{ estado?: string; q?: string; marca?: string; pagina?: string; desde?: string; hasta?: string }>
 }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -95,6 +95,7 @@ export default async function GaleriaPedidosPage({
   const resultado = await getPedidos({
     estado: params.estado as EstadoPedido | undefined,
     q:      params.q,
+    marca:  params.marca,
     fecha_desde: params.desde,
     fecha_hasta: params.hasta,
     pagina,
@@ -160,13 +161,20 @@ export default async function GaleriaPedidosPage({
     }
   }
 
+  // Conteo por marca sobre TODOS los pedidos del estado elegido, no sobre la
+  // página de 30 que se está mostrando. Va en un RPC para no traer miles de filas.
+  const { data: conteoMarcas } = await supabase
+    .rpc('conteo_articulos_por_marca', { p_estado: params.estado || null })
+  const marcas = (conteoMarcas ?? []) as Array<{ marca: string; articulos: number; pedidos: number }>
+
   function urlCon(cambios: Record<string, string | undefined>) {
     const p = new URLSearchParams()
-    const merged = { estado: params.estado, q: params.q, desde: params.desde, hasta: params.hasta, pagina: undefined as string | undefined, ...cambios }
+    const merged = { estado: params.estado, q: params.q, marca: params.marca, desde: params.desde, hasta: params.hasta, pagina: undefined as string | undefined, ...cambios }
     if (merged.estado) p.set('estado', merged.estado)
     if (merged.q) p.set('q', merged.q)
     if (merged.desde) p.set('desde', merged.desde)
     if (merged.hasta) p.set('hasta', merged.hasta)
+    if (merged.marca) p.set('marca', merged.marca)
     if (merged.pagina && merged.pagina !== '1') p.set('pagina', merged.pagina)
     const qs = p.toString()
     return `/pedidos/galeria${qs ? `?${qs}` : ''}`
@@ -227,7 +235,9 @@ export default async function GaleriaPedidosPage({
         >
           Filtrar
         </button>
-        {(params.estado || params.q || params.desde || params.hasta) && (
+        {/* La marca viaja en el form para no perderla al filtrar por otra cosa */}
+        {params.marca && <input type="hidden" name="marca" value={params.marca} />}
+        {(params.estado || params.q || params.marca || params.desde || params.hasta) && (
           <Link
             href="/pedidos/galeria"
             className="px-4 py-2.5 text-sm font-medium text-gray-500 hover:text-gray-700 border border-gray-200 rounded-xl bg-white hover:bg-gray-50 transition-colors"
@@ -236,6 +246,41 @@ export default async function GaleriaPedidosPage({
           </Link>
         )}
       </form>
+
+      {/* Filtro por marca: el número es cuántos ARTÍCULOS hay de esa marca en el
+          estado elegido — con "Pendiente" es justo lo que falta por pedir. */}
+      {marcas.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 mb-5">
+          <span className="text-xs font-medium text-gray-400 uppercase tracking-wide mr-1">Marca</span>
+          <Link
+            href={urlCon({ marca: undefined })}
+            className={`rounded-xl border px-3 py-1.5 text-sm transition-colors ${
+              !params.marca
+                ? 'bg-blue-600 border-blue-600 text-white font-semibold'
+                : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+            }`}
+          >
+            Todas
+          </Link>
+          {marcas.map(m => {
+            const activa = params.marca?.toLowerCase() === m.marca.toLowerCase()
+            return (
+              <Link
+                key={m.marca}
+                href={urlCon({ marca: activa ? undefined : m.marca })}
+                title={`${m.articulos} artículos en ${m.pedidos} pedidos`}
+                className={`rounded-xl border px-3 py-1.5 text-sm transition-colors ${
+                  activa
+                    ? 'bg-blue-600 border-blue-600 text-white font-semibold'
+                    : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                }`}
+              >
+                {m.marca} <span className="tabular-nums opacity-80">({m.articulos})</span>
+              </Link>
+            )
+          })}
+        </div>
+      )}
 
       {pedidos.length === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-100 px-6 py-16 text-center text-gray-400 text-sm">
@@ -247,6 +292,7 @@ export default async function GaleriaPedidosPage({
           itemsPorPedido={itemsPorPedido}
           facturasCompraPorPedido={facturasCompraPorPedido}
           q={params.q}
+          marca={params.marca}
           esAdmin={esAdmin}
         />
       )}

@@ -75,6 +75,7 @@ export function GaleriaPedidos({
   itemsPorPedido,
   facturasCompraPorPedido = {},
   q,
+  marca,
   esAdmin = false,
 }: {
   pedidos: PedidoRow[]
@@ -84,6 +85,8 @@ export function GaleriaPedidos({
   // Lo que se escribió en el buscador, para no mostrar los demás artículos del
   // pedido cuando la búsqueda fue por código.
   q?: string
+  // Marca filtrada: igual que con el código, se muestran solo sus artículos.
+  marca?: string
   esAdmin?: boolean
 }) {
   const router = useRouter()
@@ -97,6 +100,7 @@ export function GaleriaPedidos({
   const tiles: Tile[] = useMemo(() => {
     const out: Tile[] = []
     const buscado = (q ?? '').trim().toUpperCase()
+    const marcaBuscada = (marca ?? '').trim().toLowerCase()
     for (const p of pedidos) {
       const imagenPedido = (p as any).primera_imagen as string | null
       const items = itemsPorPedido[p.id] ?? []
@@ -114,6 +118,11 @@ export function GaleriaPedidos({
         ? items.some(it => (it.codigo ?? '').toUpperCase().includes(buscado))
         : false
 
+      // Igual con la marca: si se filtró por marca, solo se ven sus artículos.
+      const esDeLaMarca = (it: ItemGaleria) =>
+        (it.marca ?? '').trim().toLowerCase() === marcaBuscada
+      const coincidePorMarca = marcaBuscada ? items.some(esDeLaMarca) : false
+
       if (vista === 'pedido' || items.length === 0) {
         out.push({
           ref: p.numero_orden,
@@ -128,6 +137,7 @@ export function GaleriaPedidos({
       } else {
         items.forEach((it, i) => {
           if (coincidePorCodigo && !(it.codigo ?? '').toUpperCase().includes(buscado)) return
+          if (coincidePorMarca && !esDeLaMarca(it)) return
           out.push({
             // El sufijo usa el índice REAL dentro del pedido, no el del listado
             // filtrado: el artículo 2 sigue siendo "-2" aunque el 1 no se muestre.
@@ -142,7 +152,7 @@ export function GaleriaPedidos({
       }
     }
     return out
-  }, [pedidos, itemsPorPedido, vista, q])
+  }, [pedidos, itemsPorPedido, vista, q, marca])
 
   const sel = tiles.find(t => t.ref === selRef) ?? tiles[0] ?? null
 
