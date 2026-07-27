@@ -8,34 +8,50 @@ import { List, ChevronLeft, ChevronRight } from 'lucide-react'
 
 // Cruza los artículos del pedido con las compras ya asignadas para saber
 // cuáles piezas YA se compraron. El cruce va de lo exacto a lo aproximado:
-// 1) mismo artículo del catálogo, 2) mismo código, 3) misma talla, 4) lo que
-// quede en orden (para compras viejas sin código).
+// 0) el índice que quedó grabado al asignar la compra, 1) mismo artículo del
+// catálogo, 2) mismo código, 3) misma talla, 4) lo que quede en orden (para
+// compras viejas sin código).
+//
+// La pasada 0 es la que MANDA: cuando alguien asignó la compra a "TR6969-2" eso
+// es una decisión explícita y no se debe adivinar por encima. Antes se ignoraba
+// el índice y se caía a la pasada de talla, así que en un pedido con dos pares
+// de la misma talla el visto bueno se lo llevaba el primero — marcaba comprado
+// el artículo equivocado.
 function marcarComprados(
   items: ItemGaleria[],
-  compras: Array<{ codigo: string | null; talla: string | null; articulo_id: string | null; cantidad: number }>,
+  compras: Array<{
+    codigo: string | null; talla: string | null; articulo_id: string | null
+    cantidad: number; pedido_item_indice: number | null
+  }>,
 ): void {
-  const unidades: Array<{ codigo: string | null; talla: string | null; articulo_id: string | null; usada: boolean }> = []
+  const unidades: Array<{
+    codigo: string | null; talla: string | null; articulo_id: string | null
+    indice: number | null; usada: boolean
+  }> = []
   for (const c of compras) {
     for (let i = 0; i < (c.cantidad || 1); i++) {
       unidades.push({
         codigo: c.codigo?.trim().toUpperCase() || null,
         talla: c.talla?.trim().toLowerCase() || null,
         articulo_id: c.articulo_id ?? null,
+        indice: c.pedido_item_indice ?? null,
         usada: false,
       })
     }
   }
   const restante = items.map(it => it.cantidad || 1)
-  const pasadas: Array<(u: (typeof unidades)[0], it: ItemGaleria) => boolean> = [
-    (u, it) => !!it.articulo_id && u.articulo_id === it.articulo_id,
-    (u, it) => !!it.codigo && u.codigo === it.codigo.trim().toUpperCase(),
-    (u, it) => !!it.talla && u.talla === it.talla.trim().toLowerCase(),
-    () => true,
+  // El índice grabado es 1-based sobre los items en su orden original.
+  const pasadas: Array<(u: (typeof unidades)[0], it: ItemGaleria, idx: number) => boolean> = [
+    (u, _it, idx) => u.indice != null && u.indice === idx + 1,
+    (u, it) => u.indice == null && !!it.articulo_id && u.articulo_id === it.articulo_id,
+    (u, it) => u.indice == null && !!it.codigo && u.codigo === it.codigo.trim().toUpperCase(),
+    (u, it) => u.indice == null && !!it.talla && u.talla === it.talla.trim().toLowerCase(),
+    u => u.indice == null,
   ]
   for (const coincide of pasadas) {
     items.forEach((it, idx) => {
       while (restante[idx] > 0) {
-        const u = unidades.find(u => !u.usada && coincide(u, it))
+        const u = unidades.find(u => !u.usada && coincide(u, it, idx))
         if (!u) break
         u.usada = true
         restante[idx]--
@@ -102,7 +118,7 @@ export default async function GaleriaPedidosPage({
         .order('id'),
       supabase
         .from('compra_items')
-        .select('pedido_id, codigo, talla, articulo_id, cantidad, compra_id, compras(numero_factura)')
+        .select('pedido_id, codigo, talla, articulo_id, cantidad, pedido_item_indice, compra_id, compras(numero_factura)')
         .in('pedido_id', ids),
     ])
     for (const it of (items ?? []) as any[]) {
@@ -121,7 +137,10 @@ export default async function GaleriaPedidosPage({
         comprado: false,
       })
     }
-    const comprasPorPedido: Record<string, Array<{ codigo: string | null; talla: string | null; articulo_id: string | null; cantidad: number }>> = {}
+    const comprasPorPedido: Record<string, Array<{
+      codigo: string | null; talla: string | null; articulo_id: string | null
+      cantidad: number; pedido_item_indice: number | null
+    }>> = {}
     for (const c of (compras ?? []) as any[]) {
       ;(comprasPorPedido[c.pedido_id] ??= []).push(c)
 
@@ -227,6 +246,7 @@ export default async function GaleriaPedidosPage({
           pedidos={pedidos}
           itemsPorPedido={itemsPorPedido}
           facturasCompraPorPedido={facturasCompraPorPedido}
+          q={params.q}
           esAdmin={esAdmin}
         />
       )}

@@ -9,7 +9,7 @@ import { useAviso } from '@/components/ui/Aviso'
 import type { CategoriaArticulo } from '@/types'
 import { formatMiles } from '@/lib/utils/format'
 
-export type Linea = ItemVenta & { stock?: number | null; key: number; codigo?: string }
+export type Linea = ItemVenta & { key: number; codigo?: string }
 
 let _k = 0
 export const nuevaLinea = (): Linea => ({
@@ -26,6 +26,8 @@ export const nuevaLinea = (): Linea => ({
   categoria: '',
 })
 
+// Una opción por ARTÍCULO, no por artículo+talla: la talla la elige la persona
+// después. Las tallas viajan solo como información de qué hay en existencia.
 type OpcionCatalogo = {
   articulo_id: string
   codigo: string | null
@@ -34,22 +36,20 @@ type OpcionCatalogo = {
   color: string | null
   sexo: string | null
   categoria: string | null
-  talla: string | null
-  stock: number
+  tallas: Array<{ talla: string | null; stock: number }>
 }
 
-function aplanarOpciones(articulos: ArticuloBusqueda[], sedeId: string | null): OpcionCatalogo[] {
-  const result: OpcionCatalogo[] = []
-  for (const a of articulos) {
-    if (a.tallaStock.length === 0) {
-      result.push({ articulo_id: a.id, codigo: a.codigo, marca: a.marca, nombre: a.nombre, color: a.color, sexo: a.sexo, categoria: a.categoria, talla: null, stock: 0 })
-    } else {
-      for (const ts of a.tallaStock) {
-        result.push({ articulo_id: a.id, codigo: a.codigo, marca: a.marca, nombre: a.nombre, color: a.color, sexo: a.sexo, categoria: a.categoria, talla: ts.talla, stock: ts.stock })
-      }
-    }
-  }
-  return result
+function aOpciones(articulos: ArticuloBusqueda[]): OpcionCatalogo[] {
+  return articulos.map(a => ({
+    articulo_id: a.id,
+    codigo: a.codigo,
+    marca: a.marca,
+    nombre: a.nombre,
+    color: a.color,
+    sexo: a.sexo,
+    categoria: a.categoria,
+    tallas: a.tallaStock.map(ts => ({ talla: ts.talla, stock: ts.stock })),
+  }))
 }
 
 export function LineaProducto({
@@ -71,6 +71,9 @@ export function LineaProducto({
   const [guardandoDescripcion, setGuardandoDescripcion] = useState(false)
   const [avisoRenombrado, setAvisoRenombrado] = useState<string | null>(null)
   const [errorNombre, setErrorNombre] = useState<string | null>(null)
+  // Tallas en existencia del artículo elegido, para avisar del stock cuando la
+  // persona escoja la talla (antes el stock venía pegado a la opción elegida).
+  const [tallasArticulo, setTallasArticulo] = useState<Array<{ talla: string | null; stock: number }> | null>(null)
   const { avisar, avisarError } = useAviso()
 
   useEffect(() => {
@@ -81,7 +84,7 @@ export function LineaProducto({
     const t = setTimeout(async () => {
       if (q.length < 2) { setOpciones([]); setAbierto(false); return }
       const articulos = await buscarArticulosAction(q, sedeId)
-      const ops = aplanarOpciones(articulos, sedeId)
+      const ops = aOpciones(articulos)
       setOpciones(ops)
       setAbierto(ops.length > 0)
       setNoEncontrado(ops.length === 0)
@@ -89,18 +92,28 @@ export function LineaProducto({
     return () => clearTimeout(t)
   }, [linea.codigo, sedeId, linea.articulo_id])
 
+  // Stock de la talla que se haya elegido. null = todavía sin talla, o el
+  // artículo no tiene existencias registradas de esa talla.
+  const stockTalla = (() => {
+    if (!linea.articulo_id || !tallasArticulo || !linea.talla?.trim()) return null
+    const t = linea.talla.trim().toLowerCase()
+    const encontrada = tallasArticulo.find(x => (x.talla ?? '').trim().toLowerCase() === t)
+    return encontrada ? encontrada.stock : 0
+  })()
+
   function elegir(item: OpcionCatalogo) {
+    // La talla NO se llena al elegir el artículo: la escoge la persona. Antes se
+    // heredaba de la opción del listado y quedaba una talla que nadie eligió.
     onChange({
       articulo_id: item.articulo_id,
       codigo:      item.codigo ?? linea.codigo,
       marca:       item.marca,
       descripcion: item.nombre,
-      talla:       item.talla ?? linea.talla,
       color:       item.color ?? linea.color,
       sexo:        (item.sexo ?? linea.sexo) as any,
       categoria:   (item.categoria ?? linea.categoria) as any,
-      stock:       item.stock,
     })
+    setTallasArticulo(item.tallas)
     setAbierto(false)
     setNoEncontrado(false)
   }
@@ -186,8 +199,15 @@ export function LineaProducto({
         )}
       </div>
 
-      {linea.articulo_id != null && linea.stock != null && linea.stock <= 0 && (
-        <p className="text-xs text-amber-600">⚠ Sin stock en {sedeCodigo}. Dejará el inventario en negativo.</p>
+      {stockTalla != null && stockTalla <= 0 && (
+        <p className="text-xs text-amber-600">
+          ⚠ Sin stock de la talla {linea.talla} en {sedeCodigo}. Dejará el inventario en negativo.
+        </p>
+      )}
+      {stockTalla != null && stockTalla > 0 && (
+        <p className="text-xs text-green-600">
+          ✓ {stockTalla} en existencia de la talla {linea.talla} en {sedeCodigo}
+        </p>
       )}
 
       {/* Fila 1: Código (buscador) · Nombre del producto */}
@@ -196,31 +216,49 @@ export function LineaProducto({
           <input
             type="text"
             value={linea.codigo || ''}
-            onChange={e => onChange({ codigo: e.target.value, articulo_id: null, stock: null })}
+            onChange={e => {
+              // Al cambiar el código se pierde el artículo elegido y sus tallas.
+              onChange({ codigo: e.target.value, articulo_id: null })
+              setTallasArticulo(null)
+            }}
             onBlur={() => setTimeout(() => setAbierto(false), 150)}
             placeholder="Código"
             className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           {abierto && opciones.length > 0 && (
             <div className="absolute z-10 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden max-h-56 overflow-y-auto">
-              {opciones.map(item => (
-                <button
-                  key={`${item.articulo_id}-${item.talla ?? ''}`}
-                  type="button"
-                  onMouseDown={() => elegir(item)}
-                  className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm border-b border-gray-50 last:border-0 flex justify-between items-center"
-                >
-                  <span>
-                    {item.codigo && <span className="font-mono text-gray-400 text-xs mr-1">{item.codigo}</span>}
-                    <span className="font-medium text-gray-900">{item.marca} {item.nombre}</span>
-                    {item.color && <span className="text-gray-400"> · {item.color}</span>}
-                    {item.talla && <span className="text-gray-400"> · T{item.talla}</span>}
-                  </span>
-                  <span className={`text-xs ml-3 flex-none ${item.stock > 0 ? 'text-green-600' : 'text-red-500'}`}>
-                    {item.stock} en {sedeCodigo}
-                  </span>
-                </button>
-              ))}
+              {opciones.map(item => {
+                const conStock = item.tallas.filter(t => t.stock > 0)
+                return (
+                  <button
+                    key={item.articulo_id}
+                    type="button"
+                    onMouseDown={() => elegir(item)}
+                    className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm border-b border-gray-50 last:border-0"
+                  >
+                    <span className="block">
+                      {item.codigo && <span className="font-mono text-gray-400 text-xs mr-1">{item.codigo}</span>}
+                      <span className="font-medium text-gray-900">{item.marca} {item.nombre}</span>
+                      {item.color && <span className="text-gray-400"> · {item.color}</span>}
+                    </span>
+                    {/* Las tallas son informativas: al elegir no se llena ninguna. */}
+                    <span className="block text-xs mt-0.5">
+                      {conStock.length > 0 ? (
+                        <>
+                          <span className="text-gray-400">En {sedeCodigo}: </span>
+                          {conStock.map(t => (
+                            <span key={t.talla ?? ''} className="text-green-700 mr-1.5">
+                              {t.talla ? `T${t.talla}` : 'sin talla'}·{t.stock}
+                            </span>
+                          ))}
+                        </>
+                      ) : (
+                        <span className="text-red-500">Sin existencias en {sedeCodigo}</span>
+                      )}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
           )}
         </div>

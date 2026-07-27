@@ -74,12 +74,16 @@ export function GaleriaPedidos({
   pedidos,
   itemsPorPedido,
   facturasCompraPorPedido = {},
+  q,
   esAdmin = false,
 }: {
   pedidos: PedidoRow[]
   itemsPorPedido: Record<string, ItemGaleria[]>
   // Facturas de compra del pedido (puede traer artículos de varias compras).
   facturasCompraPorPedido?: Record<string, Array<{ id: string; numero: string | null }>>
+  // Lo que se escribió en el buscador, para no mostrar los demás artículos del
+  // pedido cuando la búsqueda fue por código.
+  q?: string
   esAdmin?: boolean
 }) {
   const router = useRouter()
@@ -92,6 +96,7 @@ export function GaleriaPedidos({
 
   const tiles: Tile[] = useMemo(() => {
     const out: Tile[] = []
+    const buscado = (q ?? '').trim().toUpperCase()
     for (const p of pedidos) {
       const imagenPedido = (p as any).primera_imagen as string | null
       const items = itemsPorPedido[p.id] ?? []
@@ -99,6 +104,16 @@ export function GaleriaPedidos({
       // Si el pedido ya tiene FACTURA, se da por comprado (la mercancía ya
       // se entregó/vendió) aunque no tenga compra de proveedor registrada.
       const facturado = !!p.factura_id
+
+      // Al buscar por CÓDIGO, la búsqueda trae el pedido completo, así que sin
+      // esto salían también los demás artículos de ese pedido (buscar el On
+      // mostraba el Nike y el Salomon que venían en el mismo pedido). Se filtran
+      // los que no coinciden — pero solo si alguno coincide, para que buscar por
+      // cliente o por número de orden siga mostrando el pedido entero.
+      const coincidePorCodigo = buscado
+        ? items.some(it => (it.codigo ?? '').toUpperCase().includes(buscado))
+        : false
+
       if (vista === 'pedido' || items.length === 0) {
         out.push({
           ref: p.numero_orden,
@@ -112,7 +127,10 @@ export function GaleriaPedidos({
         })
       } else {
         items.forEach((it, i) => {
+          if (coincidePorCodigo && !(it.codigo ?? '').toUpperCase().includes(buscado)) return
           out.push({
+            // El sufijo usa el índice REAL dentro del pedido, no el del listado
+            // filtrado: el artículo 2 sigue siendo "-2" aunque el 1 no se muestre.
             ref: items.length > 1 ? `${p.numero_orden}-${i + 1}` : p.numero_orden,
             pedido: p,
             item: it,
@@ -124,7 +142,7 @@ export function GaleriaPedidos({
       }
     }
     return out
-  }, [pedidos, itemsPorPedido, vista])
+  }, [pedidos, itemsPorPedido, vista, q])
 
   const sel = tiles.find(t => t.ref === selRef) ?? tiles[0] ?? null
 

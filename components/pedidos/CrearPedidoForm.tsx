@@ -14,6 +14,8 @@ import { PedidoSuccessOverlay } from '@/components/pedidos/PedidoSuccessOverlay'
 import { TallaSelect } from '@/components/ui/TallaSelect'
 import { MarcaSelect } from '@/components/ui/MarcaSelect'
 
+// Una opción por ARTÍCULO, no por artículo+talla: la talla la elige la persona
+// después. Las tallas viajan solo como información de qué hay en existencia.
 type OpcionCatalogo = {
   articulo_id: string
   codigo: string | null
@@ -22,22 +24,20 @@ type OpcionCatalogo = {
   color: string | null
   sexo: string | null
   categoria: string | null
-  talla: string | null
-  stock: number | null
+  tallas: Array<{ talla: string | null; stock: number }>
 }
 
-function aplanarOpciones(arts: ArticuloBusqueda[]): OpcionCatalogo[] {
-  const result: OpcionCatalogo[] = []
-  for (const a of arts) {
-    if (a.tallaStock.length === 0) {
-      result.push({ articulo_id: a.id, codigo: a.codigo, marca: a.marca, nombre: a.nombre, color: a.color, sexo: a.sexo, categoria: a.categoria, talla: null, stock: null })
-    } else {
-      for (const ts of a.tallaStock) {
-        result.push({ articulo_id: a.id, codigo: a.codigo, marca: a.marca, nombre: a.nombre, color: a.color, sexo: a.sexo, categoria: a.categoria, talla: ts.talla, stock: ts.stock })
-      }
-    }
-  }
-  return result
+function aOpciones(arts: ArticuloBusqueda[]): OpcionCatalogo[] {
+  return arts.map(a => ({
+    articulo_id: a.id,
+    codigo: a.codigo,
+    marca: a.marca,
+    nombre: a.nombre,
+    color: a.color,
+    sexo: a.sexo,
+    categoria: a.categoria,
+    tallas: a.tallaStock.map(ts => ({ talla: ts.talla, stock: ts.stock })),
+  }))
 }
 
 interface CrearPedidoFormProps {
@@ -94,8 +94,20 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
   const [searchDone, setSearchDone]     = useState<boolean[]>([false])
   const [catalogSaving, setCatalogSaving] = useState<Set<number>>(new Set())
   const [catalogError, setCatalogError] = useState<(string | null)[]>([null])
-  // Aviso por producto: el artículo elegido tiene stock (quizá no hay que encargarlo)
-  const [stockAviso, setStockAviso] = useState<({ talla: string | null; stock: number } | null)[]>([null])
+  // Tallas en existencia del artículo elegido en cada línea. Se llenan al elegir
+  // el artículo y sirven para avisar del stock cuando se escoge la talla.
+  const [tallasArticulo, setTallasArticulo] = useState<(Array<{ talla: string | null; stock: number }> | null)[]>([null])
+
+  // El aviso "ya está en stock" se DERIVA de la talla escogida, no se guarda:
+  // así aparece y desaparece solo al cambiar la talla, sin quedar desfasado.
+  function stockDeTalla(i: number): number | null {
+    const tallas = tallasArticulo[i]
+    const talla = form.productos[i]?.talla?.trim()
+    if (!tallas || !talla) return null
+    const t = talla.toLowerCase()
+    const encontrada = tallas.find(x => (x.talla ?? '').trim().toLowerCase() === t)
+    return encontrada ? encontrada.stock : 0
+  }
   const searchTimersRef = useRef<(ReturnType<typeof setTimeout> | null)[]>([null])
 
   const [isPending, startTransition] = useTransition()
@@ -197,7 +209,8 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
     if (searchTimersRef.current[idx]) clearTimeout(searchTimersRef.current[idx]!)
     setSearchDone(prev => prev.map((d, i) => i === idx ? false : d))
     setCatalogError(prev => prev.map((e, i) => i === idx ? null : e))
-    setStockAviso(prev => prev.map((s, i) => i === idx ? null : s))
+    // Al cambiar el código se pierde el artículo elegido, y con él sus tallas.
+    setTallasArticulo(prev => prev.map((t, i) => i === idx ? null : t))
 
     const q = val.trim()
     if (q.length < 2) {
@@ -207,7 +220,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
     }
     searchTimersRef.current[idx] = setTimeout(async () => {
       const arts = await buscarArticulosAction(q, sedeId)
-      const opts = aplanarOpciones(arts)
+      const opts = aOpciones(arts)
       setSearchOpts(prev => prev.map((o, i) => i === idx ? opts : o))
       setSearchOpen(prev => prev.map((o, i) => i === idx ? opts.length > 0 : o))
       setSearchDone(prev => prev.map((d, i) => i === idx ? true : d))
@@ -249,15 +262,15 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
   function elegirArticulo(idx: number, opt: OpcionCatalogo) {
     setCodigoQuery(prev => prev.map((c, i) => i === idx ? (opt.codigo ?? prev[idx]) : c))
     setSearchOpen(prev => prev.map((o, i) => i === idx ? false : o))
-    // Aviso: el producto elegido YA está en stock — quizá no hay que encargarlo.
-    setStockAviso(prev => prev.map((s, i) => i === idx
-      ? (opt.stock && opt.stock > 0 ? { talla: opt.talla, stock: opt.stock } : null)
-      : s))
+    // Se guardan las tallas del artículo para poder avisar del stock cuando la
+    // persona escoja la talla.
+    setTallasArticulo(prev => prev.map((t, i) => i === idx ? opt.tallas : t))
+    // La talla NO se llena al elegir el artículo: la escoge la persona. Antes se
+    // heredaba de la opción del listado y quedaba una talla que nadie eligió.
     patchProducto(idx, {
       articulo_id: opt.articulo_id,
       marca:       opt.marca,
       descripcion: opt.nombre,
-      talla:       opt.talla ?? form.productos[idx].talla,
       color:       opt.color ?? null,
       sexo:        (opt.sexo as any) ?? null,
       categoria:   (opt.categoria as any) ?? null,
@@ -274,7 +287,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
     setSearchOpen(prev => [...prev, false])
     setSearchDone(prev => [...prev, false])
     setCatalogError(prev => [...prev, null])
-    setStockAviso(prev => [...prev, null])
+    setTallasArticulo(prev => [...prev, null])
     searchTimersRef.current = [...searchTimersRef.current, null]
   }
 
@@ -285,7 +298,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
     setSearchOpen(prev => prev.filter((_, j) => j !== idx))
     setSearchDone(prev => prev.filter((_, j) => j !== idx))
     setCatalogError(prev => prev.filter((_, j) => j !== idx))
-    setStockAviso(prev => prev.filter((_, j) => j !== idx))
+    setTallasArticulo(prev => prev.filter((_, j) => j !== idx))
     searchTimersRef.current = searchTimersRef.current.filter((_, j) => j !== idx)
   }
 
@@ -300,7 +313,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
     setSearchOpen(result.data.productos.map(() => false))
     setSearchDone(result.data.productos.map(() => false))
     setCatalogError(result.data.productos.map(() => null))
-    setStockAviso(result.data.productos.map(() => null))
+    setTallasArticulo(result.data.productos.map(() => null))
     searchTimersRef.current = result.data.productos.map(() => null)
     // Sembrar el abono parseado como primera línea de la lista de abonos.
     setAbonos(result.data.abono > 0
@@ -551,22 +564,31 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
                       <div className="absolute z-10 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden max-h-56 overflow-y-auto">
                         {searchOpts[i].map(opt => (
                           <button
-                            key={`${opt.articulo_id}-${opt.talla ?? ''}`}
+                            key={opt.articulo_id}
                             type="button"
                             onMouseDown={() => elegirArticulo(i, opt)}
-                            className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm border-b border-gray-50 last:border-0 flex justify-between items-center"
+                            className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm border-b border-gray-50 last:border-0"
                           >
-                            <span>
+                            <span className="block">
                               {opt.codigo && <span className="font-mono text-gray-400 text-xs mr-1">{opt.codigo}</span>}
                               <span className="font-medium text-gray-900">{opt.marca} {opt.nombre}</span>
                               {opt.color && <span className="text-gray-400"> · {opt.color}</span>}
-                              {opt.talla && <span className="text-gray-400"> · T{opt.talla}</span>}
                             </span>
-                            {opt.stock != null && opt.stock > 0 && (
-                              <span className="shrink-0 ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
-                                {opt.stock} en stock
-                              </span>
-                            )}
+                            {/* Las tallas son informativas: al elegir no se llena ninguna. */}
+                            <span className="block text-xs mt-0.5">
+                              {opt.tallas.filter(t => t.stock > 0).length > 0 ? (
+                                <>
+                                  <span className="text-gray-400">En stock: </span>
+                                  {opt.tallas.filter(t => t.stock > 0).map(t => (
+                                    <span key={t.talla ?? ''} className="text-emerald-700 mr-1.5">
+                                      {t.talla ? `T${t.talla}` : 'sin talla'}·{t.stock}
+                                    </span>
+                                  ))}
+                                </>
+                              ) : (
+                                <span className="text-gray-400">Sin existencias</span>
+                              )}
+                            </span>
                           </button>
                         ))}
                       </div>
@@ -604,17 +626,41 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
                   <p className="text-xs text-green-600 font-medium">✓ Enlazado al catálogo</p>
                 )}
 
-                {/* Aviso: este producto YA está en stock — quizá no hay que encargarlo */}
-                {stockAviso[i] && (
-                  <div className="flex items-start gap-2 bg-emerald-50 border border-emerald-300 rounded-lg px-3 py-2">
-                    <span className="text-base leading-none">📦</span>
-                    <p className="text-xs text-emerald-800">
-                      <b>¡Este producto está EN STOCK!</b> Hay {stockAviso[i]!.stock} unidad{stockAviso[i]!.stock !== 1 ? 'es' : ''}
-                      {stockAviso[i]!.talla ? ` en talla ${stockAviso[i]!.talla}` : ''} en el inventario.
-                      Revisa si puede salir de la tienda (Venta) en lugar de encargarlo.
-                    </p>
-                  </div>
+                {/* Tallas en existencia del artículo elegido, mientras no se
+                    haya escogido una. Es información para decidir, no una
+                    selección: la talla la pone la persona abajo. */}
+                {(p as any).articulo_id && tallasArticulo[i] && !(p.talla ?? '').trim() && (
+                  <p className="text-xs text-gray-500">
+                    {tallasArticulo[i]!.filter(t => t.stock > 0).length > 0 ? (
+                      <>
+                        En inventario:{' '}
+                        {tallasArticulo[i]!.filter(t => t.stock > 0).map(t => (
+                          <span key={t.talla ?? ''} className="text-emerald-700 font-medium mr-1.5">
+                            {t.talla ? `T${t.talla}` : 'sin talla'}·{t.stock}
+                          </span>
+                        ))}
+                        — elige la talla abajo
+                      </>
+                    ) : (
+                      <span className="text-gray-400">Sin existencias de este artículo. Elige la talla abajo.</span>
+                    )}
+                  </p>
                 )}
+
+                {/* Aviso: esta talla YA está en stock — quizá no hay que encargarla */}
+                {(() => {
+                  const s = stockDeTalla(i)
+                  if (s == null || s <= 0) return null
+                  return (
+                    <div className="flex items-start gap-2 bg-emerald-50 border border-emerald-300 rounded-lg px-3 py-2">
+                      <span className="text-base leading-none">📦</span>
+                      <p className="text-xs text-emerald-800">
+                        <b>¡Esta talla está EN STOCK!</b> Hay {s} unidad{s !== 1 ? 'es' : ''} en talla {p.talla} en el inventario.
+                        Revisa si puede salir de la tienda (Venta) en lugar de encargarla.
+                      </p>
+                    </div>
+                  )
+                })()}
 
                 {/* Fila 2: Marca · Talla · Cant · X */}
                 <div className="grid grid-cols-[2fr_1fr_auto_auto] gap-2 items-center">
