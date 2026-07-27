@@ -15,22 +15,58 @@ import { HistorialPagos } from '@/components/clientes/HistorialPagos'
 import { ComprasChart, MesCompra } from '@/components/clientes/ComprasChart'
 
 // Agrupa los pedidos por mes (hora Bogotá) para el flujo de compras.
+// Serie mensual de compras del cliente, CONTINUA: incluye los meses en que no
+// compró, con total 0. Antes solo devolvía los meses con compra, así que un
+// cliente con una sola compra salía con un único mes ocupando toda la gráfica —
+// que además insinuaba "un mes de historia" cuando la verdad es "una compra".
+//
+// La ventana va de su primera compra hasta el mes actual, con un mínimo de 6
+// meses (para que una sola compra igual tenga eje) y un tope de 24.
 function comprasPorMes(pedidos: { fecha_creacion: string; total: number; estado: string; numero_orden: string }[]): MesCompra[] {
   const fmtClave = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota', year: 'numeric', month: '2-digit' })
   const fmtLabel = new Intl.DateTimeFormat('es-CO', { timeZone: 'America/Bogota', month: 'short', year: '2-digit' })
-  const mapa = new Map<string, MesCompra>()
+
+  const conCompra = new Map<string, { total: number; pedidos: number }>()
   for (const p of pedidos) {
     if (p.estado === 'cancelado') continue
     if (p.numero_orden.startsWith('SALDO-')) continue  // deuda migrada, no es compra
-    const d = new Date(p.fecha_creacion)
-    const clave = fmtClave.format(d).slice(0, 7)           // 'YYYY-MM'
-    const label = fmtLabel.format(d).replace('.', '')       // 'jul 26'
-    const actual = mapa.get(clave) ?? { clave, label, total: 0, pedidos: 0 }
+    const clave = fmtClave.format(new Date(p.fecha_creacion)).slice(0, 7)   // 'YYYY-MM'
+    const actual = conCompra.get(clave) ?? { total: 0, pedidos: 0 }
     actual.total += p.total
     actual.pedidos += 1
-    mapa.set(clave, actual)
+    conCompra.set(clave, actual)
   }
-  return [...mapa.values()].sort((a, b) => a.clave.localeCompare(b.clave))
+  if (conCompra.size === 0) return []
+
+  // Mes actual en hora Bogotá, no del servidor.
+  const hoyClave = fmtClave.format(new Date()).slice(0, 7)
+  const primera = [...conCompra.keys()].sort()[0]
+
+  const aIndice = (clave: string) => {
+    const [a, m] = clave.split('-').map(Number)
+    return a * 12 + (m - 1)
+  }
+  const fin = aIndice(hoyClave)
+  // El fin manda: si la última compra fuera futura por datos raros, no se
+  // invierte la ventana.
+  let inicio = Math.min(aIndice(primera), fin)
+  if (fin - inicio < 5) inicio = fin - 5          // mínimo 6 meses
+  if (fin - inicio > 23) inicio = fin - 23        // tope 24 meses
+
+  const serie: MesCompra[] = []
+  for (let i = inicio; i <= fin; i++) {
+    const anio = Math.floor(i / 12)
+    const mes = (i % 12) + 1
+    const clave = `${anio}-${String(mes).padStart(2, '0')}`
+    const dato = conCompra.get(clave)
+    serie.push({
+      clave,
+      label: fmtLabel.format(new Date(Date.UTC(anio, mes - 1, 15))).replace('.', ''),
+      total: dato?.total ?? 0,
+      pedidos: dato?.pedidos ?? 0,
+    })
+  }
+  return serie
 }
 
 export default async function ClienteDetallePage({
