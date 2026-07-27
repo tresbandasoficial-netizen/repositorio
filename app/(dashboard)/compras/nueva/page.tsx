@@ -29,16 +29,30 @@ export default async function NuevaCompraPage({
 
   const cuentas = (cuentasRaw ?? []) as Array<{ id: string; nombre: string; tipo: string; sede_id: string | null }>
 
-  // Proveedores ya usados (para autocompletar). Se derivan de las compras
+  // Proveedores ya usados (para el buscador). Se derivan de las compras
   // existentes — quedan "guardados" sin necesidad de una tabla aparte.
+  //
+  // Se agrupan SIN distinguir mayúsculas ni espacios y de cada grupo se conserva
+  // la escritura más usada: antes "Alo" y "alo" salían como dos proveedores
+  // distintos en la lista.
   const { data: provRaw } = await supabase
     .from('compras')
     .select('proveedor')
     .not('proveedor', 'is', null)
     .limit(5000)
-  const proveedores = Array.from(
-    new Set((provRaw ?? []).map((c: { proveedor: string }) => c.proveedor?.trim()).filter(Boolean))
-  ).sort((a, b) => a.localeCompare(b))
+
+  const conteo = new Map<string, Map<string, number>>()
+  for (const c of (provRaw ?? []) as Array<{ proveedor: string }>) {
+    const escrito = c.proveedor?.trim()
+    if (!escrito) continue
+    const clave = escrito.toLowerCase()
+    const grupo = conteo.get(clave) ?? new Map<string, number>()
+    grupo.set(escrito, (grupo.get(escrito) ?? 0) + 1)
+    conteo.set(clave, grupo)
+  }
+  const proveedores = [...conteo.values()]
+    .map(grupo => [...grupo.entries()].sort((a, b) => b[1] - a[1])[0][0])
+    .sort((a, b) => a.localeCompare(b, 'es'))
 
   // Pedidos seleccionados en la galería (?pedidos=TR6821,TR6822)
   const { pedidos: pedidosParam } = await searchParams

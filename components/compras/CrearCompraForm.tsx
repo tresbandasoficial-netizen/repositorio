@@ -8,6 +8,7 @@ import { buscarPorCodigoAction } from '@/app/actions/articulos'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { MarcaSelect } from '@/components/ui/MarcaSelect'
+import { ProveedorSelect } from './ProveedorSelect'
 import { formatCOP, formatMiles, hoyBogota } from '@/lib/utils/format'
 
 type Paso = 'subir' | 'revisar' | 'guardando'
@@ -597,18 +598,15 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
           {/* Proveedor + Número de factura + Fecha */}
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Proveedor</label>
-              <input
-                type="text"
-                list="lista-proveedores"
+              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                Proveedor <span className="normal-case text-gray-400">({proveedores.length} registrados)</span>
+              </label>
+              <ProveedorSelect
                 value={proveedor}
-                onChange={(e) => setProveedor(e.target.value)}
-                placeholder="Escribe o elige un proveedor"
+                onChange={setProveedor}
+                proveedores={proveedores}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <datalist id="lista-proveedores">
-                {proveedores.map((p) => <option key={p} value={p} />)}
-              </datalist>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">N° Factura</label>

@@ -6,6 +6,7 @@ import { editarCompraAction, EditarCompraInput, EditarCompraItemInput, buscarPed
 import { buscarPorCodigoAction } from '@/app/actions/articulos'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { MarcaSelect } from '@/components/ui/MarcaSelect'
+import { ProveedorSelect } from './ProveedorSelect'
 import { formatCOP, formatMiles } from '@/lib/utils/format'
 
 type CuentaOpc = { id: string; nombre: string }
@@ -54,9 +55,10 @@ interface Props {
   }
   itemsIniciales: ItemInicial[]
   cuentas: CuentaOpc[]
+  proveedores?: string[]
 }
 
-export function EditarCompraForm({ compraId, inicial, itemsIniciales, cuentas }: Props) {
+export function EditarCompraForm({ compraId, inicial, itemsIniciales, cuentas, proveedores = [] }: Props) {
   const router = useRouter()
   const [tipo, setTipo] = useState(inicial.tipo)
   const [proveedor, setProveedor] = useState(inicial.proveedor)
@@ -239,8 +241,15 @@ export function EditarCompraForm({ compraId, inicial, itemsIniciales, cuentas }:
           {/* Proveedor + N° Factura + Fecha */}
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Proveedor *</label>
-              <input type="text" value={proveedor} onChange={e => setProveedor(e.target.value)} className={inputCls} />
+              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                Proveedor * <span className="normal-case text-gray-400">({proveedores.length} registrados)</span>
+              </label>
+              <ProveedorSelect
+                value={proveedor}
+                onChange={setProveedor}
+                proveedores={proveedores}
+                className={inputCls}
+              />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">N° Factura</label>

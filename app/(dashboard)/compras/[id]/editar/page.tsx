@@ -24,7 +24,7 @@ export default async function EditarCompraPage({
 
   const { id } = await params
 
-  const [{ data: compra }, { data: cuentasRaw }, { data: itemsRaw }] = await Promise.all([
+  const [{ data: compra }, { data: cuentasRaw }, { data: itemsRaw }, { data: provRaw }] = await Promise.all([
     supabase
       .from('compras')
       .select('id, tipo, proveedor, fecha, numero_factura, total_usd, trm, total_cop, notas, cuenta_id')
@@ -41,7 +41,24 @@ export default async function EditarCompraPage({
       .select('id, codigo, descripcion, marca, talla, cantidad, costo_unitario_cop, destino, articulo_id, pedido_item_indice, pedidos(numero_orden)')
       .eq('compra_id', id)
       .order('creado_en'),
+    supabase.from('compras').select('proveedor').not('proveedor', 'is', null).limit(5000),
   ])
+
+  // Mismo criterio que en /compras/nueva: se agrupa sin distinguir mayúsculas ni
+  // espacios y de cada grupo queda la escritura más usada, para no ofrecer el
+  // mismo proveedor escrito de dos formas.
+  const conteoProv = new Map<string, Map<string, number>>()
+  for (const c of (provRaw ?? []) as Array<{ proveedor: string }>) {
+    const escrito = c.proveedor?.trim()
+    if (!escrito) continue
+    const clave = escrito.toLowerCase()
+    const grupo = conteoProv.get(clave) ?? new Map<string, number>()
+    grupo.set(escrito, (grupo.get(escrito) ?? 0) + 1)
+    conteoProv.set(clave, grupo)
+  }
+  const proveedores = [...conteoProv.values()]
+    .map(grupo => [...grupo.entries()].sort((a, b) => b[1] - a[1])[0][0])
+    .sort((a, b) => a.localeCompare(b, 'es'))
 
   if (!compra) notFound()
 
@@ -90,6 +107,7 @@ export default async function EditarCompraPage({
         }}
         itemsIniciales={itemsIniciales}
         cuentas={cuentas}
+        proveedores={proveedores}
       />
     </div>
   )
