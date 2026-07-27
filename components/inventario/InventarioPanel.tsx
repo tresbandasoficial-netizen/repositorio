@@ -16,6 +16,14 @@ import { EditarArticuloModal } from './EditarArticuloModal'
 
 type Sede = { id: string; codigo: string; nombre: string }
 
+// Rótulos para no mostrar los valores crudos de la base en la tabla.
+const CATEGORIA_LABEL: Record<string, string> = {
+  ropa: 'Ropa', tenis: 'Tenis', accesorios: 'Accesorios',
+}
+const SEXO_LABEL: Record<string, string> = {
+  hombre: 'Hombre', mujer: 'Mujer', nino: 'Niño',
+}
+
 export function InventarioPanel({
   filas, columnasSedes, sedes, articulos,
 }: {
@@ -102,9 +110,11 @@ export function InventarioPanel({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
-                <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">Código</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Artículo</th>
+                <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase">Código</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Marca</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Nombre</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Talla</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Categoría</th>
                 {columnasSedes.map(s => (
                   <th key={s} className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">{s}</th>
                 ))}
@@ -117,15 +127,24 @@ export function InventarioPanel({
                 const art = porId.get(f.articulo_id)
                 return (
                 <tr key={f.key} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-3 font-mono text-xs text-gray-500">
+                  <td className="px-5 py-3 font-mono text-xs text-gray-500 whitespace-nowrap">
                     {art?.codigo ?? '—'}
                   </td>
+                  <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
+                    {f.marca || <span className="text-gray-300">—</span>}
+                  </td>
                   <td className="px-4 py-3">
-                    <p className="font-medium text-gray-900">{f.marca} {f.nombre}</p>
+                    <p className="font-medium text-gray-900">{f.nombre}</p>
                     {art?.color && <p className="text-xs text-gray-400">{art.color}</p>}
                   </td>
-                  <td className="px-4 py-3 text-gray-500 text-sm">
-                    {f.talla ?? '—'}
+                  <td className="px-4 py-3 text-gray-700 text-sm whitespace-nowrap">
+                    {f.talla ?? <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    {f.categoria
+                      ? <span className="text-xs text-gray-600">{CATEGORIA_LABEL[f.categoria] ?? f.categoria}</span>
+                      : <span className="text-xs text-gray-300">Sin categoría</span>}
+                    {art?.sexo && <p className="text-[11px] text-gray-400">{SEXO_LABEL[art.sexo] ?? art.sexo}</p>}
                   </td>
                   {columnasSedes.map(s => {
                     const v = f.porSede[s] ?? 0
@@ -169,9 +188,13 @@ export function InventarioPanel({
             {sinStock.slice(0, 30).map(a => (
               <div key={a.id} className="flex items-center gap-3 px-6 py-3 hover:bg-gray-50 transition-colors">
                 <span className="font-mono text-xs text-gray-500 w-32 shrink-0">{a.codigo ?? '—'}</span>
+                <span className="w-24 shrink-0 text-sm text-gray-700 truncate">{a.marca || '—'}</span>
                 <span className="flex-1 text-sm text-gray-900 truncate">
-                  {a.marca} {a.nombre}
+                  {a.nombre}
                   {a.color && <span className="text-gray-400"> · {a.color}</span>}
+                </span>
+                <span className="w-24 shrink-0 text-xs text-gray-500 truncate">
+                  {a.categoria ? CATEGORIA_LABEL[a.categoria] ?? a.categoria : 'Sin categoría'}
                 </span>
                 <button
                   type="button"
