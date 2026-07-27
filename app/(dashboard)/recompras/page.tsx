@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { BadgeSegmento } from '@/components/recompras/BadgeSegmento'
 import { PanelRFMCliente } from '@/components/recompras/PanelRFMCliente'
 import { ClienteSegmentoRfm } from '@/types'
+import { SEMAFORO } from '@/components/clientes/SemaforoSeguimiento'
+import { Seguimiento } from '@/app/actions/clientes'
 
 export default async function RecomprasPage() {
   const sesion = await getSesion()
@@ -34,6 +36,20 @@ export default async function RecomprasPage() {
     )
   }
 
+  // El semáforo manual vive en `clientes`, no en la vista: se trae aparte y se
+  // cruza en memoria (una consulta, no una por fila).
+  const { data: segs } = await supabase
+    .from('clientes')
+    .select('id, seguimiento, seguimiento_nota')
+    .not('seguimiento', 'is', null)
+
+  const semaforoPorCliente = new Map(
+    (segs ?? []).map((s: any) => [s.id as string, {
+      estado: s.seguimiento as Seguimiento,
+      nota: (s.seguimiento_nota ?? null) as string | null,
+    }])
+  )
+
   const clientesConSegmento = (clientes ?? []).map((c: any) => ({
     id: c.cliente_id as string,
     nombre: c.nombre as string,
@@ -42,6 +58,7 @@ export default async function RecomprasPage() {
     f: c.frecuencia as number | null,
     m: c.monto_total as number | null,
     segmento: (c.segmento ?? 'nuevo') as ClienteSegmentoRfm,
+    semaforo: semaforoPorCliente.get(c.cliente_id as string) ?? null,
   }))
 
   // Agrupar por segmento
@@ -106,8 +123,22 @@ export default async function RecomprasPage() {
               {visibles.map(c => (
                 <div key={c.id} className="flex flex-wrap items-center gap-3 px-6 py-3 hover:bg-gray-50 transition-colors">
                   <Link href={`/clientes/${c.id}`} className="flex-1 min-w-[12rem] group">
-                    <div className="font-medium text-gray-900 group-hover:text-blue-700 truncate">{c.nombre}</div>
-                    <div className="text-xs text-gray-500 mt-0.5">{c.telefono}</div>
+                    <div className="font-medium text-gray-900 group-hover:text-blue-700 truncate">
+                      {c.semaforo && (
+                        <span
+                          aria-hidden="true"
+                          title={`${SEMAFORO[c.semaforo.estado].label}${c.semaforo.nota ? ` — ${c.semaforo.nota}` : ''}`}
+                          className="mr-1.5"
+                        >
+                          {SEMAFORO[c.semaforo.estado].punto}
+                        </span>
+                      )}
+                      {c.nombre}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-0.5">
+                      {c.telefono}
+                      {c.semaforo?.nota && <span className="text-gray-400"> · {c.semaforo.nota}</span>}
+                    </div>
                   </Link>
 
                   <PanelRFMCliente r={c.r} f={c.f} m={c.m} />
