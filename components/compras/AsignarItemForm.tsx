@@ -18,11 +18,13 @@ export function AsignarItemForm({ itemId, destinoActual, pedidoActual, onDone }:
   const [destino, setDestino] = useState<Destino>(destinoActual)
   const [numeroPedido, setNumeroPedido] = useState(pedidoActual ?? '')
   const [error, setError] = useState<string | null>(null)
+  const [aviso, setAviso] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const { avisar, avisarError } = useAviso()
 
   function handleGuardar() {
     setError(null)
+    setAviso(null)
 
     startTransition(async () => {
       const result = await asignarItemAction(
@@ -34,6 +36,11 @@ export function AsignarItemForm({ itemId, destinoActual, pedidoActual, onDone }:
       if (!result.ok) {
         setError(result.error)
         avisarError(result.error)
+      } else if (result.aviso) {
+        // Se asignó, pero lo comprado no es lo que el pedido pide: se queda en
+        // pantalla para poder leerlo y decidir, sin cerrar el formulario.
+        avisar('Cambio realizado')
+        setAviso(result.aviso)
       } else {
         avisar('Cambio realizado')
         onDone?.()
@@ -81,6 +88,20 @@ export function AsignarItemForm({ itemId, destinoActual, pedidoActual, onDone }:
 
       {error && (
         <p className="text-sm text-red-600">{error}</p>
+      )}
+
+      {aviso && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2">
+          <p className="text-xs font-semibold text-amber-900">Ojo: no es el mismo artículo</p>
+          <p className="mt-0.5 text-xs text-amber-800">{aviso}</p>
+          <button
+            type="button"
+            onClick={() => { setAviso(null); onDone?.() }}
+            className="mt-1.5 text-xs font-medium text-amber-900 underline hover:no-underline"
+          >
+            Entendido, cerrar
+          </button>
+        </div>
       )}
 
       <div className="flex gap-2">

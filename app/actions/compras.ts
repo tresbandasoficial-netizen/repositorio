@@ -334,8 +334,50 @@ export async function crearCompraAction(data: CrearCompraInput): Promise<CrearCo
 }
 
 export type AsignarItemResult =
-  | { ok: true }
+  | { ok: true; aviso?: string }
   | { ok: false; error: string }
+
+// Avisa si lo comprado NO es lo que el pedido pide. No bloquea — a veces se
+// cambia el modelo de común acuerdo con el cliente — pero deja de pasar en
+// silencio: así se metió un "Cloudmonster 3" en un pedido que pedía
+// "Cloudmonster 3 Hyper", y el pedido quedó marcado como comprado.
+async function _avisoArticuloDistinto(
+  itemId: string,
+  pedidoId: string,
+  indice: number | null,
+  adminClient: ReturnType<typeof createAdminClient>,
+): Promise<string | undefined> {
+  const { data: compra } = await adminClient
+    .from('compra_items')
+    .select('articulo_id, articulos(codigo, nombre)')
+    .eq('id', itemId)
+    .maybeSingle()
+  if (!compra?.articulo_id) return undefined
+
+  const { data: itemsPedido } = await adminClient
+    .from('pedido_items')
+    .select('articulo_id, descripcion, articulos(codigo, nombre)')
+    .eq('pedido_id', pedidoId)
+    .order('id')
+  if (!itemsPedido || itemsPedido.length === 0) return undefined
+
+  // Con índice se compara contra ESE artículo; sin índice basta que alguno calce.
+  const objetivo = indice != null ? itemsPedido[indice - 1] : null
+  const calzaAlguno = itemsPedido.some(i => i.articulo_id === compra.articulo_id)
+  if (indice == null ? calzaAlguno : objetivo?.articulo_id === compra.articulo_id) return undefined
+
+  const nom = (x: any) => {
+    const a = Array.isArray(x?.articulos) ? x.articulos[0] : x?.articulos
+    return a?.codigo ? `${a.codigo} (${a.nombre})` : x?.descripcion ?? 'sin identificar'
+  }
+  const pedido = objetivo ?? itemsPedido[0]
+  // Si el artículo del pedido está sin enlazar al catálogo no hay nada que
+  // comparar: no se avisa para no gritar en falso.
+  if (!pedido?.articulo_id) return undefined
+
+  return `Lo comprado es ${nom(compra)} pero el pedido pide ${nom(pedido)}. `
+    + `Se asignó igual — verifica si es un cambio de modelo acordado o una asignación equivocada.`
+}
 
 export async function asignarItemAction(
   itemId: string,
@@ -385,8 +427,10 @@ export async function asignarItemAction(
   if (error) return { ok: false, error: error.message }
 
   // Auto-vincular artículo del catálogo si aún no está vinculado
-  if (destino === 'pedido') {
+  let aviso: string | undefined
+  if (destino === 'pedido' && pedidoId) {
     await _resolverArticuloCompraItem(itemId, pedidoId, pedidoItemIndice, adminClient)
+    aviso = await _avisoArticuloDistinto(itemId, pedidoId, pedidoItemIndice, adminClient)
   }
 
   // El stock de Bucaramanga sigue al destino: entra si queda sin asignar,
@@ -395,8 +439,9 @@ export async function asignarItemAction(
 
   revalidatePath('/inventario')
   revalidatePath('/compras')
+  revalidatePath('/pedidos/galeria')
 
-  return { ok: true }
+  return { ok: true, aviso }
 }
 
 // Deja el stock de Bucaramanga acorde al destino del ítem, sin importar cuántas
