@@ -58,6 +58,7 @@ export type PedidoItemBusqueda = {
   marca: string
   talla: string
   articulo_id: string | null
+  imagen_url: string | null   // la foto que se subió en el pedido, o la del catálogo
 }
 
 // Busca un pedido por número de orden (para el lookup en vivo del formulario).
@@ -104,7 +105,7 @@ export async function buscarPedidoPorOrdenAction(numeroOrden: string): Promise<
     supabase.from('clientes').select('nombre').eq('id', data.cliente_id).maybeSingle(),
     supabase
       .from('pedido_items')
-      .select('marca, descripcion, talla, cantidad, articulo_id, articulos(codigo, nombre, marca)')
+      .select('marca, descripcion, talla, cantidad, articulo_id, imagen_url, articulos(codigo, nombre, marca, fotos)')
       .eq('pedido_id', data.id)
       .order('id'),
     supabase.from('compra_items').select('cantidad').eq('pedido_id', data.id),
@@ -112,7 +113,7 @@ export async function buscarPedidoPorOrdenAction(numeroOrden: string): Promise<
 
   const items: PedidoItemBusqueda[] = (itemsRaw ?? []).map((it: Record<string, unknown>) => {
     const art = Array.isArray(it.articulos) ? it.articulos[0] : it.articulos
-    const cat = art as { codigo?: string; nombre?: string; marca?: string } | null
+    const cat = art as { codigo?: string; nombre?: string; marca?: string; fotos?: string[] } | null
     return {
       codigo:      cat?.codigo ?? '',
       // Si el artículo está en el catálogo, manda el NOMBRE OFICIAL del
@@ -121,6 +122,9 @@ export async function buscarPedidoPorOrdenAction(numeroOrden: string): Promise<
       marca:       cat?.marca || ((it.marca as string) ?? ''),
       talla:       (it.talla as string) ?? '',
       articulo_id: (it.articulo_id as string) ?? null,
+      // Manda la foto DEL PEDIDO: es la que se le mostró al cliente. La del
+      // catálogo queda de respaldo cuando el pedido no trae ninguna.
+      imagen_url:  ((it.imagen_url as string) || cat?.fotos?.[0]) ?? null,
     }
   })
 

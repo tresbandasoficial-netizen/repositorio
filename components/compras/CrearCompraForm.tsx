@@ -30,6 +30,7 @@ type ItemForm = {
   pedidoOk?: boolean             // true=encontrado, false=no existe/bloqueado, undefined=sin buscar
   pedidoCliente?: string | null
   pedidoAviso?: string | null    // motivo del bloqueo (ej: ya tiene compra asignada)
+  imagenUrl?: string | null      // foto del producto del pedido (o la del catálogo)
 }
 
 function facturaToItems(items: FacturaExtraida['items'], moneda: 'USD' | 'COP'): ItemForm[] {
@@ -131,6 +132,7 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
             pedidoRef:          esParteReal ? pedido.numero_orden : (idxSufijo !== null ? num : pedido.numero_orden),
             pedidoOk:           true,
             pedidoCliente:      pedido.cliente_nombre,
+            imagenUrl:          prod?.imagen_url ?? null,
             articuloId:         prod?.articulo_id ?? null,
             articuloEncontrado: prod?.articulo_id ? true : undefined,
           })
@@ -306,6 +308,7 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
             descripcion: prod.descripcion || item.descripcion,
             marca:       prod.marca || item.marca,
             talla:       prod.talla || item.talla,
+            imagenUrl:   prod.imagen_url ?? null,
             articuloId:  prod.articulo_id ?? item.articuloId ?? null,
             articuloEncontrado: prod.articulo_id ? true : item.articuloEncontrado,
           } : {}),
@@ -332,6 +335,7 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
             pedidoRef:          base,
             pedidoOk:           true,
             pedidoCliente:      pedido.cliente_nombre,
+            imagenUrl:          p2.imagen_url ?? null,
             articuloId:         p2.articulo_id ?? null,
             articuloEncontrado: p2.articulo_id ? true : undefined,
           }))
@@ -902,7 +906,29 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
         </CardHeader>
         <CardContent className="space-y-4">
           {items.map((item, idx) => (
-            <div key={idx} className="border border-gray-100 rounded-lg p-3 space-y-2 bg-gray-50">
+            <div key={idx} className="border border-gray-100 rounded-lg p-3 bg-gray-50 flex gap-3">
+              {/* Foto del producto del pedido: es la que se le mostró al cliente,
+                  así se verifica que se está comprando lo que pidió. Solo aparece
+                  cuando la hay — no se deja un cuadro vacío ocupando espacio. */}
+              {item.imagenUrl && (
+                <a
+                  href={item.imagenUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Ver la foto en grande"
+                  className="shrink-0 w-20 h-20 rounded-lg overflow-hidden border border-gray-200 bg-white block"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={item.imagenUrl}
+                    alt={item.descripcion || 'Producto del pedido'}
+                    loading="lazy"
+                    className="w-full h-full object-cover hover:scale-105 transition-transform"
+                  />
+                </a>
+              )}
+
+              <div className="flex-1 min-w-0 space-y-2">
               {/* Fila 1: número + destino + N° de pedido (ARRIBA) + eliminar */}
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-[11px] font-bold text-gray-400 uppercase shrink-0">#{idx + 1}</span>
@@ -1031,6 +1057,7 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
                   title="Costo unitario COP"
                   className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 />
+              </div>
               </div>
             </div>
           ))}
