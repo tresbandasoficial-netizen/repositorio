@@ -57,7 +57,9 @@ export function FacturaTab() {
       const b64 = (reader.result as string).split(',')[1]
       const mt = file.type as 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf'
       startParsing(async () => {
-        const result = await parsearFacturaAction(b64, mt, tipo)
+        // Esta pantalla todavía usa un solo control para país y moneda; se
+        // traduce aquí para no cambiarle el comportamiento.
+        const result = await parsearFacturaAction(b64, mt, tipo === 'usa' ? 'USD' : 'COP')
         if (!result.ok) { setError(result.error); return }
         const d = result.data
         setProveedor(d.proveedor || '')

@@ -99,10 +99,13 @@ Reglas:
 - subtotal_usd, tax_usd, shipping_usd: ponlos en 0
 - Devuelve SOLO el JSON, sin texto adicional`
 
+// `moneda` es la MONEDA de la factura, no el país de la compra: se puede comprar
+// en Estados Unidos con una factura en pesos. Antes el parámetro se llamaba
+// `tipo: 'usa'|'colombia'` y confundía las dos cosas.
 export async function parsearFacturaAction(
   base64: string,
   mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf',
-  tipo: 'usa' | 'colombia' = 'usa'
+  moneda: 'USD' | 'COP' = 'USD'
 ): Promise<ParsearFacturaResult> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -117,7 +120,7 @@ export async function parsearFacturaAction(
 
   if (!process.env.ANTHROPIC_API_KEY) return { ok: false, error: 'ANTHROPIC_API_KEY no configurada' }
 
-  const prompt = tipo === 'colombia' ? PROMPT_COP : PROMPT_USD
+  const prompt = moneda === 'COP' ? PROMPT_COP : PROMPT_USD
 
   const contentBlocks: Anthropic.MessageParam['content'] = []
 

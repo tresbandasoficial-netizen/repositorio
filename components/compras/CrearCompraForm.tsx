@@ -66,7 +66,18 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
   const [cargandoPedidos, setCargandoPedidos] = useState(pedidosIniciales.length > 0)
 
   // Campos de la factura
+  // PAÍS de la compra (lo que se guarda en compras.tipo) y MONEDA de la factura
+  // son cosas distintas: se puede comprar en USA y pagar en pesos. Antes era un
+  // solo control, así que elegir "pesos" marcaba la compra como de Colombia.
   const [tipo, setTipo] = useState<'usa' | 'colombia'>('usa')
+  const [moneda, setMoneda] = useState<'USD' | 'COP'>('USD')
+
+  // Al cambiar el país se propone la moneda típica, pero queda cambiable: es una
+  // ayuda, no una regla.
+  function cambiarPais(p: 'usa' | 'colombia') {
+    setTipo(p)
+    setMoneda(p === 'usa' ? 'USD' : 'COP')
+  }
   const [cuentaId, setCuentaId] = useState<string>('')
   const [proveedor, setProveedor] = useState('')
   const [numeroFactura, setNumeroFactura] = useState('')
@@ -152,7 +163,7 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
 
   // TRM calculada automáticamente
   const trmCalculada =
-    tipo === 'usa' && totalUsd && totalCopPagado
+    moneda === 'USD' && totalUsd && totalCopPagado
       ? Math.round(parseFloat(totalCopPagado.replace(/\D/g, '')) / parseFloat(totalUsd))
       : null
 
@@ -380,7 +391,7 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
       const mediaType = file.type as any
 
       startParsing(async () => {
-        const result = await parsearFacturaAction(base64, mediaType, tipo)
+        const result = await parsearFacturaAction(base64, mediaType, moneda)
         if (!result.ok) {
           setError(result.error)
           return
@@ -391,7 +402,7 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
         setProveedor(data.proveedor)
         setFecha(data.fecha)
         setNumeroFactura(data.numero_factura ?? '')
-        if (tipo === 'colombia') {
+        if (moneda === 'COP') {
           setTotalCopPagado(String(Math.round(data.total_usd)))
           setTotalUsd('')
           setSubtotalUsd('')
@@ -410,7 +421,7 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
               : ''
           )
         }
-        setItems(facturaToItems(data.items, tipo === 'colombia' ? 'COP' : 'USD'))
+        setItems(facturaToItems(data.items, moneda))
         setPaso('revisar')
       })
     }
@@ -465,8 +476,10 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
       proveedor: proveedor.trim(),
       fecha,
       numero_factura: numeroFactura.trim(),
-      total_usd: tipo === 'usa' && totalUsd && parseFloat(totalUsd) > 0 ? parseFloat(totalUsd) : null,
-      trm: tipo === 'usa' ? (trmCalculada ?? null) : null,
+      // El USD y la TRM dependen de la MONEDA, no del país: una compra en USA
+      // pagada en pesos no lleva dólares ni TRM, pero sigue siendo de USA.
+      total_usd: moneda === 'USD' && totalUsd && parseFloat(totalUsd) > 0 ? parseFloat(totalUsd) : null,
+      trm: moneda === 'USD' ? (trmCalculada ?? null) : null,
       total_cop: totalCopFinal,
       notas,
       cuenta_id: cuentaId || null,
@@ -505,24 +518,45 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
             <h2 className="text-sm font-semibold text-gray-900">Nueva compra</h2>
           </CardHeader>
           <CardContent className="space-y-5">
-            {/* Tipo de factura */}
-            <div>
-              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">¿La factura es en...?</label>
-              <div className="flex gap-2">
-                {(['usa', 'colombia'] as const).map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setTipo(t)}
-                    className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors ${
-                      tipo === t
-                        ? t === 'usa' ? 'bg-blue-600 text-white border-blue-600' : 'bg-green-600 text-white border-green-600'
-                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    {t === 'usa' ? 'Dólares (USD)' : 'Pesos (COP)'}
-                  </button>
-                ))}
+            {/* País y moneda: dos cosas distintas */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">¿Dónde compraste?</label>
+                <div className="flex gap-2">
+                  {(['usa', 'colombia'] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => cambiarPais(t)}
+                      className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors ${
+                        tipo === t
+                          ? t === 'usa' ? 'bg-blue-600 text-white border-blue-600' : 'bg-green-600 text-white border-green-600'
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      {t === 'usa' ? 'Estados Unidos' : 'Colombia'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">¿En qué moneda pagaste?</label>
+                <div className="flex gap-2">
+                  {(['USD', 'COP'] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setMoneda(m)}
+                      className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors ${
+                        moneda === m
+                          ? 'bg-gray-800 text-white border-gray-800'
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      {m === 'USD' ? 'Dólares' : 'Pesos'}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -633,30 +667,58 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
             </div>
           </div>
 
-          {/* Moneda: también se elige aquí, porque al entrar desde la galería
-              (?pedidos=...) no se pasa por el paso de subir la factura */}
-          <div>
-            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">¿La factura es en...?</label>
-            <div className="flex gap-2 max-w-xs">
-              {(['usa', 'colombia'] as const).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setTipo(t)}
-                  className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors ${
-                    tipo === t
-                      ? t === 'usa' ? 'bg-blue-600 text-white border-blue-600' : 'bg-green-600 text-white border-green-600'
-                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  {t === 'usa' ? 'Dólares (USD)' : 'Pesos (COP)'}
-                </button>
-              ))}
+          {/* País y moneda: también se eligen aquí, porque al entrar desde la
+              galería (?pedidos=...) no se pasa por el paso de subir la factura.
+              Van separados: se compra en USA y se paga en pesos. */}
+          <div className="grid gap-4 sm:grid-cols-2 max-w-2xl">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">¿Dónde compraste?</label>
+              <div className="flex gap-2">
+                {(['usa', 'colombia'] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => cambiarPais(t)}
+                    className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors ${
+                      tipo === t
+                        ? t === 'usa' ? 'bg-blue-600 text-white border-blue-600' : 'bg-green-600 text-white border-green-600'
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {t === 'usa' ? 'Estados Unidos' : 'Colombia'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">¿En qué moneda pagaste?</label>
+              <div className="flex gap-2">
+                {(['USD', 'COP'] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setMoneda(m)}
+                    className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors ${
+                      moneda === m
+                        ? 'bg-gray-800 text-white border-gray-800'
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {m === 'USD' ? 'Dólares' : 'Pesos'}
+                  </button>
+                ))}
+              </div>
+              {tipo === 'usa' && moneda === 'COP' && (
+                <p className="mt-1.5 text-xs text-gray-500">
+                  Compra de Estados Unidos pagada en pesos: se guarda como compra de USA,
+                  solo que sin dólares ni TRM.
+                </p>
+              )}
             </div>
           </div>
 
           {/* Montos */}
-          {tipo === 'usa' ? (
+          {moneda === 'USD' ? (
             <div className="space-y-4">
               {/* Fila 1: Total USD | Total COP pagado | TRM calculada */}
               <div className="grid grid-cols-3 gap-4">
@@ -1011,7 +1073,7 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
               )}
 
               {/* Fila 3: marca / talla / cantidad / precio USD / costo COP */}
-              <div className={`grid grid-cols-2 gap-2 ${tipo === 'usa' ? 'sm:grid-cols-5' : 'sm:grid-cols-4'}`}>
+              <div className={`grid grid-cols-2 gap-2 ${moneda === 'USD' ? 'sm:grid-cols-5' : 'sm:grid-cols-4'}`}>
                 <MarcaSelect
                   value={item.marca}
                   onChange={marca => actualizarItem(idx, 'marca', marca)}
@@ -1032,7 +1094,7 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
                   title="Cantidad"
                   className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 />
-                {tipo === 'usa' && (
+                {moneda === 'USD' && (
                   <input
                     type="number"
                     min="0"
