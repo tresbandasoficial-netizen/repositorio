@@ -166,6 +166,66 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
     return lista.reduce((s, it) => s + (it.precio_usd ?? 0) * (parseInt(it.cantidad, 10) || 1), 0)
   }
 
+  // Reparte el TOTAL EN PESOS entre los productos, en proporción a lo que pesa
+  // cada uno en dólares. La suma queda EXACTA, por construcción.
+  //
+  // Existe porque calcular al revés — costo = precio_usd × (1+tax) × TRM — es un
+  // círculo del que no se sale: el total define la TRM, la TRM recalcula los
+  // costos, y su suma casi nunca vuelve a dar el total. Corregir el total movía
+  // los costos otra vez.
+  //
+  // Repartir el total proporcionalmente da el MISMO resultado relativo que
+  // aplicar un % igual a todos (un porcentaje uniforme es proporcional), pero
+  // con el tax y el envío ya incluidos, porque el total pagado ya los trae.
+  function cuadrarConTotal() {
+    const totalCop = parseInt(totalCopPagado.replace(/\D/g, ''), 10) || 0
+    if (totalCop <= 0) { setError('Escribe primero el total en pesos que pagaste'); return }
+
+    setItems(prev => {
+      const peso = prev.map(it => (it.precio_usd ?? 0) * (parseInt(it.cantidad, 10) || 1))
+      const sumaPesos = peso.reduce((s, v) => s + v, 0)
+      // Sin precios en dólares se reparte por cantidad, que es lo único que hay.
+      const base = sumaPesos > 0 ? peso : prev.map(it => parseInt(it.cantidad, 10) || 1)
+      const sumaBase = base.reduce((s, v) => s + v, 0)
+      if (sumaBase <= 0) return prev
+
+      const cantidades = prev.map(it => parseInt(it.cantidad, 10) || 1)
+      const unitarios = prev.map((_, i) =>
+        Math.round((totalCop * base[i]) / sumaBase / cantidades[i]))
+
+      // El redondeo deja unos pesos suelto: se los lleva la fila más grande, así
+      // la suma da el total al peso. Se busca una de cantidad 1 para poder
+      // absorberlo completo.
+      const sumaFinal = unitarios.reduce((s, v, i) => s + v * cantidades[i], 0)
+      const sobra = totalCop - sumaFinal
+      if (sobra !== 0) {
+        let idx = cantidades.findIndex(c => c === 1)
+        if (idx === -1) idx = base.indexOf(Math.max(...base))
+        if (idx >= 0) {
+          const ajuste = Math.round(sobra / cantidades[idx])
+          unitarios[idx] = Math.max(0, unitarios[idx] + ajuste)
+        }
+      }
+
+      return prev.map((it, i) => ({ ...it, costo_unitario_cop: String(unitarios[i]) }))
+    })
+    setError(null)
+  }
+
+  // La otra dirección: los costos por producto son los buenos y el total los
+  // sigue. Sirve cuando se digitaron los valores reales de cada línea de la
+  // factura y no hay por qué tocarlos.
+  //
+  // No dispara el recálculo de costos: eso solo pasa en el onChange del campo,
+  // y aquí el total se escribe desde el código. Justo eso rompe el círculo.
+  function usarSumaComoTotal() {
+    const suma = items.reduce(
+      (s, it) => s + ((parseInt(it.costo_unitario_cop, 10) || 0) * (parseInt(it.cantidad, 10) || 0)), 0)
+    if (suma <= 0) { setError('Los productos no tienen costo para sumar'); return }
+    setTotalCopPagado(String(suma))
+    setError(null)
+  }
+
   // Recalcular costos COP. precio_usd es el precio UNITARIO del artículo;
   // tax y envío se aplican como % sobre el precio de cada uno (no en partes
   // iguales): con tax 7%, unos leggings de $70 quedan en $74.90.
@@ -752,15 +812,35 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
                     )
                   })()}
                 </p>
-                {trmCalculada && (
+                <div className="flex items-center gap-2 shrink-0">
+                  {trmCalculada && (
+                    <button
+                      type="button"
+                      onClick={() => recalcularCostos(trmCalculada, parseFloat(impuestosUsd) || 0, parseFloat(envioUsd) || 0)}
+                      className="text-xs text-blue-600 hover:text-blue-800 font-medium border border-blue-300 rounded-lg px-3 py-1.5 hover:bg-blue-50 transition-colors"
+                    >
+                      Recalcular con Tax %
+                    </button>
+                  )}
                   <button
                     type="button"
-                    onClick={() => recalcularCostos(trmCalculada, parseFloat(impuestosUsd) || 0, parseFloat(envioUsd) || 0)}
-                    className="text-xs text-blue-600 hover:text-blue-800 font-medium border border-blue-300 rounded-lg px-3 py-1.5 hover:bg-blue-50 transition-colors"
+                    onClick={usarSumaComoTotal}
+                    title="Pone el total igual a la suma de los productos, sin tocar los costos"
+                    className="text-xs font-semibold text-white bg-emerald-600 rounded-lg px-3 py-1.5 hover:bg-emerald-700 transition-colors"
                   >
-                    Recalcular costos
+                    Total = suma de productos
                   </button>
-                )}
+                  {totalCopNum > 0 && (
+                    <button
+                      type="button"
+                      onClick={cuadrarConTotal}
+                      title="Reparte el total pagado entre los productos: la suma queda exacta"
+                      className="text-xs text-gray-600 font-medium border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors"
+                    >
+                      Repartir el total
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           ) : (
@@ -960,7 +1040,34 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
       </Card>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">{error}</div>
+        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700 space-y-2">
+          <p>{error}</p>
+          {/* Las dos salidas del círculo. Cuál sirve depende de qué número sea el
+              bueno: el que pagaste, o lo que dice cada línea de la factura. */}
+          {error.includes('no cuadra con el total') && (
+            <div className="space-y-2 pt-1">
+              <p className="text-xs text-red-600">¿Cuál es el número correcto?</p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={usarSumaComoTotal}
+                  className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors"
+                >
+                  Los costos están bien → subir el total a{' '}
+                  {formatCOP(items.reduce((s, it) =>
+                    s + ((parseInt(it.costo_unitario_cop, 10) || 0) * (parseInt(it.cantidad, 10) || 0)), 0))}
+                </button>
+                <button
+                  type="button"
+                  onClick={cuadrarConTotal}
+                  className="rounded-lg bg-white border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 transition-colors"
+                >
+                  El total está bien → repartir {formatCOP(totalCopNum)} entre los productos
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       <Button onClick={handleConfirmar} disabled={isSaving} size="md" className="w-full max-w-3xl">
