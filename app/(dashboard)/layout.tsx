@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { DashboardShell } from '@/components/layout/DashboardShell'
 import { AvisoTareas } from '@/components/tareas/AvisoTareas'
 import { AvisoReto } from '@/components/retos/AvisoReto'
+import { ChatFlotante } from '@/components/chat/ChatFlotante'
 import { getRetoVigente } from '@/lib/queries/retos'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -32,12 +33,23 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // Santa Rosa no le llega a Cúcuta.
   const reto = await getRetoVigente()
 
+  // Burbuja de chat en todas las páginas (mismo RPC que /chat; el visor no chatea).
+  const { data: usuariosChat } = usuario.rol === 'visor'
+    ? { data: null }
+    : await supabase.rpc('chat_usuarios')
+
   return (
     <DashboardShell usuario={usuario}>
       {children}
       <AvisoTareas tareas={tareasPendientes ?? []} />
       {reto && (
         <AvisoReto reto={reto.reto} avances={reto.avances} grupo={reto.grupo} usuarioId={usuario.id} />
+      )}
+      {usuario.rol !== 'visor' && (
+        <ChatFlotante
+          miId={usuario.id}
+          usuarios={(usuariosChat ?? []) as Array<{ id: string; nombre: string; rol: string }>}
+        />
       )}
     </DashboardShell>
   )
