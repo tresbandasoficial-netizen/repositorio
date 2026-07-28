@@ -6,6 +6,7 @@ import { Sidebar } from './Sidebar'
 import { CampanaNotificaciones } from './CampanaNotificaciones'
 import { NavGuard } from './NavGuard'
 import { AvisoProvider } from '@/components/ui/Aviso'
+import { AgenteVoz } from '@/components/agente/AgenteVoz'
 import { Usuario } from '@/types'
 
 interface Props {
@@ -92,6 +93,8 @@ export function DashboardShell({ usuario, children }: Props) {
           {children}
         </main>
       </div>
+
+      <AgenteVoz rol={usuario.rol} />
     </div>
     </AvisoProvider>
   )
