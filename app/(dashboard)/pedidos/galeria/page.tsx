@@ -63,6 +63,10 @@ function marcarComprados(
 
 const ESTADOS: Array<{ value: string; label: string }> = [
   { value: '',            label: 'Todos los estados' },
+  // No es un estado: son los pedidos a los que NUNCA se les registró la compra,
+  // en cualquier estado. El estado se avanza a mano, así que hay pedidos en
+  // "comprado" o "en USA" sin compra — por estado no se encuentran.
+  { value: 'sin_compra',  label: '⚠ Falta comprar (sin compra registrada)' },
   { value: 'pendiente',   label: ESTADO_LABELS.pendiente },
   { value: 'comprado',    label: ESTADO_LABELS.comprado },
   { value: 'usa',         label: ESTADO_LABELS.usa },
@@ -92,8 +96,13 @@ export default async function GaleriaPedidosPage({
   const params = await searchParams
   const pagina = Math.max(1, parseInt(params.pagina ?? '1', 10) || 1)
 
+  // "sin_compra" no es un estado: es "no tiene compra registrada", en cualquier
+  // estado. Por eso viaja aparte y no como filtro de estado.
+  const soloSinCompra = params.estado === 'sin_compra'
+
   const resultado = await getPedidos({
-    estado: params.estado as EstadoPedido | undefined,
+    estado: soloSinCompra ? undefined : (params.estado as EstadoPedido | undefined),
+    sinCompra: soloSinCompra,
     q:      params.q,
     marca:  params.marca,
     fecha_desde: params.desde,
@@ -164,7 +173,10 @@ export default async function GaleriaPedidosPage({
   // Conteo por marca sobre TODOS los pedidos del estado elegido, no sobre la
   // página de 30 que se está mostrando. Va en un RPC para no traer miles de filas.
   const { data: conteoMarcas } = await supabase
-    .rpc('conteo_articulos_por_marca', { p_estado: params.estado || null })
+    .rpc('conteo_articulos_por_marca', {
+      p_estado: soloSinCompra ? null : (params.estado || null),
+      p_solo_sin_compra: soloSinCompra,
+    })
   const marcas = (conteoMarcas ?? []) as Array<{ marca: string; articulos: number; pedidos: number }>
 
   function urlCon(cambios: Record<string, string | undefined>) {

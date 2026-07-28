@@ -75,6 +75,7 @@ export async function getPedidos(filtros?: {
   asesor_id?: string
   q?: string
   marca?: string
+  sinCompra?: boolean
   alerta?: boolean
   pagina?: number
   fecha_desde?: string
@@ -113,6 +114,19 @@ export async function getPedidos(filtros?: {
   }
   if (filtros?.fecha_desde) query = query.gte('fecha_creacion', `${filtros.fecha_desde}T00:00:00`)
   if (filtros?.fecha_hasta) query = query.lte('fecha_creacion', `${filtros.fecha_hasta}T23:59:59`)
+  // "Falta comprar": pedidos SIN ninguna compra registrada, sin importar en qué
+  // estado estén. El estado se avanza a mano, así que hay pedidos marcados
+  // "comprado" o "en USA" a los que nunca se les registró la compra — filtrar
+  // por estado 'pendiente' no los encuentra. Se excluyen los cancelados y los ya
+  // entregados: esos no hay que pedirlos.
+  if (filtros?.sinCompra) {
+    const { data: conCompra } = await supabase
+      .from('compra_items').select('pedido_id').not('pedido_id', 'is', null).limit(5000)
+    const ids = [...new Set(((conCompra ?? []) as Array<{ pedido_id: string }>).map(r => r.pedido_id))]
+    query = query.not('estado', 'in', '(cancelado,entregado)')
+    if (ids.length > 0) query = query.not('id', 'in', `(${ids.join(',')})`)
+  }
+
   // Filtro por MARCA: los pedidos que tengan al menos un artículo de esa marca,
   // ya sea la escrita en el pedido o la del catálogo enlazado. Se compara sin
   // distinguir mayúsculas porque en los pedidos está escrita de varias formas
