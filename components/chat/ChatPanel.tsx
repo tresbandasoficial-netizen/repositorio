@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Send, MessagesSquare, Smile } from 'lucide-react'
+import { formatCOP } from '@/lib/utils/format'
+import { ESTADO_LABELS, type EstadoPedido } from '@/types'
 
 // Los que se usan hablando de pedidos y del día a día. Un selector completo
 // necesitaría una librería; con escribir desde el teclado (Win + .) también
@@ -52,6 +54,96 @@ function TextoConRefs({ texto }: { texto: string }) {
         )
       )}
     </>
+  )
+}
+
+// Tarjeta con foto e información del pedido mencionado en un mensaje. La
+// consulta se cachea por número a nivel de módulo: el mismo pedido citado en
+// varios mensajes (o al re-renderizar) se consulta una sola vez.
+type PedidoChat = {
+  id: string
+  numero_orden: string
+  estado: string
+  total: number
+  total_pagado: number
+  cliente_nombre: string | null
+  imagen: string | null
+}
+const cachePedidos = new Map<string, Promise<PedidoChat | null>>()
+
+function buscarPedido(numero: string): Promise<PedidoChat | null> {
+  let p = cachePedidos.get(numero)
+  if (!p) {
+    p = (async () => {
+      const supabase = createClient()
+      const { data } = await supabase
+        .from('vista_pedidos_asesor')
+        .select('id, numero_orden, estado, total, total_pagado, cliente_nombre')
+        .eq('numero_orden', numero)
+        .maybeSingle()
+      if (!data) return null
+      const { data: items } = await supabase
+        .from('pedido_items')
+        .select('imagen_url')
+        .eq('pedido_id', data.id)
+        .not('imagen_url', 'is', null)
+        .limit(1)
+      return { ...data, imagen: items?.[0]?.imagen_url ?? null } as PedidoChat
+    })()
+    cachePedidos.set(numero, p)
+  }
+  return p
+}
+
+function TarjetaPedido({ numero, mio }: { numero: string; mio: boolean }) {
+  const [pedido, setPedido] = useState<PedidoChat | null>(null)
+  const [cargado, setCargado] = useState(false)
+
+  useEffect(() => {
+    let vivo = true
+    buscarPedido(numero).then(p => { if (vivo) { setPedido(p); setCargado(true) } })
+    return () => { vivo = false }
+  }, [numero])
+
+  // Si no existe o el RLS no deja verlo, no se muestra nada: queda el link del texto.
+  if (!cargado || !pedido) return null
+
+  const saldo = pedido.total - pedido.total_pagado
+  return (
+    <div className={`mt-1 flex ${mio ? 'justify-end' : 'justify-start'}`}>
+      <Link
+        href={`/pedidos/galeria?q=${encodeURIComponent(pedido.numero_orden)}`}
+        className="flex w-64 max-w-[80%] items-center gap-2.5 rounded-2xl border border-gray-200 bg-white p-2 shadow-sm transition-shadow hover:shadow-md"
+      >
+        {pedido.imagen ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={pedido.imagen}
+            alt={pedido.numero_orden}
+            className="h-14 w-14 shrink-0 rounded-xl bg-gray-100 object-cover"
+          />
+        ) : (
+          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-gray-300">
+            <MessagesSquare size={20} />
+          </span>
+        )}
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-1.5">
+            <span className="font-mono text-xs font-bold text-gray-900">{pedido.numero_orden}</span>
+            <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">
+              {ESTADO_LABELS[pedido.estado as EstadoPedido] ?? pedido.estado}
+            </span>
+          </span>
+          {pedido.cliente_nombre && (
+            <span className="block truncate text-xs text-gray-600">{pedido.cliente_nombre}</span>
+          )}
+          <span className="block text-[11px] text-gray-400">
+            {formatCOP(pedido.total)}
+            {saldo > 0 ? ` · debe ${formatCOP(saldo)}` : ' · pagado'}
+          </span>
+        </span>
+      </Link>
+    </div>
   )
 }
 
@@ -275,6 +367,8 @@ export function ChatPanel({ miId, usuarios, compacto = false }: {
                 const fecha = new Date(m.creado_en)
                 const diaPrev = i > 0 ? diaBogota.format(new Date(conversacion[i - 1].creado_en)) : null
                 const dia = diaBogota.format(fecha)
+                // Pedidos citados en el mensaje → tarjeta con foto e info (máx. 3).
+                const refs = [...new Set(m.texto.match(new RegExp(REF_PEDIDO.source, 'g')) ?? [])].slice(0, 3)
                 return (
                   <div key={m.id}>
                     {dia !== diaPrev && (
@@ -290,6 +384,7 @@ export function ChatPanel({ miId, usuarios, compacto = false }: {
                         </span>
                       </div>
                     </div>
+                    {refs.map(r => <TarjetaPedido key={r} numero={r} mio={mio} />)}
                   </div>
                 )
               })}
