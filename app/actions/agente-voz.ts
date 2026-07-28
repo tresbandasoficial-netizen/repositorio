@@ -63,6 +63,7 @@ export type MensajeVoz = { role: 'user' | 'assistant'; content: string }
 export type RespuestaAgenteVoz = {
   texto: string          // lo que se muestra y se lee en voz alta
   navegarA?: string      // ruta a abrir en el navegador, si el agente navega
+  escribir?: string      // texto para teclear en el campo enfocado de la página
 }
 
 export async function agenteVozAction(
@@ -113,6 +114,15 @@ export async function agenteVozAction(
           nuevo_estado: { type: 'string', description: 'El estado destino' },
         },
         required: ['pedido_id', 'nuevo_estado'],
+      },
+    },
+    {
+      name: 'escribir_en_campo',
+      description: 'Teclea texto en el campo que el usuario tiene seleccionado en la pantalla (dictado). Úsala cuando pida "escribe...", "dicta...", "pon en el campo...". Escribe EXACTAMENTE lo que pidió, sin comentarios.',
+      input_schema: {
+        type: 'object',
+        properties: { texto: { type: 'string', description: 'El texto tal cual debe quedar en el campo' } },
+        required: ['texto'],
       },
     },
     {
@@ -317,6 +327,7 @@ REGLAS:
   ]
 
   let navegarA: string | undefined
+  let escribir: string | undefined
 
   try {
     // 8 pasos: una acción real puede necesitar buscar el cliente, listar
@@ -335,7 +346,7 @@ REGLAS:
         const texto = r.content
           .filter((b): b is Anthropic.TextBlock => b.type === 'text')
           .map(b => b.text).join(' ').trim()
-        return { texto: texto || 'No te entendí, ¿me lo repites?', navegarA }
+        return { texto: texto || 'No te entendí, ¿me lo repites?', navegarA, escribir }
       }
 
       messages.push({ role: 'assistant', content: r.content })
@@ -379,6 +390,15 @@ REGLAS:
             )
             contenido = res.ok ? 'Estado cambiado.' : `ERROR: ${res.error}`
             esError = !res.ok
+
+          } else if (tu.name === 'escribir_en_campo') {
+            // El tecleo lo hace el NAVEGADOR sobre el campo enfocado: el
+            // servidor solo transporta el texto.
+            escribir = String(input.texto ?? '')
+            contenido = escribir
+              ? 'Texto enviado al campo seleccionado.'
+              : 'No hay texto que escribir.'
+            esError = !escribir
 
           } else if (tu.name === 'crear_pedido') {
             // La misma acción que usa la pantalla de crear pedido: valida

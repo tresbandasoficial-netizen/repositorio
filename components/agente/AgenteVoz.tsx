@@ -48,6 +48,9 @@ export function AgenteVoz({ rol }: { rol: string }) {
   // cerrando el panel, o cuando hay silencio.
   const conversandoRef = useRef(false)
   const escucharRef = useRef<() => void>(() => {})
+  // Último campo de la página donde el usuario puso el cursor, para el dictado.
+  // Los controles del propio panel no cuentan (van marcados con data-agente).
+  const campoRef = useRef<HTMLElement | null>(null)
   const finRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -59,6 +62,45 @@ export function AgenteVoz({ rol }: { rol: string }) {
   useEffect(() => {
     finRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [conversacion, pensando])
+
+  // Recordar el último campo enfocado FUERA del panel del agente, para poder
+  // dictarle texto ("escribe: pantalón azul talla M").
+  useEffect(() => {
+    function alEnfocar(e: FocusEvent) {
+      const el = e.target as HTMLElement | null
+      if (!el) return
+      if (el.closest('[data-agente]')) return
+      const editable = el instanceof HTMLInputElement
+        || el instanceof HTMLTextAreaElement
+        || el.isContentEditable
+      if (editable) campoRef.current = el
+    }
+    document.addEventListener('focusin', alEnfocar)
+    return () => document.removeEventListener('focusin', alEnfocar)
+  }, [])
+
+  // Teclea el texto en el campo recordado. Con inputs controlados por React hay
+  // que usar el setter NATIVO y disparar 'input': asignar .value directo no
+  // actualiza el estado del componente y React lo revierte.
+  function escribirEnCampo(texto: string): boolean {
+    const el = campoRef.current
+    if (!el || !el.isConnected) return false
+    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+      const proto = el instanceof HTMLInputElement ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype
+      const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set
+      setter?.call(el, texto)
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+      el.dispatchEvent(new Event('change', { bubbles: true }))
+      el.focus()
+      return true
+    }
+    if (el.isContentEditable) {
+      el.textContent = texto
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+      return true
+    }
+    return false
+  }
 
   function hablar(t: string) {
     try {
@@ -91,9 +133,16 @@ export function AgenteVoz({ rol }: { rol: string }) {
 
     const r = await agenteVozAction(limpio, historial)
 
-    setConversacion(prev => [...prev, { role: 'assistant', content: r.texto }])
+    // Dictado: el texto se teclea en el campo que el usuario tenía enfocado.
+    let respuesta = r.texto
+    if (r.escribir) {
+      const ok = escribirEnCampo(r.escribir)
+      if (!ok) respuesta = 'No veo ningún campo seleccionado. Toca primero la casilla donde quieres que escriba y repítemelo.'
+    }
+
+    setConversacion(prev => [...prev, { role: 'assistant', content: respuesta }])
     setPensando(false)
-    hablar(r.texto)
+    hablar(respuesta)
     if (r.navegarA) router.push(r.navegarA)
   }
 
@@ -234,7 +283,7 @@ export function AgenteVoz({ rol }: { rol: string }) {
 
       {/* Panel de conversación */}
       {abierto && (
-        <div className="fixed bottom-24 right-5 z-40 flex w-[22rem] max-w-[calc(100vw-2.5rem)] flex-col rounded-2xl border border-gray-200 bg-white shadow-2xl">
+        <div data-agente className="fixed bottom-24 right-5 z-40 flex w-[22rem] max-w-[calc(100vw-2.5rem)] flex-col rounded-2xl border border-gray-200 bg-white shadow-2xl">
           <div className="flex items-center gap-2 border-b border-gray-100 px-4 py-3">
             <span className="text-sm font-semibold text-gray-900">Asistente de voz</span>
             {hablando && <Volume2 size={14} className="text-blue-500" />}
