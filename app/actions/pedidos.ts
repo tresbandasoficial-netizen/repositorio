@@ -80,6 +80,31 @@ async function _crearPedidoConDatos(
     }
   }
 
+  // Datos obligatorios de cada artículo, EN TODAS LAS SEDES (pedido por el
+  // usuario). Se valida aquí y no solo en el formulario porque este es el único
+  // embudo: por aquí pasan el formulario, el parser de WhatsApp y la voz.
+  for (const p of datos.productos) {
+    const quien = p.descripcion?.trim() ? `"${p.descripcion.trim()}"` : 'sin nombre'
+    if (!p.descripcion?.trim()) {
+      return { ok: false, error: 'Hay un artículo sin nombre. El nombre es obligatorio.' }
+    }
+    if (!p.marca?.trim()) {
+      return { ok: false, error: `El artículo ${quien} no tiene marca. La marca es obligatoria.` }
+    }
+    if (!(p as any).categoria) {
+      return { ok: false, error: `El artículo ${quien} no dice si es ropa, tenis o accesorio. La categoría es obligatoria.` }
+    }
+    if ((p as any).categoria !== 'accesorios' && !(p as any).sexo) {
+      return { ok: false, error: `El artículo ${quien} no dice si es de hombre, mujer o niño. Es obligatorio salvo en accesorios.` }
+    }
+    if (!(p.cantidad >= 1)) {
+      return { ok: false, error: `El artículo ${quien} tiene cantidad inválida.` }
+    }
+    if (!(p.precio_venta > 0)) {
+      return { ok: false, error: `El artículo ${quien} no tiene precio de venta. El precio es obligatorio.` }
+    }
+  }
+
   // La foto del producto es obligatoria en todos los artículos (asesores):
   // identifica qué se compró (etiquetas, compras, revisión de mercancía).
   if (sesionPre.rol === 'asesor') {

@@ -357,6 +357,19 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
       }
     }
 
+    // Datos obligatorios por artículo, en todas las sedes. El servidor valida lo
+    // mismo (única fuente de verdad); esto solo avisa antes y con el número del
+    // artículo, para no perder lo digitado.
+    for (let i = 0; i < form.productos.length; i++) {
+      const p = form.productos[i] as any
+      if (!p.descripcion?.trim()) { setErrorAccion(`El artículo ${i + 1} no tiene nombre.`); return }
+      if (!p.marca?.trim()) { setErrorAccion(`El artículo ${i + 1} no tiene marca.`); return }
+      if (!p.categoria) { setErrorAccion(`El artículo ${i + 1}: marca si es ropa, tenis o accesorio.`); return }
+      if (p.categoria !== 'accesorios' && !p.sexo) { setErrorAccion(`El artículo ${i + 1}: marca hombre, mujer o niño.`); return }
+      if (!(p.cantidad >= 1)) { setErrorAccion(`El artículo ${i + 1} tiene cantidad inválida.`); return }
+      if (!(p.precio_venta > 0)) { setErrorAccion(`El artículo ${i + 1} no tiene precio de venta.`); return }
+    }
+
     const total = form.productos.reduce((s, p) => s + p.precio_venta * p.cantidad, 0)
     const abonosValidos = abonos.filter(a => a.monto > 0)
     const totalAbonos = abonosValidos.reduce((s, a) => s + a.monto, 0)
