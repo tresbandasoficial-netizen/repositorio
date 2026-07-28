@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getSesion } from '@/lib/auth/acceso'
 import { hoyBogota } from '@/lib/utils/format'
-import { cambiarEstadoInlineAction } from '@/app/actions/pedidos'
+import { cambiarEstadoInlineAction, crearPedidoDesdeDataAction } from '@/app/actions/pedidos'
 import { marcarEtiquetadoAction, crearClienteAction, buscarClientesAction } from '@/app/actions/clientes'
 import { abonarClienteAction } from '@/app/actions/abonos'
 import { crearGastoAction } from '@/app/actions/gastos'
@@ -113,6 +113,36 @@ export async function agenteVozAction(
           nuevo_estado: { type: 'string', description: 'El estado destino' },
         },
         required: ['pedido_id', 'nuevo_estado'],
+      },
+    },
+    {
+      name: 'crear_pedido',
+      description: 'Crea un pedido (encargo) completo: cliente, artículos y abono opcional. SOLO tras confirmación del usuario repitiéndole cliente, artículos, precios y total. El número de orden lo asigna el sistema.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          cliente_nombre: { type: 'string' },
+          cliente_telefono: { type: 'string', description: 'Celular colombiano. Si no lo sabe, pedirlo: es obligatorio.' },
+          productos: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                marca: { type: 'string' },
+                descripcion: { type: 'string' },
+                talla: { type: 'string' },
+                cantidad: { type: 'number' },
+                precio_venta: { type: 'number', description: 'COP entero por unidad' },
+              },
+              required: ['descripcion', 'cantidad', 'precio_venta'],
+            },
+          },
+          abono: { type: 'number', description: 'COP; 0 si no abona nada' },
+          metodo_abono: { type: 'string', description: `Solo si hay abono. Métodos: ${Object.keys(METODO_PAGO_LABELS).join(', ')}` },
+          sede_codigo: { type: 'string', description: 'TR, SR o CR; si no se dice, la sede del usuario' },
+          notas: { type: 'string' },
+        },
+        required: ['cliente_nombre', 'cliente_telefono', 'productos'],
       },
     },
     {
@@ -348,6 +378,50 @@ REGLAS:
               String(input.nuevo_estado ?? '') as EstadoPedido,
             )
             contenido = res.ok ? 'Estado cambiado.' : `ERROR: ${res.error}`
+            esError = !res.ok
+
+          } else if (tu.name === 'crear_pedido') {
+            // La misma acción que usa la pantalla de crear pedido: valida
+            // cliente, productos y abonos, y el consecutivo lo asigna el RPC
+            // oficial. El total se calcula aquí — nunca de oído.
+            const productos = (Array.isArray(input.productos) ? input.productos : []).map((p: any) => ({
+              marca: String(p?.marca ?? '').trim(),
+              descripcion: String(p?.descripcion ?? '').trim(),
+              talla: p?.talla ? String(p.talla) : null,
+              cantidad: Math.max(1, Math.round(Number(p?.cantidad ?? 1))),
+              precio_venta: Math.round(Number(p?.precio_venta ?? 0)),
+              color: null, sexo: null, categoria: null,
+            }))
+            const total = productos.reduce((s, p) => s + p.cantidad * p.precio_venta, 0)
+            const abono = Math.max(0, Math.round(Number(input.abono ?? 0)))
+
+            // Sede: la dicha, o la del usuario, o TR.
+            const supabase = await createClient()
+            let sedeCod = String(input.sede_codigo ?? '').toUpperCase() as 'TR' | 'SR' | 'CR'
+            if (!['TR', 'SR', 'CR'].includes(sedeCod)) {
+              const { data: s } = sesion.sede_id
+                ? await supabase.from('sedes').select('codigo').eq('id', sesion.sede_id).maybeSingle()
+                : { data: null }
+              sedeCod = ((s?.codigo as 'TR' | 'SR' | 'CR') ?? 'TR')
+            }
+
+            const res = await crearPedidoDesdeDataAction({
+              formato_version: 'voz',
+              sede: sedeCod,
+              cliente_nombre: String(input.cliente_nombre ?? '').trim(),
+              cliente_doc: null,
+              cliente_telefono: String(input.cliente_telefono ?? '').trim(),
+              productos,
+              total,
+              abono,
+              metodo_pago_abono: (String(input.metodo_abono ?? 'efectivo') || 'efectivo') as MetodoPago,
+              tipo_entrega: 'sede',
+              direccion: null,
+              notas: input.notas ? String(input.notas) : null,
+            }, '')
+            contenido = res.ok
+              ? `Pedido creado: ${res.numeroOrden}, total $${total.toLocaleString('es-CO')}.`
+              : `ERROR: ${res.error}`
             esError = !res.ok
 
           } else if (tu.name === 'buscar_cliente') {
