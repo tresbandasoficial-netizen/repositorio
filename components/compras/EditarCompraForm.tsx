@@ -7,6 +7,7 @@ import { buscarPorCodigoAction } from '@/app/actions/articulos'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { MarcaSelect } from '@/components/ui/MarcaSelect'
 import { ProveedorSelect } from './ProveedorSelect'
+import { BuscadorArticulo, type ArticuloElegido } from '@/components/ui/BuscadorArticulo'
 import { formatCOP, formatMiles } from '@/lib/utils/format'
 
 type CuentaOpc = { id: string; nombre: string }
@@ -127,6 +128,20 @@ export function EditarCompraForm({ compraId, inicial, itemsIniciales, cuentas, p
       }
       return { ...item, articuloId: null, articuloEncontrado: false }
     }))
+  }
+
+  // Al escoger del listado se llena la ficha con los datos del catálogo. La
+  // TALLA no: la elige la persona, porque un artículo existe en varias.
+  function elegirDelCatalogo(idx: number, a: ArticuloElegido) {
+    if (codigoTimers.current[idx]) clearTimeout(codigoTimers.current[idx])
+    setItems(prev => prev.map((item, i) => i === idx ? {
+      ...item,
+      codigo:      a.codigo ?? item.codigo,
+      descripcion: a.nombre,
+      marca:       a.marca || item.marca,
+      articuloId:  a.articulo_id,
+      articuloEncontrado: true,
+    } : item))
   }
 
   async function buscarPedidoRef(idx: number, ref: string) {
@@ -346,33 +361,29 @@ export function EditarCompraForm({ compraId, inicial, itemsIniciales, cuentas, p
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                {/* Código SKU con lookup al catálogo */}
+                {/* Buscador del catálogo: se escribe código, nombre o marca y
+                    sale el listado. Antes solo hacía coincidencia EXACTA por
+                    código, que sirve únicamente si uno se lo sabe de memoria. */}
                 <div className="col-span-2">
-                  <label className="block text-xs text-gray-500 mb-1">Código del artículo (SKU)</label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={item.codigo}
-                      onChange={e => codigoEnVivo(idx, e.target.value)}
-                      onBlur={e => buscarPorCodigo(idx, e.target.value)}
-                      placeholder="Ej: DV3337-100 — opcional"
-                      className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 bg-white font-mono ${
-                        item.articuloEncontrado === true  ? 'border-green-400 focus:ring-green-400' :
-                        item.articuloEncontrado === false ? 'border-amber-400 focus:ring-amber-400' :
-                        'border-gray-300 focus:ring-blue-500'
-                      }`}
-                    />
-                    {item.articuloEncontrado === true && (
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
-                        ✓ En catálogo
-                      </span>
-                    )}
-                    {item.articuloEncontrado === false && (
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
-                        Artículo nuevo
-                      </span>
-                    )}
-                  </div>
+                  <label className="block text-xs text-gray-500 mb-1">Artículo del catálogo</label>
+                  <BuscadorArticulo
+                    valor={item.codigo}
+                    onCambiarTexto={v => codigoEnVivo(idx, v)}
+                    onElegir={a => elegirDelCatalogo(idx, a)}
+                    estado={item.articuloEncontrado}
+                    placeholder="Código, nombre o marca — ej. DV3337-100"
+                    className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 bg-white font-mono ${
+                      item.articuloEncontrado === true  ? 'border-green-400 focus:ring-green-400' :
+                      item.articuloEncontrado === false ? 'border-amber-400 focus:ring-amber-400' :
+                      'border-gray-300 focus:ring-blue-500'
+                    }`}
+                  />
+                  {item.articuloEncontrado === true && (
+                    <p className="mt-1 text-xs text-green-600">✓ Enlazado al catálogo</p>
+                  )}
+                  {item.articuloEncontrado === false && (
+                    <p className="mt-1 text-xs text-amber-600">Artículo nuevo — se creará al guardar</p>
+                  )}
                 </div>
 
                 <div className="col-span-2">
