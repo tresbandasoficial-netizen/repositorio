@@ -20,6 +20,8 @@ import { agenteVozAction, type MensajeVoz } from '@/app/actions/agente-voz'
 // apagar con el botón del oído y la elección queda guardada en el navegador.
 
 const FRASE_ACTIVACION = /\b(hola|ola|oye|hey)[\s,]*(siri|sir[ií]|asistente)\b/i
+// Frases para terminar la conversación con la voz, sin tocar nada.
+const FRASE_DESPEDIDA = /^\s*(gracias|muchas gracias|adi[oó]s|hasta luego|listo,? gracias|ya est[aá]|nada m[aá]s|ci[eé]rrate|cierra)\s*\.?\s*$/i
 const CLAVE_OIDO = 'agente-voz-oido'
 
 function getSR(): any {
@@ -41,6 +43,10 @@ export function AgenteVoz({ rol }: { rol: string }) {
   const recRef = useRef<any>(null)        // reconocedor del comando
   const oidoRef = useRef<any>(null)       // reconocedor de fondo (palabra clave)
   const oidoDebeRef = useRef(false)       // si el fondo debe estar corriendo
+  // Modo conversación: tras cada respuesta hablada se vuelve a escuchar solo,
+  // sin tocar el micrófono. Termina con una despedida ("gracias", "adiós"),
+  // cerrando el panel, o cuando hay silencio.
+  const conversandoRef = useRef(false)
   const escucharRef = useRef<() => void>(() => {})
   const finRef = useRef<HTMLDivElement>(null)
 
@@ -62,8 +68,15 @@ export function AgenteVoz({ rol }: { rol: string }) {
       const voz = window.speechSynthesis.getVoices().find(v => v.lang.startsWith('es'))
       if (voz) u.voice = voz
       u.onstart = () => setHablando(true)
-      u.onend = () => setHablando(false)
-      u.onerror = () => setHablando(false)
+      u.onend = () => {
+        setHablando(false)
+        // Conversación continua: al terminar de hablar vuelve a escuchar sola.
+        if (conversandoRef.current) setTimeout(() => escucharRef.current(), 300)
+      }
+      u.onerror = () => {
+        setHablando(false)
+        if (conversandoRef.current) setTimeout(() => escucharRef.current(), 300)
+      }
       window.speechSynthesis.speak(u)
     } catch { /* sin voz no pasa nada: el texto queda en pantalla */ }
   }
@@ -98,11 +111,26 @@ export function AgenteVoz({ rol }: { rol: string }) {
     rec.lang = 'es-CO'
     rec.interimResults = false
     rec.maxAlternatives = 1
+    let hubo = false
     rec.onresult = (e: any) => {
-      const t = e.results?.[0]?.[0]?.transcript ?? ''
-      if (t) enviar(t)
+      const t = String(e.results?.[0]?.[0]?.transcript ?? '').trim()
+      if (!t) return
+      hubo = true
+      // Despedida: cierra la conversación sin mandar nada al agente.
+      if (FRASE_DESPEDIDA.test(t)) {
+        conversandoRef.current = false
+        setConversacion(prev => [...prev, { role: 'user', content: t }])
+        hablar('Listo, aquí estoy si me necesitas.')
+        return
+      }
+      enviar(t)
     }
-    rec.onend = () => setEscuchando(false)
+    rec.onend = () => {
+      setEscuchando(false)
+      // Silencio (terminó sin oír nada): se corta la conversación continua para
+      // no dejar el micrófono en bucle; "hola siri" la retoma cuando quiera.
+      if (!hubo) conversandoRef.current = false
+    }
     rec.onerror = () => setEscuchando(false)
     setEscuchando(true)
     rec.start()
@@ -126,6 +154,9 @@ export function AgenteVoz({ rol }: { rol: string }) {
         if (FRASE_ACTIVACION.test(t)) {
           try { oido.stop() } catch { /* ya parando */ }
           setAbierto(true)
+          // Desde aquí la conversación es continua: habla, responde y vuelve a
+          // escuchar sola hasta la despedida o el silencio.
+          conversandoRef.current = true
           // Pequeña espera para que el micrófono quede libre antes de escuchar
           // el comando.
           setTimeout(() => escucharRef.current(), 250)
@@ -182,7 +213,11 @@ export function AgenteVoz({ rol }: { rol: string }) {
         type="button"
         onClick={() => {
           setAbierto(v => !v)
-          if (!abierto && soportaVoz) escuchar()
+          if (!abierto && soportaVoz) {
+            conversandoRef.current = true   // abrir con el botón también conversa
+            escuchar()
+          }
+          if (abierto) conversandoRef.current = false
         }}
         title={oidoActivo ? 'Asistente de voz — di "Hola Siri" para activarlo' : 'Asistente de voz'}
         aria-label="Asistente de voz"
@@ -221,7 +256,12 @@ export function AgenteVoz({ rol }: { rol: string }) {
             )}
             <button
               type="button"
-              onClick={() => { setAbierto(false); window.speechSynthesis.cancel(); recRef.current?.stop() }}
+              onClick={() => {
+                conversandoRef.current = false
+                setAbierto(false)
+                window.speechSynthesis.cancel()
+                recRef.current?.stop()
+              }}
               aria-label="Cerrar"
               className="text-gray-400 hover:text-gray-600"
             >
@@ -271,7 +311,7 @@ export function AgenteVoz({ rol }: { rol: string }) {
             {soportaVoz && (
               <button
                 type="button"
-                onClick={escuchar}
+                onClick={() => { conversandoRef.current = true; escuchar() }}
                 aria-label={escuchando ? 'Dejar de escuchar' : 'Hablar'}
                 className={`rounded-lg p-2 transition-colors ${
                   escuchando ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
