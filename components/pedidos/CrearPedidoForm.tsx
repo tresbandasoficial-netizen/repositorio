@@ -560,27 +560,40 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
                       placeholder="Código"
                       className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
+                    {/* min-w para que el listado no quede del ancho del campo del
+                        código: los nombres del catálogo son largos y se cortaban. */}
                     {searchOpen[i] && searchOpts[i]?.length > 0 && (
-                      <div className="absolute z-10 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden max-h-56 overflow-y-auto">
+                      <div className="absolute z-10 left-0 mt-1 min-w-[24rem] max-w-[min(32rem,90vw)] bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden max-h-64 overflow-y-auto">
                         {searchOpts[i].map(opt => (
                           <button
                             key={opt.articulo_id}
                             type="button"
+                            title={`${opt.codigo ?? ''} ${opt.marca} ${opt.nombre}${opt.color ? ` · ${opt.color}` : ''}`.trim()}
                             onMouseDown={() => elegirArticulo(i, opt)}
-                            className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm border-b border-gray-50 last:border-0"
+                            className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm border-b border-gray-50 last:border-0"
                           >
-                            <span className="block">
-                              {opt.codigo && <span className="font-mono text-gray-400 text-xs mr-1">{opt.codigo}</span>}
-                              <span className="font-medium text-gray-900">{opt.marca} {opt.nombre}</span>
-                              {opt.color && <span className="text-gray-400"> · {opt.color}</span>}
+                            {/* Una cosa por renglón: código, nombre, existencias.
+                                Antes el código y la marca iban pegados en la
+                                misma línea y el nombre partía donde cayera. */}
+                            {opt.codigo && (
+                              <span className="block font-mono text-[11px] font-semibold text-blue-700 truncate">
+                                {opt.codigo}
+                              </span>
+                            )}
+                            <span className="block font-medium text-gray-900 truncate">
+                              {opt.marca && <span className="text-gray-500">{opt.marca} </span>}
+                              {opt.nombre}
                             </span>
+                            {opt.color && (
+                              <span className="block text-xs text-gray-400 truncate">{opt.color}</span>
+                            )}
                             {/* Las tallas son informativas: al elegir no se llena ninguna. */}
                             <span className="block text-xs mt-0.5">
                               {opt.tallas.filter(t => t.stock > 0).length > 0 ? (
                                 <>
                                   <span className="text-gray-400">En stock: </span>
                                   {opt.tallas.filter(t => t.stock > 0).map(t => (
-                                    <span key={t.talla ?? ''} className="text-emerald-700 mr-1.5">
+                                    <span key={t.talla ?? ''} className="text-emerald-700 font-medium mr-1.5">
                                       {t.talla ? `T${t.talla}` : 'sin talla'}·{t.stock}
                                     </span>
                                   ))}

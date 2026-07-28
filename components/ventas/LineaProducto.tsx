@@ -225,29 +225,40 @@ export function LineaProducto({
             placeholder="Código"
             className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+          {/* min-w para que el listado no quede del ancho del campo del código:
+              los nombres del catálogo son largos y se cortaban. */}
           {abierto && opciones.length > 0 && (
-            <div className="absolute z-10 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden max-h-56 overflow-y-auto">
+            <div className="absolute z-10 left-0 mt-1 min-w-[24rem] max-w-[min(32rem,90vw)] bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden max-h-64 overflow-y-auto">
               {opciones.map(item => {
                 const conStock = item.tallas.filter(t => t.stock > 0)
                 return (
                   <button
                     key={item.articulo_id}
                     type="button"
+                    title={`${item.codigo ?? ''} ${item.marca} ${item.nombre}${item.color ? ` · ${item.color}` : ''}`.trim()}
                     onMouseDown={() => elegir(item)}
-                    className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm border-b border-gray-50 last:border-0"
+                    className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm border-b border-gray-50 last:border-0"
                   >
-                    <span className="block">
-                      {item.codigo && <span className="font-mono text-gray-400 text-xs mr-1">{item.codigo}</span>}
-                      <span className="font-medium text-gray-900">{item.marca} {item.nombre}</span>
-                      {item.color && <span className="text-gray-400"> · {item.color}</span>}
+                    {/* Una cosa por renglón: código, nombre, existencias. */}
+                    {item.codigo && (
+                      <span className="block font-mono text-[11px] font-semibold text-blue-700 truncate">
+                        {item.codigo}
+                      </span>
+                    )}
+                    <span className="block font-medium text-gray-900 truncate">
+                      {item.marca && <span className="text-gray-500">{item.marca} </span>}
+                      {item.nombre}
                     </span>
+                    {item.color && (
+                      <span className="block text-xs text-gray-400 truncate">{item.color}</span>
+                    )}
                     {/* Las tallas son informativas: al elegir no se llena ninguna. */}
                     <span className="block text-xs mt-0.5">
                       {conStock.length > 0 ? (
                         <>
                           <span className="text-gray-400">En {sedeCodigo}: </span>
                           {conStock.map(t => (
-                            <span key={t.talla ?? ''} className="text-green-700 mr-1.5">
+                            <span key={t.talla ?? ''} className="text-green-700 font-medium mr-1.5">
                               {t.talla ? `T${t.talla}` : 'sin talla'}·{t.stock}
                             </span>
                           ))}
