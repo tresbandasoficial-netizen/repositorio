@@ -6,8 +6,13 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getSesion } from '@/lib/auth/acceso'
 import { hoyBogota } from '@/lib/utils/format'
 import { cambiarEstadoInlineAction } from '@/app/actions/pedidos'
-import { marcarEtiquetadoAction } from '@/app/actions/clientes'
-import type { EstadoPedido } from '@/types'
+import { marcarEtiquetadoAction, crearClienteAction, buscarClientesAction } from '@/app/actions/clientes'
+import { abonarClienteAction } from '@/app/actions/abonos'
+import { crearGastoAction } from '@/app/actions/gastos'
+import { crearTareaAction } from '@/app/actions/tareas'
+import { registrarEntradaAction, transferirStockAction, buscarArticulosAction } from '@/app/actions/articulos'
+import type { EstadoPedido, MetodoPago, CategoriaGasto } from '@/types'
+import { METODO_PAGO_LABELS, CATEGORIAS_GASTO } from '@/types'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -110,7 +115,120 @@ export async function agenteVozAction(
         required: ['pedido_id', 'nuevo_estado'],
       },
     },
+    {
+      name: 'buscar_cliente',
+      description: 'Busca clientes por nombre o teléfono. Devuelve id, nombre y teléfono. Úsala para obtener el cliente_id antes de abonar o crear algo para un cliente.',
+      input_schema: {
+        type: 'object',
+        properties: { busqueda: { type: 'string' } },
+        required: ['busqueda'],
+      },
+    },
+    {
+      name: 'crear_cliente',
+      description: 'Crea un cliente nuevo. SOLO tras confirmación del usuario. El teléfono es obligatorio (formato colombiano).',
+      input_schema: {
+        type: 'object',
+        properties: {
+          nombre: { type: 'string' },
+          telefono: { type: 'string' },
+          cedula: { type: 'string' },
+        },
+        required: ['nombre', 'telefono'],
+      },
+    },
+    {
+      name: 'registrar_abono',
+      description: `Registra un abono (pago) de un cliente: se reparte automáticamente entre sus deudas. SOLO tras confirmación del usuario, repitiéndole monto, cliente y método. Métodos válidos: ${Object.keys(METODO_PAGO_LABELS).join(', ')}.`,
+      input_schema: {
+        type: 'object',
+        properties: {
+          cliente_id: { type: 'string', description: 'uuid obtenido con buscar_cliente' },
+          monto: { type: 'number', description: 'COP entero, ej 200000' },
+          metodo: { type: 'string' },
+          notas: { type: 'string' },
+        },
+        required: ['cliente_id', 'monto', 'metodo'],
+      },
+    },
+    {
+      name: 'crear_gasto',
+      description: `Registra un gasto. SOLO tras confirmación del usuario, repitiéndole valor, categoría y cuenta. Categorías: ${CATEGORIAS_GASTO.join(', ')}. Usa listar_opciones para conocer cuentas y sedes.`,
+      input_schema: {
+        type: 'object',
+        properties: {
+          valor: { type: 'number', description: 'COP entero' },
+          categoria: { type: 'string' },
+          cuenta_id: { type: 'string', description: 'uuid de la cuenta que pagó (de listar_opciones cuentas)' },
+          sede_codigo: { type: 'string', description: 'TR, SR o CR' },
+          observacion: { type: 'string', description: 'Qué fue el gasto' },
+          fecha: { type: 'string', description: 'YYYY-MM-DD; si no se dice, hoy' },
+        },
+        required: ['valor', 'categoria', 'cuenta_id', 'observacion'],
+      },
+    },
+    {
+      name: 'listar_opciones',
+      description: 'Lista referencias para otras herramientas: "cuentas" (id y nombre de las cuentas de dinero), "sedes" (id, código y nombre) o "usuarios" (id y nombre, para asignar tareas).',
+      input_schema: {
+        type: 'object',
+        properties: { tipo: { type: 'string', description: 'cuentas | sedes | usuarios' } },
+        required: ['tipo'],
+      },
+    },
+    {
+      name: 'buscar_articulo',
+      description: 'Busca artículos del catálogo por código, nombre o marca. Devuelve id, código, nombre, marca y stock por talla.',
+      input_schema: {
+        type: 'object',
+        properties: { busqueda: { type: 'string' } },
+        required: ['busqueda'],
+      },
+    },
     ...(esAdmin ? [
+      {
+        name: 'crear_tarea',
+        description: 'Asigna una tarea a una asesora. SOLO tras confirmación. asignado_a sale de listar_opciones usuarios.',
+        input_schema: {
+          type: 'object' as const,
+          properties: {
+            titulo: { type: 'string' as const },
+            descripcion: { type: 'string' as const },
+            asignado_a: { type: 'string' as const, description: 'uuid del usuario' },
+          },
+          required: ['titulo', 'asignado_a'],
+        },
+      },
+      {
+        name: 'entrada_stock',
+        description: 'Registra una entrada de inventario (artículo + talla + cantidad + costo unitario COP). SOLO tras confirmación. articulo_id sale de buscar_articulo.',
+        input_schema: {
+          type: 'object' as const,
+          properties: {
+            articulo_id: { type: 'string' as const },
+            talla: { type: 'string' as const },
+            cantidad: { type: 'number' as const },
+            costo_unitario_cop: { type: 'number' as const },
+            sede_codigo: { type: 'string' as const, description: 'TR, SR o CR; si no se dice, TR' },
+          },
+          required: ['articulo_id', 'cantidad', 'costo_unitario_cop'],
+        },
+      },
+      {
+        name: 'transferir_stock',
+        description: 'Transfiere stock de una sede a otra (artículo + talla + cantidad). SOLO tras confirmación.',
+        input_schema: {
+          type: 'object' as const,
+          properties: {
+            articulo_id: { type: 'string' as const },
+            talla: { type: 'string' as const },
+            cantidad: { type: 'number' as const },
+            sede_origen_codigo: { type: 'string' as const },
+            sede_destino_codigo: { type: 'string' as const },
+          },
+          required: ['articulo_id', 'cantidad', 'sede_origen_codigo', 'sede_destino_codigo'],
+        },
+      },
       {
         name: 'consultar_base_datos',
         description: 'Ejecuta UNA consulta SQL de solo lectura (SELECT o WITH, sin punto y coma) y devuelve hasta 200 filas en JSON. Solo para responder preguntas de datos.',
@@ -149,9 +267,14 @@ PÁGINAS DISPONIBLES para navegar (según su rol):
 ${rutasDelRol.map(r => `${r.ruta} = ${r.nombre}`).join('\n')}
 
 REGLAS:
-- Acción que CAMBIA datos (cambiar estado, marcar etiquetado): primero di qué vas a
-  hacer y pregunta "¿confirmas?". Ejecuta solo cuando el usuario confirme en su
+- Acción que CAMBIA datos (cambiar estado, abonos, gastos, clientes, tareas,
+  stock, etiquetado): primero repite en voz alta LO QUE VAS A HACER con sus
+  números ("voy a registrar un abono de doscientos mil pesos de María en
+  efectivo, ¿confirmas?") y ejecuta SOLO cuando el usuario confirme en su
   siguiente mensaje. Nunca ejecutes sin confirmación.
+- Los montos dichos en palabras conviértelos a número: "doscientos mil" = 200000.
+- Si falta un dato para una acción (método de pago, cuenta, talla…), pregúntalo
+  en vez de adivinarlo.
 - Navegar y buscar no necesitan confirmación.
 - Si la herramienta devuelve error, dilo tal cual y no insistas.
 - Dinero real: excluye pagos anulados y método crédito; pedidos cancelados no cuentan.
@@ -166,7 +289,9 @@ REGLAS:
   let navegarA: string | undefined
 
   try {
-    for (let paso = 0; paso < 6; paso++) {
+    // 8 pasos: una acción real puede necesitar buscar el cliente, listar
+    // cuentas, y ejecutar — más las consultas del admin.
+    for (let paso = 0; paso < 8; paso++) {
       const r = await anthropic.messages.create({
         model: 'claude-sonnet-5',
         max_tokens: 1000,
@@ -223,6 +348,121 @@ REGLAS:
               String(input.nuevo_estado ?? '') as EstadoPedido,
             )
             contenido = res.ok ? 'Estado cambiado.' : `ERROR: ${res.error}`
+            esError = !res.ok
+
+          } else if (tu.name === 'buscar_cliente') {
+            const lista = await buscarClientesAction(String(input.busqueda ?? ''))
+            contenido = JSON.stringify(lista.slice(0, 5).map(c => ({
+              id: c.id, nombre: c.nombre, telefono: c.telefono_normalizado,
+            })))
+
+          } else if (tu.name === 'crear_cliente') {
+            const res = await crearClienteAction({
+              nombre: String(input.nombre ?? ''),
+              telefono: String(input.telefono ?? ''),
+              cedula: input.cedula ? String(input.cedula) : undefined,
+            })
+            contenido = res.ok ? `Cliente creado con id ${res.id}.` : `ERROR: ${res.error}`
+            esError = !res.ok
+
+          } else if (tu.name === 'registrar_abono') {
+            // La acción valida rol, caja cerrada y reparte el abono en un RPC
+            // transaccional; la cuenta se rutea sola según el método.
+            const res = await abonarClienteAction({
+              cliente_id: String(input.cliente_id ?? ''),
+              monto: Math.round(Number(input.monto ?? 0)),
+              metodo: String(input.metodo ?? '') as MetodoPago,
+              cuenta_id: null,
+              notas: String(input.notas ?? 'Registrado por voz'),
+            })
+            contenido = res.ok
+              ? `Abono aplicado: $${res.aplicado.toLocaleString('es-CO')}${res.sobrante > 0 ? `, sobraron $${res.sobrante.toLocaleString('es-CO')} sin deuda que cubrir` : ''}.`
+              : `ERROR: ${res.error}`
+            esError = !res.ok
+
+          } else if (tu.name === 'crear_gasto') {
+            const sedeCod = String(input.sede_codigo ?? '').toUpperCase()
+            const supabase = await createClient()
+            const { data: sede } = sedeCod
+              ? await supabase.from('sedes').select('id').eq('codigo', sedeCod).maybeSingle()
+              : { data: null }
+            const res = await crearGastoAction({
+              fecha: String(input.fecha ?? '') || hoyBogota(),
+              valor: Math.round(Number(input.valor ?? 0)),
+              categoria: String(input.categoria ?? 'otros') as CategoriaGasto,
+              sede_id: sede?.id ?? '',           // la acción usa la sede del asesor si no es admin
+              cuenta_id: String(input.cuenta_id ?? '') || null,
+              observacion: String(input.observacion ?? ''),
+            })
+            contenido = res.ok ? 'Gasto registrado.' : `ERROR: ${res.error}`
+            esError = !res.ok
+
+          } else if (tu.name === 'listar_opciones') {
+            // Con el cliente del USUARIO: el RLS decide qué ve cada rol.
+            const supabase = await createClient()
+            const tipo = String(input.tipo ?? '')
+            if (tipo === 'cuentas') {
+              const { data } = await supabase.from('cuentas')
+                .select('id, nombre, tipo').eq('activa', true).neq('tipo', 'credito').order('orden')
+              contenido = JSON.stringify(data ?? [])
+            } else if (tipo === 'sedes') {
+              const { data } = await supabase.from('sedes').select('id, codigo, nombre').order('codigo')
+              contenido = JSON.stringify(data ?? [])
+            } else if (tipo === 'usuarios') {
+              const { data } = await supabase.from('usuarios')
+                .select('id, nombre, rol').eq('activo', true).order('nombre')
+              contenido = JSON.stringify(data ?? [])
+            } else {
+              contenido = 'Tipo inválido: usa cuentas, sedes o usuarios.'
+              esError = true
+            }
+
+          } else if (tu.name === 'buscar_articulo') {
+            const arts = await buscarArticulosAction(String(input.busqueda ?? ''), null)
+            contenido = JSON.stringify(arts.slice(0, 5).map(a => ({
+              id: a.id, codigo: a.codigo, nombre: a.nombre, marca: a.marca,
+              tallas: a.tallaStock,
+            })))
+
+          } else if (tu.name === 'crear_tarea' && esAdmin) {
+            const res = await crearTareaAction({
+              titulo: String(input.titulo ?? ''),
+              descripcion: String(input.descripcion ?? ''),
+              asignado_a: String(input.asignado_a ?? ''),
+            })
+            contenido = res.ok ? 'Tarea asignada.' : `ERROR: ${res.error}`
+            esError = !res.ok
+
+          } else if (tu.name === 'entrada_stock' && esAdmin) {
+            const supabase = await createClient()
+            const cod = String(input.sede_codigo ?? 'TR').toUpperCase()
+            const { data: sede } = await supabase.from('sedes').select('id').eq('codigo', cod).maybeSingle()
+            const res = await registrarEntradaAction({
+              articulo_id: String(input.articulo_id ?? ''),
+              talla: String(input.talla ?? ''),
+              cantidad: Math.round(Number(input.cantidad ?? 0)),
+              costo_unitario_cop: Math.round(Number(input.costo_unitario_cop ?? 0)),
+              sede_id: sede?.id ?? null,
+              notas: 'Registrado por voz',
+            })
+            contenido = res.ok ? 'Entrada registrada.' : `ERROR: ${res.error}`
+            esError = !res.ok
+
+          } else if (tu.name === 'transferir_stock' && esAdmin) {
+            const supabase = await createClient()
+            const [{ data: origen }, { data: destino }] = await Promise.all([
+              supabase.from('sedes').select('id').eq('codigo', String(input.sede_origen_codigo ?? '').toUpperCase()).maybeSingle(),
+              supabase.from('sedes').select('id').eq('codigo', String(input.sede_destino_codigo ?? '').toUpperCase()).maybeSingle(),
+            ])
+            const res = await transferirStockAction({
+              articulo_id: String(input.articulo_id ?? ''),
+              talla: String(input.talla ?? ''),
+              cantidad: Math.round(Number(input.cantidad ?? 0)),
+              sede_origen: origen?.id ?? null,
+              sede_destino: destino?.id ?? null,
+              notas: 'Transferido por voz',
+            })
+            contenido = res.ok ? 'Transferencia hecha.' : `ERROR: ${res.error}`
             esError = !res.ok
 
           } else if (tu.name === 'consultar_base_datos' && esAdmin) {
