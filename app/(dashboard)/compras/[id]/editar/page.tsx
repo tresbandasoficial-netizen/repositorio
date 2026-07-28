@@ -27,7 +27,7 @@ export default async function EditarCompraPage({
   const [{ data: compra }, { data: cuentasRaw }, { data: itemsRaw }, { data: provRaw }] = await Promise.all([
     supabase
       .from('compras')
-      .select('id, tipo, proveedor, fecha, numero_factura, total_usd, trm, total_cop, notas, cuenta_id')
+      .select('id, tipo, proveedor, fecha, numero_factura, total_usd, trm, total_cop, notas, correo, cuenta_id')
       .eq('id', id)
       .single(),
     supabase
@@ -103,6 +103,7 @@ export default async function EditarCompraPage({
           trm:             (compra as any).trm ?? null,
           total_cop:       (compra as any).total_cop,
           notas:           (compra as any).notas ?? '',
+          correo:          (compra as any).correo ?? '',
           cuenta_id:       (compra as any).cuenta_id ?? null,
         }}
         itemsIniciales={itemsIniciales}

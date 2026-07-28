@@ -89,6 +89,7 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
   const [taxPct, setTaxPct] = useState('')       // % del tax; si está, manda sobre impuestosUsd
   const [envioUsd, setEnvioUsd] = useState('')
   const [notas, setNotas] = useState('')
+  const [correo, setCorreo] = useState('')   // cuenta con la que se compró (puntos)
   const [items, setItems] = useState<ItemForm[]>([])
 
   const [error, setError] = useState<string | null>(null)
@@ -482,6 +483,7 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
       trm: moneda === 'USD' ? (trmCalculada ?? null) : null,
       total_cop: totalCopFinal,
       notas,
+      correo,
       cuenta_id: cuentaId || null,
       items: itemsValidos,
     }
@@ -936,6 +938,19 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
               ))}
             </select>
             <p className="text-xs text-gray-400 mt-1">Cuenta desde la que salió el dinero de esta compra</p>
+          </div>
+
+          {/* Correo de la cuenta: amarra la compra al programa de puntos */}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Correo de la cuenta (opcional)</label>
+            <input
+              type="email"
+              value={correo}
+              onChange={(e) => setCorreo(e.target.value)}
+              placeholder="con qué correo se hizo la compra — para los puntos"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="text-xs text-gray-400 mt-1">Suma al contador de puntos (adiClub, Nike…) de ese correo</p>
           </div>
 
           {/* Notas */}

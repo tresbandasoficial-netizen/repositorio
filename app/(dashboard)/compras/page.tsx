@@ -5,6 +5,7 @@ import { formatCOP, formatFecha } from '@/lib/utils/format'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Compra } from '@/types'
+import { PuntosAdiclub } from '@/components/compras/PuntosAdiclub'
 
 export default async function ComprasPage({
   searchParams,
@@ -32,7 +33,7 @@ export default async function ComprasPage({
   const { data: compras } = await supabase
     .from('compras')
     .select(`
-      id, tipo, proveedor, fecha, total_usd, trm, total_cop, notas, numero_factura, creado_por, creado_en,
+      id, tipo, proveedor, fecha, total_usd, trm, total_cop, notas, correo, numero_factura, creado_por, creado_en,
       compra_items(id)
     `)
     .order('fecha', { ascending: false })
@@ -144,6 +145,23 @@ export default async function ComprasPage({
             )
           })}
         </div>
+      )}
+
+      {/* Puntos adiClub por correo: sale cuando se filtra por adidas o cuando
+          no hay filtro (resumen general). Con otro proveedor filtrado no aplica. */}
+      {(!filtro || filtro === 'adidas') && (
+        <PuntosAdiclub
+          compras={todas
+            .filter(c => (c.proveedor ?? '').trim().toLowerCase() === 'adidas')
+            .map(c => ({
+              correo: (c as any).correo ?? null,
+              tipo: c.tipo as 'usa' | 'colombia',
+              fecha: c.fecha,
+              total_cop: c.total_cop ?? 0,
+              total_usd: c.total_usd != null ? Number(c.total_usd) : null,
+              trm: (c as any).trm != null ? Number((c as any).trm) : null,
+            }))}
+        />
       )}
 
       {/* Qué marcas se compran más. Va antes de la lista de facturas porque es

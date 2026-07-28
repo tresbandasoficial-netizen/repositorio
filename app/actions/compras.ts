@@ -147,6 +147,7 @@ export type CrearCompraInput = {
   trm: number | null
   total_cop: number
   notas: string
+  correo?: string        // correo de la cuenta con que se compró (puntos adiClub etc.)
   cuenta_id: string | null
   items: CompraItemInput[]
 }
@@ -240,6 +241,7 @@ export async function crearCompraAction(data: CrearCompraInput): Promise<CrearCo
       trm: data.trm,
       total_cop: data.total_cop,
       notas: data.notas.trim() || null,
+      correo: data.correo?.trim().toLowerCase() || null,
       cuenta_id: data.cuenta_id || null,
       creado_por: userId,
     })
@@ -658,6 +660,7 @@ export type EditarCompraInput = {
   trm: number | null
   total_cop: number
   notas: string
+  correo?: string
   cuenta_id: string | null
   items: EditarCompraItemInput[]
 }
@@ -715,6 +718,7 @@ export async function editarCompraAction(compraId: string, data: EditarCompraInp
       trm:            data.tipo === 'usa' ? data.trm : null,
       total_cop:      data.total_cop,
       notas:          data.notas.trim() || null,
+      correo:         data.correo?.trim().toLowerCase() || null,
       cuenta_id:      data.cuenta_id || null,
     })
     .eq('id', compraId)

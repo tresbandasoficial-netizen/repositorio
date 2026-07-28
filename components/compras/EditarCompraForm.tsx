@@ -52,6 +52,7 @@ interface Props {
     trm: number | null
     total_cop: number
     notas: string
+    correo: string
     cuenta_id: string | null
   }
   itemsIniciales: ItemInicial[]
@@ -68,6 +69,7 @@ export function EditarCompraForm({ compraId, inicial, itemsIniciales, cuentas, p
   const [totalUsd, setTotalUsd] = useState(inicial.total_usd?.toString() ?? '')
   const [totalCopPagado, setTotalCopPagado] = useState(inicial.total_cop.toString())
   const [notas, setNotas] = useState(inicial.notas)
+  const [correo, setCorreo] = useState(inicial.correo)
   const [cuentaId, setCuentaId] = useState(inicial.cuenta_id ?? '')
   const [items, setItems] = useState<ItemForm[]>(() => itemsIniciales.map(i => ({
     id: i.id,
@@ -212,6 +214,7 @@ export function EditarCompraForm({ compraId, inicial, itemsIniciales, cuentas, p
       trm: tipo === 'usa' ? (trmCalculada ?? null) : null,
       total_cop: totalCopNum,
       notas,
+      correo,
       cuenta_id: cuentaId || null,
       items: itemsPayload,
     }
@@ -323,6 +326,14 @@ export function EditarCompraForm({ compraId, inicial, itemsIniciales, cuentas, p
                 Selecciona una cuenta para que el gasto se refleje en el flujo de caja
               </p>
             )}
+          </div>
+
+          {/* Correo de la cuenta: amarra la compra al programa de puntos */}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Correo de la cuenta</label>
+            <input type="email" value={correo} onChange={e => setCorreo(e.target.value)}
+              placeholder="con qué correo se hizo la compra — para los puntos"
+              className={inputCls} />
           </div>
 
           {/* Notas */}
