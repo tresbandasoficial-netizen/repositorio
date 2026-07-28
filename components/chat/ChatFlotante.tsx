@@ -17,6 +17,20 @@ export function ChatFlotante({ miId, usuarios }: {
   const [abierto, setAbierto] = useState(false)
   const [noLeidos, setNoLeidos] = useState(0)
 
+  // Notificación del navegador cuando llega un mensaje y la app no está en
+  // primer plano. Solo si el usuario aceptó el permiso (se pide al abrir la
+  // burbuja, que es un gesto del usuario — pedirlo al cargar lo bloquean).
+  const notificar = useCallback((m: { de_usuario: string; texto: string }) => {
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
+    if (document.hasFocus()) return
+    const quien = usuarios.find(u => u.id === m.de_usuario)?.nombre ?? 'Mensaje nuevo'
+    const n = new Notification(`💬 ${quien}`, {
+      body: m.texto.length > 120 ? m.texto.slice(0, 120) + '…' : m.texto,
+      tag: `chat-${m.de_usuario}`,
+    })
+    n.onclick = () => { window.focus(); n.close() }
+  }, [usuarios])
+
   const contar = useCallback(async () => {
     const supabase = createClient()
     const { count } = await supabase
@@ -36,7 +50,10 @@ export function ChatFlotante({ miId, usuarios }: {
       .on('postgres_changes', {
         event: 'INSERT', schema: 'public', table: 'mensajes_chat',
         filter: `para_usuario=eq.${miId}`,
-      }, () => setNoLeidos(n => n + 1))
+      }, payload => {
+        setNoLeidos(n => n + 1)
+        notificar(payload.new as { de_usuario: string; texto: string })
+      })
       .subscribe()
 
     const alVolver = () => { if (document.visibilityState === 'visible') contar() }
@@ -45,7 +62,7 @@ export function ChatFlotante({ miId, usuarios }: {
       supabase.removeChannel(canal)
       document.removeEventListener('visibilitychange', alVolver)
     }
-  }, [miId, contar])
+  }, [miId, contar, notificar])
 
   // En la página /chat ya está el panel completo; la burbuja sobraría.
   if (pathname?.startsWith('/chat')) return null
@@ -60,6 +77,9 @@ export function ChatFlotante({ miId, usuarios }: {
       <button
         type="button"
         onClick={() => {
+          if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+            Notification.requestPermission()
+          }
           setAbierto(v => {
             if (v) contar()
             return !v
