@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { formatCOP } from '@/lib/utils/format'
+import { formatCOP, formatFecha } from '@/lib/utils/format'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Compra } from '@/types'
@@ -39,6 +39,32 @@ export default async function ComprasPage({
     .order('creado_en', { ascending: false })
 
   const todas = (compras ?? []) as (Compra & { compra_items: { id: string }[]; numero_factura: string | null })[]
+
+  // Marcas: la vista viene desglosada por marca Y proveedor, así que la tabla
+  // respeta el filtro de proveedor de arriba.
+  const { data: marcasRaw } = await supabase
+    .from('vista_compras_por_marca')
+    .select('marca, proveedor, unidades, invertido, facturas, ultima_compra')
+
+  const marcasAgrupadas = new Map<string, {
+    marca: string; unidades: number; invertido: number
+    facturas: number; ultima: string | null; proveedores: Set<string>
+  }>()
+  for (const m of (marcasRaw ?? []) as any[]) {
+    if (filtro && (m.proveedor ?? '').trim().toLowerCase() !== filtro) continue
+    const g = marcasAgrupadas.get(m.marca) ?? {
+      marca: m.marca as string, unidades: 0, invertido: 0, facturas: 0,
+      ultima: null as string | null, proveedores: new Set<string>(),
+    }
+    g.unidades  += m.unidades ?? 0
+    g.invertido += Number(m.invertido ?? 0)
+    g.facturas  += m.facturas ?? 0
+    if (m.proveedor) g.proveedores.add(m.proveedor)
+    if (m.ultima_compra && (!g.ultima || m.ultima_compra > g.ultima)) g.ultima = m.ultima_compra
+    marcasAgrupadas.set(m.marca, g)
+  }
+  const marcas = [...marcasAgrupadas.values()].sort((a, b) => b.invertido - a.invertido)
+  const invertidoMarcas = marcas.reduce((s, m) => s + m.invertido, 0)
 
   // Resumen por proveedor para los botones: cuántas facturas y cuánto se le ha
   // comprado. Se agrupa sin distinguir mayúsculas y queda la escritura más usada.
@@ -117,6 +143,68 @@ export default async function ComprasPage({
               </Link>
             )
           })}
+        </div>
+      )}
+
+      {/* Qué marcas se compran más. Va antes de la lista de facturas porque es
+          el resumen: primero el panorama, después el detalle. */}
+      {marcas.length > 0 && (
+        <div className="mb-5 rounded-xl border border-gray-200 bg-white overflow-hidden">
+          <div className="border-b border-gray-100 bg-gray-50 px-4 py-2.5 flex flex-wrap items-baseline gap-x-3">
+            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+              Marcas que más compras
+            </p>
+            {filtro && <span className="text-xs text-gray-400">solo {nombreFiltro}</span>}
+            <div className="flex-1" />
+            <span className="text-xs text-gray-400 tabular-nums">{formatCOP(invertidoMarcas)} en total</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="text-left px-4 py-2 text-xs font-medium text-gray-500 uppercase">Marca</th>
+                  <th className="text-right px-4 py-2 text-xs font-medium text-gray-500 uppercase">Invertido</th>
+                  <th className="px-4 py-2 text-xs font-medium text-gray-500 uppercase w-32">Peso</th>
+                  <th className="text-right px-4 py-2 text-xs font-medium text-gray-500 uppercase">Unid.</th>
+                  <th className="text-right px-4 py-2 text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">Costo prom.</th>
+                  <th className="text-left px-4 py-2 text-xs font-medium text-gray-500 uppercase hidden lg:table-cell">Proveedores</th>
+                  <th className="text-left px-4 py-2 text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Última</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {marcas.map(m => {
+                  const pct = invertidoMarcas > 0 ? (m.invertido / invertidoMarcas) * 100 : 0
+                  return (
+                    <tr key={m.marca} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-2.5 font-medium text-gray-900 whitespace-nowrap">{m.marca}</td>
+                      <td className="px-4 py-2.5 text-right font-semibold text-gray-900 tabular-nums whitespace-nowrap">
+                        {formatCOP(m.invertido)}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        {/* La barra deja ver de un vistazo dónde está la plata */}
+                        <div className="flex items-center gap-2">
+                          <div className="h-1.5 flex-1 rounded-full bg-gray-100 overflow-hidden">
+                            <div className="h-full rounded-full bg-blue-500" style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="text-xs text-gray-400 tabular-nums w-10 text-right">{pct.toFixed(0)}%</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-2.5 text-right text-gray-700 tabular-nums">{m.unidades}</td>
+                      <td className="px-4 py-2.5 text-right text-gray-600 tabular-nums hidden sm:table-cell whitespace-nowrap">
+                        {m.unidades > 0 ? formatCOP(Math.round(m.invertido / m.unidades)) : '—'}
+                      </td>
+                      <td className="px-4 py-2.5 text-xs text-gray-500 hidden lg:table-cell max-w-xs truncate">
+                        {[...m.proveedores].join(', ')}
+                      </td>
+                      <td className="px-4 py-2.5 text-xs text-gray-500 hidden md:table-cell whitespace-nowrap">
+                        {m.ultima ? formatFecha(m.ultima) : '—'}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
