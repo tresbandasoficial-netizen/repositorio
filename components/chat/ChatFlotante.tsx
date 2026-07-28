@@ -53,8 +53,8 @@ export function ChatFlotante({ miId, usuarios }: {
   return (
     <>
       {abierto && (
-        <div className="fixed bottom-36 right-2 left-2 z-50 h-[65vh] sm:left-auto sm:right-4 sm:h-[540px] sm:w-[400px] print:hidden">
-          <ChatPanel miId={miId} usuarios={usuarios} />
+        <div className="fixed bottom-36 right-2 left-2 z-50 h-[65vh] rounded-2xl shadow-2xl sm:left-auto sm:right-4 sm:h-[540px] sm:w-[400px] print:hidden">
+          <ChatPanel miId={miId} usuarios={usuarios} compacto />
         </div>
       )}
       <button

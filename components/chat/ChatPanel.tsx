@@ -62,7 +62,13 @@ const diaBogota = new Intl.DateTimeFormat('es-CO', {
   timeZone: 'America/Bogota', weekday: 'short', day: 'numeric', month: 'short',
 })
 
-export function ChatPanel({ miId, usuarios }: { miId: string; usuarios: Usuario[] }) {
+// `compacto`: modo de una sola columna (lista O conversación) para el panel
+// flotante, donde no caben las dos columnas lado a lado.
+export function ChatPanel({ miId, usuarios, compacto = false }: {
+  miId: string
+  usuarios: Usuario[]
+  compacto?: boolean
+}) {
   const supabase = useMemo(() => createClient(), [])
   const [mensajes, setMensajes] = useState<Mensaje[]>([])
   const [conQuien, setConQuien] = useState<string | null>(null)
@@ -193,7 +199,10 @@ export function ChatPanel({ miId, usuarios }: { miId: string; usuarios: Usuario[
   return (
     <div className="flex h-full rounded-2xl border border-gray-200 bg-white overflow-hidden">
       {/* Lista de gente */}
-      <div className={`w-full sm:w-64 sm:shrink-0 border-r border-gray-100 flex-col ${conQuien ? 'hidden sm:flex' : 'flex'}`}>
+      <div className={compacto
+        ? `w-full flex-col ${conQuien ? 'hidden' : 'flex'}`
+        : `w-full sm:w-64 sm:shrink-0 border-r border-gray-100 flex-col ${conQuien ? 'hidden sm:flex' : 'flex'}`
+      }>
         <div className="border-b border-gray-100 px-4 py-3">
           <p className="text-sm font-semibold text-gray-900">Chat interno</p>
           <p className="text-xs text-gray-400 mt-0.5">Escríbele a cualquiera del equipo</p>
@@ -232,7 +241,10 @@ export function ChatPanel({ miId, usuarios }: { miId: string; usuarios: Usuario[
       </div>
 
       {/* Conversación */}
-      <div className={`flex-1 flex-col ${conQuien ? 'flex' : 'hidden sm:flex'}`}>
+      <div className={compacto
+        ? `flex-1 flex-col ${conQuien ? 'flex' : 'hidden'}`
+        : `flex-1 flex-col ${conQuien ? 'flex' : 'hidden sm:flex'}`
+      }>
         {!otro ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-2 text-gray-300">
             <MessagesSquare size={40} />
@@ -244,7 +256,7 @@ export function ChatPanel({ miId, usuarios }: { miId: string; usuarios: Usuario[
               <button
                 type="button"
                 onClick={() => setConQuien(null)}
-                className="sm:hidden text-sm text-blue-600"
+                className={`${compacto ? '' : 'sm:hidden'} text-sm text-blue-600`}
               >
                 ← Volver
               </button>
