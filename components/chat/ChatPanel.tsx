@@ -3,7 +3,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { Send, MessagesSquare } from 'lucide-react'
+import { Send, MessagesSquare, Smile } from 'lucide-react'
+
+// Los que se usan hablando de pedidos y del día a día. Un selector completo
+// necesitaría una librería; con escribir desde el teclado (Win + .) también
+// entra cualquier otro.
+const EMOJIS = [
+  '👍', '🙏', '😂', '❤️', '🔥', '🎉', '💪', '👀',
+  '✅', '❌', '⚠️', '⏰', '📦', '👟', '👕', '💰',
+  '😅', '😍', '🥲', '😡', '🤔', '🫡', '🙌', '✨',
+]
 
 // Chat interno 1 a 1. Los mensajes van y vienen directo contra Supabase con la
 // sesión del usuario: el RLS de mensajes_chat garantiza que solo los dos
@@ -59,6 +68,8 @@ export function ChatPanel({ miId, usuarios }: { miId: string; usuarios: Usuario[
   const [conQuien, setConQuien] = useState<string | null>(null)
   const [texto, setTexto] = useState('')
   const [enviando, setEnviando] = useState(false)
+  const [emojisAbierto, setEmojisAbierto] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
   const conQuienRef = useRef<string | null>(null)
   conQuienRef.current = conQuien
   const finRef = useRef<HTMLDivElement>(null)
@@ -155,6 +166,7 @@ export function ChatPanel({ miId, usuarios }: { miId: string; usuarios: Usuario[
 
   function abrir(id: string) {
     setConQuien(id)
+    setEmojisAbierto(false)
     marcarLeidos(id)
   }
 
@@ -272,8 +284,38 @@ export function ChatPanel({ miId, usuarios }: { miId: string; usuarios: Usuario[
               <div ref={finRef} />
             </div>
 
-            <form onSubmit={enviar} className="flex items-center gap-2 border-t border-gray-100 px-3 py-2.5">
+            <form onSubmit={enviar} className="relative flex items-center gap-2 border-t border-gray-100 px-3 py-2.5">
+              {/* Selector de emojis: no se cierra al elegir, para poner varios */}
+              {emojisAbierto && (
+                <div className="absolute bottom-full left-2 mb-1 grid grid-cols-8 gap-0.5 rounded-xl border border-gray-200 bg-white p-2 shadow-xl">
+                  {EMOJIS.map(e => (
+                    <button
+                      key={e}
+                      type="button"
+                      onClick={() => {
+                        setTexto(prev => prev + e)
+                        inputRef.current?.focus()
+                      }}
+                      className="rounded-lg p-1 text-xl leading-none hover:bg-gray-100"
+                    >
+                      {e}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => setEmojisAbierto(v => !v)}
+                aria-label="Emojis"
+                aria-expanded={emojisAbierto}
+                className={`rounded-xl p-2 transition-colors ${
+                  emojisAbierto ? 'bg-amber-100 text-amber-600' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
+                }`}
+              >
+                <Smile size={18} />
+              </button>
               <input
+                ref={inputRef}
                 type="text"
                 value={texto}
                 onChange={e => setTexto(e.target.value)}
