@@ -308,6 +308,12 @@ export type MetricasAdmin = {
   abonos_mes: number
   cartera_clientes: number
   cartera_saldo: number
+  // Cartera partida en dos: deuda de mercancía ya entregada/facturada (crédito
+  // real) vs saldo de pedidos que todavía no se entregan.
+  cartera_entregado: number
+  cartera_entregado_clientes: number
+  cartera_pedidos: number
+  cartera_pedidos_clientes: number
   // Facturación del mes (sin anuladas): total emitido, y partido entre lo ya
   // pagado (contado) y lo que sigue con saldo (crédito).
   facturado_mes: number

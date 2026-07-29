@@ -231,9 +231,25 @@ export default async function DashboardPage() {
         {/* KPI row 2 — Cartera */}
         <div>
           <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 px-1">Cartera</p>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
             <KpiCard label="Abonos del mes"  valor={formatCOP(m.abonos_mes)}    icon={Wallet}        iconColor="text-emerald-600" iconBg="bg-emerald-50" />
-            <KpiCard label="Cartera total"   valor={formatCOP(m.cartera_saldo)} sub={`${m.cartera_clientes} clientes`} icon={CreditCard} iconColor="text-orange-600" iconBg="bg-orange-50" alerta={m.cartera_saldo > 0} />
+            <KpiCard
+              label="Cartera total"
+              valor={formatCOP(m.cartera_entregado)}
+              sub={`facturas a crédito (ya entregado) · ${m.cartera_entregado_clientes} clientes`}
+              icon={CreditCard}
+              iconColor="text-orange-600"
+              iconBg="bg-orange-50"
+              alerta={m.cartera_entregado > 0}
+            />
+            <KpiCard
+              label="Cartera de pedidos"
+              valor={formatCOP(m.cartera_pedidos)}
+              sub={`pedidos sin entregar (por llegar) · ${m.cartera_pedidos_clientes} clientes`}
+              icon={Package}
+              iconColor="text-sky-600"
+              iconBg="bg-sky-50"
+            />
             <KpiCard label="En alerta"       valor={m.pedidos_en_alerta}         icon={AlertTriangle} iconColor="text-red-500"     iconBg="bg-red-50"     alerta={m.pedidos_en_alerta > 0} />
             <KpiCard label="Zombis"          valor={m.pedidos_zombie}             icon={Skull}         iconColor="text-orange-500"  iconBg="bg-orange-50"  alerta={m.pedidos_zombie > 0} />
           </div>

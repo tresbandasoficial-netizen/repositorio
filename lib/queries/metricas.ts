@@ -64,7 +64,7 @@ export async function getMetricasAdmin(): Promise<MetricasAdmin> {
       .gte('fecha', inicioMesFecha()),
     supabase
       .from('vista_cartera_clientes')
-      .select('saldo'),
+      .select('saldo, saldo_entregado, saldo_proceso'),
     // Facturación del mes: el saldo (no el estado) decide contado vs crédito,
     // así una factura con estado desactualizado no se clasifica mal.
     supabase
@@ -90,9 +90,15 @@ export async function getMetricasAdmin(): Promise<MetricasAdmin> {
   const pedidosEnAlerta = allAlerts.filter((r) => r.en_alerta).length
   const pedidosZombie   = allAlerts.filter((r) => r.es_zombie).length
 
-  const carteraRows = (cartera.data ?? []) as Array<{ saldo: number }>
+  const carteraRows = (cartera.data ?? []) as Array<{ saldo: number; saldo_entregado: number; saldo_proceso: number }>
   const carteraSaldo   = carteraRows.reduce((s, r) => s + (r.saldo ?? 0), 0)
   const carteraClientes = carteraRows.length
+  // La cartera partida en dos: lo que deben de mercancía YA entregada/facturada
+  // (crédito real) y lo que falta por pagar de pedidos que aún no se entregan.
+  const carteraEntregado = carteraRows.reduce((s, r) => s + (r.saldo_entregado ?? 0), 0)
+  const carteraEntregadoClientes = carteraRows.filter(r => (r.saldo_entregado ?? 0) > 0).length
+  const carteraPedidos = carteraRows.reduce((s, r) => s + (r.saldo_proceso ?? 0), 0)
+  const carteraPedidosClientes = carteraRows.filter(r => (r.saldo_proceso ?? 0) > 0).length
 
   const facturas = (facturasMes.data ?? []) as Array<{ total: number; saldo: number }>
   const contado = facturas.filter(f => (f.saldo ?? 0) <= 0)
@@ -118,6 +124,10 @@ export async function getMetricasAdmin(): Promise<MetricasAdmin> {
     abonos_mes:       abonosMes,
     cartera_clientes: carteraClientes,
     cartera_saldo:    carteraSaldo,
+    cartera_entregado:          carteraEntregado,
+    cartera_entregado_clientes: carteraEntregadoClientes,
+    cartera_pedidos:            carteraPedidos,
+    cartera_pedidos_clientes:   carteraPedidosClientes,
   }
 }
 
