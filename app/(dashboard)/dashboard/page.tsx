@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { getMetricasAdmin, getMetricasAsesor, getMetricasPorSede, getMetricasPorAsesor, getUltimosPedidosAsesor, getVentasMensualesAsesor, getDeudaPorSede } from '@/lib/queries/metricas'
+import { getMetricasAdmin, getMetricasAsesor, getMetricasPorSede, getMetricasPorAsesor, getUltimosPedidosAsesor, getVentasMensualesAsesor, getDeudaPorSede, getResumenSedesMes } from '@/lib/queries/metricas'
 import { getEstadisticas } from '@/lib/queries/estadisticas'
 import { ComprasChart } from '@/components/clientes/ComprasChart'
 import { PedidosAreaChart } from '@/components/dashboard/PedidosAreaChart'
@@ -143,13 +143,14 @@ export default async function DashboardPage() {
   const { data: cierreHoy } = await cierreQuery.maybeSingle()
 
   if (esAdmin) {
-    const [m, sedes, asesores, stats, stats60, deudaSedes] = await Promise.all([
+    const [m, sedes, asesores, stats, stats60, deudaSedes, resumenSedes] = await Promise.all([
       getMetricasAdmin(),
       getMetricasPorSede(),
       getMetricasPorAsesor(),
       getEstadisticas(30),
       getEstadisticas(60),   // para comparar contra los 30 días anteriores
       getDeudaPorSede(),
+      getResumenSedesMes(),
     ])
     // Días del período ANTERIOR (los 30 previos al rango actual)
     const diasPrevios = stats60.por_dia.filter(d => d.fecha < stats.desde)
@@ -289,6 +290,7 @@ export default async function DashboardPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {sedes.map((s) => {
                   const porCobrar = deudaPorCodigo.get(s.sede_codigo) ?? 0
+                  const rs = resumenSedes[s.sede_codigo]
                   return (
                     <div key={s.sede_codigo} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
                       {/* Cabecera de la sede */}
@@ -320,6 +322,19 @@ export default async function DashboardPage() {
                         <div className="rounded-xl bg-amber-50 px-3 py-2">
                           <p className="text-[10px] text-amber-600 uppercase">Por cobrar</p>
                           <p className="text-sm font-bold text-amber-700">{formatCOP(porCobrar)}</p>
+                        </div>
+                        <div className="rounded-xl bg-emerald-50 px-3 py-2">
+                          <p className="text-[10px] text-emerald-600 uppercase">Contado mes</p>
+                          <p className="text-sm font-bold text-emerald-700">{formatCOP(rs?.contado_mes ?? 0)}</p>
+                        </div>
+                        <div className="rounded-xl bg-orange-50 px-3 py-2">
+                          <p className="text-[10px] text-orange-600 uppercase">Crédito mes</p>
+                          <p className="text-sm font-bold text-orange-700">{formatCOP(rs?.credito_mes ?? 0)}</p>
+                        </div>
+                        <div className="rounded-xl bg-sky-50 px-3 py-2">
+                          <p className="text-[10px] text-sky-600 uppercase">Por llegar</p>
+                          <p className="text-sm font-bold text-sky-700">{rs?.por_llegar_pedidos ?? 0}</p>
+                          <p className="text-[10px] text-sky-500">{formatCOP(rs?.por_llegar_valor ?? 0)}</p>
                         </div>
                       </div>
                     </div>

@@ -160,6 +160,49 @@ export async function getMetricasAsesor(asesorId: string): Promise<MetricasAseso
   }
 }
 
+// Por sede: facturación del mes partida en contado/crédito + pedidos que
+// faltan por llegar (estado antes de tocar sede: pendiente/comprado/USA).
+export type ResumenSedeMes = {
+  contado_mes: number
+  credito_mes: number
+  por_llegar_pedidos: number
+  por_llegar_valor: number
+}
+
+export async function getResumenSedesMes(): Promise<Record<string, ResumenSedeMes>> {
+  const supabase = await createClient()
+  const [facturas, porLlegar] = await Promise.all([
+    supabase
+      .from('vista_facturas')
+      .select('sede_codigo, total, saldo')
+      .gte('fecha_factura', inicioMesFecha())
+      .neq('estado', 'anulada'),
+    supabase
+      .from('pedidos')
+      .select('total, sedes(codigo)')
+      .in('estado', ['pendiente', 'comprado', 'usa'])
+      .not('tipo', 'in', '("venta_inmediata","saldo_anterior")'),
+  ])
+
+  const r: Record<string, ResumenSedeMes> = {}
+  const de = (codigo: string) =>
+    (r[codigo] ??= { contado_mes: 0, credito_mes: 0, por_llegar_pedidos: 0, por_llegar_valor: 0 })
+
+  for (const f of (facturas.data ?? []) as Array<{ sede_codigo: string; total: number; saldo: number }>) {
+    const s = de(f.sede_codigo)
+    if ((f.saldo ?? 0) > 0) s.credito_mes += f.total ?? 0
+    else s.contado_mes += f.total ?? 0
+  }
+  for (const p of (porLlegar.data ?? []) as unknown as Array<{ total: number; sedes: { codigo: string } | { codigo: string }[] | null }>) {
+    const sede = Array.isArray(p.sedes) ? p.sedes[0] : p.sedes
+    if (!sede) continue
+    const s = de(sede.codigo)
+    s.por_llegar_pedidos += 1
+    s.por_llegar_valor += p.total ?? 0
+  }
+  return r
+}
+
 export type DeudaSede = { sede_id: string; codigo: string; nombre: string; saldo: number }
 
 // Lo que deben los clientes, por sede (solo admin lo consume).
