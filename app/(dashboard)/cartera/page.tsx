@@ -39,7 +39,12 @@ export default async function CarteraPage({
     getDeudaPorSede(),
   ])
   const { clientes, total, totalPaginas } = resultado
-  const totalSaldo = (pagina === 1 && !q) ? carteraTotal.saldo : resultado.totalSaldo
+  // Con búsqueda o paginación las sumas globales no aplican: se suman las filas
+  // visibles (igual que siempre hizo el saldo total).
+  const usarGlobal = pagina === 1 && !q
+  const totalSaldo = usarGlobal ? carteraTotal.saldo : resultado.totalSaldo
+  const carteraFacturada = usarGlobal ? carteraTotal.entregado : resultado.totalEntregado
+  const carteraPedidos = usarGlobal ? carteraTotal.proceso : resultado.totalProceso
 
   const desde = total === 0 ? 0 : (pagina - 1) * 30 + 1
   const hasta = Math.min(pagina * 30, total)
@@ -79,20 +84,35 @@ export default async function CarteraPage({
         <CargarSaldoButton sedes={sedes} />
       </div>
 
-      {/* Resumen */}
+      {/* Resumen: la cartera partida en sus dos bolsillos + el total */}
       {total > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">
               Clientes con saldo
             </p>
             <p className="text-2xl font-bold text-gray-900">{total}</p>
           </div>
-          <div className="bg-white rounded-xl border border-red-200 bg-red-50 p-4">
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4">
             <p className="text-xs text-red-500 font-medium uppercase tracking-wide mb-1">
+              Cartera facturada
+            </p>
+            <p className="text-2xl font-bold text-red-700">{formatCOP(carteraFacturada)}</p>
+            <p className="text-[10px] text-red-400 mt-0.5">entregado / facturado a crédito — deuda por cobrar ya</p>
+          </div>
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <p className="text-xs text-amber-600 font-medium uppercase tracking-wide mb-1">
+              Cartera de pedidos
+            </p>
+            <p className="text-2xl font-bold text-amber-700">{formatCOP(carteraPedidos)}</p>
+            <p className="text-[10px] text-amber-500 mt-0.5">pedidos sin entregar — se cobra al entregar</p>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">
               {sede ? `Cartera ${sedeNombre}` : (pagina > 1 || q ? 'Saldo (filtrado)' : 'Cartera total')}
             </p>
-            <p className="text-2xl font-bold text-red-700">{formatCOP(totalSaldo)}</p>
+            <p className="text-2xl font-bold text-gray-900">{formatCOP(totalSaldo)}</p>
+            <p className="text-[10px] text-gray-400 mt-0.5">facturada + pedidos</p>
           </div>
         </div>
       )}

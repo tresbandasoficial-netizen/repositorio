@@ -24,6 +24,8 @@ export type CarteraResult = {
   clientes: CarteraRow[]
   total: number
   totalSaldo: number
+  totalEntregado: number
+  totalProceso: number
   pagina: number
   totalPaginas: number
 }
@@ -65,23 +67,29 @@ export async function getCartera(params?: {
     clientes,
     total,
     totalSaldo,
+    totalEntregado: clientes.reduce((s, c) => s + (c.saldo_entregado ?? 0), 0),
+    totalProceso:   clientes.reduce((s, c) => s + (c.saldo_proceso ?? 0), 0),
     pagina,
     totalPaginas: Math.max(1, Math.ceil(total / PAGE_SIZE)),
   }
 }
 
-export async function getTotalCartera(sede?: string): Promise<{ clientes: number; saldo: number }> {
+export async function getTotalCartera(sede?: string): Promise<{
+  clientes: number; saldo: number; entregado: number; proceso: number
+}> {
   const supabase = await createClient()
   const base = sede
-    ? supabase.from('vista_cartera_cliente_sede').select('saldo').eq('sede_codigo', sede)
-    : supabase.from('vista_cartera_clientes').select('saldo')
+    ? supabase.from('vista_cartera_cliente_sede').select('saldo, saldo_entregado, saldo_proceso').eq('sede_codigo', sede)
+    : supabase.from('vista_cartera_clientes').select('saldo, saldo_entregado, saldo_proceso')
   const { data, error } = await base
 
-  if (error) return { clientes: 0, saldo: 0 }
+  if (error) return { clientes: 0, saldo: 0, entregado: 0, proceso: 0 }
 
-  const rows = (data ?? []) as Array<{ saldo: number }>
+  const rows = (data ?? []) as Array<{ saldo: number; saldo_entregado: number; saldo_proceso: number }>
   return {
     clientes: rows.length,
     saldo: rows.reduce((s, r) => s + r.saldo, 0),
+    entregado: rows.reduce((s, r) => s + (r.saldo_entregado ?? 0), 0),
+    proceso: rows.reduce((s, r) => s + (r.saldo_proceso ?? 0), 0),
   }
 }

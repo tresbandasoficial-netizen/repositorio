@@ -234,7 +234,7 @@ export default async function DashboardPage() {
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
             <KpiCard label="Abonos del mes"  valor={formatCOP(m.abonos_mes)}    icon={Wallet}        iconColor="text-emerald-600" iconBg="bg-emerald-50" />
             <KpiCard
-              label="Cartera total"
+              label="Cartera facturada"
               valor={formatCOP(m.cartera_entregado)}
               sub={`facturas a crédito (ya entregado) · ${m.cartera_entregado_clientes} clientes`}
               icon={CreditCard}
