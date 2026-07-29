@@ -50,9 +50,11 @@ interface SidebarProps {
 
 type NavIcon = React.ComponentType<LucideProps> | typeof MotoIcon
 
-const navItems: { href: string; label: string; icon: NavIcon; rol: string[] }[] = [
+// `activo`: prefijo de ruta que mantiene el ítem resaltado cuando difiere del
+// href (Pedidos abre la galería pero cubre también la lista y el detalle).
+const navItems: { href: string; label: string; icon: NavIcon; rol: string[]; activo?: string }[] = [
   { href: '/dashboard',    label: 'Dashboard',    icon: LayoutDashboard, rol: ['asesor', 'admin'] },
-  { href: '/pedidos',      label: 'Pedidos',      icon: Package,         rol: ['asesor', 'admin', 'visor'] },
+  { href: '/pedidos/galeria', label: 'Pedidos',   icon: Package,         rol: ['asesor', 'admin', 'visor'], activo: '/pedidos' },
   { href: '/facturacion/nueva', label: 'Facturar / Vender', icon: FileText, rol: ['asesor', 'admin'] },
   { href: '/cuentas-por-cobrar', label: 'Por cobrar', icon: HandCoins,   rol: ['asesor', 'admin'] },
   { href: '/bonos',        label: 'Bonos regalo', icon: Gift,          rol: ['asesor', 'admin'] },
@@ -113,9 +115,10 @@ export function Sidebar({ usuario, onClose }: SidebarProps) {
       <nav className="flex-1 flex flex-col items-start gap-1 px-3 py-4">
         {items.map((item) => {
           const Icon = item.icon
+          const base = item.activo ?? item.href
           const active =
-            pathname === item.href ||
-            (item.href !== '/dashboard' && pathname.startsWith(item.href))
+            pathname === base ||
+            (base !== '/dashboard' && pathname.startsWith(base))
           return (
             <Link
               key={item.href}
