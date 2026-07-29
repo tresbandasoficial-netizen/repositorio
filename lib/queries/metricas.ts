@@ -34,6 +34,7 @@ export async function getMetricasAdmin(): Promise<MetricasAdmin> {
     alertas,
     pagosMes,
     cartera,
+    facturasMes,
   ] = await Promise.all([
     supabase
       .from('pedidos')
@@ -64,6 +65,13 @@ export async function getMetricasAdmin(): Promise<MetricasAdmin> {
     supabase
       .from('vista_cartera_clientes')
       .select('saldo'),
+    // Facturación del mes: el saldo (no el estado) decide contado vs crédito,
+    // así una factura con estado desactualizado no se clasifica mal.
+    supabase
+      .from('vista_facturas')
+      .select('total, saldo')
+      .gte('fecha_factura', inicioMesFecha())
+      .neq('estado', 'anulada'),
   ])
 
   const sumarTotal = (rows: Array<{ total: number }> | null) =>
@@ -86,7 +94,18 @@ export async function getMetricasAdmin(): Promise<MetricasAdmin> {
   const carteraSaldo   = carteraRows.reduce((s, r) => s + (r.saldo ?? 0), 0)
   const carteraClientes = carteraRows.length
 
+  const facturas = (facturasMes.data ?? []) as Array<{ total: number; saldo: number }>
+  const contado = facturas.filter(f => (f.saldo ?? 0) <= 0)
+  const credito = facturas.filter(f => (f.saldo ?? 0) > 0)
+
   return {
+    facturado_mes:     facturas.reduce((s, f) => s + (f.total ?? 0), 0),
+    facturas_mes:      facturas.length,
+    facturado_contado: contado.reduce((s, f) => s + (f.total ?? 0), 0),
+    facturas_contado:  contado.length,
+    facturado_credito: credito.reduce((s, f) => s + (f.total ?? 0), 0),
+    facturas_credito:  credito.length,
+    credito_saldo:     credito.reduce((s, f) => s + (f.saldo ?? 0), 0),
     pedidos_hoy:      pedidosHoy.count  ?? 0,
     pedidos_semana:   pedidosSemana.count ?? 0,
     pedidos_mes:      countMes,

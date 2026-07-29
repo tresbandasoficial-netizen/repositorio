@@ -308,6 +308,15 @@ export type MetricasAdmin = {
   abonos_mes: number
   cartera_clientes: number
   cartera_saldo: number
+  // Facturación del mes (sin anuladas): total emitido, y partido entre lo ya
+  // pagado (contado) y lo que sigue con saldo (crédito).
+  facturado_mes: number
+  facturas_mes: number
+  facturado_contado: number
+  facturas_contado: number
+  facturado_credito: number
+  facturas_credito: number
+  credito_saldo: number
 }
 
 export type MetricasAsesor = {

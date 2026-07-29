@@ -195,6 +195,39 @@ export default async function DashboardPage() {
           </div>
         </div>
 
+        {/* KPI row — Facturación del mes: lo ya entregado y facturado, partido
+            entre lo pagado de contado y lo que salió a crédito */}
+        <div>
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 px-1">Facturado del mes (entregado)</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <KpiCard
+              label="Total facturado"
+              valor={formatCOP(m.facturado_mes)}
+              sub={`${m.facturas_mes} facturas este mes`}
+              icon={BarChart2}
+              iconColor="text-blue-600"
+              iconBg="bg-blue-50"
+            />
+            <KpiCard
+              label="De contado (pagado)"
+              valor={formatCOP(m.facturado_contado)}
+              sub={`${m.facturas_contado} facturas ya pagadas`}
+              icon={Wallet}
+              iconColor="text-emerald-600"
+              iconBg="bg-emerald-50"
+            />
+            <KpiCard
+              label="A crédito"
+              valor={formatCOP(m.facturado_credito)}
+              sub={`${m.facturas_credito} facturas · aún deben ${formatCOP(m.credito_saldo)}`}
+              icon={CreditCard}
+              iconColor="text-orange-600"
+              iconBg="bg-orange-50"
+              alerta={m.credito_saldo > 0}
+            />
+          </div>
+        </div>
+
         {/* KPI row 2 — Cartera */}
         <div>
           <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 px-1">Cartera</p>
