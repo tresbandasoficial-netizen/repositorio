@@ -224,6 +224,8 @@ export type CuadreIngreso = {
   monto: number
   origen: string              // 'venta' | 'abono' | 'cartera'
   confirmado: boolean         // ✓ verificado que el dinero entró
+  cliente_nombre: string | null
+  creado_en: string           // para agrupar pagos registrados juntos
 }
 
 export type CuadreMetodo = {
@@ -372,7 +374,7 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
   // ── Recaudo (pagos + pagos_factura) por sede y método ───────────────────────
   let qRecaudo = supabase
     .from('vista_pagos_unificados')
-    .select('id, monto, metodo, sede_id, sede_codigo, asesor_id, asesor_nombre, referencia, origen, confirmado')
+    .select('id, monto, metodo, sede_id, sede_codigo, asesor_id, asesor_nombre, referencia, origen, confirmado, cliente_nombre, creado_en')
     .gte('fecha', filtros.desde)
     .lte('fecha', filtros.hasta)
     .limit(20000)
@@ -433,7 +435,7 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
   if (facturasRes.error) throw new Error(`Error cargando facturas del cuadre: ${facturasRes.error.message}`)
 
   const ventasRows  = (ventasRes.data ?? []) as Array<{ id: string; numero_orden: string; sede_codigo: string; total: number; estado: string; tipo: string; cliente_nombre: string; total_pagado: number; factura_id: string | null }>
-  const recaudoRows = (recaudoRes.data ?? []) as Array<{ id: string; monto: number; metodo: MetodoPago; sede_codigo: string; asesor_id: string; asesor_nombre: string; referencia: string | null; origen: string; confirmado: boolean }>
+  const recaudoRows = (recaudoRes.data ?? []) as Array<{ id: string; monto: number; metodo: MetodoPago; sede_codigo: string; asesor_id: string; asesor_nombre: string; referencia: string | null; origen: string; confirmado: boolean; cliente_nombre: string | null; creado_en: string }>
   const gastosRows  = (gastosRes.data ?? []) as Array<{ valor: number; sede_id: string; categoria: string; observacion: string | null; fecha: string }>
   const facturasRows = (facturasRes.data ?? []) as Array<{ id: string; numero_factura: string; cliente_nombre: string; sede_codigo: string; total: number; saldo: number; estado: string }>
 
@@ -476,7 +478,7 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
     a.metodos.set(r.metodo, (a.metodos.get(r.metodo) ?? 0) + (r.monto ?? 0))
     let det = a.detalles.get(r.metodo)
     if (!det) { det = []; a.detalles.set(r.metodo, det) }
-    det.push({ id: r.id, referencia: r.referencia ?? '—', monto: r.monto ?? 0, origen: r.origen, confirmado: r.confirmado })
+    det.push({ id: r.id, referencia: r.referencia ?? '—', monto: r.monto ?? 0, origen: r.origen, confirmado: r.confirmado, cliente_nombre: r.cliente_nombre, creado_en: r.creado_en })
   }
 
   const gastosDetalle: CuadreGasto[] = []
