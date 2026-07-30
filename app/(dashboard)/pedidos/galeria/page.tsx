@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getPedidos } from '@/lib/queries/pedidos'
 import { GaleriaPedidos, type ItemGaleria } from '@/components/pedidos/GaleriaPedidos'
+import { AutoSubmitSelect } from '@/components/ui/AutoSubmitSelect'
 import { EstadoPedido, ESTADO_LABELS } from '@/types'
 import { List, ChevronLeft, ChevronRight } from 'lucide-react'
 
@@ -210,13 +211,14 @@ export default async function GaleriaPedidosPage({
 
       {/* Filtros (GET, sin JS) */}
       <form method="get" className="flex gap-2 mb-5 flex-wrap">
-        <select
+        {/* Filtra apenas se escoge el estado, sin oprimir "Filtrar" */}
+        <AutoSubmitSelect
           name="estado"
           defaultValue={params.estado ?? ''}
           className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           {ESTADOS.map(e => <option key={e.value} value={e.value}>{e.label}</option>)}
-        </select>
+        </AutoSubmitSelect>
         <input
           type="search"
           name="q"
