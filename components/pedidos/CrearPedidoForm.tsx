@@ -588,9 +588,13 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
                             {/* Una cosa por renglón: código, nombre, existencias.
                                 Antes el código y la marca iban pegados en la
                                 misma línea y el nombre partía donde cayera. */}
-                            {opt.codigo && (
+                            {opt.codigo ? (
                               <span className="block font-mono text-[11px] font-semibold text-blue-700 truncate">
                                 {opt.codigo}
+                              </span>
+                            ) : (
+                              <span className="inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
+                                ⚠ SIN CÓDIGO — no sirve para pedidos
                               </span>
                             )}
                             <span className="block font-medium text-gray-900 truncate">

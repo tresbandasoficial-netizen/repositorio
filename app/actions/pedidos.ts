@@ -18,6 +18,26 @@ export type CrearPedidoResult =
   | { ok: true; pedidoId: string; numeroOrden: string }
   | { ok: false; error: string; siguienteNumero?: string }
 
+// Devuelve el error si algún producto está enlazado a una ficha del catálogo
+// sin código (SKU); null si todo está bien. Se valida en crear Y editar porque
+// el catálogo tiene fichas sin código (creadas automáticamente desde compras).
+async function fichaSinCodigo(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  productos: Array<{ articulo_id?: string | null; descripcion: string }>,
+): Promise<string | null> {
+  const ids = [...new Set(productos.map(p => p.articulo_id).filter(Boolean))] as string[]
+  if (ids.length === 0) return null
+  const { data: fichas } = await supabase.from('articulos').select('id, codigo').in('id', ids)
+  const sinSku = new Set(
+    ((fichas ?? []) as Array<{ id: string; codigo: string | null }>)
+      .filter(f => !(f.codigo ?? '').trim())
+      .map(f => f.id)
+  )
+  if (sinSku.size === 0) return null
+  const prod = productos.find(p => p.articulo_id && sinSku.has(p.articulo_id))
+  return `El artículo "${prod?.descripcion || 'sin nombre'}" está enlazado a una ficha del catálogo SIN código (SKU). Ponle el código a esa ficha en Inventario, o escribe el código correcto y guárdalo como artículo del catálogo.`
+}
+
 // Lógica compartida: crea el pedido desde datos ya parseados/editados
 async function _crearPedidoConDatos(
   datos: ParsedPedido,
@@ -67,6 +87,12 @@ async function _crearPedidoConDatos(
       error: `El artículo "${productoSinCodigo.descripcion || 'sin nombre'}" no tiene código de producto. Selecciónalo del catálogo antes de crear el pedido.`,
     }
   }
+
+  // El enlace no basta: la ficha enlazada debe tener código (SKU). El catálogo
+  // tiene fichas sin código (las crea compras automáticamente) y enlazarlas
+  // dejaba el pedido sin SKU rastreable.
+  const errorFicha = await fichaSinCodigo(supabase, datos.productos)
+  if (errorFicha) return { ok: false, error: errorFicha }
 
   // La talla es obligatoria PARA TODOS en ropa y tenis (los accesorios no
   // llevan talla). Evita pedidos sin talla que descuadran el inventario.
@@ -510,6 +536,9 @@ export async function editarPedidoAction(
   }
   if (!data.cliente_nombre.trim()) return { ok: false, error: 'El nombre del cliente es obligatorio' }
   if (data.productos.length === 0) return { ok: false, error: 'Debe haber al menos un producto' }
+
+  const errorFicha = await fichaSinCodigo(supabase, data.productos)
+  if (errorFicha) return { ok: false, error: errorFicha }
 
   // Actualizar cliente (operación independiente — no afecta los items del pedido)
   const telefonoNormalizado = normalizarTelefono(data.cliente_telefono)
