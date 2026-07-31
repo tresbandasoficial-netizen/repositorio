@@ -11,6 +11,7 @@ import { Usuario } from '@/types'
 
 interface Props {
   usuario: Pick<Usuario, 'id' | 'nombre' | 'rol'>
+  sedeCodigo?: string | null
   children: React.ReactNode
 }
 
@@ -23,7 +24,7 @@ function getFecha() {
   }).format(new Date())
 }
 
-export function DashboardShell({ usuario, children }: Props) {
+export function DashboardShell({ usuario, sedeCodigo, children }: Props) {
   const [abierto, setAbierto] = useState(false)
   const primerNombre = usuario.nombre.split(' ')[0]
 
@@ -47,7 +48,7 @@ export function DashboardShell({ usuario, children }: Props) {
           ${abierto ? 'translate-x-0' : '-translate-x-full'}
         `}
       >
-        <Sidebar usuario={usuario} onClose={() => setAbierto(false)} />
+        <Sidebar usuario={usuario} sedeCodigo={sedeCodigo} onClose={() => setAbierto(false)} />
       </div>
 
       {/* Content column */}

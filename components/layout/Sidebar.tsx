@@ -27,6 +27,7 @@ import {
   Trophy,
   Landmark,
   MessagesSquare,
+  Clock,
   LucideProps,
 } from 'lucide-react'
 
@@ -45,6 +46,7 @@ function MotoIcon({ size = 18, className }: { size?: number; className?: string 
 
 interface SidebarProps {
   usuario: Pick<Usuario, 'id' | 'nombre' | 'rol'>
+  sedeCodigo?: string | null
   onClose?: () => void
 }
 
@@ -52,7 +54,8 @@ type NavIcon = React.ComponentType<LucideProps> | typeof MotoIcon
 
 // `activo`: prefijo de ruta que mantiene el ítem resaltado cuando difiere del
 // href (Pedidos abre la galería pero cubre también la lista y el detalle).
-const navItems: { href: string; label: string; icon: NavIcon; rol: string[]; activo?: string }[] = [
+// `sedes`: para asesores, códigos de sede que ven el ítem (el admin siempre lo ve).
+const navItems: { href: string; label: string; icon: NavIcon; rol: string[]; activo?: string; sedes?: string[] }[] = [
   { href: '/dashboard',    label: 'Dashboard',    icon: LayoutDashboard, rol: ['asesor', 'admin'] },
   { href: '/pedidos/galeria', label: 'Pedidos',   icon: Package,         rol: ['asesor', 'admin', 'visor'], activo: '/pedidos' },
   { href: '/facturacion/nueva', label: 'Facturar / Vender', icon: FileText, rol: ['asesor', 'admin'] },
@@ -60,6 +63,7 @@ const navItems: { href: string; label: string; icon: NavIcon; rol: string[]; act
   { href: '/bonos',        label: 'Bonos regalo', icon: Gift,          rol: ['asesor', 'admin'] },
   { href: '/chat',         label: 'Chat',         icon: MessagesSquare,  rol: ['asesor', 'admin'] },
   { href: '/tareas',       label: 'Tareas',       icon: ClipboardList,   rol: ['asesor', 'admin'] },
+  { href: '/asistencia',   label: 'Asistencia',   icon: Clock,           rol: ['asesor', 'admin'], sedes: ['CR'] },
   { href: '/retos',        label: 'Retos',        icon: Trophy,          rol: ['asesor', 'admin'] },
   { href: '/alertas',      label: 'Alertas',      icon: Bell,            rol: ['asesor', 'admin', 'visor'] },
   { href: '/clientes',     label: 'Clientes',     icon: Users,           rol: ['asesor', 'admin', 'visor'] },
@@ -81,7 +85,7 @@ const navItems: { href: string; label: string; icon: NavIcon; rol: string[]; act
   { href: '/asistente',    label: 'Asistente IA', icon: Sparkles,    rol: ['asesor', 'admin'] },
 ]
 
-export function Sidebar({ usuario, onClose }: SidebarProps) {
+export function Sidebar({ usuario, sedeCodigo, onClose }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
 
@@ -92,7 +96,10 @@ export function Sidebar({ usuario, onClose }: SidebarProps) {
     router.refresh()
   }
 
-  const items = navItems.filter((item) => item.rol.includes(usuario.rol))
+  const items = navItems.filter((item) =>
+    item.rol.includes(usuario.rol) &&
+    (!item.sedes || usuario.rol !== 'asesor' || item.sedes.includes(sedeCodigo ?? ''))
+  )
 
   return (
     <aside className="flex flex-col bg-white border-r border-gray-100 min-h-screen shadow-sm w-52">

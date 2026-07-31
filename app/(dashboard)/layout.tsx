@@ -14,11 +14,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const { data: usuario } = await supabase
     .from('usuarios')
-    .select('id, nombre, rol')
+    .select('id, nombre, rol, sede:sedes(codigo)')
     .eq('id', user.id)
     .single()
 
   if (!usuario) redirect('/login')
+
+  const sedeCodigo = (Array.isArray(usuario.sede) ? usuario.sede[0] : usuario.sede)?.codigo ?? null
 
   // Tareas pendientes asignadas a quien está conectado: se muestran como un
   // aviso flotante abajo de la pantalla en todas las páginas.
@@ -39,7 +41,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     : await supabase.rpc('chat_usuarios')
 
   return (
-    <DashboardShell usuario={usuario}>
+    <DashboardShell usuario={usuario} sedeCodigo={sedeCodigo}>
       {children}
       <AvisoTareas tareas={tareasPendientes ?? []} />
       {reto && (
