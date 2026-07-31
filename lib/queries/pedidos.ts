@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { terminoBusquedaSeguro } from '@/lib/utils/busqueda'
-import { EstadoPedido } from '@/types'
+import { ClienteSegmentoRfm, EstadoPedido } from '@/types'
 
 export type PedidoRow = {
   id: string
@@ -27,6 +27,9 @@ export type PedidoRow = {
   sede_id: string
   cliente_id: string
   factura_id: string | null
+  // Segmento RFM del cliente (Campeón, Leal, …), para priorizar a simple vista.
+  // Viene de vista_rfm_clientes, no de vista_pedidos_asesor.
+  cliente_segmento?: ClienteSegmentoRfm | null
 }
 
 export type PedidoDetalle = PedidoRow & {
@@ -182,9 +185,25 @@ export async function getPedidos(filtros?: {
 
   if (error) throw new Error(`Error cargando pedidos: ${error.message}`)
 
+  const pedidos = (data ?? []) as PedidoRow[]
+
+  // Segmento RFM del cliente de cada pedido (solo los de la página en pantalla).
+  const clienteIds = [...new Set(pedidos.map(p => p.cliente_id).filter(Boolean))]
+  if (clienteIds.length > 0) {
+    const { data: segs } = await supabase
+      .from('vista_rfm_clientes')
+      .select('cliente_id, segmento')
+      .in('cliente_id', clienteIds)
+    const porCliente = new Map(
+      ((segs ?? []) as Array<{ cliente_id: string; segmento: ClienteSegmentoRfm }>)
+        .map(s => [s.cliente_id, s.segmento])
+    )
+    for (const p of pedidos) p.cliente_segmento = porCliente.get(p.cliente_id) ?? null
+  }
+
   const total = count ?? 0
   return {
-    pedidos:      (data ?? []) as PedidoRow[],
+    pedidos,
     total,
     pagina,
     totalPaginas: Math.max(1, Math.ceil(total / porPagina)),

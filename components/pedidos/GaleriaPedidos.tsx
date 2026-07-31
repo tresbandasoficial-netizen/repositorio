@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type { PedidoRow } from '@/lib/queries/pedidos'
 import { EstadoInline } from './PedidoCard'
+import { SEGMENTO_CONFIG } from '@/components/recompras/BadgeSegmento'
 import { AvisarLlegoButton } from './AvisarLlegoButton'
 import { formatCOP, formatFecha } from '@/lib/utils/format'
 import { formatearTelefono } from '@/lib/utils/phone'
@@ -242,7 +243,18 @@ export function GaleriaPedidos({
             {iniciales(sel.pedido.cliente_nombre)}
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-bold text-gray-900 truncate">{sel.pedido.cliente_nombre}</p>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <p className="text-sm font-bold text-gray-900 truncate">{sel.pedido.cliente_nombre}</p>
+              {sel.pedido.cliente_segmento && SEGMENTO_CONFIG[sel.pedido.cliente_segmento] && (
+                <span
+                  title={SEGMENTO_CONFIG[sel.pedido.cliente_segmento].queHacer}
+                  className={`inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap shrink-0 ${SEGMENTO_CONFIG[sel.pedido.cliente_segmento].clases}`}
+                >
+                  <span aria-hidden="true">{SEGMENTO_CONFIG[sel.pedido.cliente_segmento].icono}</span>
+                  {SEGMENTO_CONFIG[sel.pedido.cliente_segmento].label}
+                </span>
+              )}
+            </div>
             <p className="text-xs text-gray-400 flex items-center gap-1 flex-wrap">
               <Phone size={11} className="shrink-0" />
               {formatearTelefono(sel.pedido.cliente_telefono)} · {formatFecha(sel.pedido.fecha_creacion)} · {sel.pedido.sede_codigo}
@@ -433,6 +445,9 @@ export function GaleriaPedidos({
                     <p className="font-mono font-bold text-[10px] text-blue-700 truncate">{t.item.codigo}</p>
                   )}
                   <p className="text-[10px] text-gray-400 truncate">
+                    {t.pedido.cliente_segmento && SEGMENTO_CONFIG[t.pedido.cliente_segmento]
+                      ? `${SEGMENTO_CONFIG[t.pedido.cliente_segmento].icono} `
+                      : ''}
                     {t.pedido.cliente_nombre}
                     {t.item?.talla ? ` · T ${tallaLimpia(t.item.talla)}` : ''}
                   </p>

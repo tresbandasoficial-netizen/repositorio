@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { PedidoRow } from '@/lib/queries/pedidos'
 import { EstadoBadge } from './EstadoBadge'
+import { SEGMENTO_CONFIG } from '@/components/recompras/BadgeSegmento'
 import { FotoConPreview } from './FotoConPreview'
 import { AvisarLlegoButton } from './AvisarLlegoButton'
 import { formatCOP, formatFecha, formatHora } from '@/lib/utils/format'
@@ -14,6 +15,23 @@ import { EstadoPedido, ESTADO_LABELS, ESTADO_COLORES } from '@/types'
 import { transicionesDisponibles } from '@/lib/domain/estados'
 import { cambiarEstadoInlineAction } from '@/app/actions/pedidos'
 import { cn } from '@/lib/utils/cn'
+
+// Etiqueta chiquita del segmento RFM del cliente (Campeón, Leal, …) junto al
+// nombre, para priorizar a simple vista a quién atender/comprar primero.
+function SegmentoMini({ segmento }: { segmento?: PedidoRow['cliente_segmento'] }) {
+  if (!segmento) return null
+  const c = SEGMENTO_CONFIG[segmento]
+  if (!c) return null
+  return (
+    <span
+      title={`${c.label}: ${c.queHacer}`}
+      className={`inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap shrink-0 ${c.clases}`}
+    >
+      <span aria-hidden="true">{c.icono}</span>
+      <span className="hidden lg:inline">{c.label}</span>
+    </span>
+  )
+}
 
 // Badge de estado clicable con menú de transiciones (se usa en la lista de
 // pedidos y en el visor de la galería).
@@ -202,7 +220,10 @@ export function PedidoCard({ pedido, esAdmin, seleccionado = false, onToggleSele
         </div>
         <div className="flex items-end justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-gray-900 truncate">{pedido.cliente_nombre}</p>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <p className="text-sm font-semibold text-gray-900 truncate">{pedido.cliente_nombre}</p>
+              <SegmentoMini segmento={pedido.cliente_segmento} />
+            </div>
             <p className="text-xs text-gray-400">{formatearTelefono(pedido.cliente_telefono)}</p>
           </div>
           <div className="text-right shrink-0">
@@ -251,7 +272,10 @@ export function PedidoCard({ pedido, esAdmin, seleccionado = false, onToggleSele
           </div>
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-gray-900 truncate">{pedido.cliente_nombre}</p>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <p className="text-sm font-semibold text-gray-900 truncate">{pedido.cliente_nombre}</p>
+            <SegmentoMini segmento={pedido.cliente_segmento} />
+          </div>
           <p className="text-xs text-gray-400">{formatearTelefono(pedido.cliente_telefono)}</p>
         </div>
         <div className="w-40 shrink-0">
