@@ -71,6 +71,7 @@ const navItems: { href: string; label: string; icon: NavIcon; rol: string[]; act
   { href: '/envios',       label: 'Envíos',       icon: Send,            rol: ['asesor', 'admin'] },
   { href: '/cuadre',       label: 'Cuadre caja',  icon: Calculator,  rol: ['asesor', 'admin'] },
   { href: '/gastos',       label: 'Gastos',       icon: Wallet,      rol: ['asesor', 'admin'] },
+  { href: '/gastos-fijos', label: 'Gastos fijos', icon: Landmark,    rol: ['admin'] },
   { href: '/flujo-caja',   label: 'Flujo de caja',icon: BarChart2,   rol: ['admin'] },
   { href: '/consignaciones', label: 'Consignaciones', icon: Landmark, rol: ['admin'] },
   { href: '/ganancias',    label: 'Ganancias',    icon: TrendingUp,  rol: ['admin'] },
