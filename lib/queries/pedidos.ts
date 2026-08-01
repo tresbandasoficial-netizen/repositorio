@@ -183,6 +183,11 @@ export async function getPedidos(filtros?: {
 
   const { data, error, count } = await query
 
+  // PGRST103: la página pedida quedó más allá del total (p.ej. estaba en la
+  // página 5 y aplicó un filtro con menos resultados) — volver a la página 1.
+  if (error?.message.includes('Requested range not satisfiable') && pagina > 1) {
+    return getPedidos({ ...filtros, pagina: 1 })
+  }
   if (error) throw new Error(`Error cargando pedidos: ${error.message}`)
 
   const pedidos = (data ?? []) as PedidoRow[]

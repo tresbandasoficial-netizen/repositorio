@@ -125,6 +125,11 @@ export async function getClientes(params?: {
   }
 
   const { data, error, count } = await query
+  // PGRST103: la página pedida quedó más allá del total (p.ej. filtró estando
+  // en una página alta) — volver a la página 1.
+  if (error?.message.includes('Requested range not satisfiable') && pagina > 1) {
+    return getClientes({ ...params, pagina: 1 })
+  }
   if (error) throw new Error(`Error cargando clientes: ${error.message}`)
 
   const total = count ?? 0
