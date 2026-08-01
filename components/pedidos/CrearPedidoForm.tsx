@@ -45,6 +45,8 @@ interface CrearPedidoFormProps {
   asesorNombre: string
   sedeId: string | null
   esAsesor: boolean
+  asesores?: { id: string; nombre: string }[]
+  asesorIdActual?: string
 }
 
 function emptyData(sede: 'TR' | 'CR' | 'SR', numeroSugerido: string, asesorNombre: string): ParsedPedido {
@@ -67,10 +69,11 @@ function emptyData(sede: 'TR' | 'CR' | 'SR', numeroSugerido: string, asesorNombr
   }
 }
 
-export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor }: CrearPedidoFormProps) {
+export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor, asesores, asesorIdActual }: CrearPedidoFormProps) {
   const sedeCode = numeroSugerido.slice(0, 2) as 'TR' | 'CR' | 'SR'
 
   const [form, setForm]               = useState<ParsedPedido>(() => emptyData(sedeCode, numeroSugerido, asesorNombre))
+  const [asesorId, setAsesorId]       = useState(asesorIdActual ?? '')
   const [numeroOrden, setNumeroOrden] = useState(numeroSugerido)
   const [texto, setTexto]             = useState('')
   const [errorParser, setErrorParser] = useState<string | null>(null)
@@ -380,6 +383,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
       abono: totalAbonos,
       metodo_pago_abono: abonosValidos[0]?.metodo ?? form.metodo_pago_abono,
       abonos: abonosValidos,
+      asesor_id: asesorId || null,
     }
 
     startTransition(async () => {
@@ -507,7 +511,23 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
             <p className="text-xs text-blue-600">Celular nuevo — se creará el cliente al confirmar.</p>
           )}
 
-          <p className="text-xs text-gray-400">Asesor: {asesorNombre} · Sede: {form.sede}</p>
+          {asesores && asesores.length > 1 ? (
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              <span>Asesor de la venta:</span>
+              <select
+                value={asesorId}
+                onChange={e => setAsesorId(e.target.value)}
+                className="border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {asesores.map(a => (
+                  <option key={a.id} value={a.id}>{a.nombre}</option>
+                ))}
+              </select>
+              <span className="text-gray-400">· Sede: {form.sede}</span>
+            </div>
+          ) : (
+            <p className="text-xs text-gray-400">Asesor: {asesorNombre} · Sede: {form.sede}</p>
+          )}
         </div>
 
         {/* Entrega */}

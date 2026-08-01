@@ -71,6 +71,26 @@ async function _crearPedidoConDatos(
     return { ok: false, error: 'No puedes crear pedidos en otra sede' }
   }
 
+  // La venta se puede registrar a nombre de otro asesor ACTIVO de la misma sede
+  // (ej.: el equipo pone ventas a nombre de Ronaldo o Johan). Los pagos siguen
+  // firmados por quien los registra. RLS solo deja leer el propio usuario, por
+  // eso la validación usa el cliente admin.
+  let asesorVentaId = usuario.id
+  if (datos.asesor_id && datos.asesor_id !== usuario.id) {
+    const admin = createAdminClient()
+    const { data: asesorSel } = await admin
+      .from('usuarios')
+      .select('id')
+      .eq('id', datos.asesor_id)
+      .eq('activo', true)
+      .eq('sede_id', sede.id)
+      .single()
+    if (!asesorSel) {
+      return { ok: false, error: 'El asesor seleccionado no es válido para esta sede' }
+    }
+    asesorVentaId = asesorSel.id
+  }
+
   // El número lo asigna el consecutivo oficial del servidor — el valor que
   // venga del formulario se ignora (evita dedazos y duplicados).
   const numeroOrden = await asignarNumeroOrden(datos.sede)
@@ -219,7 +239,7 @@ async function _crearPedidoConDatos(
   const { data: pedidoId, error: errPedido } = await supabase.rpc('crear_pedido', {
     p_numero_orden:     numeroOrden,
     p_sede_id:          sede.id,
-    p_asesor_id:        usuario.id,
+    p_asesor_id:        asesorVentaId,
     p_cliente_id:       clienteId,
     p_total:            total,
     p_tipo_entrega:     datos.tipo_entrega,

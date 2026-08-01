@@ -262,6 +262,7 @@ export type ParsedPedido = {
   sede: 'TR' | 'CR' | 'SR'
   numero_orden_sugerido?: string   // extraído del formato libre (ej. TR5946)
   asesor?: string
+  asesor_id?: string | null        // asesor al que se atribuye la venta (si difiere del logueado)
   cliente_nombre: string
   cliente_doc: string | null
   cliente_telefono: string

@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { BotonVolver } from '@/components/ui/BotonVolver'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getSiguienteNumeroOrden } from '@/lib/queries/pedidos'
 import { CrearPedidoForm } from '@/components/pedidos/CrearPedidoForm'
 
@@ -17,6 +18,26 @@ export default async function NuevoPedidoPage() {
   const sedeCodigo = (usuario.sedes as any)?.codigo ?? 'TR'
   const numeroSugerido = await getSiguienteNumeroOrden(sedeCodigo)
 
+  // Asesores activos de la sede: la venta se puede registrar a nombre de
+  // cualquiera de ellos. RLS solo deja leer el propio usuario → cliente admin.
+  const admin = createAdminClient()
+  let sedeIdLista = usuario.sede_id
+  if (!sedeIdLista) {
+    const { data: sedeFila } = await admin.from('sedes').select('id').eq('codigo', sedeCodigo).single()
+    sedeIdLista = sedeFila?.id ?? null
+  }
+  const { data: asesoresSede } = await admin
+    .from('usuarios')
+    .select('id, nombre')
+    .eq('activo', true)
+    .eq('rol', 'asesor')
+    .eq('sede_id', sedeIdLista)
+    .order('nombre')
+  const asesores: { id: string; nombre: string }[] = asesoresSede ?? []
+  if (!asesores.some(a => a.id === user.id)) {
+    asesores.unshift({ id: user.id, nombre: (usuario as any).nombre ?? 'Yo' })
+  }
+
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
@@ -30,6 +51,8 @@ export default async function NuevoPedidoPage() {
         asesorNombre={(usuario as any).nombre ?? ''}
         sedeId={usuario.sede_id ?? null}
         esAsesor={(usuario as any).rol === 'asesor'}
+        asesores={asesores}
+        asesorIdActual={user.id}
       />
     </div>
   )
