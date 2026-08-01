@@ -24,6 +24,10 @@ interface Props {
   margenBruto: number
   diaDelMes: number
   diasCalendario: number
+  // Sede activa: los gastos nuevos se crean en ella. null = pestaña "Todo el
+  // negocio" (solo lectura de la lista, se agrega desde la pestaña de la sede).
+  sedeId: string | null
+  sedeNombre: string
 }
 
 // ── KPI card principal (gradiente, estilo dashboard) ─────────────────────────
@@ -88,7 +92,7 @@ function SectionCard({ title, icon: Icon, children, headerRight }: {
   )
 }
 
-export function GastosFijosPanel({ gastos, totalFijos, puntoEquilibrio, ventasMes, gastosVariablesMes, diasMes, margenBruto, diaDelMes, diasCalendario }: Props) {
+export function GastosFijosPanel({ gastos, totalFijos, puntoEquilibrio, ventasMes, gastosVariablesMes, diasMes, margenBruto, diaDelMes, diasCalendario, sedeId, sedeNombre }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -133,6 +137,7 @@ export function GastosFijosPanel({ gastos, totalFijos, puntoEquilibrio, ventasMe
         id: editando === 'nuevo' ? undefined : editando!,
         concepto,
         monto: montoNum,
+        sede_id: editando === 'nuevo' ? sedeId : undefined,
       })
       if (!res.ok) { setError(res.error); return }
       setEditando(null)
@@ -185,8 +190,10 @@ export function GastosFijosPanel({ gastos, totalFijos, puntoEquilibrio, ventasMe
         />
       </div>
 
+      {/* Avance y simulador lado a lado en pantallas anchas */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
       {/* Avance del mes contra el punto de equilibrio */}
-      <SectionCard title="Avance del mes" icon={TrendingUp} headerRight={
+      <SectionCard title={`Avance del mes — ${sedeNombre}`} icon={TrendingUp} headerRight={
         <span className={`text-sm font-bold ${cubierto ? 'text-green-600' : 'text-gray-500'}`}>
           {pctCubierto.toFixed(0)}% del punto de equilibrio
         </span>
@@ -282,14 +289,15 @@ export function GastosFijosPanel({ gastos, totalFijos, puntoEquilibrio, ventasMe
           </div>
         </div>
       </SectionCard>
+      </div>
 
       {error && (
         <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-2xl px-4 py-3">{error}</p>
       )}
 
-      {/* Lista de gastos fijos */}
-      <SectionCard title="Gastos fijos del mes" icon={Wallet} headerRight={
-        editando !== 'nuevo' ? (
+      {/* Lista de gastos fijos (el Agregar solo en la pestaña de una sede) */}
+      <SectionCard title={`Gastos fijos — ${sedeNombre}`} icon={Wallet} headerRight={
+        editando !== 'nuevo' && sedeId ? (
           <Button variant="secondary" onClick={() => abrirEdicion(null)} className="text-xs !py-1.5">
             <Plus size={14} className="mr-1" /> Agregar
           </Button>
