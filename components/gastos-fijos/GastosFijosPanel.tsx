@@ -21,9 +21,12 @@ interface Props {
   ventasMes: number
   gastosVariablesMes: number
   diasMes: number
+  margenBruto: number
+  diaDelMes: number
+  diasCalendario: number
 }
 
-export function GastosFijosPanel({ gastos, totalFijos, puntoEquilibrio, ventasMes, gastosVariablesMes, diasMes }: Props) {
+export function GastosFijosPanel({ gastos, totalFijos, puntoEquilibrio, ventasMes, gastosVariablesMes, diasMes, margenBruto, diaDelMes, diasCalendario }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -36,6 +39,17 @@ export function GastosFijosPanel({ gastos, totalFijos, puntoEquilibrio, ventasMe
   const pctCubierto = puntoEquilibrio > 0 ? Math.min(100, (ventasMes / puntoEquilibrio) * 100) : 0
   const faltante = Math.max(0, puntoEquilibrio - ventasMes)
   const cubierto = ventasMes >= puntoEquilibrio
+
+  // ── Simulador interactivo ──────────────────────────────────────────────────
+  const [simVentas, setSimVentas] = useState(400_000_000)
+  const [simMargen, setSimMargen] = useState(Math.round(margenBruto * 1000) / 10) // en %
+  const [simBonos, setSimBonos] = useState(3_000_000)
+  const simBruta = Math.round(simVentas * (simMargen / 100))
+  const simNeta = simBruta - totalFijos - simBonos
+  const simEquilibrio = simMargen > 0 ? Math.ceil((totalFijos + simBonos) / (simMargen / 100)) : 0
+
+  // Proyección de cierre según el ritmo real del mes
+  const proyeccion = diaDelMes >= 1 ? Math.round((ventasMes / diaDelMes) * diasCalendario) : 0
 
   function abrirEdicion(g: GastoFijo | null) {
     setError(null)
@@ -102,6 +116,74 @@ export function GastosFijosPanel({ gastos, totalFijos, puntoEquilibrio, ventasMe
             ? '✅ Los gastos fijos del mes ya están cubiertos — lo que se venda de aquí en adelante es ganancia.'
             : `Faltan ${formatCOP(faltante)} en ventas para cubrir los gastos fijos del mes.`}
         </p>
+        {proyeccion > 0 && diaDelMes >= 2 && (
+          <p className="text-xs text-gray-600 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+            📈 Al ritmo actual (día {diaDelMes} de {diasCalendario}), el mes cerraría en{' '}
+            <strong>{formatCOP(proyeccion)}</strong>
+            {proyeccion >= puntoEquilibrio
+              ? ` — ${(proyeccion / puntoEquilibrio).toFixed(1)} veces el punto de equilibrio.`
+              : ' — por debajo del punto de equilibrio, hay que apretar.'}
+          </p>
+        )}
+      </div>
+
+      {/* ── Simulador: ¿y si vendemos…? ── */}
+      <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-4 space-y-3">
+        <p className="text-sm font-semibold text-gray-900">🎛️ Simulador — ¿y si este mes vendemos…?</p>
+
+        <div className="flex items-baseline gap-3">
+          <span className="text-2xl font-bold text-blue-700 tabular-nums w-40">{formatCOP(simVentas)}</span>
+          <input
+            type="range" min={0} max={800_000_000} step={10_000_000}
+            value={simVentas} onChange={e => setSimVentas(Number(e.target.value))}
+            className="flex-1 accent-blue-600"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+          <div className="bg-gray-50 rounded-lg px-3 py-2">
+            <p className="text-[11px] uppercase tracking-wide text-gray-500">Utilidad bruta ({simMargen}%)</p>
+            <p className="font-bold text-gray-900 tabular-nums">{formatCOP(simBruta)}</p>
+          </div>
+          <div className="bg-gray-50 rounded-lg px-3 py-2">
+            <p className="text-[11px] uppercase tracking-wide text-gray-500">Gastos fijos</p>
+            <p className="font-bold text-gray-900 tabular-nums">−{formatCOP(totalFijos)}</p>
+          </div>
+          <div className="bg-gray-50 rounded-lg px-3 py-2">
+            <p className="text-[11px] uppercase tracking-wide text-gray-500">Bonos</p>
+            <p className="font-bold text-gray-900 tabular-nums">−{formatCOP(simBonos)}</p>
+          </div>
+          <div className={`rounded-lg px-3 py-2 ${simNeta >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+            <p className="text-[11px] uppercase tracking-wide text-gray-500">Nos queda</p>
+            <p className={`font-bold tabular-nums text-base ${simNeta >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+              {simNeta < 0 ? '−' : ''}{formatCOP(Math.abs(simNeta))}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-gray-600">
+          <label className="flex items-center gap-2">
+            Margen
+            <input
+              type="range" min={15} max={45} step={0.5}
+              value={simMargen} onChange={e => setSimMargen(Number(e.target.value))}
+              className="w-28 accent-blue-600"
+            />
+            <strong className="tabular-nums">{simMargen}%</strong>
+          </label>
+          <label className="flex items-center gap-2">
+            Bonos a pagar
+            <input
+              type="range" min={0} max={9_000_000} step={500_000}
+              value={simBonos} onChange={e => setSimBonos(Number(e.target.value))}
+              className="w-28 accent-blue-600"
+            />
+            <strong className="tabular-nums">{formatCOP(simBonos)}</strong>
+          </label>
+          <span>
+            Con estos supuestos, el equilibrio (fijos + bonos) está en <strong>{formatCOP(simEquilibrio)}</strong>
+          </span>
+        </div>
       </div>
 
       {error && (

@@ -86,6 +86,9 @@ export default async function GastosFijosPage() {
         ventasMes={ventasMes}
         gastosVariablesMes={gastosVariablesMes}
         diasMes={DIAS_MES}
+        margenBruto={margenBruto}
+        diaDelMes={parseInt(hoy.slice(8, 10), 10)}
+        diasCalendario={new Date(parseInt(hoy.slice(0, 4), 10), parseInt(hoy.slice(5, 7), 10), 0).getDate()}
       />
 
       <p className="text-xs text-gray-400">
