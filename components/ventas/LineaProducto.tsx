@@ -92,6 +92,23 @@ export function LineaProducto({
     return () => clearTimeout(t)
   }, [linea.codigo, sedeId, linea.articulo_id])
 
+  // Si la línea ya viene con artículo enlazado (p. ej. al facturar un pedido)
+  // las tallas no pasaron por elegir(): se cargan aquí para que el aviso de
+  // stock funcione SIEMPRE, no solo cuando se busca a mano.
+  useEffect(() => {
+    if (!linea.articulo_id || tallasArticulo) return
+    const q = (linea.codigo ?? '').trim()
+    if (q.length < 2) return
+    let vivo = true
+    ;(async () => {
+      const arts = await buscarArticulosAction(q, sedeId)
+      const a = arts.find(x => x.id === linea.articulo_id)
+      if (vivo && a) setTallasArticulo(a.tallaStock.map(ts => ({ talla: ts.talla, stock: ts.stock })))
+    })()
+    return () => { vivo = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linea.articulo_id])
+
   // Stock de la talla que se haya elegido. null = todavía sin talla, o el
   // artículo no tiene existencias registradas de esa talla.
   const stockTalla = (() => {
@@ -205,8 +222,24 @@ export function LineaProducto({
         </p>
       )}
       {stockTalla != null && stockTalla > 0 && (
-        <p className="text-xs text-green-600">
-          ✓ {stockTalla} en existencia de la talla {linea.talla} en {sedeCodigo}
+        <p className="text-xs font-semibold text-green-700 bg-green-50 border border-green-200 rounded-lg px-2.5 py-1.5">
+          ✓ ¡HAY EN LA TIENDA! {stockTalla} de la talla {linea.talla} en {sedeCodigo}
+        </p>
+      )}
+      {/* Artículo elegido pero aún sin talla: mostrar de una vez qué tallas hay
+          en la tienda, para que no se venda por encargo lo que ya está aquí. */}
+      {linea.articulo_id && tallasArticulo && !linea.talla?.trim() && tallasArticulo.some(t => t.stock > 0) && (
+        <p className="flex flex-wrap items-center gap-1 text-xs">
+          <span className="text-gray-500">En {sedeCodigo} hay:</span>
+          {tallasArticulo.filter(t => t.stock > 0).map(t => (
+            <span
+              key={t.talla ?? ''}
+              className="inline-flex items-center gap-1 bg-green-50 border border-green-200 text-green-800 rounded-md px-1.5 py-0.5 text-[11px] font-bold"
+            >
+              {t.talla ? `Talla ${t.talla}` : 'Sin talla'}
+              <span className="font-normal text-green-600">×{t.stock}</span>
+            </span>
+          ))}
         </p>
       )}
 
