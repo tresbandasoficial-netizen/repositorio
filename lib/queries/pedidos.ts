@@ -92,9 +92,9 @@ export async function getPedidos(filtros?: {
   const hasta = desde + porPagina - 1
 
   // Orden: por defecto los más recientes primero. Cuando se filtra por un
-  // estado de sede (bucaramanga / santa_rosa), se atiende POR ORDEN DE
-  // LLEGADA a la sede: fecha_estado = cuándo pasó a ese estado (historial).
-  // Los sin registro en el historial (viejos) van de últimos.
+  // estado de sede (bucaramanga / santa_rosa), se ordena POR LLEGADA a la
+  // sede, del más nuevo al más viejo (fecha_estado = cuándo pasó a ese
+  // estado, según historial). Los sin registro en el historial van de últimos.
   const porLlegada = filtros?.estado === 'bucaramanga' || filtros?.estado === 'santa_rosa'
 
   let query = supabase
@@ -104,7 +104,7 @@ export async function getPedidos(filtros?: {
     .range(desde, hasta)
 
   query = porLlegada
-    ? query.order('fecha_estado', { ascending: true, nullsFirst: false })
+    ? query.order('fecha_estado', { ascending: false, nullsFirst: false })
     : query.order('fecha_creacion', { ascending: false })
 
   if (filtros?.estado)      query = query.eq('estado', filtros.estado)
