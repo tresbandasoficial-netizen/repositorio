@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { formatCOP } from '@/lib/utils/format'
 import { ItemAsignacion } from '@/components/compras/ItemAsignacion'
 import { EliminarCompraButton } from '@/components/compras/EliminarCompraButton'
+import { MarcarLlegadaButton } from '@/components/compras/MarcarLlegadaButton'
 import { Compra, CompraItem } from '@/types'
 
 type CompraConItems = Compra & {
@@ -71,6 +72,12 @@ export default async function CompraDetallePage({
           </Badge>
         </div>
         <div className="flex items-center gap-2">
+          {itemsAsignados.some(i => i.pedido_id) && (
+            <MarcarLlegadaButton
+              compraId={compra.id}
+              pedidosCount={new Set(itemsAsignados.filter(i => i.pedido_id).map(i => i.pedido_id)).size}
+            />
+          )}
           <Link
             href={`/compras/${compra.id}/editar`}
             className="px-4 py-2 text-sm font-medium border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 transition-colors"

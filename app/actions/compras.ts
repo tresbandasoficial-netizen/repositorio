@@ -841,3 +841,61 @@ export async function eliminarCompraAction(compraId: string): Promise<EliminarCo
 
   redirect('/compras')
 }
+
+// ─── Llegó todo: marcar en Bucaramanga los pedidos de una compra ─────────────
+
+export type MarcarLlegadaResult =
+  | { ok: true; marcados: string[]; omitidos: string[] }
+  | { ok: false; error: string }
+
+// Cuando la mercancía de una factura llega completa, este botón pasa TODOS los
+// pedidos asignados a esa compra al estado 'bucaramanga' de una sola vez.
+// Usa el mismo RPC del cambio individual (historial y validaciones incluidos).
+// Solo toca pedidos en camino (pendiente/comprado/usa); los demás se omiten.
+export async function marcarLlegadaCompraAction(compraId: string): Promise<MarcarLlegadaResult> {
+  const { userId, adminClient } = await verificarAdmin()
+  const supabase = await createClient()
+
+  const { data: items } = await adminClient
+    .from('compra_items')
+    .select('pedido_id, pedido:pedidos (id, numero_orden, estado)')
+    .eq('compra_id', compraId)
+    .not('pedido_id', 'is', null)
+
+  if (!items || items.length === 0) {
+    return { ok: false, error: 'Esta compra no tiene pedidos asignados.' }
+  }
+
+  // Pedidos únicos (una compra puede tener varios items del mismo pedido)
+  const pedidos = new Map<string, { numero_orden: string; estado: string }>()
+  for (const it of items as any[]) {
+    const p = Array.isArray(it.pedido) ? it.pedido[0] : it.pedido
+    if (p) pedidos.set(p.id, { numero_orden: p.numero_orden, estado: p.estado })
+  }
+
+  const EN_CAMINO = ['pendiente', 'comprado', 'usa']
+  const marcados: string[] = []
+  const omitidos: string[] = []
+
+  for (const [id, p] of pedidos) {
+    if (!EN_CAMINO.includes(p.estado)) {
+      omitidos.push(`${p.numero_orden} (${p.estado})`)
+      continue
+    }
+    const { error } = await supabase.rpc('cambiar_estado_pedido', {
+      p_pedido_id:    id,
+      p_nuevo_estado: 'bucaramanga',
+      p_usuario_id:   userId,
+    })
+    if (error) {
+      omitidos.push(`${p.numero_orden} (error: ${error.message})`)
+    } else {
+      marcados.push(p.numero_orden)
+    }
+  }
+
+  revalidatePath(`/compras/${compraId}`)
+  revalidatePath('/pedidos')
+  revalidatePath('/pedidos/galeria')
+  return { ok: true, marcados, omitidos }
+}
