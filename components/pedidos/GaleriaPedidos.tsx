@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type { PedidoRow } from '@/lib/queries/pedidos'
 import { EstadoInline } from './PedidoCard'
-import { separarPedidoAction, cambiarEstadoInlineAction } from '@/app/actions/pedidos'
+import { separarPedidoAction, cambiarEstadoInlineAction, cambiarEstadoPrendaAction } from '@/app/actions/pedidos'
+import { transicionesDisponibles } from '@/lib/domain/estados'
+import { ESTADO_LABELS, EstadoPedido } from '@/types'
 import { SEGMENTO_CONFIG } from '@/components/recompras/BadgeSegmento'
 import { AvisarLlegoButton } from './AvisarLlegoButton'
 import { formatCOP, formatFecha } from '@/lib/utils/format'
@@ -119,6 +121,23 @@ export function GaleriaPedidos({
       if (marcados.includes(t.ref)) map.set(t.pedido.id, t.pedido)
     }
     return [...map.values()]
+  }
+
+  // Estado por PRENDA: separa el pedido (si hace falta) y aplica el estado a
+  // la parte de ese artículo. Cada prenda queda con su propia pestaña.
+  const [cambiandoPrenda, setCambiandoPrenda] = useState<number | null>(null)
+
+  async function cambiarEstadoPrenda(pedido: PedidoRow, itemIdx: number, nuevoEstado: EstadoPedido, nItems: number) {
+    const aviso = nItems > 1
+      ? `Este pedido tiene ${nItems} prendas: se separará en ${nItems} pedidos (${pedido.numero_orden}-1…) y SOLO la prenda ${itemIdx + 1} pasará a "${ESTADO_LABELS[nuevoEstado]}". ¿Continuar?`
+      : `¿Pasar la prenda a "${ESTADO_LABELS[nuevoEstado]}"?`
+    if (!confirm(aviso)) return
+    setCambiandoPrenda(itemIdx)
+    const r = await cambiarEstadoPrendaAction(pedido.id, itemIdx, nuevoEstado)
+    setCambiandoPrenda(null)
+    if (!r.ok) { alert(r.error); return }
+    alert(`✅ ${r.numeroParte} quedó en "${ESTADO_LABELS[nuevoEstado]}".`)
+    router.refresh()
   }
 
   async function marcarLlegadaLote() {
@@ -397,6 +416,33 @@ export function GaleriaPedidos({
                 </div>
                 <span className="text-[13px] font-bold text-gray-900 shrink-0">{formatCOP(it.precio_venta * it.cantidad)}</span>
               </div>
+              {/* Estado de ESTA prenda: al usarlo el pedido se separa solo y el
+                  estado aplica únicamente a este artículo. Solo con 2+ prendas
+                  y sin facturar (facturado se maneja completo). */}
+              {itemsSel.length > 1 && !sel.pedido.factura_id && puedeSel && (
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="text-[11px] text-gray-400 shrink-0">Estado de esta prenda:</span>
+                  <select
+                    value=""
+                    disabled={cambiandoPrenda !== null}
+                    onChange={e => {
+                      const v = e.target.value as EstadoPedido
+                      if (v) cambiarEstadoPrenda(sel.pedido, i, v, itemsSel.length)
+                      e.target.value = ''
+                    }}
+                    className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
+                  >
+                    <option value="">
+                      {cambiandoPrenda === i ? 'Cambiando…' : `${ESTADO_LABELS[sel.pedido.estado as EstadoPedido] ?? sel.pedido.estado} → elegir…`}
+                    </option>
+                    {transicionesDisponibles(sel.pedido.estado as EstadoPedido, esAdmin ? 'admin' : 'asesor')
+                      .filter(est => est !== 'entregado' && est !== 'cancelado')
+                      .map(est => (
+                        <option key={est} value={est}>{ESTADO_LABELS[est]}</option>
+                      ))}
+                  </select>
+                </div>
+              )}
             </div>
           )
         })}

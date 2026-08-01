@@ -779,3 +779,78 @@ export async function separarPedidoAction(pedidoId: string): Promise<SepararPedi
     return { ok: false, error: 'No se pudo separar el pedido. Recarga la página (F5) e intenta de nuevo.' }
   }
 }
+
+export type CambiarEstadoPrendaResult =
+  | { ok: true; numeroParte: string }
+  | { ok: false; error: string }
+
+// Cambia el estado de UNA prenda de un pedido con varios artículos: si el
+// pedido no está separado todavía, se separa primero (TR6835 → -1, -2…) y el
+// estado se aplica solo a la parte de esa prenda. Pedido de Johan/Ronaldo:
+// cada prenda con su propia pestaña de estado, porque llegan en tiempos
+// distintos. El índice es el del artículo en el pedido (0 = primera prenda),
+// mismo orden por id que usa el RPC al numerar las partes.
+export async function cambiarEstadoPrendaAction(
+  pedidoId: string,
+  itemIdx: number,
+  nuevoEstado: EstadoPedido
+): Promise<CambiarEstadoPrendaResult> {
+  const sesion = await getSesion()
+  if (sesion.rol === 'visor') return { ok: false, error: 'Sin permisos' }
+  const supabase = await createClient()
+
+  const { data: pedido } = await supabase
+    .from('pedidos')
+    .select('id, numero_orden, estado, sede_id, factura_id')
+    .eq('id', pedidoId)
+    .single()
+  if (!pedido || !puedeAccederSede(sesion, pedido.sede_id)) {
+    return { ok: false, error: 'Sin acceso a este pedido' }
+  }
+  if (pedido.factura_id) {
+    return { ok: false, error: 'El pedido ya está facturado — no se puede separar por prendas.' }
+  }
+  if (nuevoEstado === 'entregado' || nuevoEstado === 'cancelado') {
+    return { ok: false, error: 'Entregar o cancelar se hace desde el pedido completo, no por prenda.' }
+  }
+
+  const { count } = await supabase
+    .from('pedido_items')
+    .select('id', { count: 'exact', head: true })
+    .eq('pedido_id', pedidoId)
+  const nItems = count ?? 0
+
+  let parteId = pedido.id
+  let numeroParte = pedido.numero_orden
+  let estadoDesde = pedido.estado as EstadoPedido
+
+  if (nItems > 1) {
+    const { data, error } = await supabase.rpc('separar_pedido_por_articulos', { p_pedido_id: pedidoId })
+    if (error) return { ok: false, error: `No se pudo separar el pedido: ${error.message}` }
+    const partes = ((data as any)?.partes ?? []) as string[]
+    numeroParte = partes[itemIdx] ?? `${pedido.numero_orden}-${itemIdx + 1}`
+    const { data: parte } = await supabase
+      .from('pedidos')
+      .select('id, estado')
+      .eq('numero_orden', numeroParte)
+      .single()
+    if (!parte) return { ok: false, error: `Se separó, pero no se encontró la parte ${numeroParte}` }
+    parteId = parte.id
+    estadoDesde = parte.estado as EstadoPedido
+  }
+
+  if (!puedeTransicionar(estadoDesde, nuevoEstado, sesion.rol)) {
+    return { ok: false, error: `Transición inválida: ${estadoDesde} → ${nuevoEstado}` }
+  }
+
+  const { error: errEstado } = await supabase.rpc('cambiar_estado_pedido', {
+    p_pedido_id:    parteId,
+    p_nuevo_estado: nuevoEstado,
+    p_usuario_id:   sesion.id,
+  })
+  if (errEstado) return { ok: false, error: errEstado.message }
+
+  revalidatePath('/pedidos')
+  revalidatePath('/pedidos/galeria')
+  return { ok: true, numeroParte }
+}
