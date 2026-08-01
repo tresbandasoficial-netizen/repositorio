@@ -10,7 +10,7 @@ import { SEGMENTO_CONFIG } from '@/components/recompras/BadgeSegmento'
 import { AvisarLlegoButton } from './AvisarLlegoButton'
 import { formatCOP, formatFecha } from '@/lib/utils/format'
 import { formatearTelefono } from '@/lib/utils/phone'
-import { ImageOff, X, ArrowUpRight, Check, Phone, ShoppingCart, LayoutGrid, Package, ExternalLink, Send } from 'lucide-react'
+import { ImageOff, X, ArrowUpRight, Check, Phone, ShoppingCart, LayoutGrid, Package, ExternalLink, Send, Printer } from 'lucide-react'
 
 export type ItemGaleria = {
   codigo: string | null
@@ -564,6 +564,13 @@ export function GaleriaPedidos({
           >
             <Send size={15} />
             Crear envío
+          </button>
+          <button
+            onClick={() => window.open(`/pedidos/etiquetas?ids=${pedidosMarcados().map(p => p.id).join(',')}`, '_blank')}
+            className="flex items-center gap-1.5 bg-gray-600 hover:bg-gray-500 text-white text-sm font-bold px-3.5 py-2 rounded-xl transition-colors"
+          >
+            <Printer size={15} />
+            Imprimir
           </button>
           <button
             onClick={marcarLlegadaLote}
