@@ -308,6 +308,7 @@ export default async function GaleriaPedidosPage({
           q={params.q}
           marca={params.marca}
           esAdmin={esAdmin}
+          puedeSeleccionar={usuario.rol !== 'visor'}
         />
       )}
 

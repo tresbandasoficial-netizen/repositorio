@@ -5,12 +5,12 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type { PedidoRow } from '@/lib/queries/pedidos'
 import { EstadoInline } from './PedidoCard'
-import { separarPedidoAction } from '@/app/actions/pedidos'
+import { separarPedidoAction, cambiarEstadoInlineAction } from '@/app/actions/pedidos'
 import { SEGMENTO_CONFIG } from '@/components/recompras/BadgeSegmento'
 import { AvisarLlegoButton } from './AvisarLlegoButton'
 import { formatCOP, formatFecha } from '@/lib/utils/format'
 import { formatearTelefono } from '@/lib/utils/phone'
-import { ImageOff, X, ArrowUpRight, Check, Phone, ShoppingCart, LayoutGrid, Package, ExternalLink } from 'lucide-react'
+import { ImageOff, X, ArrowUpRight, Check, Phone, ShoppingCart, LayoutGrid, Package, ExternalLink, Send } from 'lucide-react'
 
 export type ItemGaleria = {
   codigo: string | null
@@ -79,6 +79,7 @@ export function GaleriaPedidos({
   q,
   marca,
   esAdmin = false,
+  puedeSeleccionar,
 }: {
   pedidos: PedidoRow[]
   itemsPorPedido: Record<string, ItemGaleria[]>
@@ -90,6 +91,8 @@ export function GaleriaPedidos({
   // Marca filtrada: igual que con el código, se muestran solo sus artículos.
   marca?: string
   esAdmin?: boolean
+  // Asesores también seleccionan (crear envío / marcar llegada); el visor no.
+  puedeSeleccionar?: boolean
 }) {
   const router = useRouter()
   // Vista: "articulo" = una tarjeta por artículo (TR6835-1…); "pedido" = agrupada
@@ -100,6 +103,51 @@ export function GaleriaPedidos({
   const [marcados, setMarcados] = useState<string[]>([])
   // Separar pedido en partes (un pedido por artículo, cada uno con su estado)
   const [separando, setSeparando] = useState(false)
+  // Marcar llegada en lote de lo seleccionado
+  const [marcandoLote, setMarcandoLote] = useState(false)
+
+  // Quién puede usar las casillas de selección múltiple: admin y asesores
+  // (el prop lo decide la página; si no viene, se mantiene el comportamiento
+  // viejo de solo-admin).
+  const puedeSel = puedeSeleccionar ?? esAdmin
+
+  // Pedidos únicos detrás de las refs marcadas (una ref por artículo puede
+  // repetir pedido: TR6835-1 y TR6835-2 son el mismo pedido si no está separado)
+  function pedidosMarcados() {
+    const map = new Map<string, PedidoRow>()
+    for (const t of tiles) {
+      if (marcados.includes(t.ref)) map.set(t.pedido.id, t.pedido)
+    }
+    return [...map.values()]
+  }
+
+  async function marcarLlegadaLote() {
+    const seleccion = pedidosMarcados()
+    const EN_CAMINO = ['pendiente', 'comprado', 'usa']
+    const aMarcar = seleccion.filter(p => EN_CAMINO.includes(p.estado))
+    const omitidos = seleccion.filter(p => !EN_CAMINO.includes(p.estado))
+    if (aMarcar.length === 0) {
+      alert('Ninguno de los seleccionados está en camino (pendiente/comprado/USA) — no hay nada que marcar.')
+      return
+    }
+    if (!confirm(
+      `¿Marcar ${aMarcar.length} pedido(s) como LLEGÓ A BUCARAMANGA?\n\n` +
+      aMarcar.map(p => p.numero_orden).join(', ') +
+      (omitidos.length > 0 ? `\n\nSe omiten (ya en sede/entregados): ${omitidos.map(p => p.numero_orden).join(', ')}` : '')
+    )) return
+    setMarcandoLote(true)
+    const errores: string[] = []
+    for (const p of aMarcar) {
+      const r = await cambiarEstadoInlineAction(p.id, p.estado as any, 'bucaramanga')
+      if (!r.ok) errores.push(`${p.numero_orden}: ${r.error}`)
+    }
+    setMarcandoLote(false)
+    setMarcados([])
+    alert(errores.length === 0
+      ? `✅ ${aMarcar.length} pedido(s) marcados en Bucaramanga.`
+      : `Marcados ${aMarcar.length - errores.length}. Con error:\n${errores.join('\n')}`)
+    router.refresh()
+  }
 
   async function separarPedido(pedidoId: string, numeroOrden: string) {
     if (!confirm(
@@ -446,8 +494,9 @@ export function GaleriaPedidos({
                   : 'shadow-sm hover:shadow'
                 }`}
               >
-                {/* Casilla de selección (admin): marcar varios para registrar compra */}
-                {esAdmin && !esCancelado && (
+                {/* Casilla de selección: marcar varios para compra (admin),
+                    crear envío o marcar llegada en lote (admin y asesores) */}
+                {puedeSel && !esCancelado && (
                   <span
                     role="checkbox"
                     aria-checked={marcado}
@@ -497,11 +546,11 @@ export function GaleriaPedidos({
         </aside>
       </div>
 
-      {/* Barra flotante: registrar la compra de lo marcado */}
-      {esAdmin && marcados.length > 0 && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-gray-900 text-white rounded-2xl shadow-xl pl-4 pr-2 py-2 print:hidden">
+      {/* Barra flotante con lo marcado: compra (admin), envío o llegada (todos) */}
+      {puedeSel && marcados.length > 0 && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex flex-wrap items-center justify-center gap-2 bg-gray-900 text-white rounded-2xl shadow-xl px-3 py-2 print:hidden max-w-[95vw]">
           <span className="text-sm font-semibold whitespace-nowrap">
-            {marcados.length} artículo{marcados.length !== 1 ? 's' : ''} seleccionado{marcados.length !== 1 ? 's' : ''}
+            {marcados.length} seleccionado{marcados.length !== 1 ? 's' : ''}
           </span>
           <button
             onClick={() => setMarcados([])}
@@ -510,12 +559,29 @@ export function GaleriaPedidos({
             Limpiar
           </button>
           <button
-            onClick={() => router.push(`/compras/nueva?pedidos=${marcados.join(',')}`)}
-            className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold px-4 py-2 rounded-xl transition-colors"
+            onClick={() => router.push(`/envios/nuevo?pedidos=${marcados.join(',')}`)}
+            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-3.5 py-2 rounded-xl transition-colors"
           >
-            <ShoppingCart size={15} />
-            Registrar compra
+            <Send size={15} />
+            Crear envío
           </button>
+          <button
+            onClick={marcarLlegadaLote}
+            disabled={marcandoLote}
+            className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-bold px-3.5 py-2 rounded-xl transition-colors disabled:opacity-50"
+          >
+            <Check size={15} strokeWidth={3} />
+            {marcandoLote ? 'Marcando…' : 'Llegó a Bucaramanga'}
+          </button>
+          {esAdmin && (
+            <button
+              onClick={() => router.push(`/compras/nueva?pedidos=${marcados.join(',')}`)}
+              className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold px-3.5 py-2 rounded-xl transition-colors"
+            >
+              <ShoppingCart size={15} />
+              Registrar compra
+            </button>
+          )}
         </div>
       )}
 

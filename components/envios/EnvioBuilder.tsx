@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useTransition } from 'react'
+import { useState, useRef, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   buscarPedidoParaEnvioAction,
@@ -25,13 +25,17 @@ type ItemLista =
   | { tipo: 'pedido'; pedido_id: string; numero_orden: string; descripcion: string; estado: string }
   | { tipo: 'articulo'; codigo: string; talla: string | null; cantidad: number; descripcion: string | null; enCatalogo: boolean }
 
-export function EnvioBuilder({ sedes, sedeOrigenId }: {
+export function EnvioBuilder({ sedes, sedeOrigenId, pedidosIniciales }: {
   sedes: { id: string; codigo: string; nombre: string }[]
   sedeOrigenId: string | null
+  // Números de pedido pre-marcados desde la galería: se cargan solos al abrir.
+  pedidosIniciales?: string[]
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [guardando, setGuardando] = useState(false)
+  const [cargandoIniciales, setCargandoIniciales] = useState(false)
+  const inicialesCargados = useRef(false)
 
   // Destino por defecto: Santa Rosa
   const sedeSR = sedes.find(s => s.codigo === 'SR')
@@ -105,6 +109,34 @@ export function EnvioBuilder({ sedes, sedeOrigenId }: {
     if (opt.talla) setTallaArt(opt.talla)
     setOpenArt(false)
   }
+
+  // Carga los pedidos que vienen pre-marcados desde la galería (una sola vez).
+  useEffect(() => {
+    if (inicialesCargados.current) return
+    inicialesCargados.current = true
+    const nums = (pedidosIniciales ?? []).filter(Boolean)
+    if (nums.length === 0) return
+    ;(async () => {
+      setCargandoIniciales(true)
+      const fallidos: string[] = []
+      for (const num of nums) {
+        const r = await buscarPedidoParaEnvioAction(num)
+        if (!r.ok) { fallidos.push(num); continue }
+        setItems(prev => prev.some(it => it.tipo === 'pedido' && it.numero_orden === r.pedido.numero_orden)
+          ? prev
+          : [...prev, {
+              tipo: 'pedido',
+              pedido_id: r.pedido.id,
+              numero_orden: r.pedido.numero_orden,
+              descripcion: r.pedido.cliente_nombre,
+              estado: r.pedido.estado,
+            }])
+      }
+      if (fallidos.length > 0) setError(`No se pudieron agregar: ${fallidos.join(', ')}`)
+      setCargandoIniciales(false)
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function agregarPedido() {
     const num = numeroPedido.trim().toUpperCase()
@@ -333,6 +365,12 @@ export function EnvioBuilder({ sedes, sedeOrigenId }: {
       <div className="lg:col-span-2 space-y-3">
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">{error}</div>
+        )}
+
+        {cargandoIniciales && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-700 flex items-center gap-2">
+            <Loader2 size={15} className="animate-spin" /> Cargando los pedidos seleccionados en la galería…
+          </div>
         )}
 
         <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">

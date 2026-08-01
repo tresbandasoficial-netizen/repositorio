@@ -4,7 +4,11 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { EnvioBuilder } from '@/components/envios/EnvioBuilder'
 
-export default async function NuevoEnvioPage() {
+export default async function NuevoEnvioPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ pedidos?: string }>
+}) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -16,6 +20,14 @@ export default async function NuevoEnvioPage() {
   const { data: sedesRaw } = await supabase.from('sedes').select('id, codigo, nombre').order('codigo')
   const sedes = (sedesRaw ?? []) as { id: string; codigo: string; nombre: string }[]
 
+  // Pedidos pre-marcados desde la galería (?pedidos=TR6835,TR6900-1,…)
+  const sp = await searchParams
+  const pedidosIniciales = (sp.pedidos ?? '')
+    .split(',')
+    .map(s => s.trim().toUpperCase())
+    .filter(Boolean)
+    .slice(0, 100)
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
@@ -24,7 +36,7 @@ export default async function NuevoEnvioPage() {
         <h1 className="text-lg font-bold text-gray-900">Nuevo envío</h1>
       </div>
 
-      <EnvioBuilder sedes={sedes} sedeOrigenId={usuario.sede_id ?? null} />
+      <EnvioBuilder sedes={sedes} sedeOrigenId={usuario.sede_id ?? null} pedidosIniciales={pedidosIniciales} />
     </div>
   )
 }
