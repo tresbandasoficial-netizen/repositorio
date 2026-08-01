@@ -2,9 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { DashboardShell } from '@/components/layout/DashboardShell'
 import { AvisoTareas } from '@/components/tareas/AvisoTareas'
-import { AvisoReto } from '@/components/retos/AvisoReto'
 import { ChatFlotante } from '@/components/chat/ChatFlotante'
-import { getRetoVigente } from '@/lib/queries/retos'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -31,10 +29,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .eq('estado', 'pendiente')
     .order('creado_en', { ascending: true })
 
-  // Reto vigente de hoy. El RLS decide quién lo ve: un reto de Bucaramanga y
-  // Santa Rosa no le llega a Cúcuta.
-  const reto = await getRetoVigente()
-
   // Burbuja de chat en todas las páginas (mismo RPC que /chat; el visor no chatea).
   const { data: usuariosChat } = usuario.rol === 'visor'
     ? { data: null }
@@ -44,9 +38,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <DashboardShell usuario={usuario} sedeCodigo={sedeCodigo}>
       {children}
       <AvisoTareas tareas={tareasPendientes ?? []} />
-      {reto && (
-        <AvisoReto reto={reto.reto} avances={reto.avances} grupo={reto.grupo} usuarioId={usuario.id} />
-      )}
+      {/* El aviso flotante del reto se quitó a pedido de Johan/Ronaldo (1-ago-2026):
+          los retos solo se ven entrando a /retos. */}
       {usuario.rol !== 'visor' && (
         <ChatFlotante
           miId={usuario.id}
