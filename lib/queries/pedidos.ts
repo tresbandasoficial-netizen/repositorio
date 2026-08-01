@@ -123,11 +123,9 @@ export async function getPedidos(filtros?: {
   // por estado 'pendiente' no los encuentra. Se excluyen los cancelados y los ya
   // entregados: esos no hay que pedirlos.
   if (filtros?.sinCompra) {
-    const { data: conCompra } = await supabase
-      .from('compra_items').select('pedido_id').not('pedido_id', 'is', null).limit(5000)
-    const ids = [...new Set(((conCompra ?? []) as Array<{ pedido_id: string }>).map(r => r.pedido_id))]
-    query = query.not('estado', 'in', '(cancelado,entregado)')
-    if (ids.length > 0) query = query.not('id', 'in', `(${ids.join(',')})`)
+    // La vista expone `tiene_compra` (exists sobre compra_items): filtrar en el
+    // servidor evita armar un `id not in (...)` gigante que revienta la URL.
+    query = query.not('estado', 'in', '(cancelado,entregado)').eq('tiene_compra', false)
   }
 
   // Filtro por MARCA: los pedidos que tengan al menos un artículo de esa marca,
@@ -141,10 +139,13 @@ export async function getPedidos(filtros?: {
         supabase.from('pedido_items').select('pedido_id').ilike('marca', m).limit(1500),
         supabase.from('pedido_items').select('pedido_id, articulos!inner(id)').ilike('articulos.marca', m).limit(1500),
       ])
+      // Tope de 300 ids: más allá la URL del filtro supera el límite del
+      // servidor (Bad Request). Con marcas muy amplias se muestran hasta 300
+      // pedidos coincidentes, suficiente para navegar.
       const ids = [...new Set([
         ...((porItem.data ?? []) as Array<{ pedido_id: string }>).map(r => r.pedido_id),
         ...((porCatalogo.data ?? []) as Array<{ pedido_id: string }>).map(r => r.pedido_id),
-      ])]
+      ])].slice(0, 300)
       // Sin coincidencias se fuerza un resultado vacío: si no, el filtro se
       // ignoraría y saldrían TODOS los pedidos, que es peor que no encontrar nada.
       query = ids.length > 0
@@ -169,7 +170,7 @@ export async function getPedidos(filtros?: {
         ...((porCodigoCatalogo.data ?? []) as Array<{ pedido_id: string }>).map(r => r.pedido_id),
         ...((porMarcaItem.data ?? []) as Array<{ pedido_id: string }>).map(r => r.pedido_id),
         ...((porMarcaCatalogo.data ?? []) as Array<{ pedido_id: string }>).map(r => r.pedido_id),
-      ])].slice(0, 400)
+      ])].slice(0, 300)
 
       const condiciones = [
         `numero_orden.ilike.%${q}%`,
