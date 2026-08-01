@@ -106,29 +106,35 @@ export function BuscadorArticulo({
                 onMouseDown={() => { onElegir(a); setAbierto(false) }}
                 className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm border-b border-gray-50 last:border-0"
               >
-                {/* Una cosa por renglón: código, nombre, color, existencias. */}
+                {/* Una cosa por renglón: código, marca, nombre, existencias. */}
                 {a.codigo && (
                   <span className="block font-mono text-[11px] font-semibold text-blue-700 truncate">{a.codigo}</span>
                 )}
-                <span className="block font-medium text-gray-900 truncate">
-                  {a.marca && <span className="text-gray-500">{a.marca} </span>}
+                {a.marca && (
+                  <span className="block text-[10px] font-bold uppercase tracking-wide text-gray-400 truncate">
+                    {a.marca}{a.color ? ` · ${a.color}` : ''}
+                  </span>
+                )}
+                <span className="block font-semibold text-[15px] text-gray-900 leading-snug truncate">
                   {a.nombre}
                 </span>
-                {a.color && <span className="block text-xs text-gray-400 truncate">{a.color}</span>}
-                <span className="block text-xs mt-0.5">
-                  {conStock.length > 0 ? (
-                    <>
-                      <span className="text-gray-400">{donde}: </span>
-                      {conStock.map(t => (
-                        <span key={t.talla ?? ''} className="text-emerald-700 font-medium mr-1.5">
-                          {t.talla ? `T${t.talla}` : 'sin talla'}·{t.stock}
-                        </span>
-                      ))}
-                    </>
-                  ) : (
-                    <span className="text-gray-400">Sin existencias</span>
-                  )}
-                </span>
+                {/* Cada talla en su fichita, para que se distinga de una */}
+                {conStock.length > 0 ? (
+                  <span className="flex flex-wrap items-center gap-1 mt-1">
+                    <span className="text-[10px] text-gray-400">{donde}:</span>
+                    {conStock.map(t => (
+                      <span
+                        key={t.talla ?? ''}
+                        className="inline-flex items-center gap-1 bg-green-50 border border-green-200 text-green-800 rounded-md px-1.5 py-0.5 text-[11px] font-bold"
+                      >
+                        {t.talla ? `Talla ${t.talla}` : 'Sin talla'}
+                        <span className="font-normal text-green-600">×{t.stock}</span>
+                      </span>
+                    ))}
+                  </span>
+                ) : (
+                  <span className="block text-xs mt-0.5 text-gray-400">Sin existencias</span>
+                )}
               </button>
             )
           })}
