@@ -91,12 +91,21 @@ export async function getPedidos(filtros?: {
   const desde = (pagina - 1) * porPagina
   const hasta = desde + porPagina - 1
 
+  // Orden: por defecto los más recientes primero. Cuando se filtra por un
+  // estado de sede (bucaramanga / santa_rosa), se atiende POR ORDEN DE
+  // LLEGADA a la sede: fecha_estado = cuándo pasó a ese estado (historial).
+  // Los sin registro en el historial (viejos) van de últimos.
+  const porLlegada = filtros?.estado === 'bucaramanga' || filtros?.estado === 'santa_rosa'
+
   let query = supabase
     .from('vista_pedidos_asesor')
     .select('*', { count: 'exact' })
     .not('tipo', 'in', '("venta_inmediata","saldo_anterior")')
-    .order('fecha_creacion', { ascending: false })
     .range(desde, hasta)
+
+  query = porLlegada
+    ? query.order('fecha_estado', { ascending: true, nullsFirst: false })
+    : query.order('fecha_creacion', { ascending: false })
 
   if (filtros?.estado)      query = query.eq('estado', filtros.estado)
   if (filtros?.sede)        query = query.eq('sede_codigo', filtros.sede)
