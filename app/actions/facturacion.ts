@@ -56,7 +56,7 @@ export async function getPedidosFacturablesAction(clienteId: string): Promise<Pe
   if (pedidos.length === 0) return []
 
   const ids = pedidos.map(p => p.id)
-  const { data: pagos } = await supabase.from('pagos').select('pedido_id, monto').eq('anulado', false).in('pedido_id', ids)
+  const { data: pagos } = await supabase.from('pagos').select('pedido_id, monto').eq('anulado', false).neq('metodo', 'credito').in('pedido_id', ids)
   const abonado = new Map<string, number>()
   for (const pg of (pagos ?? []) as Array<{ pedido_id: string; monto: number }>) {
     abonado.set(pg.pedido_id, (abonado.get(pg.pedido_id) ?? 0) + pg.monto)
@@ -252,7 +252,7 @@ export async function crearFacturaUnificadaAction(
     if (data.pedido_ids.length > 0) {
       const [{ data: peds }, { data: pagosPrev }] = await Promise.all([
         supabase.from('pedidos').select('total').in('id', data.pedido_ids),
-        supabase.from('pagos').select('monto').in('pedido_id', data.pedido_ids).eq('anulado', false),
+        supabase.from('pagos').select('monto').in('pedido_id', data.pedido_ids).eq('anulado', false).neq('metodo', 'credito'),
       ])
       const bruto = (peds ?? []).reduce((s, p) => s + (p.total ?? 0), 0)
       const prepagado = (pagosPrev ?? []).reduce((s, pg) => s + (pg.monto ?? 0), 0)

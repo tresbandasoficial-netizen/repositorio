@@ -289,6 +289,7 @@ export async function getPedidosFacturables(clienteId: string, sedeId: string) {
     .from('pagos')
     .select('pedido_id, monto')
     .eq('anulado', false)
+    .neq('metodo', 'credito')
     .in('pedido_id', ids)
 
   const abonado = new Map<string, number>()
