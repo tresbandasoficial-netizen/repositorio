@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type { PedidoRow } from '@/lib/queries/pedidos'
 import { EstadoInline } from './PedidoCard'
+import { separarPedidoAction } from '@/app/actions/pedidos'
 import { SEGMENTO_CONFIG } from '@/components/recompras/BadgeSegmento'
 import { AvisarLlegoButton } from './AvisarLlegoButton'
 import { formatCOP, formatFecha } from '@/lib/utils/format'
@@ -97,6 +98,23 @@ export function GaleriaPedidos({
   const [verMovil, setVerMovil] = useState(false)
   // Selección múltiple (admin): refs marcadas para registrar compra
   const [marcados, setMarcados] = useState<string[]>([])
+  // Separar pedido en partes (un pedido por artículo, cada uno con su estado)
+  const [separando, setSeparando] = useState(false)
+
+  async function separarPedido(pedidoId: string, numeroOrden: string) {
+    if (!confirm(
+      `¿Separar ${numeroOrden} en un pedido por artículo?\n\n` +
+      `Cada artículo queda como pedido aparte (${numeroOrden}-1, ${numeroOrden}-2…) ` +
+      `con su PROPIO estado — útil cuando llegan en tiempos distintos. ` +
+      `Los abonos se reparten solos y no se puede deshacer.`
+    )) return
+    setSeparando(true)
+    const r = await separarPedidoAction(pedidoId)
+    setSeparando(false)
+    if (!r.ok) { alert(r.error); return }
+    alert(`Listo: quedó separado en ${r.partes.length} pedidos (${r.partes.join(', ')}). Ya puedes cambiarle el estado a cada uno.`)
+    router.refresh()
+  }
 
   const tiles: Tile[] = useMemo(() => {
     const out: Tile[] = []
@@ -274,6 +292,18 @@ export function GaleriaPedidos({
             facturado={!!sel.pedido.factura_id}
           />
         </div>
+
+        {/* Con varios artículos, se puede separar para dar estado a cada uno
+            (llegan en tiempos distintos). No aplica si ya está facturado. */}
+        {itemsSel.length > 1 && !sel.pedido.factura_id && (
+          <button
+            onClick={() => separarPedido(sel.pedido.id, sel.pedido.numero_orden)}
+            disabled={separando}
+            className="mx-4 mb-3 flex items-center justify-center gap-1.5 w-[calc(100%-2rem)] text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl px-3 py-2 disabled:opacity-50"
+          >
+            ✂️ {separando ? 'Separando…' : `Separar en ${itemsSel.length} pedidos (estado propio por artículo)`}
+          </button>
+        )}
 
         {/* Artículos: el elegido queda resaltado */}
         {itemsSel.map((it, i) => {
