@@ -71,21 +71,20 @@ async function _crearPedidoConDatos(
     return { ok: false, error: 'No puedes crear pedidos en otra sede' }
   }
 
-  // La venta se puede registrar a nombre de otro asesor ACTIVO de la misma sede
-  // (ej.: el equipo pone ventas a nombre de Ronaldo o Johan). Los pagos siguen
-  // firmados por quien los registra. RLS solo deja leer el propio usuario, por
-  // eso la validación usa el cliente admin.
+  // La venta se puede registrar a nombre de otro asesor ACTIVO de la misma
+  // sede, o de un administrador (Johan/Ronaldo piden que el equipo les pase
+  // pedidos a su nombre). Los pagos siguen firmados por quien los registra.
+  // RLS solo deja leer el propio usuario, por eso la validación usa admin.
   let asesorVentaId = usuario.id
   if (datos.asesor_id && datos.asesor_id !== usuario.id) {
     const admin = createAdminClient()
     const { data: asesorSel } = await admin
       .from('usuarios')
-      .select('id')
+      .select('id, rol, sede_id')
       .eq('id', datos.asesor_id)
       .eq('activo', true)
-      .eq('sede_id', sede.id)
       .single()
-    if (!asesorSel) {
+    if (!asesorSel || (asesorSel.rol !== 'admin' && asesorSel.sede_id !== sede.id)) {
       return { ok: false, error: 'El asesor seleccionado no es válido para esta sede' }
     }
     asesorVentaId = asesorSel.id

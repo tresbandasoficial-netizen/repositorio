@@ -34,6 +34,21 @@ export default async function NuevoPedidoPage() {
     .eq('sede_id', sedeIdLista)
     .order('nombre')
   const asesores: { id: string; nombre: string }[] = asesoresSede ?? []
+
+  // En Bucaramanga las ventas también se pueden poner a nombre de Johan o
+  // Ronaldo (sus cuentas admin reales) — a veces piden que los asesores les
+  // pasen pedidos a su nombre.
+  if (sedeCodigo === 'TR') {
+    const { data: adminsVenta } = await admin
+      .from('usuarios')
+      .select('id, nombre')
+      .eq('activo', true)
+      .in('email', ['tresbandasoficial@gmail.com', 'johan.950629@gmail.com'])
+    for (const a of adminsVenta ?? []) {
+      if (!asesores.some(x => x.id === a.id)) asesores.push(a)
+    }
+  }
+
   if (!asesores.some(a => a.id === user.id)) {
     asesores.unshift({ id: user.id, nombre: (usuario as any).nombre ?? 'Yo' })
   }
