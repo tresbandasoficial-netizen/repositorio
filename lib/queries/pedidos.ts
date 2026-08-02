@@ -232,7 +232,7 @@ export async function getPedidoDetalle(id: string): Promise<PedidoDetalle | null
     supabase.from('vista_pedidos_asesor').select('*').eq('id', id).single(),
     supabase
       .from('pedido_items')
-      .select('id, marca, descripcion, talla, cantidad, precio_venta, imagen_url, codigo, articulos(codigo)')
+      .select('id, articulo_id, marca, descripcion, talla, cantidad, precio_venta, imagen_url, codigo, articulos(codigo)')
       .eq('pedido_id', id)
       .order('id'),
     supabase
