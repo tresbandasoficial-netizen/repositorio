@@ -14,7 +14,8 @@ type SedeOpcion = { id: string; codigo: string; nombre: string }
 export function VentaInmediataForm({ sedes }: { sedes: SedeOpcion[] }) {
   const router = useRouter()
 
-  const [sedeId, setSedeId] = useState(sedes[0]?.id ?? '')
+  // Bucaramanga por defecto (los asesores reciben solo su sede en la lista)
+  const [sedeId, setSedeId] = useState(sedes.find(s => s.codigo === 'TR')?.id ?? sedes[0]?.id ?? '')
   const sedeCodigo = sedes.find(s => s.id === sedeId)?.codigo ?? ''
 
   const [busqueda, setBusqueda] = useState('')

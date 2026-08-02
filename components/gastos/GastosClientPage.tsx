@@ -29,11 +29,13 @@ interface Props {
 
 export function GastosClientPage({ gastos, cuentas, sedes, sedeRestringida, esAdmin = true, porCategoria, totalGeneral, filtros, cuentasDestino = [], origenTrasladoId = '' }: Props) {
   const [mostrarForm, setMostrarForm] = useState(false)
+  // Sede por defecto: la restringida del asesor, o Bucaramanga para el admin
+  const sedeDefecto = sedeRestringida?.id ?? sedes.find(s => s.codigo === 'TR')?.id ?? sedes[0]?.id ?? ''
   const [form, setForm] = useState({
     fecha:       hoy(),
     valor:       '',
     categoria:   '' as CategoriaGasto | '',
-    sede_id:     sedeRestringida?.id ?? sedes[0]?.id ?? '',
+    sede_id:     sedeDefecto,
     cuenta_id:   '',
     observacion: '',
   })
@@ -66,7 +68,7 @@ export function GastosClientPage({ gastos, cuentas, sedes, sedeRestringida, esAd
       })
       if (!r.ok) { setError(r.error); return }
       setMostrarForm(false)
-      setForm({ fecha: hoy(), valor: '', categoria: '', sede_id: sedes[0]?.id ?? '', cuenta_id: '', observacion: '' })
+      setForm({ fecha: hoy(), valor: '', categoria: '', sede_id: sedeDefecto, cuenta_id: '', observacion: '' })
       window.location.reload()
     })
   }

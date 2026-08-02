@@ -37,7 +37,7 @@ const celda = 'w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs focu
 export function CargaLotePanel({ sedes, sedeFijaId }: { sedes: Sede[]; sedeFijaId: string | null }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  const [sedeId, setSedeId] = useState(sedeFijaId ?? sedes[0]?.id ?? '')
+  const [sedeId, setSedeId] = useState(sedeFijaId ?? sedes.find(s => s.codigo === 'TR')?.id ?? sedes[0]?.id ?? '')
   const [filas, setFilas] = useState<Fila[]>(() => Array.from({ length: 5 }, filaVacia))
   const [error, setError] = useState<string | null>(null)
   const [resultado, setResultado] = useState<{ creados: number; reutilizados: number; ajustes: number; errores: string[] } | null>(null)

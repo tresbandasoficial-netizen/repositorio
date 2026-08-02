@@ -32,7 +32,7 @@ export function ConteoPanel({ sedes, sedeFijaId }: { sedes: Sede[]; sedeFijaId: 
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
-  const [sedeId, setSedeId] = useState(sedeFijaId ?? sedes[0]?.id ?? '')
+  const [sedeId, setSedeId] = useState(sedeFijaId ?? sedes.find(s => s.codigo === 'TR')?.id ?? sedes[0]?.id ?? '')
   const [filas, setFilas] = useState<Fila[]>([])
   const [error, setError] = useState<string | null>(null)
   const [exito, setExito] = useState<{ items: number; ajustes: number } | null>(null)

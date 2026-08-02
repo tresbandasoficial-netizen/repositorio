@@ -10,6 +10,11 @@ export default async function NuevaFacturaPage() {
   if (sesion.rol === 'admin') {
     const { data } = await supabase.from('sedes').select('id, codigo, nombre').order('codigo')
     sedes = (data ?? []) as typeof sedes
+    // La sede del admin (Bucaramanga) va de primera: el formulario toma la
+    // primera de la lista como sede por defecto al facturar.
+    if (sesion.sede_id) {
+      sedes.sort((a, b) => (a.id === sesion.sede_id ? -1 : 0) - (b.id === sesion.sede_id ? -1 : 0))
+    }
   } else if (sesion.sede_id) {
     const { data } = await supabase.from('sedes').select('id, codigo, nombre').eq('id', sesion.sede_id).single()
     if (data) sedes = [data]
