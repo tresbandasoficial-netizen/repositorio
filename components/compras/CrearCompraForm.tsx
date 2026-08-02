@@ -197,25 +197,39 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
     if (totalCop <= 0) { setError('Escribe primero el total en pesos que pagaste'); return }
 
     setItems(prev => {
-      const peso = prev.map(it => (it.precio_usd ?? 0) * (parseInt(it.cantidad, 10) || 1))
-      const sumaPesos = peso.reduce((s, v) => s + v, 0)
-      // Sin precios en dólares se reparte por cantidad, que es lo único que hay.
-      const base = sumaPesos > 0 ? peso : prev.map(it => parseInt(it.cantidad, 10) || 1)
-      const sumaBase = base.reduce((s, v) => s + v, 0)
-      if (sumaBase <= 0) return prev
-
       const cantidades = prev.map(it => parseInt(it.cantidad, 10) || 1)
-      const unitarios = prev.map((_, i) =>
-        Math.round((totalCop * base[i]) / sumaBase / cantidades[i]))
+      const costosActuales = prev.map(it => parseInt(it.costo_unitario_cop, 10) || 0)
+      const sumaActual = costosActuales.reduce((s, v, i) => s + v * cantidades[i], 0)
 
-      // El redondeo deja unos pesos suelto: se los lleva la fila más grande, así
-      // la suma da el total al peso. Se busca una de cantidad 1 para poder
-      // absorberlo completo.
+      let unitarios: number[]
+
+      if (sumaActual > 0) {
+        // Ya hay costos digitados: NO se pisan. Solo se reparte la DIFERENCIA
+        // (total pagado − suma actual) por partes iguales entre las unidades,
+        // sumando (o restando) lo mismo a cada una. Las proporciones que la
+        // persona digitó se conservan.
+        const totalUnidades = cantidades.reduce((s, c) => s + c, 0)
+        const diferencia = totalCop - sumaActual
+        const ajusteUnitario = Math.trunc(diferencia / totalUnidades)
+        unitarios = costosActuales.map(c => Math.max(0, c + ajusteUnitario))
+      } else {
+        // Sin costos todavía: se reparte el total en proporción al peso de cada
+        // uno en dólares (o por cantidad si tampoco hay precios USD).
+        const peso = prev.map(it => (it.precio_usd ?? 0) * (parseInt(it.cantidad, 10) || 1))
+        const sumaPesos = peso.reduce((s, v) => s + v, 0)
+        const base = sumaPesos > 0 ? peso : cantidades
+        const sumaBase = base.reduce((s, v) => s + v, 0)
+        if (sumaBase <= 0) return prev
+        unitarios = prev.map((_, i) => Math.round((totalCop * base[i]) / sumaBase / cantidades[i]))
+      }
+
+      // El redondeo deja unos pesos sueltos: se los lleva una fila de cantidad
+      // 1 (o la más grande), así la suma da el total al peso.
       const sumaFinal = unitarios.reduce((s, v, i) => s + v * cantidades[i], 0)
       const sobra = totalCop - sumaFinal
       if (sobra !== 0) {
         let idx = cantidades.findIndex(c => c === 1)
-        if (idx === -1) idx = base.indexOf(Math.max(...base))
+        if (idx === -1) idx = unitarios.indexOf(Math.max(...unitarios))
         if (idx >= 0) {
           const ajuste = Math.round(sobra / cantidades[idx])
           unitarios[idx] = Math.max(0, unitarios[idx] + ajuste)
