@@ -137,30 +137,13 @@ export async function getPedidos(filtros?: {
     query = query.not('estado', 'in', '(cancelado,entregado)').eq('tiene_compra', false)
   }
 
-  // Filtro por MARCA: los pedidos que tengan al menos un artículo de esa marca,
-  // ya sea la escrita en el pedido o la del catálogo enlazado. Se compara sin
-  // distinguir mayúsculas porque en los pedidos está escrita de varias formas
-  // (Adidas / adidas / ADIDAS).
+  // Filtro por MARCA: la vista expone `marcas` (array en minúsculas con la
+  // marca del item o del catálogo enlazado — migración 148), así el filtro va
+  // directo en la consulta. Antes se armaba una lista de ids con tope de 300
+  // (límite de URL) y los pedidos que quedaban por fuera desaparecían.
   if (filtros?.marca?.trim()) {
-    const m = terminoBusquedaSeguro(filtros.marca)
-    if (m) {
-      const [porItem, porCatalogo] = await Promise.all([
-        supabase.from('pedido_items').select('pedido_id').ilike('marca', m).limit(1500),
-        supabase.from('pedido_items').select('pedido_id, articulos!inner(id)').ilike('articulos.marca', m).limit(1500),
-      ])
-      // Tope de 300 ids: más allá la URL del filtro supera el límite del
-      // servidor (Bad Request). Con marcas muy amplias se muestran hasta 300
-      // pedidos coincidentes, suficiente para navegar.
-      const ids = [...new Set([
-        ...((porItem.data ?? []) as Array<{ pedido_id: string }>).map(r => r.pedido_id),
-        ...((porCatalogo.data ?? []) as Array<{ pedido_id: string }>).map(r => r.pedido_id),
-      ])].slice(0, 300)
-      // Sin coincidencias se fuerza un resultado vacío: si no, el filtro se
-      // ignoraría y saldrían TODOS los pedidos, que es peor que no encontrar nada.
-      query = ids.length > 0
-        ? query.in('id', ids)
-        : query.eq('id', '00000000-0000-0000-0000-000000000000')
-    }
+    const m = terminoBusquedaSeguro(filtros.marca)?.toLowerCase()
+    if (m) query = query.contains('marcas', [m])
   }
 
   if (filtros?.q) {
