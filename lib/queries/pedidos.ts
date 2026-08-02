@@ -151,18 +151,33 @@ export async function getPedidos(filtros?: {
     if (q) {
       // También se puede buscar por CÓDIGO o MARCA del artículo: se buscan los
       // pedidos cuyos items coincidan (propios o del catálogo enlazado).
+      // Los topes (150 por criterio, 300 ids en total por el largo de la URL)
+      // priorizan lo MÁS RECIENTE: si algo queda por fuera, es lo más viejo.
+      const ordenReciente = { ascending: false } as const
       const [porCodigoItem, porCodigoCatalogo, porMarcaItem, porMarcaCatalogo] = await Promise.all([
-        supabase.from('pedido_items').select('pedido_id').ilike('codigo', `%${q}%`).limit(150),
-        supabase.from('pedido_items').select('pedido_id, articulos!inner(id)').ilike('articulos.codigo', `%${q}%`).limit(150),
-        supabase.from('pedido_items').select('pedido_id').ilike('marca', `%${q}%`).limit(150),
-        supabase.from('pedido_items').select('pedido_id, articulos!inner(id)').ilike('articulos.marca', `%${q}%`).limit(150),
+        supabase.from('pedido_items').select('pedido_id, pedidos!inner(fecha_creacion)').ilike('codigo', `%${q}%`).order('pedidos(fecha_creacion)', ordenReciente).limit(150),
+        supabase.from('pedido_items').select('pedido_id, articulos!inner(id), pedidos!inner(fecha_creacion)').ilike('articulos.codigo', `%${q}%`).order('pedidos(fecha_creacion)', ordenReciente).limit(150),
+        supabase.from('pedido_items').select('pedido_id, pedidos!inner(fecha_creacion)').ilike('marca', `%${q}%`).order('pedidos(fecha_creacion)', ordenReciente).limit(150),
+        supabase.from('pedido_items').select('pedido_id, articulos!inner(id), pedidos!inner(fecha_creacion)').ilike('articulos.marca', `%${q}%`).order('pedidos(fecha_creacion)', ordenReciente).limit(150),
       ])
-      const idsPorItem = [...new Set([
-        ...((porCodigoItem.data ?? []) as Array<{ pedido_id: string }>).map(r => r.pedido_id),
-        ...((porCodigoCatalogo.data ?? []) as Array<{ pedido_id: string }>).map(r => r.pedido_id),
-        ...((porMarcaItem.data ?? []) as Array<{ pedido_id: string }>).map(r => r.pedido_id),
-        ...((porMarcaCatalogo.data ?? []) as Array<{ pedido_id: string }>).map(r => r.pedido_id),
-      ])].slice(0, 300)
+      type FilaItem = { pedido_id: string; pedidos: { fecha_creacion: string } | { fecha_creacion: string }[] | null }
+      const fechaPorPedido = new Map<string, string>()
+      const filas = [
+        ...(porCodigoItem.data ?? []),
+        ...(porCodigoCatalogo.data ?? []),
+        ...(porMarcaItem.data ?? []),
+        ...(porMarcaCatalogo.data ?? []),
+      ] as unknown as FilaItem[]
+      for (const r of filas) {
+        const ped = Array.isArray(r.pedidos) ? r.pedidos[0] : r.pedidos
+        const f = ped?.fecha_creacion ?? ''
+        const prev = fechaPorPedido.get(r.pedido_id)
+        if (prev === undefined || f > prev) fechaPorPedido.set(r.pedido_id, f)
+      }
+      const idsPorItem = [...fechaPorPedido.entries()]
+        .sort((a, b) => b[1].localeCompare(a[1]))
+        .slice(0, 300)
+        .map(e => e[0])
 
       const condiciones = [
         `numero_orden.ilike.%${q}%`,
