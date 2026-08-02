@@ -28,6 +28,11 @@ interface Props {
   // negocio" (solo lectura de la lista, se agrega desde la pestaña de la sede).
   sedeId: string | null
   sedeNombre: string
+  // Ganancia del mes: la REAL (pedidos con costo de compra asignado) y la
+  // estimada con el margen para lo que aún no tiene costo.
+  utilidadRealMes: number
+  utilidadEstimadaMes: number
+  ventaSinCostoMes: number
 }
 
 // ── KPI card principal (gradiente, estilo dashboard) ─────────────────────────
@@ -92,7 +97,7 @@ function SectionCard({ title, icon: Icon, children, headerRight }: {
   )
 }
 
-export function GastosFijosPanel({ gastos, totalFijos, puntoEquilibrio, ventasMes, gastosVariablesMes, diasMes, margenBruto, diaDelMes, diasCalendario, sedeId, sedeNombre }: Props) {
+export function GastosFijosPanel({ gastos, totalFijos, puntoEquilibrio, ventasMes, gastosVariablesMes, diasMes, margenBruto, diaDelMes, diasCalendario, sedeId, sedeNombre, utilidadRealMes, utilidadEstimadaMes, ventaSinCostoMes }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -102,9 +107,14 @@ export function GastosFijosPanel({ gastos, totalFijos, puntoEquilibrio, ventasMe
   const [concepto, setConcepto] = useState('')
   const [monto, setMonto] = useState('')
 
-  const pctCubierto = puntoEquilibrio > 0 ? Math.min(100, (ventasMes / puntoEquilibrio) * 100) : 0
-  const faltante = Math.max(0, puntoEquilibrio - ventasMes)
-  const cubierto = ventasMes >= puntoEquilibrio
+  // Avance con GANANCIA, no con ventas: la utilidad real del mes (pedido por
+  // pedido, con sus costos de compra) + la estimada de lo que falta por costear
+  // contra los gastos fijos. Cubierto = la ganancia ya paga los fijos.
+  const utilidadMes = utilidadRealMes + utilidadEstimadaMes
+  const pctCubierto = totalFijos > 0 ? Math.min(100, (utilidadMes / totalFijos) * 100) : 0
+  const faltanteUtilidad = Math.max(0, totalFijos - utilidadMes)
+  const faltanteVentas = margenBruto > 0 ? Math.ceil(faltanteUtilidad / margenBruto) : 0
+  const cubierto = totalFijos > 0 && utilidadMes >= totalFijos
 
   // ── Simulador interactivo ──────────────────────────────────────────────────
   const [simVentas, setSimVentas] = useState(400_000_000)
@@ -114,8 +124,6 @@ export function GastosFijosPanel({ gastos, totalFijos, puntoEquilibrio, ventasMe
   const simNeta = simBruta - totalFijos - simBonos
   const simEquilibrio = simMargen > 0 ? Math.ceil((totalFijos + simBonos) / (simMargen / 100)) : 0
 
-  // Proyección de cierre según el ritmo real del mes
-  const proyeccion = diaDelMes >= 1 ? Math.round((ventasMes / diaDelMes) * diasCalendario) : 0
 
   function abrirEdicion(g: GastoFijo | null) {
     setError(null)
@@ -195,13 +203,13 @@ export function GastosFijosPanel({ gastos, totalFijos, puntoEquilibrio, ventasMe
       {/* Avance del mes contra el punto de equilibrio */}
       <SectionCard title={`Avance del mes — ${sedeNombre}`} icon={TrendingUp} headerRight={
         <span className={`text-sm font-bold ${cubierto ? 'text-green-600' : 'text-gray-500'}`}>
-          {pctCubierto.toFixed(0)}% del punto de equilibrio
+          {pctCubierto.toFixed(0)}% de los fijos cubiertos
         </span>
       }>
         <div className="p-5 space-y-3">
           <div className="flex items-baseline justify-between">
-            <p className="text-2xl font-bold tracking-tight text-gray-900">{formatCOP(ventasMes)}</p>
-            <p className="text-xs text-gray-400">ventas del mes en curso</p>
+            <p className="text-2xl font-bold tracking-tight text-gray-900">{formatCOP(utilidadMes)}</p>
+            <p className="text-xs text-gray-400">ganancia bruta del mes</p>
           </div>
           <div className="h-3.5 bg-gray-100 rounded-full overflow-hidden">
             <div
@@ -210,21 +218,28 @@ export function GastosFijosPanel({ gastos, totalFijos, puntoEquilibrio, ventasMe
             />
           </div>
           <p className="text-xs text-gray-500">
-            {cubierto
-              ? '✅ Los gastos fijos del mes ya están cubiertos — lo que se venda de aquí en adelante es ganancia.'
-              : `Faltan ${formatCOP(faltante)} en ventas para cubrir los gastos fijos del mes.`}
+            {formatCOP(utilidadRealMes)} es ganancia <strong>real</strong> (pedidos con costo de compra
+            asignado){ventaSinCostoMes > 0 && (
+              <> + {formatCOP(utilidadEstimadaMes)} estimada al {(margenBruto * 100).toFixed(0)}% sobre{' '}
+              {formatCOP(ventaSinCostoMes)} vendidos aún sin costo</>
+            )}. Ventas del mes: {formatCOP(ventasMes)}.
           </p>
-          {proyeccion > 0 && diaDelMes >= 2 && (
+          <p className="text-xs text-gray-500">
+            {cubierto
+              ? '✅ La ganancia del mes ya paga todos los gastos fijos — de aquí en adelante es utilidad limpia.'
+              : `Faltan ${formatCOP(faltanteUtilidad)} de ganancia (~${formatCOP(faltanteVentas)} en ventas) para cubrir los fijos.`}
+          </p>
+          {utilidadMes > 0 && diaDelMes >= 2 && (
             <div className="flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3">
               <div className="w-9 h-9 rounded-2xl bg-blue-100 flex items-center justify-center shrink-0">
                 <TrendingUp size={16} className="text-blue-600" />
               </div>
               <p className="text-xs text-gray-600">
-                Al ritmo actual (día {diaDelMes} de {diasCalendario}), el mes cerraría en{' '}
-                <strong className="text-gray-900">{formatCOP(proyeccion)}</strong>
-                {proyeccion >= puntoEquilibrio
-                  ? ` — ${(proyeccion / puntoEquilibrio).toFixed(1)} veces el punto de equilibrio.`
-                  : ' — por debajo del punto de equilibrio, hay que apretar.'}
+                Al ritmo actual (día {diaDelMes} de {diasCalendario}), la ganancia del mes cerraría en{' '}
+                <strong className="text-gray-900">{formatCOP(Math.round((utilidadMes / diaDelMes) * diasCalendario))}</strong>
+                {(utilidadMes / diaDelMes) * diasCalendario >= totalFijos
+                  ? ` — ${(((utilidadMes / diaDelMes) * diasCalendario) / totalFijos).toFixed(1)} veces los gastos fijos.`
+                  : ' — por debajo de los gastos fijos, hay que apretar.'}
               </p>
             </div>
           )}

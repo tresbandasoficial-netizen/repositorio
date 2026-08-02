@@ -66,7 +66,18 @@ export default async function GastosFijosPage({
     .limit(2000)
   if (sedeSel) qMargen = qMargen.eq('sede_id', sedeSel.id)
 
-  const [gastosRes, pedidosRes, variablesRes, margenRes] = await Promise.all([qGastos, qPedidos, qVariables, qMargen])
+  // Ganancia REAL del mes en curso, pedido por pedido (venta − costo de
+  // compra). Lo que aún no tiene costo asignado se estima con el margen.
+  let qGananciaMes = supabase
+    .from('vista_ganancia_pedidos')
+    .select('venta, utilidad, tiene_costo')
+    .neq('estado', 'cancelado')
+    .neq('tipo', 'saldo_anterior')
+    .gte('fecha_creacion', `${inicioMes}T00:00:00-05:00`)
+    .limit(3000)
+  if (sedeSel) qGananciaMes = qGananciaMes.eq('sede_id', sedeSel.id)
+
+  const [gastosRes, pedidosRes, variablesRes, margenRes, gananciaMesRes] = await Promise.all([qGastos, qPedidos, qVariables, qMargen, qGananciaMes])
 
   const gastos = (gastosRes.data ?? []) as { id: string; concepto: string; monto: number; activo: boolean }[]
   const totalFijos = gastos.filter(g => g.activo).reduce((s, g) => s + g.monto, 0)
@@ -78,6 +89,13 @@ export default async function GastosFijosPage({
   const ventaConCosto = (margenRes.data ?? []).reduce((s, p) => s + (p.venta ?? 0), 0)
   const utilidadConCosto = (margenRes.data ?? []).reduce((s, p) => s + (p.utilidad ?? 0), 0)
   const margenBruto = ventaConCosto > 0 ? utilidadConCosto / ventaConCosto : MARGEN_RESPALDO
+
+  // Utilidad del mes: la REAL de los pedidos con costo + la estimada (margen)
+  // de los que aún no tienen costo asignado.
+  const gananciaMes = gananciaMesRes.data ?? []
+  const utilidadRealMes = gananciaMes.filter(g => g.tiene_costo).reduce((s, g) => s + (g.utilidad ?? 0), 0)
+  const ventaSinCostoMes = gananciaMes.filter(g => !g.tiene_costo).reduce((s, g) => s + (g.venta ?? 0), 0)
+  const utilidadEstimadaMes = Math.round(ventaSinCostoMes * margenBruto)
 
   // Punto de equilibrio: cuánto hay que VENDER para que el margen cubra los fijos
   const puntoEquilibrio = totalFijos > 0 ? Math.ceil(totalFijos / margenBruto) : 0
@@ -138,6 +156,9 @@ export default async function GastosFijosPage({
         diasCalendario={new Date(parseInt(hoy.slice(0, 4), 10), parseInt(hoy.slice(5, 7), 10), 0).getDate()}
         sedeId={sedeSel?.id ?? null}
         sedeNombre={codigoSel === 'TODAS' ? 'Todo el negocio' : sedeSel?.nombre ?? ''}
+        utilidadRealMes={utilidadRealMes}
+        utilidadEstimadaMes={utilidadEstimadaMes}
+        ventaSinCostoMes={ventaSinCostoMes}
       />
 
       <p className="text-xs text-gray-400">
