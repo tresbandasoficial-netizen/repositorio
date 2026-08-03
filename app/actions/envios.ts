@@ -23,11 +23,25 @@ export async function buscarPedidoParaEnvioAction(
   const num = numero.trim().toUpperCase()
   if (!num) return { ok: false, error: 'Número vacío' }
 
-  const { data } = await supabase
+  let { data } = await supabase
     .from('vista_pedidos_asesor')
     .select('id, numero_orden, cliente_nombre, estado, sede_id')
     .eq('numero_orden', num)
     .maybeSingle()
+
+  // Convención del sufijo -N: puede ser un pedido real (separado, ej TR6835-2)
+  // o la etiqueta del "artículo N" de un pedido de varias unidades (SR7081-1).
+  // SIEMPRE número exacto primero; si no existe, se recorta el sufijo y se
+  // busca el pedido base — así el escáner de etiquetas por unidad funciona.
+  if (!data && /-\d+$/.test(num)) {
+    const base = num.replace(/-\d+$/, '')
+    const r = await supabase
+      .from('vista_pedidos_asesor')
+      .select('id, numero_orden, cliente_nombre, estado, sede_id')
+      .eq('numero_orden', base)
+      .maybeSingle()
+    data = r.data
+  }
 
   if (!data) return { ok: false, error: `No existe el pedido ${num}` }
   // Logística entre sedes: un asesor de TR despacha pedidos de SR/CR también.
