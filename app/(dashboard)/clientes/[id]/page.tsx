@@ -12,6 +12,7 @@ import { BadgeSegmento, SEGMENTO_CONFIG } from '@/components/recompras/BadgeSegm
 import { PanelRFMCliente } from '@/components/recompras/PanelRFMCliente'
 import { AbonarClienteButton } from '@/components/clientes/AbonarClienteButton'
 import { HistorialPagos } from '@/components/clientes/HistorialPagos'
+import { HistorialPedidosCliente } from '@/components/clientes/HistorialPedidosCliente'
 import { ComprasChart, MesCompra } from '@/components/clientes/ComprasChart'
 
 // Agrupa los pedidos por mes (hora Bogotá) para el flujo de compras.
@@ -197,63 +198,17 @@ export default async function ClienteDetallePage({
               {cliente.pedidos.length === 0 ? (
                 <p className="px-6 py-4 text-sm text-gray-400">Sin pedidos registrados.</p>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-100">
-                        <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">Orden</th>
-                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Estado</th>
-                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Sede</th>
-                        <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">Total</th>
-                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Fecha</th>
-                        <th className="px-4 py-3" />
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {cliente.pedidos.map((p) => {
-                        // Las deudas cargadas (SALDO-) no son pedidos de venta.
-                        const esSaldo = p.numero_orden.startsWith('SALDO-')
-                        // Las ventas locales (VL-) abren su factura; el resto, el pedido.
-                        const href = p.numero_orden.startsWith('VL-') && p.factura_id
-                          ? `/facturacion/${p.factura_id}`
-                          : `/pedidos/${p.id}`
-                        return (
-                          <tr key={p.id} className={esSaldo ? 'bg-amber-50/40 hover:bg-amber-50' : 'hover:bg-gray-50'}>
-                            <td className="px-6 py-3">
-                              {esSaldo ? (
-                                <span className="text-amber-800 font-medium">Saldo anterior</span>
-                              ) : (
-                                <Link href={href} className="font-mono font-medium text-blue-600 hover:underline">
-                                  {p.numero_orden}
-                                </Link>
-                              )}
-                            </td>
-                            <td className="px-4 py-3">
-                              {esSaldo ? (
-                                <span className="inline-block rounded-full px-2 py-0.5 text-[11px] font-medium bg-amber-100 text-amber-800">Deuda</span>
-                              ) : (
-                                <EstadoBadge estado={p.estado as EstadoPedido} />
-                              )}
-                            </td>
-                            <td className="px-4 py-3 text-gray-600 text-xs">{p.sede_nombre}</td>
-                            <td className="px-4 py-3 text-right font-medium text-gray-900">
-                              {formatCOP(p.total)}
-                            </td>
-                            <td className="px-4 py-3 text-gray-500">{formatFecha(p.fecha_creacion)}</td>
-                            <td className="px-4 py-3 text-right">
-                              <Link
-                                href={href}
-                                className="inline-block px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 transition-colors"
-                              >
-                                Ver
-                              </Link>
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                <HistorialPedidosCliente
+                  pedidos={cliente.pedidos.map((p: any) => ({
+                    id: p.id,
+                    numero_orden: p.numero_orden,
+                    estado: p.estado,
+                    sede_nombre: p.sede_nombre,
+                    total: p.total,
+                    fecha_creacion: p.fecha_creacion,
+                    factura_id: p.factura_id ?? null,
+                  }))}
+                />
               )}
             </CardContent>
           </Card>
