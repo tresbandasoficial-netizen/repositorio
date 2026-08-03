@@ -13,6 +13,7 @@ import { EliminarPedidoButton } from '@/components/pedidos/EliminarPedidoButton'
 import { SeguimientoBar } from '@/components/pedidos/SeguimientoBar'
 import { EditarPagoInline } from '@/components/pedidos/EditarPagoInline'
 import { DevolucionButton } from '@/components/pedidos/DevolucionButton'
+import { CambioTallaButton } from '@/components/pedidos/CambioTallaButton'
 import { BloqueGanancia } from '@/components/pedidos/BloqueGanancia'
 import { getGananciaPedido } from '@/lib/queries/ganancias'
 
@@ -87,15 +88,26 @@ export default async function PedidoDetallePage({
             </>
           )}
           {!esSaldo && pedido.estado === 'entregado' && (
-            <DevolucionButton
-              pedidoId={id}
-              items={pedido.items.map((it: any) => ({
-                id: it.id,
-                label: `${it.marca} ${it.descripcion}${it.talla ? ` · T ${it.talla}` : ''} · ×${it.cantidad}`,
-                valor: it.precio_venta * it.cantidad,
-                tieneFicha: !!it.articulo_id,
-              }))}
-            />
+            <>
+              <CambioTallaButton
+                pedidoId={id}
+                items={pedido.items.map((it: any) => ({
+                  id: it.id,
+                  label: `${it.marca} ${it.descripcion} · ×${it.cantidad}`,
+                  talla: it.talla ?? null,
+                  tieneFicha: !!it.articulo_id,
+                }))}
+              />
+              <DevolucionButton
+                pedidoId={id}
+                items={pedido.items.map((it: any) => ({
+                  id: it.id,
+                  label: `${it.marca} ${it.descripcion}${it.talla ? ` · T ${it.talla}` : ''} · ×${it.cantidad}`,
+                  valor: it.precio_venta * it.cantidad,
+                  tieneFicha: !!it.articulo_id,
+                }))}
+              />
+            </>
           )}
           {esAdmin && <EliminarPedidoButton pedidoId={id} />}
         </div>
