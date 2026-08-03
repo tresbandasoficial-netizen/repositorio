@@ -230,7 +230,7 @@ export async function getPedidoDetalle(id: string): Promise<PedidoDetalle | null
     supabase.from('vista_pedidos_asesor').select('*').eq('id', id).single(),
     supabase
       .from('pedido_items')
-      .select('id, articulo_id, marca, descripcion, talla, cantidad, precio_venta, imagen_url, codigo, articulos(codigo)')
+      .select('id, articulo_id, marca, descripcion, talla, cantidad, precio_venta, imagen_url, codigo, sexo, categoria, articulos(codigo, sexo, categoria)')
       .eq('pedido_id', id)
       .order('id'),
     supabase
@@ -268,10 +268,16 @@ export async function getPedidoDetalle(id: string): Promise<PedidoDetalle | null
       .order('id')
     itemsData = (fallback.data ?? []).map(it => ({ ...it, imagen_url: null, codigo: null }))
   } else {
-    // El código puede venir del item o del artículo del catálogo vinculado.
+    // Código, sexo y categoría pueden venir del item o del artículo vinculado.
     itemsData = (itemsRes.data ?? []).map((it: any) => {
       const art = Array.isArray(it.articulos) ? it.articulos[0] : it.articulos
-      return { ...it, codigo: it.codigo ?? art?.codigo ?? null, articulos: undefined }
+      return {
+        ...it,
+        codigo: it.codigo ?? art?.codigo ?? null,
+        sexo: it.sexo ?? art?.sexo ?? null,
+        categoria: it.categoria ?? art?.categoria ?? null,
+        articulos: undefined,
+      }
     })
   }
 

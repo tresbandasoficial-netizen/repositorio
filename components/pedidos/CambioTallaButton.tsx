@@ -3,12 +3,16 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { registrarCambioTallaAction } from '@/app/actions/devoluciones'
+import { TallaSelect } from '@/components/ui/TallaSelect'
+import type { CategoriaArticulo, SexoArticulo } from '@/types'
 import { Repeat, X } from 'lucide-react'
 
 type ItemCambio = {
   id: string
   label: string       // "ADIDAS Falda · ×1"
   talla: string | null
+  categoria: CategoriaArticulo | null
+  sexo: SexoArticulo | null
   tieneFicha: boolean // enlazado al catálogo (necesario para entrar a stock)
 }
 
@@ -118,13 +122,20 @@ export function CambioTallaButton({ pedidoId, items }: { pedidoId: string; items
                 {item && (
                   <div>
                     <label className="text-xs font-semibold text-gray-600 uppercase">¿Por cuál talla la cambia?</label>
-                    <input
-                      type="text"
-                      value={tallaNueva}
-                      onChange={e => setTallaNueva(e.target.value)}
-                      placeholder={`Talla nueva (actual: ${item.talla || '—'})`}
-                      className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    />
+                    <div className="mt-1 flex items-center gap-2">
+                      <span className="shrink-0 rounded-xl bg-gray-100 px-3 py-2 text-sm font-semibold text-gray-500">
+                        T {item.talla || '—'} →
+                      </span>
+                      {/* Mismo selector de tallas del resto del sistema: ropa,
+                          niño o tenis según la categoría del artículo. */}
+                      <TallaSelect
+                        categoria={item.categoria}
+                        sexo={item.sexo}
+                        value={tallaNueva}
+                        onChange={setTallaNueva}
+                        className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      />
+                    </div>
                   </div>
                 )}
 

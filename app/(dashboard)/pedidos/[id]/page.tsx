@@ -95,6 +95,8 @@ export default async function PedidoDetallePage({
                   id: it.id,
                   label: `${it.marca} ${it.descripcion} · ×${it.cantidad}`,
                   talla: it.talla ?? null,
+                  categoria: it.categoria ?? null,
+                  sexo: it.sexo ?? null,
                   tieneFicha: !!it.articulo_id,
                 }))}
               />
