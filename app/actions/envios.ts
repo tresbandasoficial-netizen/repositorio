@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getSesion, puedeVerPedido } from '@/lib/auth/acceso'
 
 // ─── Buscar pedido para el envío (por número escaneado/digitado) ─────────────
@@ -108,7 +109,7 @@ export async function crearEnvioAction(data: {
       notas:           data.notas.trim() || null,
       creado_por:      sesion.id,
     })
-    .select('id')
+    .select('id, consecutivo')
     .single()
 
   if (errEnvio || !envio) return { ok: false, error: `Error creando el envío: ${errEnvio?.message}` }
@@ -124,7 +125,56 @@ export async function crearEnvioAction(data: {
     return { ok: false, error: `Error guardando los ítems: ${errItems.message}` }
   }
 
+  // Traslado de inventario: los ARTÍCULOS SUELTOS salen del stock de la sede
+  // origen (Bucaramanga) y entran al de la sede destino, para que el stock
+  // refleje dónde está la mercancía. Los pedidos no tocan inventario: su
+  // mercancía viene de compras asignadas, nunca estuvo en stock.
+  const articulos = data.items.filter(it => it.tipo === 'articulo') as Array<Extract<ItemEnvioInput, { tipo: 'articulo' }>>
+  if (articulos.length > 0) {
+    const admin = createAdminClient()
+
+    let origenSedeId = sesion.sede_id
+    if (!origenSedeId) {
+      const { data: tr } = await admin.from('sedes').select('id').eq('codigo', 'TR').maybeSingle()
+      origenSedeId = tr?.id ?? null
+    }
+
+    const sinDescontar: string[] = []
+    for (const it of articulos) {
+      const { data: art } = await admin
+        .from('articulos')
+        .select('id')
+        .ilike('codigo', it.codigo.trim())
+        .maybeSingle()
+      // Código escrito a mano que no está en el catálogo: viaja en la remisión
+      // pero no hay ficha de dónde descontar stock.
+      if (!art || !origenSedeId) { sinDescontar.push(it.codigo); continue }
+
+      const base = {
+        articulo_id: art.id,
+        talla:       it.talla || null,
+        usuario_id:  sesion.id,
+        notas:       `Envío #${envio.consecutivo}`,
+      }
+      const { error: errMov } = await admin.from('movimientos_inventario').insert([
+        { ...base, sede_id: origenSedeId,        delta: -it.cantidad, tipo: 'salida' },
+        { ...base, sede_id: data.destino_sede_id, delta: it.cantidad,  tipo: 'entrada' },
+      ])
+      if (errMov) sinDescontar.push(it.codigo)
+    }
+
+    // Que quede visible en la remisión si algo no se pudo mover de stock.
+    if (sinDescontar.length > 0) {
+      const aviso = `⚠ Sin traslado de stock (no están en el catálogo): ${sinDescontar.join(', ')}`
+      await admin
+        .from('envios')
+        .update({ notas: data.notas.trim() ? `${data.notas.trim()}\n${aviso}` : aviso })
+        .eq('id', envio.id)
+    }
+  }
+
   revalidatePath('/envios')
+  revalidatePath('/inventario')
   return { ok: true, envioId: envio.id }
 }
 
