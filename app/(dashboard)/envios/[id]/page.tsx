@@ -74,70 +74,67 @@ export default async function EnvioDetallePage({
         )}
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
+      {/* Cuadrícula estilo Excel: cada pedido se desglosa en una fila por
+          artículo (número y cliente combinados con rowSpan cuando el pedido
+          lleva varios). */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 overflow-x-auto">
+        <table className="w-full text-sm border-collapse">
           <thead>
-            <tr className="border-b border-gray-100 bg-gray-50/60">
-              <th className="text-left px-5 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider w-10">#</th>
-              <th className="text-left px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Número / Código</th>
-              <th className="text-left px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Detalle</th>
-              <th className="text-center px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Talla</th>
-              <th className="text-center px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Cant.</th>
+            <tr>
+              <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase w-10">#</th>
+              <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Número</th>
+              <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
+              <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Producto</th>
+              <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Marca</th>
+              <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Talla</th>
+              <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Cant.</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-50">
-            {envio.items.map((it, i) => (
-              <tr key={it.id} className="hover:bg-gray-50/60 transition-colors">
-                <td className="px-5 py-3 text-xs text-gray-300 font-medium">{i + 1}</td>
-                <td className="px-4 py-3">
-                  {it.pedido_id ? (
-                    <Link href={`/pedidos/${it.pedido_id}`} className="font-mono font-bold text-blue-600 hover:underline">
-                      {it.numero_orden}
-                    </Link>
-                  ) : (
-                    <span className="font-mono font-bold text-gray-900">{it.codigo}</span>
+          <tbody>
+            {envio.items.map((it, i) => {
+              const filas = it.productos.length > 0
+                ? it.productos
+                : [{ imagen_url: null, marca: '—', descripcion: it.pedido_id ? '—' : (it.descripcion ?? '—'), talla: it.talla, cantidad: it.cantidad }]
+              return filas.map((pr, j) => (
+                <tr key={it.id + '-' + j}>
+                  {j === 0 && (
+                    <>
+                      <td rowSpan={filas.length} className="border border-gray-200 px-3 py-2 text-xs text-gray-400 align-top">{i + 1}</td>
+                      <td rowSpan={filas.length} className="border border-gray-200 px-3 py-2 align-top">
+                        {it.pedido_id ? (
+                          <Link href={`/pedidos/${it.pedido_id}`} className="font-mono font-bold text-blue-600 hover:underline">
+                            {it.numero_orden}
+                          </Link>
+                        ) : (
+                          <>
+                            <span className="font-mono font-bold text-gray-900">{it.codigo}</span>
+                            <span className="block mt-0.5 text-[10px] font-semibold text-violet-700">Artículo suelto</span>
+                          </>
+                        )}
+                      </td>
+                      <td rowSpan={filas.length} className="border border-gray-200 px-3 py-2 text-gray-700 align-top">
+                        {it.pedido_id ? (it.descripcion ?? '—') : '—'}
+                      </td>
+                    </>
                   )}
-                </td>
-                <td className="px-4 py-3 text-gray-600">
-                  {it.descripcion ?? '—'}
-                  {!it.pedido_id && (
-                    <span className="ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700">Artículo</span>
-                  )}
-                  {/* Los artículos del pedido, con su foto, para verificar la
-                      mercancía sin abrir cada pedido. */}
-                  {it.productos.length > 0 && (
-                    <div className="mt-1.5 flex flex-wrap gap-1.5">
-                      {it.productos.map((pr, j) => (
-                        <span key={j} className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 pr-2 overflow-hidden">
-                          {pr.imagen_url ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={pr.imagen_url} alt="" className="h-9 w-9 object-cover" />
-                          ) : (
-                            <span className="h-9 w-9 bg-gray-100" />
-                          )}
-                          <span className="text-[11px] text-gray-600 max-w-[10rem] truncate">
-                            {pr.marca} {pr.descripcion}
-                            {pr.talla ? ` · T${pr.talla}` : ''}
-                            {pr.cantidad > 1 ? ` · ×${pr.cantidad}` : ''}
-                          </span>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-center text-gray-600">
-                  {it.talla ?? (it.productos.length > 0
-                    ? [...new Set(it.productos.map(pr => pr.talla).filter(Boolean))].join(', ') || '—'
-                    : '—')}
-                </td>
-                <td className="px-4 py-3 text-center font-semibold text-gray-800">
-                  {it.pedido_id && it.productos.length > 0
-                    ? it.productos.reduce((s, pr) => s + (pr.cantidad || 1), 0)
-                    : it.cantidad}
-                </td>
-              </tr>
-            ))}
+                  <td className="border border-gray-200 px-3 py-2 text-gray-900">{pr.descripcion}</td>
+                  <td className="border border-gray-200 px-3 py-2 text-gray-700">{pr.marca ?? '—'}</td>
+                  <td className="border border-gray-200 px-3 py-2 text-center font-semibold text-gray-900">{pr.talla ?? '—'}</td>
+                  <td className="border border-gray-200 px-3 py-2 text-center text-gray-700">{pr.cantidad}</td>
+                </tr>
+              ))
+            })}
           </tbody>
+          <tfoot>
+            <tr>
+              <td colSpan={6} className="border border-gray-300 bg-gray-50 px-3 py-2 text-right text-xs font-semibold text-gray-600 uppercase">Total unidades</td>
+              <td className="border border-gray-300 bg-gray-50 px-3 py-2 text-center font-bold text-gray-900">
+                {envio.items.reduce((s, it) => s + (it.productos.length > 0
+                  ? it.productos.reduce((x, pr) => x + (pr.cantidad || 1), 0)
+                  : (it.cantidad || 1)), 0)}
+              </td>
+            </tr>
+          </tfoot>
         </table>
       </div>
     </div>
