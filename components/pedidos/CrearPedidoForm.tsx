@@ -24,6 +24,7 @@ type OpcionCatalogo = {
   color: string | null
   sexo: string | null
   categoria: string | null
+  foto: string | null
   tallas: Array<{ talla: string | null; stock: number }>
 }
 
@@ -36,6 +37,7 @@ function aOpciones(arts: ArticuloBusqueda[]): OpcionCatalogo[] {
     color: a.color,
     sexo: a.sexo,
     categoria: a.categoria,
+    foto: a.foto,
     tallas: a.tallaStock.map(ts => ({ talla: ts.talla, stock: ts.stock })),
   }))
 }
@@ -270,6 +272,9 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
     setTallasArticulo(prev => prev.map((t, i) => i === idx ? opt.tallas : t))
     // La talla NO se llena al elegir el artículo: la escoge la persona. Antes se
     // heredaba de la opción del listado y quedaba una talla que nadie eligió.
+    // La FOTO sí se llena (la conocida del artículo) — solo si la persona no
+    // había subido ya una propia para este renglón.
+    const yaTieneFoto = !!(form.productos[idx] as any)?.imagen_url
     patchProducto(idx, {
       articulo_id: opt.articulo_id,
       marca:       opt.marca,
@@ -277,6 +282,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
       color:       opt.color ?? null,
       sexo:        (opt.sexo as any) ?? null,
       categoria:   (opt.categoria as any) ?? null,
+      ...(!yaTieneFoto && opt.foto ? { imagen_url: opt.foto } : {}),
     })
   }
 
@@ -603,8 +609,17 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
                             type="button"
                             title={`${opt.codigo ?? ''} ${opt.marca} ${opt.nombre}${opt.color ? ` · ${opt.color}` : ''}`.trim()}
                             onMouseDown={() => elegirArticulo(i, opt)}
-                            className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm border-b border-gray-50 last:border-0"
+                            className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm border-b border-gray-50 last:border-0 flex items-start gap-2.5"
                           >
+                            {opt.foto && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={opt.foto}
+                                alt=""
+                                className="h-12 w-12 shrink-0 rounded-lg bg-gray-100 object-cover mt-0.5"
+                              />
+                            )}
+                            <span className="min-w-0 flex-1">
                             {/* Una cosa por renglón: código, nombre, existencias.
                                 Antes el código y la marca iban pegados en la
                                 misma línea y el nombre partía donde cayera. */}
@@ -638,6 +653,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
                               ) : (
                                 <span className="text-gray-400">Sin existencias</span>
                               )}
+                            </span>
                             </span>
                           </button>
                         ))}

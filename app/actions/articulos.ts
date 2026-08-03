@@ -343,6 +343,9 @@ export type ArticuloBusqueda = {
   sexo: string | null
   categoria: string | null
   tallaStock: { talla: string | null; stock: number }[]
+  // Foto conocida del artículo: la de su ficha, o la del pedido más reciente
+  // que lo llevó — para autollenar la foto al elegirlo en un pedido nuevo.
+  foto: string | null
 }
 
 export async function buscarArticulosAction(q: string, sedeId: string | null): Promise<ArticuloBusqueda[]> {
@@ -352,19 +355,35 @@ export async function buscarArticulosAction(q: string, sedeId: string | null): P
 
   const { data: articulos } = await supabase
     .from('articulos')
-    .select('id, codigo, nombre, marca, color, sexo, categoria')
+    .select('id, codigo, nombre, marca, color, sexo, categoria, fotos')
     .eq('activo', true)
     .or(`nombre.ilike.%${t}%,marca.ilike.%${t}%,codigo.ilike.%${t}%,referencia.ilike.%${t}%,color.ilike.%${t}%`)
     .limit(15)
 
-  const lista = (articulos ?? []) as Array<{ id: string; codigo: string | null; nombre: string; marca: string; color: string | null; sexo: string | null; categoria: string | null }>
+  const lista = (articulos ?? []) as Array<{ id: string; codigo: string | null; nombre: string; marca: string; color: string | null; sexo: string | null; categoria: string | null; fotos: string[] | null }>
   if (lista.length === 0) return []
 
   const ids = lista.map(a => a.id)
-  const { data: stock } = await supabase
-    .from('vista_stock_por_sede')
-    .select('articulo_id, talla, sede_id, stock')
-    .in('articulo_id', ids)
+  const [{ data: stock }, { data: fotosPedidos }] = await Promise.all([
+    supabase
+      .from('vista_stock_por_sede')
+      .select('articulo_id, talla, sede_id, stock')
+      .in('articulo_id', ids),
+    // Foto de respaldo: la del pedido MÁS RECIENTE que llevó el artículo (las
+    // fichas del catálogo casi nunca tienen foto propia; los pedidos sí).
+    supabase
+      .from('pedido_items')
+      .select('articulo_id, imagen_url, pedidos!inner(fecha_creacion)')
+      .in('articulo_id', ids)
+      .not('imagen_url', 'is', null)
+      .order('pedidos(fecha_creacion)', { ascending: false })
+      .limit(100),
+  ])
+
+  const fotoPorArticulo = new Map<string, string>()
+  for (const f of (fotosPedidos ?? []) as unknown as Array<{ articulo_id: string; imagen_url: string }>) {
+    if (!fotoPorArticulo.has(f.articulo_id)) fotoPorArticulo.set(f.articulo_id, f.imagen_url)
+  }
 
   // Agrupar stock por articulo_id → [{ talla, stock }]
   const stockMap = new Map<string, { talla: string | null; stock: number }[]>()
@@ -382,7 +401,14 @@ export async function buscarArticulosAction(q: string, sedeId: string | null): P
   }
 
   return lista.map(a => ({
-    ...a,
+    id: a.id,
+    codigo: a.codigo,
+    nombre: a.nombre,
+    marca: a.marca,
+    color: a.color,
+    sexo: a.sexo,
+    categoria: a.categoria,
     tallaStock: (stockMap.get(a.id) ?? []).sort((a, b) => (a.talla ?? '').localeCompare(b.talla ?? '')),
+    foto: a.fotos?.[0] ?? fotoPorArticulo.get(a.id) ?? null,
   }))
 }
