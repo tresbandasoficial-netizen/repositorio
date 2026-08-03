@@ -19,6 +19,9 @@ export type EnvioItem = {
   talla: string | null
   cantidad: number
   descripcion: string | null
+  // Artículos del pedido (foto, talla, cantidad) para verlos en la remisión
+  // sin abrir cada pedido. Vacío en artículos sueltos.
+  productos: Array<{ imagen_url: string | null; marca: string; descripcion: string; talla: string | null; cantidad: number }>
 }
 
 export type EnvioDetalle = {
@@ -73,6 +76,24 @@ export async function getEnvioDetalle(id: string): Promise<EnvioDetalle | null> 
   if (!data) return null
 
   const e = data as any
+
+  // Artículos (con foto y talla) de los pedidos del envío, para mostrarlos en
+  // la remisión sin abrir cada pedido.
+  const pedidoIds = [...new Set(((e.envio_items ?? []) as any[]).map(it => it.pedido_id).filter(Boolean))] as string[]
+  const productosPorPedido = new Map<string, EnvioItem['productos']>()
+  if (pedidoIds.length > 0) {
+    const { data: items } = await supabase
+      .from('pedido_items')
+      .select('pedido_id, imagen_url, marca, descripcion, talla, cantidad')
+      .in('pedido_id', pedidoIds)
+      .order('id')
+    for (const it of (items ?? []) as any[]) {
+      const lista = productosPorPedido.get(it.pedido_id) ?? []
+      lista.push({ imagen_url: it.imagen_url ?? null, marca: it.marca, descripcion: it.descripcion, talla: it.talla, cantidad: it.cantidad })
+      productosPorPedido.set(it.pedido_id, lista)
+    }
+  }
+
   return {
     id: e.id,
     consecutivo: e.consecutivo,
@@ -92,6 +113,7 @@ export async function getEnvioDetalle(id: string): Promise<EnvioDetalle | null> 
         talla: it.talla,
         cantidad: it.cantidad,
         descripcion: it.descripcion,
+        productos: it.pedido_id ? (productosPorPedido.get(it.pedido_id) ?? []) : [],
       })),
   }
 }

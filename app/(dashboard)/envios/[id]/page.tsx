@@ -103,9 +103,38 @@ export default async function EnvioDetallePage({
                   {!it.pedido_id && (
                     <span className="ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700">Artículo</span>
                   )}
+                  {/* Los artículos del pedido, con su foto, para verificar la
+                      mercancía sin abrir cada pedido. */}
+                  {it.productos.length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {it.productos.map((pr, j) => (
+                        <span key={j} className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 pr-2 overflow-hidden">
+                          {pr.imagen_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={pr.imagen_url} alt="" className="h-9 w-9 object-cover" />
+                          ) : (
+                            <span className="h-9 w-9 bg-gray-100" />
+                          )}
+                          <span className="text-[11px] text-gray-600 max-w-[10rem] truncate">
+                            {pr.marca} {pr.descripcion}
+                            {pr.talla ? ` · T${pr.talla}` : ''}
+                            {pr.cantidad > 1 ? ` · ×${pr.cantidad}` : ''}
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </td>
-                <td className="px-4 py-3 text-center text-gray-600">{it.talla ?? '—'}</td>
-                <td className="px-4 py-3 text-center font-semibold text-gray-800">{it.cantidad}</td>
+                <td className="px-4 py-3 text-center text-gray-600">
+                  {it.talla ?? (it.productos.length > 0
+                    ? [...new Set(it.productos.map(pr => pr.talla).filter(Boolean))].join(', ') || '—'
+                    : '—')}
+                </td>
+                <td className="px-4 py-3 text-center font-semibold text-gray-800">
+                  {it.pedido_id && it.productos.length > 0
+                    ? it.productos.reduce((s, pr) => s + (pr.cantidad || 1), 0)
+                    : it.cantidad}
+                </td>
               </tr>
             ))}
           </tbody>
