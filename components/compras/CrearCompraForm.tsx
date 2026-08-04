@@ -1114,38 +1114,40 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
               {item.articuloEncontrado === false && (
                 <>
                   <p className="text-xs text-amber-600">Artículo nuevo — completa los datos para crear la ficha del catálogo</p>
-                  {/* Ficha completa desde el nacimiento: sin esto quedaban
-                      artículos a medias (sin categoría/sexo) que después no
-                      sirven en pedidos ni en tallas. */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    <select
-                      value={item.categoria ?? ''}
-                      onChange={(e) => actualizarItem(idx, 'categoria', e.target.value)}
-                      className={`w-full rounded-lg border px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 ${item.categoria ? 'border-gray-300' : 'border-amber-300'}`}
-                    >
-                      <option value="">¿Ropa, tenis o accesorio? *</option>
-                      <option value="ropa">Ropa</option>
-                      <option value="tenis">Tenis</option>
-                      <option value="accesorios">Accesorio</option>
-                    </select>
-                    <select
-                      value={item.categoria === 'accesorios' ? '' : (item.sexo ?? '')}
-                      onChange={(e) => actualizarItem(idx, 'sexo', e.target.value)}
-                      disabled={item.categoria === 'accesorios'}
-                      className={`w-full rounded-lg border px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:bg-gray-50 disabled:text-gray-400 ${item.sexo || item.categoria === 'accesorios' ? 'border-gray-300' : 'border-amber-300'}`}
-                    >
-                      <option value="">{item.categoria === 'accesorios' ? 'Sin sexo' : '¿Hombre, mujer o niño? *'}</option>
-                      <option value="hombre">Hombre</option>
-                      <option value="mujer">Mujer</option>
-                      <option value="nino">Niño</option>
-                    </select>
+                  {/* Ficha completa desde el nacimiento, con el MISMO formato de
+                      la creación de pedidos: Color + botones de sexo y categoría.
+                      Sin esto quedaban fichas a medias que no sirven en pedidos. */}
+                  <div className="flex flex-wrap gap-2 items-center">
                     <input
                       type="text"
                       value={item.color ?? ''}
                       onChange={(e) => actualizarItem(idx, 'color', e.target.value)}
-                      placeholder="Color (opcional)"
-                      className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 col-span-2 sm:col-span-1"
+                      placeholder="Color"
+                      className="w-28 rounded-lg border border-gray-200 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
+                    {(['hombre', 'mujer', 'nino'] as const).map(s => (
+                      <button key={s} type="button"
+                        onClick={() => actualizarItem(idx, 'sexo', item.sexo === s ? '' : s)}
+                        disabled={item.categoria === 'accesorios'}
+                        className={`text-xs px-2 py-1.5 rounded border font-medium transition-colors disabled:opacity-40 ${
+                          item.sexo === s
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                        }`}>
+                        {s === 'nino' ? 'Niño' : s.charAt(0).toUpperCase() + s.slice(1)}
+                      </button>
+                    ))}
+                    {(['ropa', 'tenis', 'accesorios'] as const).map(c => (
+                      <button key={c} type="button"
+                        onClick={() => actualizarItem(idx, 'categoria', item.categoria === c ? '' : c)}
+                        className={`text-xs px-2 py-1.5 rounded border font-medium transition-colors ${
+                          item.categoria === c
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                        }`}>
+                        {c.charAt(0).toUpperCase() + c.slice(1)}
+                      </button>
+                    ))}
                   </div>
                 </>
               )}
