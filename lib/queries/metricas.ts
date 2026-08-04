@@ -311,11 +311,14 @@ export async function getMetricasPorAsesor(): Promise<MetricasAsesorRow[]> {
       .from('vista_pedidos_asesor')
       .select('asesor_id, asesor_nombre')
       .not('estado', 'in', '("entregado","cancelado")'),
+    // Mes calendario en curso (no "últimos 30 días"): así el ranking coincide
+    // con las metas del mes. Los saldos cargados no son ventas del asesor.
     supabase
       .from('vista_pedidos_asesor')
       .select('asesor_id, asesor_nombre, total')
-      .gte('fecha_creacion', hace(30))
-      .neq('estado', 'cancelado'),
+      .gte('fecha_creacion', inicioMes())
+      .neq('estado', 'cancelado')
+      .neq('tipo', 'saldo_anterior'),
   ])
 
   const nombreById: Record<string, string> = {}

@@ -367,7 +367,7 @@ export default async function DashboardPage() {
 
         {/* Por asesor */}
         {asesores.length > 0 && (
-          <TableCard title="Por asesor (30 días)">
+          <TableCard title="Por asesor (mes en curso)">
             {/* Ranking en celdas: 1º dorado, 2º plateado, 3º bronce */}
             <div className="p-3 space-y-2">
               {asesores.map((a, i) => (
@@ -385,7 +385,7 @@ export default async function DashboardPage() {
                     </div>
                     <span className="font-bold text-gray-900 flex-1 min-w-0 truncate">{a.asesor_nombre}</span>
                     <div className="text-right shrink-0">
-                      <p className="text-[10px] text-gray-400 uppercase">Ventas 30 días</p>
+                      <p className="text-[10px] text-gray-400 uppercase">Ventas del mes</p>
                       <p className="text-base font-bold text-gray-900">{formatCOP(a.ventas_mes)}</p>
                     </div>
                   </div>
