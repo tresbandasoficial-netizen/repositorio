@@ -144,26 +144,26 @@ export default async function CompraDetallePage({
               propia columna. */}
           <table className="w-full text-sm border-collapse">
             <thead>
-              <tr>
-                <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Código</th>
-                <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nombre</th>
-                <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Marca</th>
-                <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Talla</th>
-                <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Cant.</th>
-                <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Costo unit.</th>
-                <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Destino</th>
+              <tr className="border-b border-gray-200">
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Código</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nombre</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Marca</th>
+                <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Talla</th>
+                <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Cant.</th>
+                <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Costo unit.</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Destino</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-gray-100">
               {compra.compra_items.map((item) => (
                 <tr key={item.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="border border-gray-200 px-3 py-2 font-mono text-xs font-semibold text-blue-700">{(item as any).codigo ?? '—'}</td>
-                  <td className="border border-gray-200 px-3 py-2 text-gray-900">{item.descripcion}</td>
-                  <td className="border border-gray-200 px-3 py-2 text-gray-700">{item.marca || '—'}</td>
-                  <td className="border border-gray-200 px-3 py-2 text-center font-semibold text-gray-900">{item.talla ?? '—'}</td>
-                  <td className="border border-gray-200 px-3 py-2 text-center text-gray-700">{item.cantidad}</td>
-                  <td className="border border-gray-200 px-3 py-2 text-right font-medium text-gray-900">{formatCOP(item.costo_unitario_cop)}</td>
-                  <td className="border border-gray-200 px-3 py-2">
+                  <td className="px-3 py-2 font-mono text-xs font-semibold text-blue-700">{(item as any).codigo ?? '—'}</td>
+                  <td className="px-3 py-2 text-gray-900">{item.descripcion}</td>
+                  <td className="px-3 py-2 text-gray-700">{item.marca || '—'}</td>
+                  <td className="px-3 py-2 text-center font-semibold text-gray-900">{item.talla ?? '—'}</td>
+                  <td className="px-3 py-2 text-center text-gray-700">{item.cantidad}</td>
+                  <td className="px-3 py-2 text-right font-medium text-gray-900">{formatCOP(item.costo_unitario_cop)}</td>
+                  <td className="px-3 py-2">
                     <ItemAsignacion
                       itemId={item.id}
                       destino={item.destino}
@@ -175,15 +175,15 @@ export default async function CompraDetallePage({
               ))}
             </tbody>
             <tfoot>
-              <tr>
-                <td colSpan={4} className="border border-gray-300 bg-gray-50 px-3 py-2 text-right text-xs font-semibold text-gray-600 uppercase">Total</td>
-                <td className="border border-gray-300 bg-gray-50 px-3 py-2 text-center font-bold text-gray-900">
+              <tr className="border-t border-gray-200">
+                <td colSpan={4} className="px-3 py-2 text-right text-xs font-semibold text-gray-600 uppercase">Total</td>
+                <td className="px-3 py-2 text-center font-bold text-gray-900">
                   {compra.compra_items.reduce((s, it) => s + (it.cantidad || 0), 0)}
                 </td>
-                <td className="border border-gray-300 bg-gray-50 px-3 py-2 text-right font-bold text-gray-900">
+                <td className="px-3 py-2 text-right font-bold text-gray-900">
                   {formatCOP(compra.compra_items.reduce((s, it) => s + (it.costo_unitario_cop || 0) * (it.cantidad || 1), 0))}
                 </td>
-                <td className="border border-gray-300 bg-gray-50" />
+                <td />
               </tr>
             </tfoot>
           </table>

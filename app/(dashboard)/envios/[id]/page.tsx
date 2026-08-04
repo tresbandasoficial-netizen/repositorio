@@ -80,17 +80,17 @@ export default async function EnvioDetallePage({
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 overflow-x-auto">
         <table className="w-full text-sm border-collapse">
           <thead>
-            <tr>
-              <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase w-10">#</th>
-              <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Número</th>
-              <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
-              <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Producto</th>
-              <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Marca</th>
-              <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Talla</th>
-              <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Cant.</th>
+            <tr className="border-b border-gray-200">
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase w-10">#</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Número</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Producto</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Marca</th>
+              <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Talla</th>
+              <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Cant.</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-gray-100">
             {envio.items.map((it, i) => {
               const filas = it.productos.length > 0
                 ? it.productos
@@ -99,8 +99,8 @@ export default async function EnvioDetallePage({
                 <tr key={it.id + '-' + j}>
                   {j === 0 && (
                     <>
-                      <td rowSpan={filas.length} className="border border-gray-200 px-3 py-2 text-xs text-gray-400 align-top">{i + 1}</td>
-                      <td rowSpan={filas.length} className="border border-gray-200 px-3 py-2 align-top">
+                      <td rowSpan={filas.length} className="px-3 py-2 text-xs text-gray-400 align-top">{i + 1}</td>
+                      <td rowSpan={filas.length} className="px-3 py-2 align-top">
                         {it.pedido_id ? (
                           <Link href={`/pedidos/${it.pedido_id}`} className="font-mono font-bold text-blue-600 hover:underline">
                             {it.numero_orden}
@@ -112,23 +112,23 @@ export default async function EnvioDetallePage({
                           </>
                         )}
                       </td>
-                      <td rowSpan={filas.length} className="border border-gray-200 px-3 py-2 text-gray-700 align-top">
+                      <td rowSpan={filas.length} className="px-3 py-2 text-gray-700 align-top">
                         {it.pedido_id ? (it.descripcion ?? '—') : '—'}
                       </td>
                     </>
                   )}
-                  <td className="border border-gray-200 px-3 py-2 text-gray-900">{pr.descripcion}</td>
-                  <td className="border border-gray-200 px-3 py-2 text-gray-700">{pr.marca ?? '—'}</td>
-                  <td className="border border-gray-200 px-3 py-2 text-center font-semibold text-gray-900">{pr.talla ?? '—'}</td>
-                  <td className="border border-gray-200 px-3 py-2 text-center text-gray-700">{pr.cantidad}</td>
+                  <td className="px-3 py-2 text-gray-900">{pr.descripcion}</td>
+                  <td className="px-3 py-2 text-gray-700">{pr.marca ?? '—'}</td>
+                  <td className="px-3 py-2 text-center font-semibold text-gray-900">{pr.talla ?? '—'}</td>
+                  <td className="px-3 py-2 text-center text-gray-700">{pr.cantidad}</td>
                 </tr>
               ))
             })}
           </tbody>
           <tfoot>
-            <tr>
-              <td colSpan={6} className="border border-gray-300 bg-gray-50 px-3 py-2 text-right text-xs font-semibold text-gray-600 uppercase">Total unidades</td>
-              <td className="border border-gray-300 bg-gray-50 px-3 py-2 text-center font-bold text-gray-900">
+            <tr className="border-t border-gray-200">
+              <td colSpan={6} className="px-3 py-2 text-right text-xs font-semibold text-gray-600 uppercase">Total unidades</td>
+              <td className="px-3 py-2 text-center font-bold text-gray-900">
                 {envio.items.reduce((s, it) => s + (it.productos.length > 0
                   ? it.productos.reduce((x, pr) => x + (pr.cantidad || 1), 0)
                   : (it.cantidad || 1)), 0)}

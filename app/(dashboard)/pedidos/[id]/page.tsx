@@ -153,7 +153,7 @@ export default async function PedidoDetallePage({
                   filas: el usuario pidió columnas separadas pero sin cuadrícula. */}
               <table className="hidden md:table w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-200 bg-gray-50">
+                  <tr className="border-b border-gray-200">
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Código</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Producto</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Marca</th>
@@ -182,7 +182,7 @@ export default async function PedidoDetallePage({
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr className="border-t border-gray-200 bg-gray-50">
+                  <tr className="border-t border-gray-200">
                     <td colSpan={4} className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Total</td>
                     <td className="px-4 py-3 text-center font-bold text-gray-900">
                       {pedido.items.reduce((s: number, it: any) => s + (it.cantidad || 0), 0)}
