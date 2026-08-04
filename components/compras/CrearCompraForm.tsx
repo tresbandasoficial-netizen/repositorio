@@ -25,6 +25,11 @@ type ItemForm = {
   // estado del lookup de catálogo
   articuloId?: string | null
   articuloEncontrado?: boolean   // true=encontrado, false=nuevo, undefined=sin buscar
+  // Datos de la ficha cuando el artículo es NUEVO en el catálogo (se piden en
+  // el formulario para que la ficha no nazca a medias)
+  categoria?: string
+  sexo?: string
+  color?: string
   // asignación directa a pedido
   pedidoRef?: string
   pedidoOk?: boolean             // true=encontrado, false=no existe/bloqueado, undefined=sin buscar
@@ -472,6 +477,12 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
       if (!item.codigo.trim()) { setError(`Producto ${i + 1}: el código del artículo (SKU) es obligatorio`); return }
       if (!item.descripcion.trim()) { setError(`Producto ${i + 1}: falta la descripción`); return }
       if (!parseInt(item.cantidad, 10)) { setError(`Producto ${i + 1}: cantidad inválida`); return }
+      // Artículo nuevo en el catálogo: la ficha nace completa o no nace.
+      if (item.articuloEncontrado === false) {
+        if (!item.marca.trim()) { setError(`Producto ${i + 1} es nuevo en el catálogo: falta la marca`); return }
+        if (!item.categoria) { setError(`Producto ${i + 1} es nuevo en el catálogo: marca si es ropa, tenis o accesorio`); return }
+        if (item.categoria !== 'accesorios' && !item.sexo) { setError(`Producto ${i + 1} es nuevo en el catálogo: marca si es de hombre, mujer o niño`); return }
+      }
     }
 
     const itemsValidos: CompraItemInput[] = items.map((item) => ({
@@ -484,6 +495,9 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
       destino:            item.destino,
       articulo_id:        item.articuloId ?? null,
       pedido_ref:         item.destino === 'pedido' ? (item.pedidoRef?.trim() || undefined) : undefined,
+      categoria:          item.categoria || undefined,
+      sexo:               item.categoria === 'accesorios' ? undefined : (item.sexo || undefined),
+      color:              item.color?.trim() || undefined,
     }))
 
     const payload: CrearCompraInput = {
@@ -1098,7 +1112,42 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
                 <p className="text-xs text-green-600">✓ En catálogo: {item.marca} {item.descripcion}</p>
               )}
               {item.articuloEncontrado === false && (
-                <p className="text-xs text-amber-600">Artículo nuevo — se creará en el catálogo al asignar el pedido</p>
+                <>
+                  <p className="text-xs text-amber-600">Artículo nuevo — completa los datos para crear la ficha del catálogo</p>
+                  {/* Ficha completa desde el nacimiento: sin esto quedaban
+                      artículos a medias (sin categoría/sexo) que después no
+                      sirven en pedidos ni en tallas. */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <select
+                      value={item.categoria ?? ''}
+                      onChange={(e) => actualizarItem(idx, 'categoria', e.target.value)}
+                      className={`w-full rounded-lg border px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 ${item.categoria ? 'border-gray-300' : 'border-amber-300'}`}
+                    >
+                      <option value="">¿Ropa, tenis o accesorio? *</option>
+                      <option value="ropa">Ropa</option>
+                      <option value="tenis">Tenis</option>
+                      <option value="accesorios">Accesorio</option>
+                    </select>
+                    <select
+                      value={item.categoria === 'accesorios' ? '' : (item.sexo ?? '')}
+                      onChange={(e) => actualizarItem(idx, 'sexo', e.target.value)}
+                      disabled={item.categoria === 'accesorios'}
+                      className={`w-full rounded-lg border px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:bg-gray-50 disabled:text-gray-400 ${item.sexo || item.categoria === 'accesorios' ? 'border-gray-300' : 'border-amber-300'}`}
+                    >
+                      <option value="">{item.categoria === 'accesorios' ? 'Sin sexo' : '¿Hombre, mujer o niño? *'}</option>
+                      <option value="hombre">Hombre</option>
+                      <option value="mujer">Mujer</option>
+                      <option value="nino">Niño</option>
+                    </select>
+                    <input
+                      type="text"
+                      value={item.color ?? ''}
+                      onChange={(e) => actualizarItem(idx, 'color', e.target.value)}
+                      placeholder="Color (opcional)"
+                      className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 col-span-2 sm:col-span-1"
+                    />
+                  </div>
+                </>
               )}
 
               {/* Fila 3: marca / talla / cantidad / precio USD / costo COP */}

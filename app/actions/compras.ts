@@ -50,6 +50,11 @@ export type CompraItemInput = {
   destino: 'pedido' | 'contoda' | 'sin_asignar'
   articulo_id?: string | null   // vínculo opcional al catálogo (para inventario)
   pedido_ref?: string           // "TR6492" o "TR6492-1" — asigna al pedido al crear
+  // Ficha del artículo NUEVO (el formulario los pide cuando el código no está
+  // en el catálogo, para que la ficha nazca completa)
+  categoria?: string
+  sexo?: string
+  color?: string
 }
 
 export type PedidoItemBusqueda = {
@@ -254,6 +259,35 @@ export async function crearCompraAction(data: CrearCompraInput): Promise<CrearCo
 
   for (const item of data.items) {
     let articuloId = item.articulo_id || null
+
+    // Artículo nuevo con código: la ficha del catálogo se crea AQUÍ, completa
+    // (categoría, sexo y color vienen del formulario), y el item queda enlazado
+    // de una vez. Antes la ficha se creaba a medias al asignar el pedido.
+    if (!articuloId && item.codigo?.trim() && item.descripcion.trim()) {
+      const cod = item.codigo.trim()
+      const { data: existente } = await adminClient
+        .from('articulos')
+        .select('id')
+        .ilike('codigo', cod)
+        .maybeSingle()
+      if (existente) {
+        articuloId = existente.id
+      } else {
+        const { data: nuevoArt } = await adminClient
+          .from('articulos')
+          .insert({
+            codigo:    cod,
+            nombre:    item.descripcion.trim(),
+            marca:     item.marca.trim() || 'Sin marca',
+            categoria: item.categoria || null,
+            sexo:      item.sexo || null,
+            color:     item.color?.trim() || null,
+          })
+          .select('id')
+          .maybeSingle()
+        articuloId = nuevoArt?.id ?? null
+      }
+    }
 
     const { data: itemCreado, error: errItem } = await adminClient
       .from('compra_items')
