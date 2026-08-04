@@ -109,7 +109,10 @@ export default async function ClienteDetallePage({
 
   const saldoTotal = totalComprado - totalPagado
   const meses = comprasPorMes(cliente.pedidos)
-  const ticketPromedio = cliente.pedidos.length > 0 ? Math.round(totalComprado / cliente.pedidos.length) : 0
+  // Los cancelados no cuentan como pedidos ni en el ticket (sí se ven en el
+  // historial, marcados).
+  const pedidosVigentes = cliente.pedidos.filter((p) => p.estado !== 'cancelado').length
+  const ticketPromedio = pedidosVigentes > 0 ? Math.round(totalComprado / pedidosVigentes) : 0
 
   return (
     <div className="p-4 md:p-6 max-w-[1400px] mx-auto">
@@ -147,7 +150,7 @@ export default async function ClienteDetallePage({
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         <Card>
           <CardContent className="py-4 text-center">
-            <p className="text-2xl font-bold text-gray-900">{cliente.pedidos.length}</p>
+            <p className="text-2xl font-bold text-gray-900">{pedidosVigentes}</p>
             <p className="text-xs text-gray-500 mt-1">Pedidos totales</p>
           </CardContent>
         </Card>
