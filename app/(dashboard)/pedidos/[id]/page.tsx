@@ -148,51 +148,49 @@ export default async function PedidoDetallePage({
                   <span className="font-bold text-gray-900">{formatCOP(pedido.total)}</span>
                 </div>
               </div>
-              {/* Desktop — cuadrícula estilo Excel: borde en cada celda y cada
-                  dato en su propia columna (código, producto, marca, talla,
-                  cantidad, precio). */}
-              <div className="hidden md:block p-4">
-                <table className="w-full text-sm border-collapse">
-                  <thead>
-                    <tr>
-                      <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Código</th>
-                      <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Producto</th>
-                      <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Marca</th>
-                      <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Talla</th>
-                      <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Cant.</th>
-                      <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Precio</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pedido.items.map((item) => (
-                      <tr key={item.id}>
-                        <td className="border border-gray-200 px-3 py-2 font-mono text-xs font-semibold text-blue-700">{item.codigo ?? '—'}</td>
-                        <td className="border border-gray-200 px-3 py-2">
-                          <div className="flex items-center gap-2.5">
-                            {item.imagen_url && (
-                              <img src={item.imagen_url} alt="Producto" className="w-9 h-9 object-cover rounded-md border border-gray-200 flex-shrink-0" />
-                            )}
-                            <span className="text-gray-900">{item.descripcion}</span>
-                          </div>
-                        </td>
-                        <td className="border border-gray-200 px-3 py-2 text-gray-700">{item.marca}</td>
-                        <td className="border border-gray-200 px-3 py-2 text-center font-semibold text-gray-900">{item.talla ?? '—'}</td>
-                        <td className="border border-gray-200 px-3 py-2 text-center text-gray-700">{item.cantidad}</td>
-                        <td className="border border-gray-200 px-3 py-2 text-right font-medium text-gray-900">{formatCOP(item.precio_venta)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr>
-                      <td colSpan={4} className="border border-gray-300 bg-gray-50 px-3 py-2 text-right text-xs font-semibold text-gray-600 uppercase">Total</td>
-                      <td className="border border-gray-300 bg-gray-50 px-3 py-2 text-center font-bold text-gray-900">
-                        {pedido.items.reduce((s: number, it: any) => s + (it.cantidad || 0), 0)}
+              {/* Desktop — cada dato en su propia columna (código, producto,
+                  marca, talla, cantidad, precio), con líneas suaves solo entre
+                  filas: el usuario pidió columnas separadas pero sin cuadrícula. */}
+              <table className="hidden md:table w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 bg-gray-50">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Código</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Producto</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Marca</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Talla</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Cant.</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Precio</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {pedido.items.map((item) => (
+                    <tr key={item.id}>
+                      <td className="px-6 py-3 font-mono text-xs font-semibold text-blue-700">{item.codigo ?? '—'}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2.5">
+                          {item.imagen_url && (
+                            <img src={item.imagen_url} alt="Producto" className="w-9 h-9 object-cover rounded-md border border-gray-200 flex-shrink-0" />
+                          )}
+                          <span className="text-gray-900">{item.descripcion}</span>
+                        </div>
                       </td>
-                      <td className="border border-gray-300 bg-gray-50 px-3 py-2 text-right font-bold text-gray-900">{formatCOP(pedido.total)}</td>
+                      <td className="px-4 py-3 text-gray-700">{item.marca}</td>
+                      <td className="px-4 py-3 text-center font-semibold text-gray-900">{item.talla ?? '—'}</td>
+                      <td className="px-4 py-3 text-center text-gray-700">{item.cantidad}</td>
+                      <td className="px-6 py-3 text-right font-medium text-gray-900">{formatCOP(item.precio_venta)}</td>
                     </tr>
-                  </tfoot>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t border-gray-200 bg-gray-50">
+                    <td colSpan={4} className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Total</td>
+                    <td className="px-4 py-3 text-center font-bold text-gray-900">
+                      {pedido.items.reduce((s: number, it: any) => s + (it.cantidad || 0), 0)}
+                    </td>
+                    <td className="px-6 py-3 text-right font-bold text-gray-900">{formatCOP(pedido.total)}</td>
+                  </tr>
+                </tfoot>
+              </table>
             </CardContent>
           </Card>
 
