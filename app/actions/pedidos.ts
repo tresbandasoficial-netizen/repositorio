@@ -694,8 +694,62 @@ export async function asignarCostoManualAction(
     usuario_id:     sesion.id,
   })
 
+  // Cuadre de inventario: si la venta de este pedido sacó mercancía que nunca
+  // ENTRÓ al sistema (stock en negativo), ponerle el costo manual también
+  // registra la entrada que falta para que el stock quede en 0 y no en −1.
+  // Solo se compensa el faltante real: nunca se infla stock que estaba bien.
+  if (costo !== null) {
+    const { data: salidas } = await adminClient
+      .from('movimientos_inventario')
+      .select('articulo_id, talla, sede_id, delta')
+      .eq('pedido_id', pedidoId)
+      .eq('tipo', 'salida')
+
+    const grupos = new Map<string, { articulo_id: string; talla: string | null; sede_id: string; unidades: number }>()
+    for (const m of (salidas ?? []) as Array<{ articulo_id: string; talla: string | null; sede_id: string; delta: number }>) {
+      const clave = `${m.articulo_id}|${m.talla ?? ''}|${m.sede_id}`
+      const g = grupos.get(clave) ?? { articulo_id: m.articulo_id, talla: m.talla, sede_id: m.sede_id, unidades: 0 }
+      g.unidades += Math.abs(m.delta || 0)
+      grupos.set(clave, g)
+    }
+
+    if (grupos.size > 0) {
+      const { data: itemsPed } = await adminClient
+        .from('pedido_items').select('cantidad').eq('pedido_id', pedidoId)
+      const unidadesPedido = (itemsPed ?? []).reduce((s, it: any) => s + (it.cantidad || 1), 0) || 1
+      const costoUnit = Math.round(costo / unidadesPedido)
+
+      for (const g of grupos.values()) {
+        let q = adminClient
+          .from('movimientos_inventario')
+          .select('delta')
+          .eq('articulo_id', g.articulo_id)
+          .eq('sede_id', g.sede_id)
+          .limit(5000)
+        q = g.talla === null ? q.is('talla', null) : q.eq('talla', g.talla)
+        const { data: movs } = await q
+        const stock = (movs ?? []).reduce((s, m: any) => s + (m.delta || 0), 0)
+        if (stock >= 0) continue
+
+        const entrada = Math.min(g.unidades, -stock)
+        await adminClient.from('movimientos_inventario').insert({
+          articulo_id:        g.articulo_id,
+          talla:              g.talla,
+          sede_id:            g.sede_id,
+          delta:              entrada,
+          tipo:               'entrada',
+          pedido_id:          pedidoId,
+          costo_unitario_cop: costoUnit,
+          usuario_id:         sesion.id,
+          notas:              'Cuadre por costo manual: mercancía vendida sin ingreso previo',
+        })
+      }
+    }
+  }
+
   revalidatePath(`/pedidos/${pedidoId}`)
   revalidatePath('/ganancias')
+  revalidatePath('/inventario')
   return { ok: true }
 }
 
