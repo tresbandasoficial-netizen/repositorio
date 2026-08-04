@@ -66,18 +66,30 @@ export default async function GastosFijosPage({
     .limit(2000)
   if (sedeSel) qMargen = qMargen.eq('sede_id', sedeSel.id)
 
-  // Ganancia REAL del mes en curso, pedido por pedido (venta − costo de
-  // compra). Lo que aún no tiene costo asignado se estima con el margen.
-  let qGananciaMes = supabase
-    .from('vista_ganancia_pedidos')
-    .select('venta, utilidad, tiene_costo')
-    .neq('estado', 'cancelado')
-    .neq('tipo', 'saldo_anterior')
-    .gte('fecha_creacion', `${inicioMes}T00:00:00-05:00`)
+  // Ganancia FACTURADA del mes: solo los pedidos cuya factura se emitió este
+  // mes (datos reales — el usuario pidió quitar la estimación por margen).
+  let qFacturasMes = supabase
+    .from('facturas')
+    .select('id')
+    .gte('creado_en', `${inicioMes}T00:00:00-05:00`)
+    .neq('estado', 'anulada')
     .limit(3000)
-  if (sedeSel) qGananciaMes = qGananciaMes.eq('sede_id', sedeSel.id)
+  if (sedeSel) qFacturasMes = qFacturasMes.eq('sede_id', sedeSel.id)
 
-  const [gastosRes, pedidosRes, variablesRes, margenRes, gananciaMesRes] = await Promise.all([qGastos, qPedidos, qVariables, qMargen, qGananciaMes])
+  const [gastosRes, pedidosRes, variablesRes, margenRes, facturasMesRes] = await Promise.all([qGastos, qPedidos, qVariables, qMargen, qFacturasMes])
+
+  // La lista de ids se consulta por lotes para no pasarse del largo de URL.
+  const facturaIds = ((facturasMesRes.data ?? []) as Array<{ id: string }>).map(f => f.id)
+  const gananciaMesRows: Array<{ venta: number; utilidad: number; tiene_costo: boolean }> = []
+  for (let i = 0; i < facturaIds.length; i += 100) {
+    const { data: lote } = await supabase
+      .from('vista_ganancia_pedidos')
+      .select('venta, utilidad, tiene_costo')
+      .in('factura_id', facturaIds.slice(i, i + 100))
+      .neq('tipo', 'saldo_anterior')
+      .limit(1000)
+    gananciaMesRows.push(...((lote ?? []) as Array<{ venta: number; utilidad: number; tiene_costo: boolean }>))
+  }
 
   const gastos = (gastosRes.data ?? []) as { id: string; concepto: string; monto: number; activo: boolean }[]
   const totalFijos = gastos.filter(g => g.activo).reduce((s, g) => s + g.monto, 0)
@@ -90,12 +102,11 @@ export default async function GastosFijosPage({
   const utilidadConCosto = (margenRes.data ?? []).reduce((s, p) => s + (p.utilidad ?? 0), 0)
   const margenBruto = ventaConCosto > 0 ? utilidadConCosto / ventaConCosto : MARGEN_RESPALDO
 
-  // Utilidad del mes: la REAL de los pedidos con costo + la estimada (margen)
-  // de los que aún no tienen costo asignado.
-  const gananciaMes = gananciaMesRes.data ?? []
-  const utilidadRealMes = gananciaMes.filter(g => g.tiene_costo).reduce((s, g) => s + (g.utilidad ?? 0), 0)
-  const ventaSinCostoMes = gananciaMes.filter(g => !g.tiene_costo).reduce((s, g) => s + (g.venta ?? 0), 0)
-  const utilidadEstimadaMes = Math.round(ventaSinCostoMes * margenBruto)
+  // Utilidad del mes: SOLO la real de los pedidos facturados con costo. Lo
+  // facturado sin costo asignado no se estima — se muestra aparte como aviso.
+  const utilidadRealMes = gananciaMesRows.filter(g => g.tiene_costo).reduce((s, g) => s + (g.utilidad ?? 0), 0)
+  const ventaSinCostoMes = gananciaMesRows.filter(g => !g.tiene_costo).reduce((s, g) => s + (g.venta ?? 0), 0)
+  const utilidadEstimadaMes = 0
 
   // Punto de equilibrio: cuánto hay que VENDER para que el margen cubra los fijos
   const puntoEquilibrio = totalFijos > 0 ? Math.ceil(totalFijos / margenBruto) : 0
