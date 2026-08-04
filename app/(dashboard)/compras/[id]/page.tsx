@@ -40,7 +40,7 @@ export default async function CompraDetallePage({
       id, tipo, proveedor, fecha, total_usd, trm, total_cop, notas, creado_por, creado_en, cuenta_id,
       cuenta:cuentas (nombre),
       compra_items (
-        id, compra_id, descripcion, marca, talla, cantidad, costo_unitario_cop,
+        id, compra_id, codigo, descripcion, marca, talla, cantidad, costo_unitario_cop,
         destino, pedido_id, pedido_item_indice, transferido_contoda, transferido_en, creado_en,
         pedido:pedidos (numero_orden)
       )
@@ -139,38 +139,31 @@ export default async function CompraDetallePage({
             Productos ({compra.compra_items.length})
           </h2>
         </CardHeader>
-        <CardContent className="p-0">
-          <table className="w-full text-sm">
+        <CardContent className="p-4 overflow-x-auto">
+          {/* Cuadrícula estilo Excel: borde en cada celda y cada dato en su
+              propia columna. */}
+          <table className="w-full text-sm border-collapse">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50">
-                <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">Descripción</th>
-                <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">Talla</th>
-                <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Cant.</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Costo unit.</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Destino</th>
+              <tr>
+                <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Código</th>
+                <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nombre</th>
+                <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Marca</th>
+                <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Talla</th>
+                <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Cant.</th>
+                <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Costo unit.</th>
+                <th className="border border-gray-300 bg-gray-50 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Destino</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody>
               {compra.compra_items.map((item) => (
                 <tr key={item.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4">
-                    {item.marca && (
-                      <span className="font-medium text-gray-900">{item.marca} </span>
-                    )}
-                    <span className="text-gray-700">{item.descripcion}</span>
-                  </td>
-                  <td className="px-4 py-4 text-center text-gray-500 hidden sm:table-cell">
-                    {item.talla ?? '—'}
-                  </td>
-                  <td className="px-4 py-4 text-center">
-                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-100 text-gray-700 text-xs font-semibold">
-                      {item.cantidad}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4 text-right text-gray-600 hidden md:table-cell">
-                    {formatCOP(item.costo_unitario_cop)}
-                  </td>
-                  <td className="px-4 py-4">
+                  <td className="border border-gray-200 px-3 py-2 font-mono text-xs font-semibold text-blue-700">{(item as any).codigo ?? '—'}</td>
+                  <td className="border border-gray-200 px-3 py-2 text-gray-900">{item.descripcion}</td>
+                  <td className="border border-gray-200 px-3 py-2 text-gray-700">{item.marca || '—'}</td>
+                  <td className="border border-gray-200 px-3 py-2 text-center font-semibold text-gray-900">{item.talla ?? '—'}</td>
+                  <td className="border border-gray-200 px-3 py-2 text-center text-gray-700">{item.cantidad}</td>
+                  <td className="border border-gray-200 px-3 py-2 text-right font-medium text-gray-900">{formatCOP(item.costo_unitario_cop)}</td>
+                  <td className="border border-gray-200 px-3 py-2">
                     <ItemAsignacion
                       itemId={item.id}
                       destino={item.destino}
@@ -181,6 +174,18 @@ export default async function CompraDetallePage({
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan={4} className="border border-gray-300 bg-gray-50 px-3 py-2 text-right text-xs font-semibold text-gray-600 uppercase">Total</td>
+                <td className="border border-gray-300 bg-gray-50 px-3 py-2 text-center font-bold text-gray-900">
+                  {compra.compra_items.reduce((s, it) => s + (it.cantidad || 0), 0)}
+                </td>
+                <td className="border border-gray-300 bg-gray-50 px-3 py-2 text-right font-bold text-gray-900">
+                  {formatCOP(compra.compra_items.reduce((s, it) => s + (it.costo_unitario_cop || 0) * (it.cantidad || 1), 0))}
+                </td>
+                <td className="border border-gray-300 bg-gray-50" />
+              </tr>
+            </tfoot>
           </table>
         </CardContent>
       </Card>
