@@ -209,7 +209,7 @@ export function GastosFijosPanel({ gastos, totalFijos, puntoEquilibrio, ventasMe
         <div className="p-5 space-y-3">
           <div className="flex items-baseline justify-between">
             <p className="text-2xl font-bold tracking-tight text-gray-900">{formatCOP(utilidadMes)}</p>
-            <p className="text-xs text-gray-400">ganancia facturada del mes</p>
+            <p className="text-xs text-gray-400">ganancia real del mes</p>
           </div>
           <div className="h-3.5 bg-gray-100 rounded-full overflow-hidden">
             <div
@@ -218,15 +218,15 @@ export function GastosFijosPanel({ gastos, totalFijos, puntoEquilibrio, ventasMe
             />
           </div>
           <p className="text-xs text-gray-500">
-            Ganancia <strong>real</strong> de los pedidos ya <strong>facturados</strong> este mes, con su
-            costo de compra{utilidadEstimadaMes > 0 && (
+            Ganancia <strong>real</strong> de los pedidos del mes con <strong>costo de compra asignado</strong>{' '}
+            (facturados o pendientes por entregar){utilidadEstimadaMes > 0 && (
               <> + {formatCOP(utilidadEstimadaMes)} estimada al {(margenBruto * 100).toFixed(0)}% sobre{' '}
               {formatCOP(ventaSinCostoMes)} vendidos aún sin costo</>
             )}. Ventas del mes: {formatCOP(ventasMes)}.
           </p>
           {utilidadEstimadaMes === 0 && ventaSinCostoMes > 0 && (
             <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
-              ⚠ Hay {formatCOP(ventaSinCostoMes)} facturados <strong>sin costo de compra asignado</strong> — esa
+              ⚠ Hay {formatCOP(ventaSinCostoMes)} vendidos este mes <strong>sin costo de compra asignado</strong> — esa
               ganancia no se cuenta hasta que se les asigne su compra.
             </p>
           )}
