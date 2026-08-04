@@ -151,43 +151,43 @@ export default async function PedidoDetallePage({
               {/* Desktop — cada dato en su propia columna (código, producto,
                   marca, talla, cantidad, precio), con líneas suaves solo entre
                   filas: el usuario pidió columnas separadas pero sin cuadrícula. */}
-              <table className="hidden md:table w-full text-sm">
+              <table className="hidden md:table w-full table-fixed text-sm">
                 <thead>
                   <tr className="border-b border-gray-200">
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Código</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Producto</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Marca</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Talla</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Cant.</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Precio</th>
+                    <th className="w-[15%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Código</th>
+                    <th className="w-[32%] px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase">Producto</th>
+                    <th className="w-[12%] px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase">Marca</th>
+                    <th className="w-[10%] px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase">Talla</th>
+                    <th className="w-[9%] px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase">Cant.</th>
+                    <th className="w-[22%] px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase">Precio</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {pedido.items.map((item) => (
                     <tr key={item.id}>
-                      <td className="px-6 py-3 font-mono text-xs font-semibold text-blue-700">{item.codigo ?? '—'}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2.5">
+                      <td className="px-3 py-3 font-mono text-xs font-semibold text-blue-700 truncate">{item.codigo ?? '—'}</td>
+                      <td className="px-2 py-3">
+                        <div className="flex items-center gap-2 min-w-0">
                           {item.imagen_url && (
                             <img src={item.imagen_url} alt="Producto" className="w-9 h-9 object-cover rounded-md border border-gray-200 flex-shrink-0" />
                           )}
                           <span className="text-gray-900">{item.descripcion}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-gray-700">{item.marca}</td>
-                      <td className="px-4 py-3 text-center font-semibold text-gray-900">{item.talla ?? '—'}</td>
-                      <td className="px-4 py-3 text-center text-gray-700">{item.cantidad}</td>
-                      <td className="px-6 py-3 text-right font-medium text-gray-900">{formatCOP(item.precio_venta)}</td>
+                      <td className="px-2 py-3 text-gray-700 truncate">{item.marca}</td>
+                      <td className="px-2 py-3 text-center font-semibold text-gray-900">{item.talla ?? '—'}</td>
+                      <td className="px-2 py-3 text-center text-gray-700">{item.cantidad}</td>
+                      <td className="px-3 py-3 text-right font-medium text-gray-900 whitespace-nowrap">{formatCOP(item.precio_venta)}</td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
                   <tr className="border-t border-gray-200">
-                    <td colSpan={4} className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Total</td>
-                    <td className="px-4 py-3 text-center font-bold text-gray-900">
+                    <td colSpan={4} className="px-2 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Total</td>
+                    <td className="px-2 py-3 text-center font-bold text-gray-900">
                       {pedido.items.reduce((s: number, it: any) => s + (it.cantidad || 0), 0)}
                     </td>
-                    <td className="px-6 py-3 text-right font-bold text-gray-900">{formatCOP(pedido.total)}</td>
+                    <td className="px-3 py-3 text-right font-bold text-gray-900 whitespace-nowrap">{formatCOP(pedido.total)}</td>
                   </tr>
                 </tfoot>
               </table>
