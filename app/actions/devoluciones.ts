@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getSesion, puedeAccederSede } from '@/lib/auth/acceso'
+import { asignarNumeroOrden } from '@/lib/queries/pedidos'
 
 // ─── Devoluciones / cambios ──────────────────────────────────────────────────
 // El cliente devuelve prenda(s) de un pedido ENTREGADO para cambiarlas por
@@ -96,35 +97,39 @@ export async function registrarDevolucionAction(
   return { ok: true, codigo: codigo as string, valor, entradas }
 }
 
-// ─── Cambio de talla directo ─────────────────────────────────────────────────
-// El cliente devuelve la prenda para la MISMA prenda en otra talla. Sin bono:
-// la plata pagada se queda en el mismo pedido. Qué pasa:
-//   1. La prenda de la talla vieja ENTRA al inventario de la sede.
+// ─── Cambio directo (talla u otro artículo) ──────────────────────────────────
+// El cliente devuelve una prenda ENTREGADA y el cambio se registra como un
+// PEDIDO NUEVO que vuelve a la cola del sistema. Sin bonos. Qué pasa:
+//   1. La prenda devuelta ENTRA al inventario de la sede.
 //   2. Si tenía compra asignada, esa compra se DESASIGNA (la entrada queda
 //      amarrada al item de compra para que la sincronización de compras no la
-//      duplique) — así el pedido vuelve a aparecer en "falta comprar".
-//   3. La talla del artículo se actualiza a la nueva.
-//   4. El pedido vuelve a estado PENDIENTE para pedirlo de nuevo.
+//      duplique).
+//   3. Se crea un PEDIDO NUEVO (consecutivo oficial, estado pendiente) con la
+//      prenda en la talla nueva — o igual, para editarla si es otro artículo.
+//   4. El valor pagado se traslada como abono no-efectivo (método 'bono',
+//      cuenta NULL) al pedido nuevo: la plata ya entró con la venta original y
+//      NO se cuenta dos veces. El pedido original queda intacto (histórico).
+// Requiere que el artículo devuelto esté PAGADO: si el pedido original tiene
+// saldo, primero se cobra (o se usa el flujo de devolución).
 
-export type CambioTallaResult =
-  | { ok: true; numeroOrden: string; tallaVieja: string; tallaNueva: string }
+export type CambioResult =
+  | { ok: true; numeroOrden: string; nuevoPedidoId: string; nuevoNumero: string; abonoTrasladado: number }
   | { ok: false; error: string }
 
-export async function registrarCambioTallaAction(
+export async function registrarCambioAction(
   pedidoId: string,
   itemId: string,
-  tallaNueva: string,
-): Promise<CambioTallaResult> {
+  tallaNueva: string | null,   // null = cambio por otro artículo (se edita el pedido nuevo)
+): Promise<CambioResult> {
   const sesion = await getSesion()
   if (sesion.rol === 'visor') return { ok: false, error: 'Sin permisos' }
-  const talla = tallaNueva.trim()
-  if (!talla) return { ok: false, error: 'Escribe la talla nueva' }
+  const talla = tallaNueva?.trim() || null
 
   const supabase = await createClient()
 
   const { data: pedido } = await supabase
     .from('pedidos')
-    .select('id, numero_orden, sede_id, estado, notas')
+    .select('id, numero_orden, sede_id, cliente_id, estado, total, factura_id, notas, sedes(codigo)')
     .eq('id', pedidoId)
     .single()
   if (!pedido || !puedeAccederSede(sesion, pedido.sede_id)) {
@@ -136,7 +141,7 @@ export async function registrarCambioTallaAction(
 
   const { data: item } = await supabase
     .from('pedido_items')
-    .select('id, articulo_id, codigo, marca, descripcion, talla, cantidad')
+    .select('id, articulo_id, codigo, marca, descripcion, talla, cantidad, precio_venta, imagen_url, color, sexo, categoria')
     .eq('id', itemId)
     .eq('pedido_id', pedidoId)
     .single()
@@ -144,11 +149,28 @@ export async function registrarCambioTallaAction(
   if (!item.articulo_id) {
     return { ok: false, error: `"${item.descripcion}" no está enlazada al catálogo — enlázala primero (Editar pedido) para poder entrar la prenda al inventario.` }
   }
-  if ((item.talla ?? '').trim().toLowerCase() === talla.toLowerCase()) {
+  if (talla && (item.talla ?? '').trim().toLowerCase() === talla.toLowerCase()) {
     return { ok: false, error: 'La talla nueva es la misma que ya tiene' }
   }
 
   const admin = createAdminClient()
+
+  // El artículo devuelto debe estar PAGADO: así el abono se traslada completo
+  // y no queda deuda repartida en dos pedidos.
+  const [{ data: pagosPed }, { data: pagosFac }] = await Promise.all([
+    admin.from('pagos').select('monto').eq('pedido_id', pedidoId).eq('anulado', false).neq('metodo', 'credito'),
+    pedido.factura_id
+      ? admin.from('pagos_factura').select('monto').eq('factura_id', pedido.factura_id).eq('anulado', false).neq('metodo', 'credito')
+      : Promise.resolve({ data: [] as Array<{ monto: number }> }),
+  ])
+  const pagadoTotal = [...(pagosPed ?? []), ...(pagosFac ?? [])].reduce((s, p: any) => s + (p.monto || 0), 0)
+  const valorItem = (item.precio_venta || 0) * (item.cantidad || 1)
+  if (pagadoTotal < (pedido.total || 0)) {
+    return {
+      ok: false,
+      error: `El pedido ${pedido.numero_orden} tiene saldo pendiente (pagado ${pagadoTotal.toLocaleString('es-CO')} de ${(pedido.total || 0).toLocaleString('es-CO')}). Registra el pago primero, o usa Cambio/Devolución.`,
+    }
+  }
 
   // 1 + 2. Entrada al stock de la talla vieja, desasignando su compra si la hay.
   const { data: comprasPedido } = await admin
@@ -206,30 +228,75 @@ export async function registrarCambioTallaAction(
     if (errMov) return { ok: false, error: `No se pudo entrar la prenda al inventario: ${errMov.message}` }
   }
 
-  // 3. La prenda queda pedida en la talla nueva.
-  const { error: errTalla } = await admin
-    .from('pedido_items')
-    .update({ talla })
-    .eq('id', itemId)
-  if (errTalla) return { ok: false, error: `No se pudo cambiar la talla: ${errTalla.message}` }
+  // 3. PEDIDO NUEVO con el consecutivo oficial: vuelve a la cola del sistema
+  //    como cualquier pedido, en la talla nueva (o igual, si es cambio por
+  //    otro artículo y lo van a editar).
+  const sedeRel = pedido.sedes as { codigo?: string } | { codigo?: string }[] | null
+  const sedeCodigo = (Array.isArray(sedeRel) ? sedeRel[0]?.codigo : sedeRel?.codigo) ?? pedido.numero_orden.replace(/^VL-/, '').slice(0, 2)
+  const nuevoNumero = await asignarNumeroOrden(sedeCodigo)
+  if (!nuevoNumero) return { ok: false, error: 'La prenda entró al inventario pero no se pudo asignar el número del pedido nuevo. Intenta de nuevo.' }
 
-  // 4. El pedido vuelve a la cola de compra (con historial del cambio de estado).
-  const { error: errEstado } = await supabase.rpc('cambiar_estado_pedido', {
-    p_pedido_id:    pedidoId,
-    p_nuevo_estado: 'pendiente',
-    p_usuario_id:   sesion.id,
+  const notaNuevo = `Cambio del pedido ${pedido.numero_orden}: ${item.marca} ${item.descripcion} T${item.talla || '—'}${talla ? ` → T${talla}` : ' → otro artículo (editar este pedido)'}`
+  const { data: nuevo, error: errNuevo } = await admin
+    .from('pedidos')
+    .insert({
+      numero_orden: nuevoNumero,
+      sede_id:      pedido.sede_id,
+      cliente_id:   pedido.cliente_id,
+      asesor_id:    sesion.id,
+      estado:       'pendiente',
+      tipo:         'encargo',
+      total:        valorItem,
+      tipo_entrega: 'sede',
+      notas:        notaNuevo,
+    })
+    .select('id')
+    .single()
+  if (errNuevo || !nuevo) return { ok: false, error: `No se pudo crear el pedido nuevo: ${errNuevo?.message}` }
+
+  const { error: errItemNuevo } = await admin.from('pedido_items').insert({
+    pedido_id:    nuevo.id,
+    articulo_id:  item.articulo_id,
+    codigo:       item.codigo,
+    marca:        item.marca,
+    descripcion:  item.descripcion,
+    talla:        talla ?? item.talla,
+    cantidad:     item.cantidad,
+    precio_venta: item.precio_venta,
+    imagen_url:   item.imagen_url,
+    color:        item.color,
+    sexo:         item.sexo,
+    categoria:    item.categoria,
   })
-  if (errEstado) return { ok: false, error: `La talla quedó cambiada pero no se pudo devolver el pedido a pendiente: ${errEstado.message}` }
+  if (errItemNuevo) return { ok: false, error: `El pedido ${nuevoNumero} se creó pero falló su artículo: ${errItemNuevo.message}` }
 
-  // Nota visible en el pedido para que se sepa por qué volvió a pendiente.
-  const nota = `Cambio de talla: ${item.marca} ${item.descripcion} T${item.talla || '—'} → T${talla}`
+  await admin.from('historial_cambios').insert({
+    tabla: 'pedidos', registro_id: nuevo.id, campo: 'estado',
+    valor_anterior: null, valor_nuevo: 'pendiente', usuario_id: sesion.id,
+  })
+
+  // 4. Traslado del abono: la plata YA entró con la venta original (allá se
+  //    queda, histórico limpio). Al nuevo pedido entra como abono no-efectivo
+  //    (método bono, cuenta NULL) — no toca caja ni se cuenta dos veces.
+  const { error: errPago } = await admin.from('pagos').insert({
+    pedido_id: nuevo.id,
+    monto:     valorItem,
+    metodo:    'bono',
+    cuenta_id: null,
+    asesor_id: sesion.id,
+    notas:     `Abono trasladado por cambio del ${pedido.numero_orden}`,
+  })
+  if (errPago) return { ok: false, error: `El pedido ${nuevoNumero} se creó pero falló el traslado del abono: ${errPago.message}` }
+
+  // Nota cruzada en el pedido original.
+  const notaOrig = `Cambio: ${item.marca} ${item.descripcion} T${item.talla || '—'} devuelta — continúa en el pedido ${nuevoNumero}`
   await admin
     .from('pedidos')
-    .update({ notas: pedido.notas ? `${pedido.notas}\n${nota}` : nota })
+    .update({ notas: pedido.notas ? `${pedido.notas}\n${notaOrig}` : notaOrig })
     .eq('id', pedidoId)
 
   revalidatePath(`/pedidos/${pedidoId}`)
   revalidatePath('/pedidos')
   revalidatePath('/inventario')
-  return { ok: true, numeroOrden: pedido.numero_orden, tallaVieja: item.talla || '—', tallaNueva: talla }
+  return { ok: true, numeroOrden: pedido.numero_orden, nuevoPedidoId: nuevo.id, nuevoNumero, abonoTrasladado: valorItem }
 }

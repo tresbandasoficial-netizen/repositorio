@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { registrarCambioTallaAction } from '@/app/actions/devoluciones'
+import Link from 'next/link'
+import { registrarCambioAction } from '@/app/actions/devoluciones'
 import { TallaSelect } from '@/components/ui/TallaSelect'
 import type { CategoriaArticulo, SexoArticulo } from '@/types'
 import { Repeat, X } from 'lucide-react'
@@ -16,33 +17,34 @@ type ItemCambio = {
   tieneFicha: boolean // enlazado al catálogo (necesario para entrar a stock)
 }
 
-// Botón "Cambio de talla" del detalle del pedido (solo entregados): se elige la
-// prenda y la talla nueva → la talla vieja entra al inventario, el artículo
-// queda pedido en la talla nueva y el pedido vuelve a PENDIENTE para pedirlo
-// otra vez. Sin bonos: la plata pagada se queda en el mismo pedido.
+// Botón "Hacer cambio" del detalle del pedido (solo entregados). El cambio se
+// registra como un PEDIDO NUEVO (talla nueva u otro artículo) que vuelve a la
+// cola del sistema; la prenda devuelta entra al inventario y el valor pagado
+// se traslada como abono al pedido nuevo — sin bonos y sin duplicar plata.
 export function CambioTallaButton({ pedidoId, items }: { pedidoId: string; items: ItemCambio[] }) {
   const router = useRouter()
   const [abierto, setAbierto] = useState(false)
   const [itemSel, setItemSel] = useState<string | null>(items.length === 1 ? items[0].id : null)
+  const [modo, setModo] = useState<'talla' | 'otro'>('talla')
   const [tallaNueva, setTallaNueva] = useState('')
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [listo, setListo] = useState<{ numeroOrden: string; tallaVieja: string; tallaNueva: string } | null>(null)
+  const [listo, setListo] = useState<{ nuevoPedidoId: string; nuevoNumero: string; abonoTrasladado: number } | null>(null)
 
   const item = items.find(i => i.id === itemSel)
+  const puedeRegistrar = !!itemSel && (modo === 'otro' || !!tallaNueva.trim())
 
   async function registrar() {
-    if (!itemSel || !tallaNueva.trim()) return
+    if (!puedeRegistrar || !itemSel) return
     if (!confirm(
-      `¿Registrar el cambio de talla?\n\n` +
-      `• ${item?.label} pasa de T${item?.talla || '—'} a T${tallaNueva.trim()}\n` +
-      `• La prenda devuelta ENTRA al inventario\n` +
-      `• El pedido vuelve a PENDIENTE para pedirlo de nuevo\n` +
-      `• Los pagos quedan igual (sin bonos)`
+      `¿Registrar el cambio?\n\n` +
+      `• ${item?.label} (T${item?.talla || '—'}) se devuelve y ENTRA al inventario\n` +
+      `• Se crea un PEDIDO NUEVO ${modo === 'talla' ? `con la talla ${tallaNueva.trim()}` : 'con el mismo artículo (edítalo para poner el nuevo)'}\n` +
+      `• El valor pagado pasa como abono al pedido nuevo (sin bonos, sin plata doble)`
     )) return
     setCargando(true)
     setError(null)
-    const r = await registrarCambioTallaAction(pedidoId, itemSel, tallaNueva)
+    const r = await registrarCambioAction(pedidoId, itemSel, modo === 'talla' ? tallaNueva : null)
     setCargando(false)
     if (!r.ok) { setError(r.error); return }
     setListo(r)
@@ -52,10 +54,10 @@ export function CambioTallaButton({ pedidoId, items }: { pedidoId: string; items
   return (
     <>
       <button
-        onClick={() => { setAbierto(true); setError(null); setListo(null); setTallaNueva('') }}
+        onClick={() => { setAbierto(true); setError(null); setListo(null); setTallaNueva(''); setModo('talla') }}
         className="text-sm bg-white border border-sky-300 hover:bg-sky-50 px-3.5 py-2 rounded-xl font-medium text-sky-700 transition-colors inline-flex items-center gap-1.5"
       >
-        <Repeat size={15} /> Cambio de talla
+        <Repeat size={15} /> Hacer cambio
       </button>
 
       {abierto && (
@@ -69,28 +71,36 @@ export function CambioTallaButton({ pedidoId, items }: { pedidoId: string; items
               <>
                 <h3 className="text-base font-bold text-gray-900">✅ Cambio registrado</h3>
                 <div className="text-sm text-gray-700 space-y-1.5">
-                  <p>Talla <strong>{listo.tallaVieja}</strong> → <strong>{listo.tallaNueva}</strong>.</p>
                   <p>• La prenda devuelta entró al inventario.</p>
-                  <p>• El pedido <span className="font-mono font-semibold">{listo.numeroOrden}</span> volvió a <strong>Pendiente</strong>: ya aparece en la lista para pedirlo de nuevo.</p>
-                  <p>• Los pagos del cliente siguen en el pedido, sin bonos.</p>
+                  <p>
+                    • Se creó el pedido nuevo{' '}
+                    <Link href={`/pedidos/${listo.nuevoPedidoId}`} className="font-mono font-bold text-blue-600 hover:underline">
+                      {listo.nuevoNumero}
+                    </Link>{' '}
+                    en estado <strong>Pendiente</strong> — ya aparece en el sistema para pedirlo.
+                  </p>
+                  <p>• Abono trasladado al pedido nuevo: <strong>{listo.abonoTrasladado.toLocaleString('es-CO')}</strong> (sin bonos, la plata no se cuenta dos veces).</p>
+                  {modo === 'otro' && (
+                    <p className="text-amber-700">✏️ Es cambio por otro artículo: entra al pedido nuevo y edítalo para poner el artículo correcto.</p>
+                  )}
                 </div>
-                <button
-                  onClick={() => setAbierto(false)}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl py-2.5"
+                <Link
+                  href={`/pedidos/${listo.nuevoPedidoId}`}
+                  className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl py-2.5 text-center"
                 >
-                  Listo
-                </button>
+                  Abrir el pedido nuevo
+                </Link>
               </>
             ) : (
               <>
-                <h3 className="text-base font-bold text-gray-900">Cambio de talla</h3>
+                <h3 className="text-base font-bold text-gray-900">Hacer cambio</h3>
                 <p className="text-xs text-gray-500">
-                  La prenda devuelta entra al inventario y el pedido vuelve a pendiente con la talla
-                  nueva, para pedirla otra vez. Los pagos quedan igual.
+                  La prenda devuelta entra al inventario y el cambio queda como un <strong>pedido nuevo</strong> en
+                  la cola del sistema, con el valor pagado trasladado como abono. Este pedido no se toca.
                 </p>
 
                 {items.length > 1 && (
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                  <div className="space-y-2 max-h-44 overflow-y-auto">
                     {items.map(it => (
                       <label
                         key={it.id}
@@ -119,15 +129,35 @@ export function CambioTallaButton({ pedidoId, items }: { pedidoId: string; items
                   </p>
                 )}
 
-                {item && (
+                {/* ¿Cambio de talla o por otro artículo? */}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setModo('talla')}
+                    className={`flex-1 text-sm px-3 py-2 rounded-xl border font-medium transition-colors ${
+                      modo === 'talla' ? 'bg-sky-600 text-white border-sky-600' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    Otra talla
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setModo('otro')}
+                    className={`flex-1 text-sm px-3 py-2 rounded-xl border font-medium transition-colors ${
+                      modo === 'otro' ? 'bg-sky-600 text-white border-sky-600' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    Otro artículo
+                  </button>
+                </div>
+
+                {modo === 'talla' && item && (
                   <div>
                     <label className="text-xs font-semibold text-gray-600 uppercase">¿Por cuál talla la cambia?</label>
                     <div className="mt-1 flex items-center gap-2">
                       <span className="shrink-0 rounded-xl bg-gray-100 px-3 py-2 text-sm font-semibold text-gray-500">
                         T {item.talla || '—'} →
                       </span>
-                      {/* Mismo selector de tallas del resto del sistema: ropa,
-                          niño o tenis según la categoría del artículo. */}
                       <TallaSelect
                         categoria={item.categoria}
                         sexo={item.sexo}
@@ -137,6 +167,13 @@ export function CambioTallaButton({ pedidoId, items }: { pedidoId: string; items
                       />
                     </div>
                   </div>
+                )}
+
+                {modo === 'otro' && (
+                  <p className="text-xs text-gray-500 border border-gray-200 rounded-xl px-3 py-2">
+                    El pedido nuevo se crea con este mismo artículo y su abono — después lo{' '}
+                    <strong>editas</strong> para poner el artículo que el cliente quiere (el precio se ajusta ahí).
+                  </p>
                 )}
 
                 {items.some(i => !i.tieneFicha) && (
@@ -151,7 +188,7 @@ export function CambioTallaButton({ pedidoId, items }: { pedidoId: string; items
 
                 <button
                   onClick={registrar}
-                  disabled={!itemSel || !tallaNueva.trim() || cargando}
+                  disabled={!puedeRegistrar || cargando}
                   className="w-full bg-sky-600 hover:bg-sky-700 text-white text-sm font-bold rounded-xl py-2.5 disabled:opacity-50"
                 >
                   {cargando ? 'Registrando…' : 'Hacer el cambio'}
