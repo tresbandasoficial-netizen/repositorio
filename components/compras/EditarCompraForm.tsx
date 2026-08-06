@@ -184,7 +184,9 @@ export function EditarCompraForm({ compraId, inicial, itemsIniciales, cuentas, p
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i]
-      if (!item.codigo.trim()) { setError(`Producto ${i + 1}: el código del artículo (SKU) es obligatorio`); return }
+      // El código es obligatorio solo en productos NUEVOS: los viejos sin
+      // código (compras pre-obligatoriedad) no deben bloquear la edición.
+      if (!item.id && !item.codigo.trim()) { setError(`Producto ${i + 1}: el código del artículo (SKU) es obligatorio`); return }
       if (!item.descripcion.trim()) { setError(`Producto ${i + 1}: falta la descripción`); return }
       if (!parseInt(item.cantidad, 10)) { setError(`Producto ${i + 1}: cantidad inválida`); return }
       if (item.destino === 'pedido' && !item.pedidoRef?.trim()) { setError(`Producto ${i + 1}: indica el número de pedido`); return }

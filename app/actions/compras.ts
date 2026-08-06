@@ -711,9 +711,18 @@ export async function editarCompraAction(compraId: string, data: EditarCompraInp
 
   const numeroFactura = data.numero_factura.trim() || null
 
-  // El número de factura es obligatorio y único (candado anti-duplicados)
+  // El número de factura es obligatorio y único (candado anti-duplicados).
+  // EXCEPCIÓN: compras viejas que nacieron sin número (pre-obligatoriedad)
+  // se pueden seguir editando sin él — exigirlo bloqueaba cualquier arreglo.
   if (!numeroFactura) {
-    return { ok: false, error: 'El número de factura es obligatorio' }
+    const { data: actual } = await adminClient
+      .from('compras')
+      .select('numero_factura')
+      .eq('id', compraId)
+      .maybeSingle()
+    if (actual?.numero_factura) {
+      return { ok: false, error: 'El número de factura es obligatorio (esta compra ya tenía uno — no se puede quitar)' }
+    }
   }
 
   // Verificar duplicado de número de factura excluyendo esta compra
@@ -732,9 +741,15 @@ export async function editarCompraAction(compraId: string, data: EditarCompraInp
 
   // La suma de los productos debe cuadrar con el total de la factura (misma
   // regla que al crear; tolerancia solo de redondeo: $50/producto, mín $200).
+  // En compras de USA la tolerancia sube al 1% del total: los costos en COP
+  // vienen de la conversión USD→COP con impuestos y envío repartidos, y en
+  // facturas viejas ese redondeo acumulado bloqueaba la edición.
   const sumaItemsEd = data.items.reduce((s, it) => s + (it.costo_unitario_cop || 0) * (it.cantidad || 0), 0)
   const diferenciaEd = Math.abs((data.total_cop || 0) - sumaItemsEd)
-  if (data.total_cop > 0 && sumaItemsEd > 0 && diferenciaEd > Math.max(200, data.items.length * 50)) {
+  const toleranciaEd = data.tipo === 'usa'
+    ? Math.max(200, data.items.length * 50, Math.round((data.total_cop || 0) * 0.01))
+    : Math.max(200, data.items.length * 50)
+  if (data.total_cop > 0 && sumaItemsEd > 0 && diferenciaEd > toleranciaEd) {
     return {
       ok: false,
       error: `La suma de los productos ($${sumaItemsEd.toLocaleString('es-CO')}) no cuadra con el total de la factura ($${data.total_cop.toLocaleString('es-CO')}) — diferencia de $${diferenciaEd.toLocaleString('es-CO')}. Revisa los costos, las cantidades o si hay una fila repetida.`,
