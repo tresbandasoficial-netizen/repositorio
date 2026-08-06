@@ -80,7 +80,7 @@ const ESTADOS: Array<{ value: string; label: string }> = [
 export default async function GaleriaPedidosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ estado?: string; q?: string; marca?: string; pagina?: string; desde?: string; hasta?: string }>
+  searchParams: Promise<{ estado?: string; q?: string; marca?: string; pagina?: string; desde?: string; hasta?: string; sede?: string }>
 }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -101,6 +101,10 @@ export default async function GaleriaPedidosPage({
   // estado. Por eso viaja aparte y no como filtro de estado.
   const soloSinCompra = params.estado === 'sin_compra'
 
+  // Filtro explícito de sede (chips TR/SR/CR): cuando viene, manda sobre el
+  // alcance por defecto del asesor.
+  const sedeFiltro = ['TR', 'SR', 'CR'].includes(params.sede ?? '') ? params.sede : undefined
+
   const resultado = await getPedidos({
     estado: soloSinCompra ? undefined : (params.estado as EstadoPedido | undefined),
     sinCompra: soloSinCompra,
@@ -113,11 +117,13 @@ export default async function GaleriaPedidosPage({
     // Igual que la lista: el asesor ve su sede por defecto; al buscar, todas.
     // Los asesores de Bucaramanga ven TAMBIÉN Santa Rosa (la mercancía de SR
     // pasa por TR y ellos la despachan).
-    ...(!esAdmin && usuario.sedes && !params.q
-      ? ((usuario.sedes as any).codigo === 'TR'
-          ? { sedes: ['TR', 'SR'] }
-          : { sede: (usuario.sedes as any).codigo })
-      : {}),
+    ...(sedeFiltro
+      ? { sede: sedeFiltro }
+      : (!esAdmin && usuario.sedes && !params.q
+          ? ((usuario.sedes as any).codigo === 'TR'
+              ? { sedes: ['TR', 'SR'] }
+              : { sede: (usuario.sedes as any).codigo })
+          : {})),
   })
   const { pedidos, total, totalPaginas } = resultado
 
@@ -188,12 +194,13 @@ export default async function GaleriaPedidosPage({
 
   function urlCon(cambios: Record<string, string | undefined>) {
     const p = new URLSearchParams()
-    const merged = { estado: params.estado, q: params.q, marca: params.marca, desde: params.desde, hasta: params.hasta, pagina: undefined as string | undefined, ...cambios }
+    const merged = { estado: params.estado, q: params.q, marca: params.marca, desde: params.desde, hasta: params.hasta, sede: sedeFiltro, pagina: undefined as string | undefined, ...cambios }
     if (merged.estado) p.set('estado', merged.estado)
     if (merged.q) p.set('q', merged.q)
     if (merged.desde) p.set('desde', merged.desde)
     if (merged.hasta) p.set('hasta', merged.hasta)
     if (merged.marca) p.set('marca', merged.marca)
+    if (merged.sede) p.set('sede', merged.sede)
     if (merged.pagina && merged.pagina !== '1') p.set('pagina', merged.pagina)
     const qs = p.toString()
     return `/pedidos/galeria${qs ? `?${qs}` : ''}`
@@ -255,9 +262,10 @@ export default async function GaleriaPedidosPage({
         >
           Filtrar
         </button>
-        {/* La marca viaja en el form para no perderla al filtrar por otra cosa */}
+        {/* La marca y la sede viajan en el form para no perderlas al filtrar */}
         {params.marca && <input type="hidden" name="marca" value={params.marca} />}
-        {(params.estado || params.q || params.marca || params.desde || params.hasta) && (
+        {sedeFiltro && <input type="hidden" name="sede" value={sedeFiltro} />}
+        {(params.estado || params.q || params.marca || params.desde || params.hasta || sedeFiltro) && (
           <Link
             href="/pedidos/galeria"
             className="px-4 py-2.5 text-sm font-medium text-gray-500 hover:text-gray-700 border border-gray-200 rounded-xl bg-white hover:bg-gray-50 transition-colors"
@@ -266,6 +274,35 @@ export default async function GaleriaPedidosPage({
           </Link>
         )}
       </form>
+
+      {/* Filtro por sede: TR / SR / CR (para todos — el asesor puede mirar
+          cualquier sede explícitamente) */}
+      <div className="flex flex-wrap items-center gap-2 mb-5">
+        <span className="text-xs font-medium text-gray-400 uppercase tracking-wide mr-1">Sede</span>
+        <Link
+          href={urlCon({ sede: undefined })}
+          className={`rounded-xl border px-3 py-1.5 text-sm transition-colors ${
+            !sedeFiltro
+              ? 'bg-blue-600 border-blue-600 text-white font-semibold'
+              : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+          }`}
+        >
+          {esAdmin ? 'Todas' : 'Mi vista'}
+        </Link>
+        {(['TR', 'SR', 'CR'] as const).map(s => (
+          <Link
+            key={s}
+            href={urlCon({ sede: s })}
+            className={`rounded-xl border px-3 py-1.5 text-sm font-mono transition-colors ${
+              sedeFiltro === s
+                ? 'bg-blue-600 border-blue-600 text-white font-semibold'
+                : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+            }`}
+          >
+            {s}
+          </Link>
+        ))}
+      </div>
 
       {/* Filtro por marca: el número es cuántos ARTÍCULOS hay de esa marca en el
           estado elegido — con "Pendiente" es justo lo que falta por pedir. */}
