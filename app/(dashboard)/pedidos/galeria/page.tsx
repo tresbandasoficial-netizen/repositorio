@@ -111,7 +111,13 @@ export default async function GaleriaPedidosPage({
     pagina,
     porPagina: 30, // cuadrícula de 6 × 5 imágenes
     // Igual que la lista: el asesor ve su sede por defecto; al buscar, todas.
-    ...(!esAdmin && usuario.sedes && !params.q ? { sede: (usuario.sedes as any).codigo } : {}),
+    // Los asesores de Bucaramanga ven TAMBIÉN Santa Rosa (la mercancía de SR
+    // pasa por TR y ellos la despachan).
+    ...(!esAdmin && usuario.sedes && !params.q
+      ? ((usuario.sedes as any).codigo === 'TR'
+          ? { sedes: ['TR', 'SR'] }
+          : { sede: (usuario.sedes as any).codigo })
+      : {}),
   })
   const { pedidos, total, totalPaginas } = resultado
 

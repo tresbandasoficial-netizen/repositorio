@@ -77,6 +77,7 @@ export type PedidosResult = {
 export async function getPedidos(filtros?: {
   estado?: EstadoPedido
   sede?: string
+  sedes?: string[]   // varias sedes a la vez (TR ve también SR en galería)
   asesor_id?: string
   q?: string
   marca?: string
@@ -111,6 +112,8 @@ export async function getPedidos(filtros?: {
 
   if (filtros?.estado)      query = query.eq('estado', filtros.estado)
   if (filtros?.sede)        query = query.eq('sede_codigo', filtros.sede)
+  // Varias sedes a la vez (ej: asesores de TR ven también SR en la galería)
+  if (filtros?.sedes?.length) query = query.in('sede_codigo', filtros.sedes)
   if (filtros?.asesor_id)   query = query.eq('asesor_id', filtros.asesor_id)
   if (filtros?.alerta) {
     const ts = (dias: number) => new Date(Date.now() - dias * 86_400_000).toISOString()
