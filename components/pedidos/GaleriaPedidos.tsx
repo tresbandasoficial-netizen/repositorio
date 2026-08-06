@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type { PedidoRow } from '@/lib/queries/pedidos'
 import { EstadoInline } from './PedidoCard'
-import { separarPedidoAction, cambiarEstadoInlineAction, cambiarEstadoPrendaAction } from '@/app/actions/pedidos'
+import { separarPedidoAction, cambiarEstadoInlineAction, cambiarEstadoPrendaAction, marcarLlegadaPrendasAction } from '@/app/actions/pedidos'
 import { transicionesDisponibles } from '@/lib/domain/estados'
 import { ESTADO_LABELS, EstadoPedido } from '@/types'
 import { SEGMENTO_CONFIG } from '@/components/recompras/BadgeSegmento'
@@ -141,30 +141,57 @@ export function GaleriaPedidos({
   }
 
   async function marcarLlegadaLote() {
-    const seleccion = pedidosMarcados()
     const EN_CAMINO = ['pendiente', 'comprado', 'usa']
-    const aMarcar = seleccion.filter(p => EN_CAMINO.includes(p.estado))
-    const omitidos = seleccion.filter(p => !EN_CAMINO.includes(p.estado))
+    // La llegada se marca POR PRENDA: si de un pedido de varias prendas solo
+    // se seleccionaron algunas, el pedido se separa y solo esas partes llegan.
+    // Con todas las prendas seleccionadas, el pedido avanza completo.
+    type Grupo = { pedido: PedidoRow; idxs: number[]; totalPrendas: number; refs: string[] }
+    const grupos = new Map<string, Grupo>()
+    for (const t of tiles) {
+      let g = grupos.get(t.pedido.id)
+      if (!g) { g = { pedido: t.pedido, idxs: [], totalPrendas: 0, refs: [] }; grupos.set(t.pedido.id, g) }
+      g.totalPrendas += 1
+      if (marcados.includes(t.ref)) {
+        g.refs.push(t.ref)
+        if (t.itemIdx !== null) g.idxs.push(t.itemIdx)
+      }
+    }
+    const seleccion = [...grupos.values()].filter(g => g.refs.length > 0)
+    const aMarcar = seleccion.filter(g => EN_CAMINO.includes(g.pedido.estado))
+    const omitidos = seleccion.filter(g => !EN_CAMINO.includes(g.pedido.estado))
     if (aMarcar.length === 0) {
       alert('Ninguno de los seleccionados está en camino (pendiente/comprado/USA) — no hay nada que marcar.')
       return
     }
+    const parciales = aMarcar.filter(g => vista === 'articulo' && g.idxs.length > 0 && g.refs.length < g.totalPrendas)
     if (!confirm(
-      `¿Marcar ${aMarcar.length} pedido(s) como LLEGÓ A BUCARAMANGA?\n\n` +
-      aMarcar.map(p => p.numero_orden).join(', ') +
-      (omitidos.length > 0 ? `\n\nSe omiten (ya en sede/entregados): ${omitidos.map(p => p.numero_orden).join(', ')}` : '')
+      `¿Marcar como LLEGÓ A BUCARAMANGA?\n\n` +
+      aMarcar.flatMap(g => g.refs).join(', ') +
+      (parciales.length > 0
+        ? `\n\n✂️ OJO: ${parciales.map(g => g.pedido.numero_orden).join(', ')} se separará(n) por prendas — SOLO llegan las seleccionadas, las demás siguen en camino.`
+        : '') +
+      (omitidos.length > 0 ? `\n\nSe omiten (ya en sede/entregados): ${omitidos.map(g => g.pedido.numero_orden).join(', ')}` : '')
     )) return
     setMarcandoLote(true)
     const errores: string[] = []
-    for (const p of aMarcar) {
-      const r = await cambiarEstadoInlineAction(p.id, p.estado as any, 'bucaramanga')
-      if (!r.ok) errores.push(`${p.numero_orden}: ${r.error}`)
+    let marcadasTotal = 0
+    for (const g of aMarcar) {
+      const esParcial = vista === 'articulo' && g.idxs.length > 0 && g.refs.length < g.totalPrendas
+      if (esParcial) {
+        const r = await marcarLlegadaPrendasAction(g.pedido.id, g.idxs)
+        if (!r.ok) errores.push(`${g.pedido.numero_orden}: ${r.error}`)
+        else marcadasTotal += r.partes.length
+      } else {
+        const r = await cambiarEstadoInlineAction(g.pedido.id, g.pedido.estado as any, 'bucaramanga')
+        if (!r.ok) errores.push(`${g.pedido.numero_orden}: ${r.error}`)
+        else marcadasTotal += 1
+      }
     }
     setMarcandoLote(false)
     setMarcados([])
     alert(errores.length === 0
-      ? `✅ ${aMarcar.length} pedido(s) marcados en Bucaramanga.`
-      : `Marcados ${aMarcar.length - errores.length}. Con error:\n${errores.join('\n')}`)
+      ? `✅ ${marcadasTotal} marcado(s) en Bucaramanga.`
+      : `Marcados ${marcadasTotal}. Con error:\n${errores.join('\n')}`)
     router.refresh()
   }
 

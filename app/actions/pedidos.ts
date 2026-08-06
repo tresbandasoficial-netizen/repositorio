@@ -913,3 +913,77 @@ export async function cambiarEstadoPrendaAction(
   revalidatePath('/pedidos/galeria')
   return { ok: true, numeroParte }
 }
+
+export type MarcarLlegadaPrendasResult =
+  | { ok: true; partes: string[] }
+  | { ok: false; error: string }
+
+// Marca la llegada a Bucaramanga de SOLO algunas prendas de un pedido: si el
+// pedido tiene varias y no todas llegaron, se separa primero (TR7115 → -1…-7)
+// y únicamente las partes elegidas pasan a 'bucaramanga'. Con todas
+// seleccionadas (o una sola prenda), el pedido avanza completo sin separarse.
+export async function marcarLlegadaPrendasAction(
+  pedidoId: string,
+  itemIdxs: number[],
+): Promise<MarcarLlegadaPrendasResult> {
+  const sesion = await getSesion()
+  if (sesion.rol === 'visor') return { ok: false, error: 'Sin permisos' }
+  if (itemIdxs.length === 0) return { ok: false, error: 'Sin prendas seleccionadas' }
+  const supabase = await createClient()
+
+  const { data: pedido } = await supabase
+    .from('pedidos')
+    .select('id, numero_orden, estado, sede_id, factura_id')
+    .eq('id', pedidoId)
+    .single()
+  if (!pedido || !puedeAccederSede(sesion, pedido.sede_id)) {
+    return { ok: false, error: 'Sin acceso a este pedido' }
+  }
+
+  const { count } = await supabase
+    .from('pedido_items')
+    .select('id', { count: 'exact', head: true })
+    .eq('pedido_id', pedidoId)
+  const nItems = count ?? 0
+
+  // Todas las prendas llegaron (o es de una sola): avanza el pedido completo.
+  if (nItems <= 1 || itemIdxs.length >= nItems) {
+    const { error } = await supabase.rpc('cambiar_estado_pedido', {
+      p_pedido_id: pedidoId, p_nuevo_estado: 'bucaramanga', p_usuario_id: sesion.id,
+    })
+    if (error) return { ok: false, error: error.message }
+    revalidatePath('/pedidos')
+    revalidatePath('/pedidos/galeria')
+    return { ok: true, partes: [pedido.numero_orden] }
+  }
+
+  if (pedido.factura_id) {
+    return { ok: false, error: `${pedido.numero_orden} ya está facturado — no se puede separar por prendas. Marca la llegada del pedido completo.` }
+  }
+
+  const { data, error: errSep } = await supabase.rpc('separar_pedido_por_articulos', { p_pedido_id: pedidoId })
+  if (errSep) return { ok: false, error: `No se pudo separar ${pedido.numero_orden}: ${errSep.message}` }
+  const partes = ((data as any)?.partes ?? []) as string[]
+
+  const marcadas: string[] = []
+  for (const idx of itemIdxs) {
+    const numeroParte = partes[idx] ?? `${pedido.numero_orden}-${idx + 1}`
+    const { data: parte } = await supabase
+      .from('pedidos')
+      .select('id, estado')
+      .eq('numero_orden', numeroParte)
+      .single()
+    if (!parte) return { ok: false, error: `Se separó, pero no se encontró la parte ${numeroParte}` }
+    if (parte.estado !== 'bucaramanga') {
+      const { error } = await supabase.rpc('cambiar_estado_pedido', {
+        p_pedido_id: parte.id, p_nuevo_estado: 'bucaramanga', p_usuario_id: sesion.id,
+      })
+      if (error) return { ok: false, error: `${numeroParte}: ${error.message}` }
+    }
+    marcadas.push(numeroParte)
+  }
+
+  revalidatePath('/pedidos')
+  revalidatePath('/pedidos/galeria')
+  return { ok: true, partes: marcadas }
+}
