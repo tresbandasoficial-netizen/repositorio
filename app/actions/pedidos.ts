@@ -547,8 +547,13 @@ export async function editarPedidoAction(
   const nuevoNumero = data.numero_orden.trim().toUpperCase()
   if (!nuevoNumero) return { ok: false, error: 'El número de pedido es obligatorio' }
   const sedeCodigo = (pedidoCheck as any).sede_codigo as string
-  if (!nuevoNumero.startsWith(sedeCodigo)) {
-    return { ok: false, error: `El número debe empezar con ${sedeCodigo}` }
+  // El código de sede puede venir con prefijo: ventas locales "VL-TR6969" o
+  // "VL-FAC-TR-2026-0350" y saldos migrados "SALDO-SR-XXX" también son números
+  // válidos de su sede — exigir que empiece pelado con TR/SR/CR bloqueaba
+  // editar esos pedidos.
+  const numeroBase = nuevoNumero.replace(/^(VL-|SALDO-)?(FAC-)?/, '')
+  if (!numeroBase.startsWith(sedeCodigo)) {
+    return { ok: false, error: `El número debe ser de la sede ${sedeCodigo} (ej: ${sedeCodigo}6492, VL-${sedeCodigo}…)` }
   }
   if (data.tipo_entrega === 'domicilio' && !data.direccion_entrega.trim()) {
     return { ok: false, error: 'La dirección de entrega es obligatoria para domicilio' }
