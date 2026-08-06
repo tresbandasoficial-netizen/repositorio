@@ -106,11 +106,11 @@ export async function registrarDevolucionAction(
 //      duplique).
 //   3. Se crea un PEDIDO NUEVO (consecutivo oficial, estado pendiente) con la
 //      prenda en la talla nueva — o igual, para editarla si es otro artículo.
-//   4. El valor pagado se traslada como abono no-efectivo (método 'bono',
-//      cuenta NULL) al pedido nuevo: la plata ya entró con la venta original y
-//      NO se cuenta dos veces. El pedido original queda intacto (histórico).
-// Requiere que el artículo devuelto esté PAGADO: si el pedido original tiene
-// saldo, primero se cobra (o se usa el flujo de devolución).
+//   4. El valor del artículo se traslada como abono no-efectivo (método
+//      'bono', cuenta NULL) al pedido nuevo. Funciona pagado O a crédito: si
+//      el original tiene saldo, esa deuda sigue viva en el original/su factura
+//      (Cartera la cobra allá) y el pedido nuevo queda con nota de aviso. El
+//      saldo total del cliente no cambia ni se duplica.
 
 export type CambioResult =
   | { ok: true; numeroOrden: string; nuevoPedidoId: string; nuevoNumero: string; abonoTrasladado: number }
@@ -155,8 +155,11 @@ export async function registrarCambioAction(
 
   const admin = createAdminClient()
 
-  // El artículo devuelto debe estar PAGADO: así el abono se traslada completo
-  // y no queda deuda repartida en dos pedidos.
+  // Funciona pagado O a crédito: el valor del artículo entra completo como
+  // abono trasladado al pedido nuevo, y si el original tiene saldo, esa deuda
+  // SIGUE viva en el original/su factura (donde Cartera ya la cobra). El saldo
+  // total del cliente no cambia ni se duplica: sube su total en el valor del
+  // pedido nuevo y sube su pagado en el mismo valor (el abono trasladado).
   const [{ data: pagosPed }, { data: pagosFac }] = await Promise.all([
     admin.from('pagos').select('monto').eq('pedido_id', pedidoId).eq('anulado', false).neq('metodo', 'credito'),
     pedido.factura_id
@@ -165,12 +168,7 @@ export async function registrarCambioAction(
   ])
   const pagadoTotal = [...(pagosPed ?? []), ...(pagosFac ?? [])].reduce((s, p: any) => s + (p.monto || 0), 0)
   const valorItem = (item.precio_venta || 0) * (item.cantidad || 1)
-  if (pagadoTotal < (pedido.total || 0)) {
-    return {
-      ok: false,
-      error: `El pedido ${pedido.numero_orden} tiene saldo pendiente (pagado ${pagadoTotal.toLocaleString('es-CO')} de ${(pedido.total || 0).toLocaleString('es-CO')}). Registra el pago primero, o usa Cambio/Devolución.`,
-    }
-  }
+  const saldoOriginal = Math.max(0, (pedido.total || 0) - pagadoTotal)
 
   // 1 + 2. Entrada al stock de la talla vieja, desasignando su compra si la hay.
   const { data: comprasPedido } = await admin
@@ -236,7 +234,11 @@ export async function registrarCambioAction(
   const nuevoNumero = await asignarNumeroOrden(sedeCodigo)
   if (!nuevoNumero) return { ok: false, error: 'La prenda entró al inventario pero no se pudo asignar el número del pedido nuevo. Intenta de nuevo.' }
 
-  const notaNuevo = `Cambio del pedido ${pedido.numero_orden}: ${item.marca} ${item.descripcion} T${item.talla || '—'}${talla ? ` → T${talla}` : ' → otro artículo (editar este pedido)'}`
+  const notaNuevo = `Cambio del pedido ${pedido.numero_orden}: ${item.marca} ${item.descripcion} T${item.talla || '—'}${talla ? ` → T${talla}` : ' → otro artículo (editar este pedido)'}${
+    saldoOriginal > 0
+      ? `\n⚠ OJO: el pedido original quedó DEBIENDO $${saldoOriginal.toLocaleString('es-CO')} — esa deuda se cobra por el ${pedido.numero_orden}/su factura (Cartera), NO por este pedido.`
+      : ''
+  }`
   const { data: nuevo, error: errNuevo } = await admin
     .from('pedidos')
     .insert({
