@@ -517,21 +517,24 @@ export function GaleriaPedidos({
             const activa = sel?.ref === t.ref
             const marcado = marcados.includes(t.ref)
             const esCancelado = t.pedido.estado === 'cancelado'
+            // Recuadro VERDE = ya entregado (lo ven admin y asesores).
+            const esEntregado = t.pedido.estado === 'entregado'
             // Recuadro ROJO = falta comprarlo. Reemplaza al punto de color, que
             // era chiquito y había que buscarlo. Solo lo ve el admin: es
             // información de compras.
-            const faltaComprar = esAdmin && !esCancelado && !t.comprado
+            const faltaComprar = esAdmin && !esCancelado && !esEntregado && !t.comprado
             return (
               <button
                 key={t.ref}
                 onClick={() => elegir(t)}
-                title={faltaComprar ? 'Sin comprar' : esCancelado ? 'Cancelado' : esAdmin ? 'Ya comprado' : undefined}
+                title={faltaComprar ? 'Sin comprar' : esCancelado ? 'Cancelado' : esEntregado ? 'Entregado' : esAdmin ? 'Ya comprado' : undefined}
                 // El BORDE dice el estado de compra y el ANILLO lo que está
                 // seleccionado, así los dos se leen a la vez y no se tapan.
                 // El grosor es siempre 2 para que la tarjeta no cambie de tamaño
                 // cuando cambia de estado.
                 className={`group relative text-left bg-white rounded-xl border-2 overflow-hidden transition-all ${
                   faltaComprar ? 'border-red-500'
+                  : esEntregado ? 'border-emerald-500'
                   : esCancelado ? 'border-gray-300'
                   : 'border-gray-200'
                 } ${
