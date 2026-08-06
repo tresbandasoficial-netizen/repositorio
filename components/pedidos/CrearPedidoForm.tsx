@@ -551,25 +551,28 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
               </button>
             ))}
           </div>
-          {form.tipo_entrega === 'domicilio' && (
-            <div className="space-y-2">
-              {ultimaDireccion && !form.direccion && (
-                <button type="button" onClick={() => updateField('direccion', ultimaDireccion)}
-                  className="mb-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1">
-                  📍 Usar dirección anterior: <span className="font-normal">{ultimaDireccion}</span>
-                </button>
-              )}
-              <input type="text" value={form.direccion ?? ''}
-                onChange={e => updateField('direccion', e.target.value || null)}
-                placeholder="Calle 10 # 5-20, Barrio…"
-                className="w-full border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              <input type="text" value={form.ciudad ?? ''}
-                onChange={e => updateField('ciudad', e.target.value || null)}
-                placeholder="Ciudad — Ej: Medellín"
-                className="w-full border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              <p className="text-xs text-gray-400">La dirección y la ciudad se guardan también en la ficha del cliente (la ciudad sale en las etiquetas).</p>
-            </div>
-          )}
+          {/* Dirección y ciudad SIEMPRE (también en entrega en sede): quedan en
+              la ficha del cliente para armar el mensaje de envíos sin volver a
+              pedirle los datos. En domicilio son la dirección de entrega. */}
+          <div className="space-y-2">
+            {ultimaDireccion && !form.direccion && (
+              <button type="button" onClick={() => updateField('direccion', ultimaDireccion)}
+                className="mb-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1">
+                📍 Usar dirección anterior: <span className="font-normal">{ultimaDireccion}</span>
+              </button>
+            )}
+            <input type="text" value={form.direccion ?? ''}
+              onChange={e => updateField('direccion', e.target.value || null)}
+              placeholder={form.tipo_entrega === 'domicilio' ? 'Calle 10 # 5-20, Barrio…' : 'Dirección del cliente (para envíos) — Calle 10 # 5-20…'}
+              className="w-full border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <input type="text" value={form.ciudad ?? ''}
+              onChange={e => updateField('ciudad', e.target.value || null)}
+              placeholder="Ciudad — Ej: Medellín"
+              className="w-full border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <p className="text-xs text-gray-400">
+              La dirección y la ciudad se guardan en la ficha del cliente (sirven para el mensaje de envíos y las etiquetas).
+            </p>
+          </div>
         </div>
 
         {/* Productos */}

@@ -34,6 +34,8 @@ export type PedidoRow = {
 
 export type PedidoDetalle = PedidoRow & {
   cliente_cedula: string | null
+  cliente_direccion: string | null
+  cliente_ciudad: string | null
   items: Array<{
     id: string
     codigo: string | null
@@ -251,10 +253,11 @@ export async function getPedidoDetalle(id: string): Promise<PedidoDetalle | null
 
   const pedidoData = pedidoRes.data as PedidoRow
 
-  // Obtener cédula del cliente (no está en la vista)
+  // Cédula, dirección y ciudad del cliente (no están en la vista; se usan en
+  // los mensajes de envío)
   const { data: clienteData } = await supabase
     .from('clientes')
-    .select('cedula')
+    .select('cedula, direccion, ciudad')
     .eq('id', pedidoData.cliente_id)
     .single()
 
@@ -333,6 +336,8 @@ export async function getPedidoDetalle(id: string): Promise<PedidoDetalle | null
     ...pedidoData,
     total_pagado: totalPagadoReal,
     cliente_cedula: clienteData?.cedula ?? null,
+    cliente_direccion: (clienteData as any)?.direccion ?? null,
+    cliente_ciudad: (clienteData as any)?.ciudad ?? null,
     items: itemsData,
     pagos: pagosTodos,
     historial,

@@ -110,6 +110,30 @@ Saldo: ${formatCOPPlain(saldo)}
 Asesor: ${pedido.asesor_nombre}`
 }
 
+// Mensaje para la TRANSPORTADORA / envíos: los datos del destinatario de una
+// vez, sin ir a buscarlos a la ficha. La dirección sale del pedido si es
+// domicilio; si no, de la ficha del cliente.
+function buildEnvio(pedido: PedidoDetalle): string {
+  const saldo = pedido.total - pedido.total_pagado
+  const direccion = (pedido.tipo_entrega === 'domicilio' && pedido.direccion_entrega)
+    ? pedido.direccion_entrega
+    : (pedido.cliente_direccion ?? '—')
+  const contenido = pedido.items.map((it) => {
+    const talla = it.talla ? ` T${it.talla}` : ''
+    const cant  = it.cantidad > 1 ? ` x${it.cantidad}` : ''
+    return `${it.marca} ${it.descripcion}${talla}${cant}`
+  }).join(', ')
+
+  return `🚚 DATOS DE ENVÍO
+Nombre: ${pedido.cliente_nombre}
+${pedido.cliente_cedula ? `CC: ${pedido.cliente_cedula}\n` : ''}Celular: ${pedido.cliente_telefono}
+Dirección: ${direccion}
+Ciudad: ${pedido.cliente_ciudad ?? '—'}
+Contenido: ${contenido}
+Pedido: ${pedido.numero_orden}
+${saldo > 0 ? `Recaudar contra entrega: ${formatCOPPlain(saldo)}` : 'Ya pagado — no recaudar'}`
+}
+
 interface Props {
   pedido: PedidoDetalle
 }
@@ -118,6 +142,14 @@ export function CopiarResumen({ pedido }: Props) {
   const [copiadoGrupo, setCopiadoGrupo] = useState(false)
   const [copiadoResumen, setCopiadoResumen] = useState(false)
   const [copiadoConfirmacion, setCopiadoConfirmacion] = useState(false)
+  const [copiadoEnvio, setCopiadoEnvio] = useState(false)
+
+  function handleCopiarEnvio() {
+    navigator.clipboard.writeText(buildEnvio(pedido)).then(() => {
+      setCopiadoEnvio(true)
+      setTimeout(() => setCopiadoEnvio(false), 2500)
+    })
+  }
 
   function handleCopiarGrupo() {
     navigator.clipboard.writeText(buildGrupo(pedido)).then(() => {
@@ -142,6 +174,12 @@ export function CopiarResumen({ pedido }: Props) {
 
   return (
     <div className="space-y-2">
+      <button
+        onClick={handleCopiarEnvio}
+        className="w-full text-left text-xs px-3 py-2 rounded-lg border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-700 transition-colors font-medium"
+      >
+        {copiadoEnvio ? '✓ Copiado' : '🚚 Copiar datos de envío (transportadora)'}
+      </button>
       <button
         onClick={handleCopiarGrupo}
         className="w-full text-left text-xs px-3 py-2 rounded-lg border border-green-200 bg-green-50 hover:bg-green-100 text-green-700 transition-colors font-medium"
