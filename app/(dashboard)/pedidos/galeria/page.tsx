@@ -181,6 +181,13 @@ export default async function GaleriaPedidosPage({
     for (const pid of Object.keys(itemsPorPedido)) {
       marcarComprados(itemsPorPedido[pid], comprasPorPedido[pid] ?? [])
     }
+    // Un pedido con COSTO MANUAL ya tiene su costo resuelto: sus prendas no
+    // deben salir en rojo "sin comprar" (el admin lo costeó a mano).
+    for (const p of pedidos) {
+      if ((p as any).con_costo_manual) {
+        for (const it of itemsPorPedido[p.id] ?? []) it.comprado = true
+      }
+    }
   }
 
   // Conteo por marca sobre TODOS los pedidos del estado elegido, no sobre la
