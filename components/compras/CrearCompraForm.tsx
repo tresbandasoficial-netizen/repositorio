@@ -4,7 +4,7 @@ import { useState, useTransition, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { crearCompraAction, CrearCompraInput, CompraItemInput, buscarPedidoPorOrdenAction } from '@/app/actions/compras'
 import { parsearFacturaAction, FacturaExtraida } from '@/app/actions/parsear-factura'
-import { buscarPorCodigoAction } from '@/app/actions/articulos'
+import { buscarPorCodigoAction, buscarArticulosAction, ArticuloBusqueda } from '@/app/actions/articulos'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { MarcaSelect } from '@/components/ui/MarcaSelect'
@@ -105,10 +105,37 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
   const codigoTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({})
   const router = useRouter()
 
+  // Buscador de artículos con foto bajo el campo de código (igual que en
+  // pedidos): al escribir salen las opciones del catálogo para elegir.
+  const [opcionesCatalogo, setOpcionesCatalogo] = useState<Record<number, ArticuloBusqueda[]>>({})
+  const [buscadorAbierto, setBuscadorAbierto] = useState<number | null>(null)
+
   function codigoEnVivo(idx: number, valor: string) {
     actualizarItem(idx, 'codigo', valor)
     if (codigoTimers.current[idx]) clearTimeout(codigoTimers.current[idx])
-    codigoTimers.current[idx] = setTimeout(() => buscarPorCodigo(idx, valor), 450)
+    codigoTimers.current[idx] = setTimeout(async () => {
+      buscarPorCodigo(idx, valor)
+      const q = valor.trim()
+      if (q.length >= 2) {
+        const arts = await buscarArticulosAction(q, null)
+        setOpcionesCatalogo(prev => ({ ...prev, [idx]: arts }))
+        setBuscadorAbierto(arts.length > 0 ? idx : null)
+      } else {
+        setBuscadorAbierto(null)
+      }
+    }, 450)
+  }
+
+  function elegirDelCatalogo(idx: number, art: ArticuloBusqueda) {
+    setItems(prev => prev.map((item, i) => i === idx ? {
+      ...item,
+      codigo:             art.codigo ?? item.codigo,
+      descripcion:        art.nombre,
+      marca:              art.marca,
+      articuloId:         art.id,
+      articuloEncontrado: true,
+    } : item))
+    setBuscadorAbierto(null)
   }
 
   // Pedidos/artículos seleccionados desde la galería
@@ -1088,7 +1115,11 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
                     type="text"
                     value={item.codigo}
                     onChange={(e) => codigoEnVivo(idx, e.target.value)}
-                    onBlur={(e) => buscarPorCodigo(idx, e.target.value)}
+                    onBlur={(e) => {
+                      buscarPorCodigo(idx, e.target.value)
+                      // Después del onMouseDown de la opción, para no tragarse el clic.
+                      setTimeout(() => setBuscadorAbierto(a => (a === idx ? null : a)), 150)
+                    }}
                     placeholder="Código (SKU)"
                     className={`w-full rounded-lg border px-2 py-1.5 text-sm focus:outline-none focus:ring-2 bg-white font-mono ${
                       item.articuloEncontrado === true  ? 'border-green-400 focus:ring-green-400' :
@@ -1098,6 +1129,38 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
                   />
                   {item.articuloEncontrado === true && (
                     <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-medium">✓</span>
+                  )}
+                  {/* Opciones del catálogo con su FOTO, para elegir sin saberse
+                      el código exacto (mismo buscador de crear pedido). */}
+                  {buscadorAbierto === idx && (opcionesCatalogo[idx]?.length ?? 0) > 0 && (
+                    <div className="absolute z-20 left-0 top-full mt-1 min-w-[22rem] max-w-[min(30rem,90vw)] bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden max-h-72 overflow-y-auto">
+                      {opcionesCatalogo[idx].map(art => (
+                        <button
+                          key={art.id}
+                          type="button"
+                          onMouseDown={() => elegirDelCatalogo(idx, art)}
+                          className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm border-b border-gray-50 last:border-0 flex items-center gap-2.5"
+                        >
+                          {art.foto ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={art.foto} alt="" className="h-11 w-11 shrink-0 rounded-lg bg-gray-100 object-cover" />
+                          ) : (
+                            <span className="h-11 w-11 shrink-0 rounded-lg bg-gray-100" />
+                          )}
+                          <span className="min-w-0 flex-1">
+                            {art.codigo ? (
+                              <span className="block font-mono text-[11px] font-semibold text-blue-700 truncate">{art.codigo}</span>
+                            ) : (
+                              <span className="inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">SIN CÓDIGO</span>
+                            )}
+                            <span className="block font-medium text-gray-900 truncate">
+                              <span className="text-gray-500">{art.marca} </span>{art.nombre}
+                            </span>
+                            {art.color && <span className="block text-xs text-gray-400 truncate">{art.color}</span>}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
                   )}
                 </div>
                 <input
