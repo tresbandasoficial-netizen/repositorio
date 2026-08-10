@@ -524,6 +524,55 @@ export async function anularFacturaAction(facturaId: string): Promise<SimpleResu
   return { ok: true }
 }
 
+// Cambiar el asesor de una factura (solo admin): corrige facturas registradas
+// bajo el asesor equivocado. También actualiza la VENTA LOCAL de la factura
+// (pedido VL, tipo venta_inmediata) para que el ranking y las metas del mes
+// le cuenten la venta al asesor correcto. Los pedidos por ENCARGO enlazados no
+// se tocan: esa venta es de quien tomó el pedido.
+export async function cambiarAsesorFacturaAction(
+  facturaId: string,
+  nuevoAsesorId: string
+): Promise<SimpleResult> {
+  const sesion = await getSesion()
+  if (sesion.rol !== 'admin') return { ok: false, error: 'Solo el administrador puede cambiar el asesor' }
+  if (!nuevoAsesorId) return { ok: false, error: 'Selecciona el asesor' }
+  const supabase = await createClient()
+
+  const { data: factura } = await supabase
+    .from('facturas')
+    .select('id, asesor_id, numero_factura')
+    .eq('id', facturaId)
+    .maybeSingle()
+  if (!factura) return { ok: false, error: 'Factura no encontrada' }
+  if (factura.asesor_id === nuevoAsesorId) return { ok: true }
+
+  const { error } = await supabase
+    .from('facturas')
+    .update({ asesor_id: nuevoAsesorId, actualizado_en: new Date().toISOString() })
+    .eq('id', facturaId)
+  if (error) return { ok: false, error: error.message }
+
+  await supabase
+    .from('pedidos')
+    .update({ asesor_id: nuevoAsesorId })
+    .eq('factura_id', facturaId)
+    .eq('tipo', 'venta_inmediata')
+
+  await supabase.from('historial_cambios').insert({
+    tabla:          'facturas',
+    registro_id:    facturaId,
+    campo:          'asesor_id',
+    valor_anterior: factura.asesor_id,
+    valor_nuevo:    nuevoAsesorId,
+    usuario_id:     sesion.id,
+  })
+
+  revalidatePath(`/facturacion/${facturaId}`)
+  revalidatePath('/facturacion')
+  revalidatePath('/dashboard')
+  return { ok: true }
+}
+
 // ── Edición de facturas (solo admin) ─────────────────────────────────────────
 
 export type EditarFacturaDatosInput = {

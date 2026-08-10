@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/Badge'
 import { ESTADO_FACTURA_LABELS, ESTADO_FACTURA_COLORES } from '@/types'
 import { RegistrarPagoFacturaForm } from '@/components/facturacion/RegistrarPagoFacturaForm'
 import { AnularFacturaButton } from '@/components/facturacion/AnularFacturaButton'
+import { CambiarAsesorFactura } from '@/components/facturacion/CambiarAsesorFactura'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { DomicilioDesdeFacturaPanel } from '@/components/domicilios/DomicilioDesdeFacturaPanel'
 import { DomicilioFacturaCard } from '@/components/domicilios/DomicilioFacturaCard'
 
@@ -21,6 +23,13 @@ export default async function FacturaDetallePage({
   if (!factura) notFound()
 
   const activa = factura.estado === 'pendiente' || factura.estado === 'vencida'
+  const esAdmin = sesion.rol === 'admin'
+
+  // Lista de asesores para el cambio de asesor de la factura (solo admin; la
+  // lista de usuarios está restringida por RLS, el acceso ya se validó).
+  const { data: asesores } = esAdmin
+    ? await createAdminClient().from('usuarios').select('id, nombre').eq('activo', true).neq('rol', 'visor').order('nombre')
+    : { data: null }
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
@@ -33,7 +42,17 @@ export default async function FacturaDetallePage({
             {factura.cliente_nombre} · {factura.cliente_telefono}
           </p>
           <p className="text-xs text-gray-400 mt-0.5">
-            Creada el {formatFechaHora(factura.creado_en)} · {factura.asesor_nombre}
+            Creada el {formatFechaHora(factura.creado_en)} ·{' '}
+            {esAdmin ? (
+              <CambiarAsesorFactura
+                facturaId={factura.id}
+                asesorId={(factura as any).asesor_id ?? null}
+                asesorNombre={factura.asesor_nombre}
+                asesores={(asesores ?? []) as Array<{ id: string; nombre: string }>}
+              />
+            ) : (
+              factura.asesor_nombre
+            )}
           </p>
         </div>
         <Badge className={ESTADO_FACTURA_COLORES[factura.estado]}>{ESTADO_FACTURA_LABELS[factura.estado]}</Badge>
