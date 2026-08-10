@@ -1,0 +1,10 @@
+-- Las facturas de venta local (VL-FAC-...) creaban el pedido y los items pero
+-- NUNCA descontaban inventario: el stock quedaba intacto tras cada venta
+-- (detectado en Cúcuta: 7 ventas sin una sola salida). Ambas sobrecargas de
+-- crear_factura_venta_local insertan ahora la salida por producto enlazado al
+-- catálogo, valorada al costo promedio — igual que registrar_venta_inmediata.
+-- (Cuerpos completos aplicados con apply_migration el 11-ago-2026; la única
+-- diferencia con las versiones anteriores es el bloque "La venta local SALE
+-- del inventario" dentro del loop de productos, en ambas sobrecargas.)
+-- Ver el definitivo en la base: select pg_get_functiondef de
+-- crear_factura_venta_local (14 y 15 argumentos).
