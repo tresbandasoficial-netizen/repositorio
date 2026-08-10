@@ -184,38 +184,40 @@ export default async function CuentaMovimientosPage({
         {movimientos.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-10">Esta cuenta no tiene movimientos.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase">
-                  <th className="text-left px-5 py-2">Fecha</th>
-                  <th className="text-left px-3 py-2">Movimiento</th>
-                  <th className="text-left px-3 py-2">Detalle</th>
-                  <th className="text-right px-3 py-2">Ingreso</th>
-                  <th className="text-right px-5 py-2">Egreso</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {movimientos.map((m, i) => {
-                  const antesDeCorte = m.fecha < corte && !m.esAjuste
-                  return (
-                    <tr key={i} className={m.esAjuste ? 'bg-amber-50/70 hover:bg-amber-50' : antesDeCorte ? 'opacity-45' : 'hover:bg-gray-50'}>
-                      <td className="px-5 py-2.5 text-gray-600 whitespace-nowrap">
-                        {formatFecha(m.fecha)}
-                        <span className="block text-xs text-gray-400">{formatHora(m.creado_en)}</span>
-                      </td>
-                      <td className={`px-3 py-2.5 font-medium whitespace-nowrap ${m.esAjuste ? 'text-amber-800' : 'text-gray-800'}`}>
-                        {m.esAjuste ? '⚖ ' : ''}{m.tipo}
-                      </td>
-                      <td className={`px-3 py-2.5 max-w-md ${m.esAjuste ? 'text-amber-800' : 'text-gray-500 truncate max-w-xs'}`}>{m.detalle || '—'}</td>
-                      <td className="px-3 py-2.5 text-right text-green-700 whitespace-nowrap">{m.ingreso ? '+' + formatCOP(m.ingreso) : ''}</td>
-                      <td className="px-5 py-2.5 text-right text-red-600 whitespace-nowrap">{m.egreso ? '−' + formatCOP(m.egreso) : ''}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+          // Anchos fijos: detalle y movimiento recortan con "…" (texto completo
+          // en el tooltip) y los montos SIEMPRE quedan visibles sin scroll.
+          <table className="w-full table-fixed text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase">
+                <th className="w-[13%] text-left px-4 py-2">Fecha</th>
+                <th className="w-[21%] text-left px-3 py-2">Movimiento</th>
+                <th className="w-[34%] text-left px-3 py-2">Detalle</th>
+                <th className="w-[16%] text-right px-3 py-2">Ingreso</th>
+                <th className="w-[16%] text-right px-4 py-2">Egreso</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {movimientos.map((m, i) => {
+                const antesDeCorte = m.fecha < corte && !m.esAjuste
+                return (
+                  <tr key={i} className={m.esAjuste ? 'bg-amber-50/70 hover:bg-amber-50' : antesDeCorte ? 'opacity-45' : 'hover:bg-gray-50'}>
+                    <td className="px-4 py-2.5 text-gray-600">
+                      {formatFecha(m.fecha)}
+                      <span className="block text-xs text-gray-400">{formatHora(m.creado_en)}</span>
+                    </td>
+                    <td className={`px-3 py-2.5 font-medium truncate ${m.esAjuste ? 'text-amber-800' : 'text-gray-800'}`} title={m.tipo}>
+                      {m.esAjuste ? '⚖ ' : ''}{m.tipo}
+                    </td>
+                    <td className={`px-3 py-2.5 truncate ${m.esAjuste ? 'text-amber-800' : 'text-gray-500'}`} title={m.detalle || undefined}>
+                      {m.detalle || '—'}
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-green-700 whitespace-nowrap">{m.ingreso ? '+' + formatCOP(m.ingreso) : ''}</td>
+                    <td className="px-4 py-2.5 text-right text-red-600 whitespace-nowrap">{m.egreso ? '−' + formatCOP(m.egreso) : ''}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         )}
       </div>
     </div>
