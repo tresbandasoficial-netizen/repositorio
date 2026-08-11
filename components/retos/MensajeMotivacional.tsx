@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { X } from 'lucide-react'
+import { Minus, X } from 'lucide-react'
 
 // Banner motivacional para ASESORES con reto vigente: un mensaje distinto según
 // la hora del día (mañana / mediodía / tarde / cierre), siempre con los números
@@ -42,6 +42,7 @@ function diasHabilesRestantes(ahora: Date): number {
 
 export function MensajeMotivacional({ retoId, nombre, objetivo, valorMes, ventaHoy, premio }: Props) {
   const [visible, setVisible] = useState(false)
+  const [minimizado, setMinimizado] = useState(false)
   const [mensaje, setMensaje] = useState('')
   const [esHito, setEsHito] = useState(false)
   const [claveCierre, setClaveCierre] = useState('')
@@ -76,6 +77,7 @@ export function MensajeMotivacional({ retoId, nombre, objetivo, valorMes, ventaH
           setMensaje(texto)
           setEsHito(true)
           setClaveCierre('')
+          setMinimizado(false)
           setVisible(true)
           return
         }
@@ -109,6 +111,7 @@ export function MensajeMotivacional({ retoId, nombre, objetivo, valorMes, ventaH
     setMensaje(texto)
     setEsHito(false)
     setClaveCierre(clave)
+    setMinimizado(false)
     setVisible(true)
   }, [retoId, nombre, objetivo, valorMes, ventaHoy, premio])
 
@@ -117,6 +120,25 @@ export function MensajeMotivacional({ retoId, nombre, objetivo, valorMes, ventaH
   function cerrar() {
     if (claveCierre) localStorage.setItem(claveCierre, '1')
     setVisible(false)
+  }
+
+  // Minimizado: solo queda una burbujita flotante; al tocarla vuelve el mensaje.
+  if (minimizado) {
+    return (
+      <div className="fixed bottom-4 left-4 z-40 print:hidden">
+        <button
+          onClick={() => setMinimizado(false)}
+          className={`h-11 w-11 flex items-center justify-center rounded-full border shadow-lg text-lg transition-transform hover:scale-110 ${
+            esHito
+              ? 'bg-amber-50 border-amber-300 shadow-amber-100'
+              : 'bg-violet-50 border-violet-200 shadow-violet-100'
+          }`}
+          aria-label="Ver mensaje de motivación"
+        >
+          {esHito ? '🏆' : '💪'}
+        </button>
+      </div>
+    )
   }
 
   return (
@@ -129,13 +151,22 @@ export function MensajeMotivacional({ retoId, nombre, objetivo, valorMes, ventaH
         <Link href="/retos" className={`text-sm font-medium leading-snug ${esHito ? 'text-amber-900' : 'text-violet-900'}`}>
           {mensaje}
         </Link>
-        <button
-          onClick={cerrar}
-          className={`shrink-0 p-1 rounded-lg transition-colors ${esHito ? 'text-amber-600 hover:bg-amber-100' : 'text-violet-500 hover:bg-violet-100'}`}
-          aria-label="Cerrar"
-        >
-          <X size={15} />
-        </button>
+        <div className="shrink-0 flex items-center gap-0.5">
+          <button
+            onClick={() => setMinimizado(true)}
+            className={`p-1 rounded-lg transition-colors ${esHito ? 'text-amber-600 hover:bg-amber-100' : 'text-violet-500 hover:bg-violet-100'}`}
+            aria-label="Minimizar"
+          >
+            <Minus size={15} />
+          </button>
+          <button
+            onClick={cerrar}
+            className={`p-1 rounded-lg transition-colors ${esHito ? 'text-amber-600 hover:bg-amber-100' : 'text-violet-500 hover:bg-violet-100'}`}
+            aria-label="Cerrar"
+          >
+            <X size={15} />
+          </button>
+        </div>
       </div>
     </div>
   )
