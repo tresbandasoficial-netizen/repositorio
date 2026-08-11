@@ -59,33 +59,40 @@ export function CostoItemInline({ itemId, costoManual, cantidad }: {
 
   const num = parseInt(valor.replace(/\D/g, ''), 10)
 
+  // En vertical: la columna de la tabla es angosta y en fila los botones
+  // quedaban montados encima del precio.
   return (
-    <span className="inline-flex flex-col items-end gap-1">
-      <span className="inline-flex items-center gap-1.5">
-        <span className="relative">
-          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
-          <input
-            type="text"
-            inputMode="numeric"
-            autoFocus
-            value={formatMiles(valor)}
-            onChange={e => setValor(e.target.value.replace(/\D/g, ''))}
-            onKeyDown={e => {
-              if (e.key === 'Enter') { e.preventDefault(); if (!isNaN(num) && num >= 0) guardar(num) }
-              if (e.key === 'Escape') setEditando(false)
-            }}
-            placeholder="0"
-            className="w-24 pl-5 pr-2 py-1 rounded-lg border border-blue-300 text-xs text-right focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </span>
+    <span className="inline-flex flex-col items-end gap-1.5">
+      <span className="relative">
+        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
+        <input
+          type="text"
+          inputMode="numeric"
+          autoFocus
+          value={formatMiles(valor)}
+          onChange={e => setValor(e.target.value.replace(/\D/g, ''))}
+          onKeyDown={e => {
+            if (e.key === 'Enter') { e.preventDefault(); if (!isNaN(num) && num >= 0) guardar(num) }
+            if (e.key === 'Escape') setEditando(false)
+          }}
+          placeholder="0"
+          className="w-24 pl-5 pr-2 py-1 rounded-lg border border-blue-300 text-xs text-right focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </span>
+      <span className="inline-flex items-center gap-1">
+        <button
+          onClick={() => setEditando(false)}
+          className="text-xs px-2 py-1 rounded-lg border border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-50"
+        >
+          ✕
+        </button>
         <button
           onClick={() => { if (!isNaN(num) && num >= 0) guardar(num) }}
           disabled={pending || isNaN(num)}
-          className="text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg px-2 py-1 disabled:opacity-40"
+          className="text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg px-3 py-1 disabled:opacity-40"
         >
           {pending ? <Loader2 size={11} className="animate-spin" /> : 'OK'}
         </button>
-        <button onClick={() => setEditando(false)} className="text-xs text-gray-400 hover:text-gray-600">✕</button>
       </span>
       {costoManual != null && (
         <button
