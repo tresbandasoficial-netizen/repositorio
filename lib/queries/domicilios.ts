@@ -14,6 +14,7 @@ export type DomicilioRow = {
   valor_domicilio: number
   cobrar_al_cliente: boolean
   metodo_pago: 'efectivo' | 'transferencia'
+  tipo_cobro: 'regalado' | 'mensajero' | 'tb_cobra' | null
   articulo: string | null
   numero_pedido: string | null
   notas: string | null
@@ -62,7 +63,7 @@ export async function getDomiciliosPorFecha(fecha: string, client?: SupabaseClie
     .select(`
       id, fecha, asesor_id, cliente_nombre, cliente_telefono,
       direccion, mensajeria, valor_pedido, valor_domicilio, cobrar_al_cliente,
-      metodo_pago, articulo, numero_pedido, notas, estado, creado_en,
+      metodo_pago, tipo_cobro, articulo, numero_pedido, notas, estado, creado_en,
       usuarios(nombre)
     `)
     .eq('fecha', fecha)

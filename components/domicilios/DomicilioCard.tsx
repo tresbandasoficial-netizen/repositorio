@@ -132,6 +132,11 @@ export function DomicilioCard({ domicilio: d, isAdmin }: Props) {
                     {d.metodo_pago === 'transferencia' ? 'Transferencia' : 'Cobra efectivo'}
                   </p>
                 </>
+              : d.metodo_pago === 'transferencia'
+              ? <>
+                  <p className="text-lg font-extrabold leading-tight text-cyan-600">Transferencia</p>
+                  <p className="text-[11px] font-bold text-gray-400 mt-0.5">El cliente paga a TB</p>
+                </>
               : <>
                   <p className="text-lg font-extrabold leading-tight text-gray-300">Por confirmar</p>
                   <p className="text-[11px] font-bold text-gray-400 mt-0.5">Valor del pedido</p>
