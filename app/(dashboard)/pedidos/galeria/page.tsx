@@ -30,12 +30,17 @@ function marcarComprados(
     indice: number | null; usada: boolean
   }> = []
   for (const c of compras) {
+    // Un índice fuera de rango es de ANTES de separar el pedido (apuntaba a la
+    // posición en el pedido original) — se ignora para caer a las pasadas
+    // aproximadas, si no la pieza quedaba "sin comprar" para siempre.
+    const indiceValido = c.pedido_item_indice != null &&
+      c.pedido_item_indice >= 1 && c.pedido_item_indice <= items.length
     for (let i = 0; i < (c.cantidad || 1); i++) {
       unidades.push({
         codigo: c.codigo?.trim().toUpperCase() || null,
         talla: c.talla?.trim().toLowerCase() || null,
         articulo_id: c.articulo_id ?? null,
-        indice: c.pedido_item_indice ?? null,
+        indice: indiceValido ? c.pedido_item_indice : null,
         usada: false,
       })
     }
