@@ -758,6 +758,46 @@ export async function asignarCostoManualAction(
   return { ok: true }
 }
 
+// Costo manual de UN producto del pedido (solo admin): se digita en la tabla de
+// productos del detalle. La ganancia suma estos costos con los de compras
+// asignadas y salidas de inventario; null = quitar el costo del producto.
+export async function asignarCostoItemAction(
+  itemId: string,
+  costo: number | null
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const sesion = await getSesion()
+  if (sesion.rol !== 'admin') return { ok: false, error: 'Solo el administrador puede asignar el costo' }
+  if (costo !== null && (isNaN(costo) || costo < 0)) return { ok: false, error: 'Costo inválido' }
+
+  const adminClient = createAdminClient()
+
+  const { data: item } = await adminClient
+    .from('pedido_items')
+    .select('pedido_id, costo_manual')
+    .eq('id', itemId)
+    .single()
+  if (!item) return { ok: false, error: 'Producto no encontrado' }
+
+  const { error } = await adminClient
+    .from('pedido_items')
+    .update({ costo_manual: costo })
+    .eq('id', itemId)
+  if (error) return { ok: false, error: error.message }
+
+  await adminClient.from('historial_cambios').insert({
+    tabla:          'pedido_items',
+    registro_id:    itemId,
+    campo:          'costo_manual',
+    valor_anterior: item.costo_manual != null ? String(item.costo_manual) : null,
+    valor_nuevo:    costo != null ? String(costo) : null,
+    usuario_id:     sesion.id,
+  })
+
+  revalidatePath(`/pedidos/${item.pedido_id}`)
+  revalidatePath('/ganancias')
+  return { ok: true }
+}
+
 // ─── Eliminar pedido ──────────────────────────────────────────────────────────
 
 export type EliminarPedidoResult =

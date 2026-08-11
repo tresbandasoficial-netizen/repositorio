@@ -15,7 +15,8 @@ import { EditarPagoInline } from '@/components/pedidos/EditarPagoInline'
 import { DevolucionButton } from '@/components/pedidos/DevolucionButton'
 import { CambioTallaButton } from '@/components/pedidos/CambioTallaButton'
 import { BloqueGanancia } from '@/components/pedidos/BloqueGanancia'
-import { getGananciaPedido } from '@/lib/queries/ganancias'
+import { CostoItemInline } from '@/components/pedidos/CostoItemInline'
+import { getGananciaPedido, getCostosItemsPedido } from '@/lib/queries/ganancias'
 
 const CAMPO_LABELS: Record<string, string> = {
   estado:            'Estado',
@@ -42,6 +43,13 @@ export default async function PedidoDetallePage({
   const esAdmin = sesion.rol === 'admin'
   const saldo = pedido.total - pedido.total_pagado
   const ganancia = esAdmin ? await getGananciaPedido(id) : null
+  // Costo manual por producto (mig. 165) — solo se consulta para admin.
+  const costosItems = esAdmin ? await getCostosItemsPedido(id) : {}
+  const totalCostoItems = Object.entries(costosItems).reduce((s, [itemId, c]) => {
+    if (c == null) return s
+    const it = pedido.items.find(i => i.id === itemId)
+    return s + c * (it?.cantidad ?? 1)
+  }, 0)
   // Los saldos antiguos (deudas) no son pedidos de venta: no llevan estado ni productos.
   const esSaldo = pedido.numero_orden.startsWith('SALDO-')
 
@@ -139,6 +147,11 @@ export default async function PedidoDetallePage({
                         {item.talla && <span>Talla {item.talla} · </span>}
                         <span>×{item.cantidad}</span>
                       </div>
+                      {esAdmin && (
+                        <div className="text-xs text-gray-400 mt-1">
+                          Costo: <CostoItemInline itemId={item.id} costoManual={costosItems[item.id] ?? null} cantidad={item.cantidad} />
+                        </div>
+                      )}
                     </div>
                     <span className="font-medium text-gray-900 shrink-0">{formatCOP(item.precio_venta)}</span>
                   </div>
@@ -154,12 +167,15 @@ export default async function PedidoDetallePage({
               <table className="hidden md:table w-full table-fixed text-sm">
                 <thead>
                   <tr className="border-b border-gray-200">
-                    <th className="w-[15%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Código</th>
-                    <th className="w-[32%] px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase">Producto</th>
-                    <th className="w-[12%] px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase">Marca</th>
-                    <th className="w-[10%] px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase">Talla</th>
-                    <th className="w-[9%] px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase">Cant.</th>
-                    <th className="w-[22%] px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase">Precio</th>
+                    <th className={`${esAdmin ? 'w-[12%]' : 'w-[15%]'} px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase`}>Código</th>
+                    <th className={`${esAdmin ? 'w-[26%]' : 'w-[32%]'} px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase`}>Producto</th>
+                    <th className={`${esAdmin ? 'w-[10%]' : 'w-[12%]'} px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase`}>Marca</th>
+                    <th className={`${esAdmin ? 'w-[8%]' : 'w-[10%]'} px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase`}>Talla</th>
+                    <th className={`${esAdmin ? 'w-[7%]' : 'w-[9%]'} px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase`}>Cant.</th>
+                    {esAdmin && (
+                      <th className="w-[18%] px-2 py-3 text-right text-xs font-medium text-gray-500 uppercase">Costo</th>
+                    )}
+                    <th className={`${esAdmin ? 'w-[19%]' : 'w-[22%]'} px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase`}>Precio</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -177,6 +193,11 @@ export default async function PedidoDetallePage({
                       <td className="px-2 py-3 text-gray-700 truncate">{item.marca}</td>
                       <td className="px-2 py-3 text-center font-semibold text-gray-900">{item.talla ?? '—'}</td>
                       <td className="px-2 py-3 text-center text-gray-700">{item.cantidad}</td>
+                      {esAdmin && (
+                        <td className="px-2 py-3 text-right text-sm">
+                          <CostoItemInline itemId={item.id} costoManual={costosItems[item.id] ?? null} cantidad={item.cantidad} />
+                        </td>
+                      )}
                       <td className="px-3 py-3 text-right font-medium text-gray-900 whitespace-nowrap">{formatCOP(item.precio_venta)}</td>
                     </tr>
                   ))}
@@ -187,6 +208,11 @@ export default async function PedidoDetallePage({
                     <td className="px-2 py-3 text-center font-bold text-gray-900">
                       {pedido.items.reduce((s: number, it: any) => s + (it.cantidad || 0), 0)}
                     </td>
+                    {esAdmin && (
+                      <td className="px-2 py-3 text-right font-semibold text-gray-500 whitespace-nowrap">
+                        {totalCostoItems > 0 ? formatCOP(totalCostoItems) : ''}
+                      </td>
+                    )}
                     <td className="px-3 py-3 text-right font-bold text-gray-900 whitespace-nowrap">{formatCOP(pedido.total)}</td>
                   </tr>
                 </tfoot>

@@ -61,7 +61,7 @@ export function BloqueGanancia({ g }: { g: GananciaPedidoDetalle }) {
 
         {!g.tiene_costo && (
           <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">
-            Falta asignar la compra de este pedido — o escribe el costo a mano con el lápiz ✎.
+            Falta asignar la compra de este pedido — o escribe el costo a mano: el total con el lápiz ✎ de arriba, o producto por producto en la tabla.
           </p>
         )}
       </CardContent>

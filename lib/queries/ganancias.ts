@@ -53,6 +53,17 @@ export async function getGananciaPedido(pedidoId: string): Promise<GananciaPedid
   }
 }
 
+// Costo manual de cada producto del pedido (mig. 165), por id de item.
+// ⚠️ Llamar SOLO para admin: los montos de costo no se exponen a asesores.
+export async function getCostosItemsPedido(pedidoId: string): Promise<Record<string, number | null>> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('pedido_items')
+    .select('id, costo_manual')
+    .eq('pedido_id', pedidoId)
+  return Object.fromEntries((data ?? []).map((r: any) => [r.id, r.costo_manual ?? null]))
+}
+
 // Margen de utilidad agrupado por código de artículo (ranking de productos).
 export type GananciaArticulo = {
   codigo: string
