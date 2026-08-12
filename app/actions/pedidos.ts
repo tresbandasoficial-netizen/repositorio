@@ -1027,3 +1027,64 @@ export async function marcarLlegadaPrendasAction(
   revalidatePath('/pedidos/galeria')
   return { ok: true, partes: marcadas }
 }
+
+// Cambiar el asesor de un pedido (solo admin): corrige pedidos registrados
+// bajo el asesor equivocado — el ranking y las metas del mes le cuentan la
+// venta al asesor correcto. Si el pedido es una venta local (VL) facturada,
+// la factura también pasa al asesor nuevo para que ambos queden iguales.
+// Los pagos ya registrados no se tocan: cada abono es de quien lo recibió.
+export async function cambiarAsesorPedidoAction(
+  pedidoId: string,
+  nuevoAsesorId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const sesion = await getSesion()
+  if (sesion.rol !== 'admin') return { ok: false, error: 'Solo el administrador puede cambiar el asesor' }
+  if (!nuevoAsesorId) return { ok: false, error: 'Selecciona el asesor' }
+  const admin = createAdminClient()
+
+  const { data: pedido } = await admin
+    .from('pedidos')
+    .select('id, asesor_id, tipo, factura_id')
+    .eq('id', pedidoId)
+    .maybeSingle()
+  if (!pedido) return { ok: false, error: 'Pedido no encontrado' }
+  if (pedido.asesor_id === nuevoAsesorId) return { ok: true }
+
+  const { data: usuarios } = await admin
+    .from('usuarios')
+    .select('id, nombre, rol, activo')
+    .in('id', [pedido.asesor_id, nuevoAsesorId].filter(Boolean) as string[])
+  const nuevo = usuarios?.find(u => u.id === nuevoAsesorId)
+  if (!nuevo || !nuevo.activo || nuevo.rol === 'visor') {
+    return { ok: false, error: 'El asesor seleccionado no es válido' }
+  }
+
+  const { error } = await admin
+    .from('pedidos')
+    .update({ asesor_id: nuevoAsesorId, fecha_actualizacion: new Date().toISOString() })
+    .eq('id', pedidoId)
+  if (error) return { ok: false, error: error.message }
+
+  // Venta local facturada: la factura lleva el mismo asesor que su pedido VL.
+  if (pedido.tipo === 'venta_inmediata' && pedido.factura_id) {
+    await admin
+      .from('facturas')
+      .update({ asesor_id: nuevoAsesorId, actualizado_en: new Date().toISOString() })
+      .eq('id', pedido.factura_id)
+  }
+
+  // En el historial van los NOMBRES (no los ids) para que el detalle se lea bien.
+  await admin.from('historial_cambios').insert({
+    tabla:          'pedidos',
+    registro_id:    pedidoId,
+    campo:          'asesor',
+    valor_anterior: usuarios?.find(u => u.id === pedido.asesor_id)?.nombre ?? null,
+    valor_nuevo:    nuevo.nombre,
+    usuario_id:     sesion.id,
+  })
+
+  revalidatePath(`/pedidos/${pedidoId}`)
+  revalidatePath('/pedidos')
+  revalidatePath('/dashboard')
+  return { ok: true }
+}

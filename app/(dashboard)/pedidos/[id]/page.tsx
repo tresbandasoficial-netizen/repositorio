@@ -16,7 +16,9 @@ import { DevolucionButton } from '@/components/pedidos/DevolucionButton'
 import { CambioTallaButton } from '@/components/pedidos/CambioTallaButton'
 import { BloqueGanancia } from '@/components/pedidos/BloqueGanancia'
 import { CostoItemInline } from '@/components/pedidos/CostoItemInline'
+import { CambiarAsesorPedido } from '@/components/pedidos/CambiarAsesorPedido'
 import { getGananciaPedido, getCostosItemsPedido } from '@/lib/queries/ganancias'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 const CAMPO_LABELS: Record<string, string> = {
   estado:            'Estado',
@@ -25,6 +27,7 @@ const CAMPO_LABELS: Record<string, string> = {
   direccion_entrega: 'Dirección',
   numero_orden:      'Número de pedido',
   total:             'Total',
+  asesor:            'Asesor',
 }
 
 export default async function PedidoDetallePage({
@@ -52,6 +55,12 @@ export default async function PedidoDetallePage({
   }, 0)
   // Los saldos antiguos (deudas) no son pedidos de venta: no llevan estado ni productos.
   const esSaldo = pedido.numero_orden.startsWith('SALDO-')
+
+  // Lista de asesores para el cambio de asesor del pedido (solo admin; la
+  // lista de usuarios está restringida por RLS, el acceso ya se validó).
+  const { data: asesores } = esAdmin
+    ? await createAdminClient().from('usuarios').select('id, nombre').eq('activo', true).neq('rol', 'visor').order('nombre')
+    : { data: null }
 
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto">
@@ -420,7 +429,18 @@ export default async function PedidoDetallePage({
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Asesor</span>
-                <span className="font-medium text-gray-900">{pedido.asesor_nombre}</span>
+                <span className="font-medium text-gray-900">
+                  {esAdmin ? (
+                    <CambiarAsesorPedido
+                      pedidoId={id}
+                      asesorId={pedido.asesor_id ?? null}
+                      asesorNombre={pedido.asesor_nombre}
+                      asesores={(asesores ?? []) as Array<{ id: string; nombre: string }>}
+                    />
+                  ) : (
+                    pedido.asesor_nombre
+                  )}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Entrega</span>
