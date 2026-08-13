@@ -314,7 +314,14 @@ export function GaleriaPedidos({
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         {/* Encabezado: ref + estado de compra */}
         <div className="flex items-center justify-between gap-2 px-4 py-3 bg-gray-50 border-b border-gray-100">
-          <span className="font-mono font-bold text-lg text-gray-900">{sel.ref}</span>
+          <span className="flex items-center gap-2 min-w-0">
+            <span className="font-mono font-bold text-lg text-gray-900">{sel.ref}</span>
+            {!!sel.pedido.factura_id && !cancelado && (
+              <span className="inline-flex items-center bg-indigo-100 text-indigo-800 text-xs font-bold px-2.5 py-1 rounded-full shrink-0">
+                Facturado
+              </span>
+            )}
+          </span>
           {cancelado ? (
             <span className="inline-flex items-center gap-1 bg-gray-200 text-gray-600 text-xs font-bold px-3 py-1 rounded-full">
               Cancelado
@@ -584,6 +591,13 @@ export function GaleriaPedidos({
                     }`}
                   >
                     <Check size={14} strokeWidth={3} />
+                  </span>
+                )}
+                {/* Cinta "Facturado": el pedido ya tiene factura de venta — o sea
+                    ya se vendió/entregó, aunque no tenga compra registrada. */}
+                {!!t.pedido.factura_id && !esCancelado && (
+                  <span className="absolute top-1.5 right-1.5 z-10 bg-indigo-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md shadow-sm">
+                    Facturado
                   </span>
                 )}
                 {t.imagen ? (
