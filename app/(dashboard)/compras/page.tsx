@@ -239,7 +239,7 @@ export default async function ComprasPage({
               <tr className="border-b border-gray-100 bg-gray-50">
                 <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">Fecha</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Proveedor</th>
-                <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Tipo</th>
+                <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">País</th>
                 <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Total COP</th>
                 <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">Items</th>
                 <th className="px-4 py-3" />

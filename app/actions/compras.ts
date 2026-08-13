@@ -763,8 +763,10 @@ export async function editarCompraAction(compraId: string, data: EditarCompraInp
       proveedor:      data.proveedor.trim(),
       fecha:          data.fecha,
       numero_factura: numeroFactura,
-      total_usd:      data.tipo === 'usa' ? data.total_usd : null,
-      trm:            data.tipo === 'usa' ? data.trm : null,
+      // USD/TRM van según la MONEDA de pago (el form manda null si fue en
+      // pesos), no según el país: comprar en USA pagando en pesos es válido.
+      total_usd:      data.total_usd,
+      trm:            data.trm,
       total_cop:      data.total_cop,
       notas:          data.notas.trim() || null,
       correo:         data.correo?.trim().toLowerCase() || null,

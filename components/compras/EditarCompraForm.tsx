@@ -62,7 +62,11 @@ interface Props {
 
 export function EditarCompraForm({ compraId, inicial, itemsIniciales, cuentas, proveedores = [] }: Props) {
   const router = useRouter()
+  // PAÍS de la compra (compras.tipo) y MONEDA de la factura son cosas distintas:
+  // se puede comprar en USA y pagar en pesos. Aquí van separados (igual que al
+  // crear) para poder corregir el país sin que el formulario exija dólares.
   const [tipo, setTipo] = useState(inicial.tipo)
+  const [moneda, setMoneda] = useState<'USD' | 'COP'>(inicial.total_usd != null ? 'USD' : 'COP')
   const [proveedor, setProveedor] = useState(inicial.proveedor)
   const [numeroFactura, setNumeroFactura] = useState(inicial.numero_factura)
   const [fecha, setFecha] = useState(inicial.fecha)
@@ -89,7 +93,7 @@ export function EditarCompraForm({ compraId, inicial, itemsIniciales, cuentas, p
   const [isSaving, startSaving] = useTransition()
 
   const totalCopNum = parseInt(totalCopPagado.replace(/\D/g, ''), 10) || 0
-  const trmCalculada = tipo === 'usa' && totalUsd && totalCopPagado
+  const trmCalculada = moneda === 'USD' && totalUsd && totalCopPagado
     ? Math.round(parseFloat(totalCopPagado.replace(/\D/g, '')) / parseFloat(totalUsd))
     : null
 
@@ -179,7 +183,9 @@ export function EditarCompraForm({ compraId, inicial, itemsIniciales, cuentas, p
   function handleGuardar() {
     setError(null)
     if (!proveedor.trim()) { setError('El proveedor es obligatorio'); return }
-    if (tipo === 'usa' && (!totalUsd || parseFloat(totalUsd) <= 0)) { setError('Total USD es obligatorio'); return }
+    // El país no obliga a nada: lo único obligatorio es el valor en PESOS.
+    // Los dólares son una ayuda cuando la factura se pagó en USD.
+    if (moneda === 'USD' && (!totalUsd || parseFloat(totalUsd) <= 0)) { setError('Total USD es obligatorio (o marca que pagaste en Pesos)'); return }
     if (!totalCopPagado || totalCopNum <= 0) { setError('Total COP es obligatorio'); return }
 
     for (let i = 0; i < items.length; i++) {
@@ -212,8 +218,10 @@ export function EditarCompraForm({ compraId, inicial, itemsIniciales, cuentas, p
       proveedor: proveedor.trim(),
       fecha,
       numero_factura: numeroFactura.trim(),
-      total_usd: tipo === 'usa' ? parseFloat(totalUsd) : null,
-      trm: tipo === 'usa' ? (trmCalculada ?? null) : null,
+      // El USD y la TRM dependen de la MONEDA, no del país: una compra en USA
+      // pagada en pesos no lleva dólares ni TRM, pero sigue siendo de USA.
+      total_usd: moneda === 'USD' ? parseFloat(totalUsd) : null,
+      trm: moneda === 'USD' ? (trmCalculada ?? null) : null,
       total_cop: totalCopNum,
       notas,
       correo,
@@ -241,20 +249,38 @@ export function EditarCompraForm({ compraId, inicial, itemsIniciales, cuentas, p
           <h2 className="text-sm font-semibold text-gray-900">Datos de la factura</h2>
         </CardHeader>
         <CardContent className="space-y-5">
-          {/* Tipo */}
-          <div>
-            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Tipo de factura</label>
-            <div className="flex gap-2">
-              {(['usa', 'colombia'] as const).map(t => (
-                <button key={t} type="button" onClick={() => setTipo(t)}
-                  className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors ${
-                    tipo === t
-                      ? t === 'usa' ? 'bg-blue-600 text-white border-blue-600' : 'bg-green-600 text-white border-green-600'
-                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                  }`}>
-                  {t === 'usa' ? 'Dólares (USD)' : 'Pesos (COP)'}
-                </button>
-              ))}
+          {/* País y moneda: dos cosas distintas. Al editar NO se sincronizan
+              entre sí: corregir el país no debe tocar cómo se pagó. */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">¿Dónde compraste?</label>
+              <div className="flex gap-2">
+                {(['usa', 'colombia'] as const).map(t => (
+                  <button key={t} type="button" onClick={() => setTipo(t)}
+                    className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors ${
+                      tipo === t
+                        ? t === 'usa' ? 'bg-blue-600 text-white border-blue-600' : 'bg-green-600 text-white border-green-600'
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                    }`}>
+                    {t === 'usa' ? 'Estados Unidos' : 'Colombia'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">¿En qué moneda pagaste?</label>
+              <div className="flex gap-2">
+                {(['USD', 'COP'] as const).map(m => (
+                  <button key={m} type="button" onClick={() => setMoneda(m)}
+                    className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors ${
+                      moneda === m
+                        ? 'bg-gray-800 text-white border-gray-800'
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                    }`}>
+                    {m === 'USD' ? 'Dólares' : 'Pesos'}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -282,7 +308,7 @@ export function EditarCompraForm({ compraId, inicial, itemsIniciales, cuentas, p
           </div>
 
           {/* Montos */}
-          {tipo === 'usa' ? (
+          {moneda === 'USD' ? (
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Total USD *</label>
