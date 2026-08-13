@@ -28,6 +28,10 @@ export function SeguimientoBar({ pedidoId, estadoActual, rolUsuario, sedeCodigo 
 
   const esTerminal = estadoActual === 'entregado' || estadoActual === 'cancelado'
   const esVisor = rolUsuario === 'visor'
+  const esAdmin = rolUsuario === 'admin'
+  // El admin puede cancelar incluso un pedido ya entregado (el dominio lo
+  // permite y el server anula la factura si tiene); el asesor no.
+  const puedeCancelar = !esVisor && (!esTerminal || (esAdmin && estadoActual === 'entregado'))
 
   const pasoActual = flujo.indexOf(estadoActual)
 
@@ -116,12 +120,16 @@ export function SeguimientoBar({ pedidoId, estadoActual, rolUsuario, sedeCodigo 
         <p className="text-xs text-red-600 text-center">{error}</p>
       )}
 
-      {/* Botón cancelar (solo si no es terminal y no es visor) */}
-      {!esTerminal && !esVisor && (
+      {/* Botón cancelar */}
+      {puedeCancelar && (
         <div className="pt-1 border-t border-gray-100">
           {confirmCancel ? (
             <div className="flex gap-2 items-center">
-              <span className="text-xs text-gray-500 flex-1">¿Cancelar pedido?</span>
+              <span className="text-xs text-gray-500 flex-1">
+                {estadoActual === 'entregado'
+                  ? '¿Anular este pedido entregado? Si está facturado, su factura se anula y los pagos se revierten.'
+                  : '¿Cancelar pedido?'}
+              </span>
               <button
                 onClick={() => handleCambiar('cancelado')}
                 disabled={isPending}
