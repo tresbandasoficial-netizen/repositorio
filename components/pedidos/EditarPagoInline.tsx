@@ -6,6 +6,7 @@ import { editarPagoAction } from '@/app/actions/pedidos'
 import { editarAbonoFacturaAction } from '@/app/actions/facturacion'
 import { formatCOP, formatMiles } from '@/lib/utils/format'
 import { MetodoPago, metodosDeSede, labelMetodo } from '@/types'
+import { Pencil } from 'lucide-react'
 
 // Editor de un pago desde el detalle del pedido (solo admin): monto Y método.
 // Funciona tanto para pagos del pedido como para abonos hechos en la factura
@@ -56,14 +57,17 @@ export function EditarPagoInline({ pagoId, monto, metodo, origen, fecha, sedeCod
   }
 
   if (!editando) {
+    // El lápiz hace visible que el pago se puede editar (antes el monto parecía
+    // texto normal y nadie encontraba cómo cambiar el método).
     return (
       <button
         type="button"
         onClick={abrir}
-        className="font-medium text-gray-900 hover:text-blue-600 hover:underline transition-colors"
-        title="Editar monto y método"
+        className="inline-flex items-center gap-1.5 font-medium text-gray-900 hover:text-blue-600 transition-colors"
+        title="Editar monto y método de pago"
       >
         {formatCOP(monto)}
+        <Pencil size={12} className="text-gray-400" />
       </button>
     )
   }

@@ -4,8 +4,10 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { formatCOP, formatFecha } from '@/lib/utils/format'
-import { METODO_PAGO_LABELS, MetodoPago } from '@/types'
+import { METODO_PAGO_LABELS, MetodoPago, metodosDeSede, labelMetodo } from '@/types'
 import { editarAbonoAction, eliminarAbonoAction } from '@/app/actions/abonos'
+import { editarPagoAction } from '@/app/actions/pedidos'
+import { editarAbonoFacturaAction } from '@/app/actions/facturacion'
 import { useAviso } from '@/components/ui/Aviso'
 import type { AbonoCliente } from '@/lib/queries/clientes'
 
@@ -13,12 +15,15 @@ const metodoLabel = (m: string) => METODO_PAGO_LABELS[m as MetodoPago] ?? m
 
 // Historial de abonos del cliente. Cada abono puede estar repartido entre varios
 // pedidos/facturas; se muestra el total y, al expandir, cada parte. El admin
-// puede editar el monto de cada parte y eliminar (anular) el abono completo.
+// puede editar el monto de cada parte, cambiar el MÉTODO de pago del abono
+// (la plata se re-enruta a la cuenta del método nuevo) y eliminar (anular) el
+// abono completo.
 export function HistorialPagos({ abonos, esAdmin }: { abonos: AbonoCliente[]; esAdmin: boolean }) {
   const router = useRouter()
   const [abierto, setAbierto] = useState<string | null>(null)
   const [editando, setEditando] = useState<string | null>(null)
   const [montos, setMontos] = useState<Record<string, string>>({})
+  const [metodoSel, setMetodoSel] = useState('')
   const [error, setError] = useState('')
   const [pending, start] = useTransition()
   const { avisar, avisarError } = useAviso()
@@ -35,6 +40,7 @@ export function HistorialPagos({ abonos, esAdmin }: { abonos: AbonoCliente[]; es
     const init: Record<string, string> = {}
     a.partes.forEach(p => { init[p.id] = String(p.monto) })
     setMontos(init)
+    setMetodoSel(a.metodo)
     setEditando(a.creado_en + '|' + a.metodo)
     setAbierto(a.creado_en + '|' + a.metodo)
     setError('')
@@ -44,6 +50,7 @@ export function HistorialPagos({ abonos, esAdmin }: { abonos: AbonoCliente[]; es
     setError('')
     start(async () => {
       let cambios = 0
+      const cambioMetodo = metodoSel !== a.metodo
       for (const p of a.partes) {
         const nuevo = parseInt(montos[p.id] ?? '', 10)
         if (!Number.isFinite(nuevo) || nuevo <= 0) {
@@ -51,8 +58,14 @@ export function HistorialPagos({ abonos, esAdmin }: { abonos: AbonoCliente[]; es
           avisarError('Los montos deben ser mayores a cero')
           return
         }
-        if (nuevo !== p.monto) {
-          const r = await editarAbonoAction(p.id, p.origen, nuevo)
+        if (nuevo !== p.monto || cambioMetodo) {
+          // Cambiar el método re-enruta la plata a la cuenta correcta, así que
+          // se usan las acciones completas de pedido/factura (no solo el monto).
+          const r = cambioMetodo
+            ? p.origen === 'factura'
+              ? await editarAbonoFacturaAction(p.id, { monto: nuevo, metodo: metodoSel as MetodoPago, fecha: a.fecha })
+              : await editarPagoAction(p.id, { monto: nuevo, metodo: metodoSel as MetodoPago })
+            : await editarAbonoAction(p.id, p.origen, nuevo)
           if (!r.ok) { setError(r.error); avisarError(r.error); return }
           cambios++
         }
@@ -100,12 +113,24 @@ export function HistorialPagos({ abonos, esAdmin }: { abonos: AbonoCliente[]; es
                 </span>
               </div>
 
-              {/* Fila 2: método + referencia */}
+              {/* Fila 2: método + referencia. En edición, el método es un selector. */}
               <div className="flex items-center justify-between gap-2 mt-1">
-                <span className="text-xs text-gray-600">
-                  {metodoLabel(a.metodo)}
-                  {esCredito && <span className="ml-1 text-gray-400">(deuda)</span>}
-                </span>
+                {enEdicion ? (
+                  <select
+                    value={metodoSel}
+                    onChange={e => setMetodoSel(e.target.value)}
+                    className="rounded border border-blue-300 px-1.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-44"
+                  >
+                    {Array.from(new Set([a.metodo as MetodoPago, ...metodosDeSede(null)])).map(m => (
+                      <option key={m} value={m}>{labelMetodo(m as MetodoPago)}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="text-xs text-gray-600">
+                    {metodoLabel(a.metodo)}
+                    {esCredito && <span className="ml-1 text-gray-400">(deuda)</span>}
+                  </span>
+                )}
                 {multi ? (
                   <button onClick={() => setAbierto(expandido ? null : key)} className="text-xs text-blue-600 hover:underline">
                     {expandido ? '▾' : '▸'} {a.partes.length} pedidos
