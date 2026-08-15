@@ -18,12 +18,16 @@ import { List, ChevronLeft, ChevronRight } from 'lucide-react'
 // el índice y se caía a la pasada de talla, así que en un pedido con dos pares
 // de la misma talla el visto bueno se lo llevaba el primero — marcaba comprado
 // el artículo equivocado.
+// `costeados[i]` = el item i tiene costo manual PROPIO (pedido_items.costo_manual):
+// ya está resuelto, no está "sin comprar" y no debe consumir unidades de compra
+// en el cruce (se las quitaría a una pieza que sí las necesita).
 function marcarComprados(
   items: ItemGaleria[],
   compras: Array<{
     codigo: string | null; talla: string | null; articulo_id: string | null
     cantidad: number; pedido_item_indice: number | null
   }>,
+  costeados?: boolean[],
 ): void {
   const unidades: Array<{
     codigo: string | null; talla: string | null; articulo_id: string | null
@@ -45,7 +49,7 @@ function marcarComprados(
       })
     }
   }
-  const restante = items.map(it => it.cantidad || 1)
+  const restante = items.map((it, idx) => (costeados?.[idx] ? 0 : (it.cantidad || 1)))
   // El índice grabado es 1-based sobre los items en su orden original.
   const pasadas: Array<(u: (typeof unidades)[0], it: ItemGaleria, idx: number) => boolean> = [
     (u, _it, idx) => u.indice != null && u.indice === idx + 1,
@@ -141,7 +145,7 @@ export default async function GaleriaPedidosPage({
     const [{ data: items }, { data: compras }] = await Promise.all([
       supabase
         .from('pedido_items')
-        .select('pedido_id, codigo, marca, descripcion, talla, cantidad, precio_venta, sexo, categoria, imagen_url, articulo_id, articulos(codigo, sexo, categoria)')
+        .select('pedido_id, codigo, marca, descripcion, talla, cantidad, precio_venta, sexo, categoria, imagen_url, articulo_id, costo_manual, articulos(codigo, sexo, categoria)')
         .in('pedido_id', ids)
         .order('id'),
       supabase
@@ -149,8 +153,12 @@ export default async function GaleriaPedidosPage({
         .select('pedido_id, codigo, talla, articulo_id, cantidad, pedido_item_indice, compra_id, compras(numero_factura)')
         .in('pedido_id', ids),
     ])
+    // Solo el HECHO de tener costo manual (boolean) — el monto no viaja al
+    // cliente: ItemGaleria lo ven también los asesores.
+    const costeadosPorPedido: Record<string, boolean[]> = {}
     for (const it of (items ?? []) as any[]) {
       const art = Array.isArray(it.articulos) ? it.articulos[0] : it.articulos
+      ;(costeadosPorPedido[it.pedido_id] ??= []).push(it.costo_manual != null)
       ;(itemsPorPedido[it.pedido_id] ??= []).push({
         codigo: it.codigo ?? art?.codigo ?? null,
         marca: it.marca,
@@ -184,7 +192,7 @@ export default async function GaleriaPedidosPage({
       }
     }
     for (const pid of Object.keys(itemsPorPedido)) {
-      marcarComprados(itemsPorPedido[pid], comprasPorPedido[pid] ?? [])
+      marcarComprados(itemsPorPedido[pid], comprasPorPedido[pid] ?? [], costeadosPorPedido[pid])
     }
     // Un pedido con COSTO MANUAL ya tiene su costo resuelto: sus prendas no
     // deben salir en rojo "sin comprar" (el admin lo costeó a mano).
