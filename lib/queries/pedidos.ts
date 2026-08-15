@@ -298,8 +298,10 @@ export async function getPedidoDetalle(id: string): Promise<PedidoDetalle | null
   }))
 
   // Si el pedido está facturado (incluye ventas locales VL), los abonos viven en
-  // pagos_factura, no en pagos. Se traen para que el detalle muestre el pago real
-  // y el saldo no aparezca pendiente cuando la factura ya está pagada.
+  // pagos_factura, no en pagos. Se traen para LISTARLOS en el detalle; el total
+  // ya no se suma aquí porque desde la migración 169/170 `vista_pedidos_asesor`
+  // lo incluye (repartido entre los pedidos de la factura, del más viejo al más
+  // nuevo). Sumarlo otra vez contaría doble.
   const facturaId = (pedidoData as { factura_id?: string | null }).factura_id ?? null
   let pagosFactura: typeof pagos = []
   if (facturaId) {
@@ -321,10 +323,8 @@ export async function getPedidoDetalle(id: string): Promise<PedidoDetalle | null
   }
 
   const pagosTodos = [...pagos, ...pagosFactura]
-  // total pagado real = lo del pedido (vista) + abonos de la factura (sin crédito)
-  const totalPagadoReal =
-    (pedidoData.total_pagado ?? 0) +
-    pagosFactura.reduce((s, p) => s + (p.metodo !== 'credito' ? p.monto : 0), 0)
+  // La vista ya trae directos + la parte que le toca de la factura.
+  const totalPagadoReal = pedidoData.total_pagado ?? 0
 
   const historial = (historialRes.data ?? []).map((h: any) => ({
     id: h.id,

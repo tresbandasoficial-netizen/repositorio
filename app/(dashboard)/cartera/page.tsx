@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getCartera, getTotalCartera } from '@/lib/queries/cartera'
+import { getDescuadresCartera } from '@/lib/queries/descuadres'
 import { getDeudaPorSede } from '@/lib/queries/metricas'
 import { formatCOP } from '@/lib/utils/format'
 import { formatearTelefono } from '@/lib/utils/phone'
@@ -33,10 +34,11 @@ export default async function CarteraPage({
   // Validar la sede contra las sedes reales; si no es válida, se ignora el filtro.
   const sede = sedes.some(s => s.codigo === sedeParam) ? sedeParam : undefined
   const sedeNombre = sedes.find(s => s.codigo === sede)?.nombre
-  const [resultado, carteraTotal, deudaSedes] = await Promise.all([
+  const [resultado, carteraTotal, deudaSedes, descuadres] = await Promise.all([
     getCartera({ busqueda: q, pagina, sede }),
     getTotalCartera(sede),
     getDeudaPorSede(),
+    getDescuadresCartera(),
   ])
   const { clientes, total, totalPaginas } = resultado
   // Con búsqueda o paginación las sumas globales no aplican: se suman las filas
@@ -83,6 +85,40 @@ export default async function CarteraPage({
         </div>
         <CargarSaldoButton sedes={sedes} />
       </div>
+
+      {/* Centinela: plata mal registrada que hace mentir la deuda de un cliente.
+          Lo normal es que esto no aparezca nunca. */}
+      {descuadres.length > 0 && (
+        <div className="mb-6 rounded-xl border border-red-300 bg-red-50 p-4">
+          <p className="text-sm font-bold text-red-800">
+            ⚠ {descuadres.length} descuadre{descuadres.length !== 1 ? 's' : ''} de cartera
+          </p>
+          <p className="text-xs text-red-600 mt-0.5 mb-3">
+            Hay plata mal registrada: la deuda de estos clientes no es confiable hasta corregirla.
+          </p>
+          <ul className="space-y-2">
+            {descuadres.map((d, i) => (
+              <li key={`${d.tipo}-${d.referencia}-${i}`} className="text-sm">
+                <div className="flex flex-wrap items-baseline gap-x-2">
+                  <span className="font-semibold text-red-700">{formatCOP(d.monto)}</span>
+                  {d.cliente_id ? (
+                    <Link href={`/clientes/${d.cliente_id}`} className="font-medium text-gray-900 hover:underline">
+                      {d.cliente ?? 'Cliente sin nombre'}
+                    </Link>
+                  ) : (
+                    <span className="font-medium text-gray-900">{d.cliente ?? 'Cliente sin nombre'}</span>
+                  )}
+                  {d.referencia && <span className="text-xs text-gray-500">· {d.referencia}</span>}
+                </div>
+                <p className="text-xs text-gray-600">
+                  {d.descripcion}
+                  {d.detalle && ` · ${d.detalle}`}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Resumen: la cartera partida en sus dos bolsillos + el total */}
       {total > 0 && (
