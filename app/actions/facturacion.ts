@@ -3,12 +3,14 @@
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getSesion } from '@/lib/auth/acceso'
 import { bloqueoCajaCerrada } from '@/lib/auth/caja'
 import { cuentaIdPorMetodo } from '@/lib/queries/cuentas'
 import { asignarNumeroOrden } from '@/lib/queries/pedidos'
 import { ItemVenta } from '@/app/actions/ventas'
 import { normalizarTelefono } from '@/lib/utils/phone'
+import { hoyBogota } from '@/lib/utils/format'
 import { MetodoPago, PagoFacturaInput, TipoMensajeria, TipoEntrega, QuienPagaEntrega } from '@/types'
 
 export type PedidoFacturable = {
@@ -488,6 +490,13 @@ export async function registrarPagoFacturaAction(data: RegistrarPagoFacturaInput
     revalidatePath('/mensajerias')
   }
 
+  // Si el cliente pagó por otra vía mientras el domicilio iba en camino, el
+  // mensajero ya no debe recoger (o debe recoger menos). Con recaudo_mensajeria
+  // NO se sincroniza: ese pago ES la plata que el mensajero recogió.
+  if (data.metodo !== 'recaudo_mensajeria') {
+    await sincronizarDomicilioFactura(data.factura_id)
+  }
+
   revalidatePath(`/facturacion/${data.factura_id}`)
   redirect(`/facturacion/${data.factura_id}`)
 }
@@ -619,6 +628,82 @@ export type EditarAbonoInput = {
 
 // Edita un abono de la factura: método (re-enruta la cuenta), monto y fecha.
 // El RPC recalcula el estado de la factura. Solo admin.
+// Sincroniza el domicilio PENDIENTE de una factura después de corregir sus
+// pagos (caso Erika Valbuena, 14-ago-2026: se corrigió el método de pago a
+// transferencia pero el domicilio siguió diciendo "cobra efectivo" y el cuadre
+// con la mensajería quedó con un recaudo que nunca existió).
+//   - Si la factura queda SIN saldo: el mensajero ya no recoge nada → el
+//     domicilio pasa a transferencia (tb_cobra, valor 0), la deuda de recaudo
+//     pendiente se borra, y si TB debe el flete se registra esa deuda.
+//   - Si queda saldo y el mensajero SÍ estaba recogiendo: se ajusta el valor a
+//     recoger (domicilio + deuda de recaudo) al saldo real.
+// Solo toca domicilios pendientes y deudas pendientes; lo liquidado no se toca.
+async function sincronizarDomicilioFactura(facturaId: string) {
+  const admin = createAdminClient()
+
+  const [{ data: fac }, { data: pagosF }, { data: doms }] = await Promise.all([
+    admin.from('facturas').select('total').eq('id', facturaId).maybeSingle(),
+    admin.from('pagos_factura').select('monto').eq('factura_id', facturaId)
+      .eq('anulado', false).neq('metodo', 'credito'),
+    admin.from('domicilios')
+      .select('id, valor_pedido, valor_domicilio, mensajeria, cliente_nombre, direccion, responsable:asesor_id')
+      .eq('factura_id', facturaId).eq('estado', 'pendiente'),
+  ])
+  if (!fac || !doms || doms.length === 0) return
+
+  const saldo = (fac.total ?? 0) - (pagosF ?? []).reduce((s, p: any) => s + (p.monto || 0), 0)
+
+  for (const dom of doms as any[]) {
+    if (saldo <= 0 && dom.valor_pedido > 0) {
+      // Factura pagada: nada que recoger.
+      await admin.from('domicilios')
+        .update({
+          metodo_pago:          'transferencia',
+          tipo_cobro:           'tb_cobra',
+          valor_pedido:         0,
+          cobrar_al_cliente:    true,
+          pendiente_mensajeria: dom.valor_domicilio > 0,
+        })
+        .eq('id', dom.id)
+
+      await admin.from('pagos_mensajeria').delete()
+        .eq('factura_id', facturaId).eq('tipo', 'deuda')
+        .eq('concepto', 'recaudo').eq('estado', 'pendiente')
+
+      // Si el flete existe y ya nadie lo cobra en la puerta, TB se lo debe a la
+      // mensajería (misma regla de tb_cobra al crear).
+      if (dom.valor_domicilio > 0) {
+        const { data: yaExiste } = await admin.from('pagos_mensajeria').select('id')
+          .eq('domicilio_id', dom.id).eq('tipo', 'deuda')
+          .eq('concepto', 'domicilio_tb').eq('estado', 'pendiente').limit(1)
+        if (!yaExiste || yaExiste.length === 0) {
+          await admin.from('pagos_mensajeria').insert({
+            mensajeria:     dom.mensajeria,
+            tipo:           'deuda',
+            concepto:       'domicilio_tb',
+            estado:         'pendiente',
+            monto:          dom.valor_domicilio,
+            fecha:          hoyBogota(),
+            domicilio_id:   dom.id,
+            factura_id:     facturaId,
+            responsable_id: dom.responsable,
+            notas:          `Domicilio ${dom.cliente_nombre} — ${dom.direccion} (factura pagada por transferencia)`,
+          })
+        }
+      }
+    } else if (saldo > 0 && dom.valor_pedido > 0 && dom.valor_pedido !== saldo) {
+      // El mensajero sigue recogiendo, pero el saldo real cambió.
+      await admin.from('domicilios').update({ valor_pedido: saldo }).eq('id', dom.id)
+      await admin.from('pagos_mensajeria').update({ monto: saldo })
+        .eq('factura_id', facturaId).eq('tipo', 'deuda')
+        .eq('concepto', 'recaudo').eq('estado', 'pendiente')
+    }
+  }
+
+  revalidatePath('/domicilios')
+  revalidatePath('/mensajerias')
+}
+
 export async function editarAbonoFacturaAction(
   abonoId: string,
   data: EditarAbonoInput,
@@ -648,6 +733,10 @@ export async function editarAbonoFacturaAction(
   })
   if (error) return { ok: false, error: error.message }
 
+  // El pago cambió: el domicilio pendiente y el recaudo de la mensajería deben
+  // reflejar el saldo real (o dejar de cobrar si ya no hay saldo).
+  if ((abono as any)?.factura_id) await sincronizarDomicilioFactura((abono as any).factura_id)
+
   revalidatePath('/facturacion')
   revalidatePath('/flujo-caja')
   return { ok: true }
@@ -659,8 +748,14 @@ export async function eliminarAbonoFacturaAction(abonoId: string): Promise<Simpl
   if (sesion.rol !== 'admin') return { ok: false, error: 'Solo el administrador puede eliminar abonos' }
 
   const supabase = await createClient()
+  const { data: abono } = await supabase
+    .from('pagos_factura').select('factura_id').eq('id', abonoId).maybeSingle()
+
   const { error } = await supabase.rpc('eliminar_abono_factura', { p_abono_id: abonoId })
   if (error) return { ok: false, error: error.message }
+
+  // El saldo cambió: si el mensajero estaba recogiendo, ajustar el valor.
+  if ((abono as any)?.factura_id) await sincronizarDomicilioFactura((abono as any).factura_id)
 
   revalidatePath('/facturacion')
   revalidatePath('/flujo-caja')
