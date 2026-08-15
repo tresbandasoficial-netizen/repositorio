@@ -12,6 +12,7 @@ import { CambiarAsesorFactura } from '@/components/facturacion/CambiarAsesorFact
 import { createAdminClient } from '@/lib/supabase/admin'
 import { DomicilioDesdeFacturaPanel } from '@/components/domicilios/DomicilioDesdeFacturaPanel'
 import { DomicilioFacturaCard } from '@/components/domicilios/DomicilioFacturaCard'
+import { EditarPagoInline } from '@/components/pedidos/EditarPagoInline'
 
 export default async function FacturaDetallePage({
   params,
@@ -157,7 +158,21 @@ export default async function FacturaDetallePage({
             {factura.abonos.map(a => (
               <div key={a.id} className="px-5 py-3 flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-900">{formatCOP(a.monto)}</p>
+                  {/* El admin toca el monto para cambiar monto Y método (igual
+                      que en el detalle del pedido); el dinero se re-enruta a la
+                      cuenta del método nuevo y el domicilio pendiente se cuadra. */}
+                  {esAdmin ? (
+                    <EditarPagoInline
+                      pagoId={a.id}
+                      monto={a.monto}
+                      metodo={a.metodo}
+                      origen="factura"
+                      fecha={a.fecha}
+                      sedeCodigo={factura.sede_codigo}
+                    />
+                  ) : (
+                    <p className="text-sm font-medium text-gray-900">{formatCOP(a.monto)}</p>
+                  )}
                   <p className="text-xs text-gray-400">
                     {formatFecha(a.fecha)} · {a.metodo} · {a.asesor_nombre}
                   </p>
