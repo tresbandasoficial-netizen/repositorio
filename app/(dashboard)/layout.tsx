@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { DashboardShell } from '@/components/layout/DashboardShell'
 import { AvisoTareas } from '@/components/tareas/AvisoTareas'
-import { ChatFlotante } from '@/components/chat/ChatFlotante'
+import { RadioFlotante } from '@/components/radio/RadioFlotante'
 import { MensajeMotivacional } from '@/components/retos/MensajeMotivacional'
 import { getRetoVigente } from '@/lib/queries/retos'
 import { hoyBogota } from '@/lib/utils/format'
@@ -31,11 +31,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .eq('asignado_a', usuario.id)
     .eq('estado', 'pendiente')
     .order('creado_en', { ascending: true })
-
-  // Burbuja de chat en todas las páginas (mismo RPC que /chat; el visor no chatea).
-  const { data: usuariosChat } = usuario.rol === 'visor'
-    ? { data: null }
-    : await supabase.rpc('chat_usuarios')
 
   // Mensaje motivacional del reto para ASESORES (banner delgado por franjas
   // horarias — no es el panel grande del reto, que se quitó a pedido del
@@ -76,12 +71,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
           los retos solo se ven entrando a /retos. El banner motivacional por
           franjas (6-ago-2026) es aparte: una línea, cerrable. */}
       {motivacional && <MensajeMotivacional {...motivacional} />}
-      {usuario.rol !== 'visor' && (
-        <ChatFlotante
-          miId={usuario.id}
-          usuarios={(usuariosChat ?? []) as Array<{ id: string; nombre: string; rol: string }>}
-        />
-      )}
+      {/* Radio interno (reemplazó el chat de texto, 15-ago-2026): el admin
+          habla y todos los conectados lo escuchan en su computador. */}
+      <RadioFlotante
+        miId={usuario.id}
+        esAdmin={usuario.rol === 'admin'}
+        nombre={usuario.nombre}
+      />
     </DashboardShell>
   )
 }
