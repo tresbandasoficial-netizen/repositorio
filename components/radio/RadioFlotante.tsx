@@ -4,20 +4,20 @@ import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Loader2, Mic, Square, Volume2 } from 'lucide-react'
 
-// Radio interno (reemplaza el chat de texto, 15-ago-2026): el admin mantiene
-// presionado / toca el micrófono, habla, y todos los usuarios conectados lo
-// escuchan al instante en su computador. El audio se sube al bucket público
-// (carpeta radio/) y la fila en mensajes_radio dispara el Realtime que lo
-// reproduce en los demás navegadores.
+// Radio interno (reemplaza el chat de texto, 15-ago-2026): quien tenga voz
+// (admin y asesores; el visor solo escucha) toca el micrófono, habla, y todos
+// los usuarios conectados lo escuchan al instante en su computador. El audio se
+// sube al bucket público (carpeta radio/) y la fila en mensajes_radio dispara
+// el Realtime que lo reproduce en los demás navegadores.
 //
 // Autoplay: si el navegador bloquea el audio (sin gesto previo del usuario),
 // se muestra un botón ámbar pulsante "toca para escuchar" en vez de sonar solo.
 
 const MAX_SEGUNDOS = 60
 
-export function RadioFlotante({ miId, esAdmin, nombre }: {
+export function RadioFlotante({ miId, puedeHablar, nombre }: {
   miId: string
-  esAdmin: boolean
+  puedeHablar: boolean
   nombre: string
 }) {
   const [grabando, setGrabando] = useState(false)
@@ -160,14 +160,14 @@ export function RadioFlotante({ miId, esAdmin, nombre }: {
         </button>
       )}
 
-      {/* Botón de transmitir (solo admin) */}
-      {esAdmin && (
+      {/* Botón de transmitir (admin y asesores; el visor solo escucha) */}
+      {puedeHablar && (
         <button
           type="button"
           onClick={toggleGrabar}
           disabled={enviando}
           aria-label={grabando ? 'Terminar y enviar' : 'Hablar por el radio'}
-          title={grabando ? 'Terminar y enviar' : 'Hablar por el radio (todas las sedes escuchan)'}
+          title={grabando ? 'Terminar y enviar' : 'Hablar por el radio (todos los conectados escuchan)'}
           className={`flex items-center justify-center gap-2 rounded-full p-3.5 text-white shadow-lg transition-colors ${
             grabando
               ? 'bg-red-600 hover:bg-red-700 shadow-red-200 animate-pulse px-5'

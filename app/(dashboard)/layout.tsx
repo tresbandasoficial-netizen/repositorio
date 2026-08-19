@@ -71,11 +71,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
           los retos solo se ven entrando a /retos. El banner motivacional por
           franjas (6-ago-2026) es aparte: una línea, cerrable. */}
       {motivacional && <MensajeMotivacional {...motivacional} />}
-      {/* Radio interno (reemplazó el chat de texto, 15-ago-2026): el admin
-          habla y todos los conectados lo escuchan en su computador. */}
+      {/* Radio interno (reemplazó el chat de texto, 15-ago-2026): admin y
+          asesores hablan, todos los conectados escuchan en su computador. */}
       <RadioFlotante
         miId={usuario.id}
-        esAdmin={usuario.rol === 'admin'}
+        puedeHablar={usuario.rol === 'admin' || usuario.rol === 'asesor'}
         nombre={usuario.nombre}
       />
     </DashboardShell>
