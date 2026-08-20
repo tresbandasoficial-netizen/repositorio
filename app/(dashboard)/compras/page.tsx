@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Compra } from '@/types'
 import { PuntosAdiclub } from '@/components/compras/PuntosAdiclub'
+import { PanelColapsable } from '@/components/ui/PanelColapsable'
 
 export default async function ComprasPage({
   searchParams,
@@ -148,8 +149,10 @@ export default async function ComprasPage({
       )}
 
       {/* Puntos adiClub por correo: sale cuando se filtra por adidas o cuando
-          no hay filtro (resumen general). Con otro proveedor filtrado no aplica. */}
+          no hay filtro (resumen general). Con otro proveedor filtrado no aplica.
+          Oculto tras un botón para no ocupar la pantalla (20-ago-2026). */}
       {(!filtro || filtro === 'adidas') && (
+        <PanelColapsable titulo="🏅 Puntos adiClub">
         <PuntosAdiclub
           compras={todas
             .filter(c => (c.proveedor ?? '').trim().toLowerCase() === 'adidas')
@@ -162,12 +165,13 @@ export default async function ComprasPage({
               trm: (c as any).trm != null ? Number((c as any).trm) : null,
             }))}
         />
+        </PanelColapsable>
       )}
 
-      {/* Qué marcas se compran más. Va antes de la lista de facturas porque es
-          el resumen: primero el panorama, después el detalle. */}
+      {/* Qué marcas se compran más — oculto tras un botón (20-ago-2026). */}
       {marcas.length > 0 && (
-        <div className="mb-5 rounded-xl border border-gray-200 bg-white overflow-hidden">
+        <PanelColapsable titulo={`📊 Marcas que más compras · ${formatCOP(invertidoMarcas)}`}>
+        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
           <div className="border-b border-gray-100 bg-gray-50 px-4 py-2.5 flex flex-wrap items-baseline gap-x-3">
             <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
               Marcas que más compras
@@ -224,6 +228,7 @@ export default async function ComprasPage({
             </table>
           </div>
         </div>
+        </PanelColapsable>
       )}
 
       {filas.length === 0 ? (
