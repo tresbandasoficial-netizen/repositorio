@@ -37,7 +37,7 @@ export default async function CompraDetallePage({
   const { data } = await supabase
     .from('compras')
     .select(`
-      id, tipo, proveedor, fecha, total_usd, trm, total_cop, notas, creado_por, creado_en, cuenta_id,
+      id, tipo, proveedor, fecha, total_usd, trm, total_cop, notas, creado_por, creado_en, cuenta_id, llegada_en,
       cuenta:cuentas (nombre),
       compra_items (
         id, compra_id, codigo, descripcion, marca, talla, cantidad, costo_unitario_cop,
@@ -72,10 +72,15 @@ export default async function CompraDetallePage({
           </Badge>
         </div>
         <div className="flex items-center gap-2">
-          {itemsAsignados.some(i => i.pedido_id) && (
+          {/* Visible siempre que haya items: también las compras SOLO de stock
+              necesitan marcar la llegada para que la mercancía entre al
+              inventario (mig. 176). */}
+          {compra.compra_items.length > 0 && (
             <MarcarLlegadaButton
               compraId={compra.id}
               pedidosCount={new Set(itemsAsignados.filter(i => i.pedido_id).map(i => i.pedido_id)).size}
+              stockCount={itemsSinAsignar.reduce((s, i) => s + (i.cantidad || 0), 0)}
+              yaLlego={!!(compra as any).llegada_en}
             />
           )}
           <Link

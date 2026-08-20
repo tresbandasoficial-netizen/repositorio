@@ -329,33 +329,13 @@ export async function crearCompraAction(data: CrearCompraInput): Promise<CrearCo
       }
     }
 
-    // Regla de inventario: si el ítem NO está asignado a un pedido, entra al
-    // stock de Bucaramanga (centro de distribución) con su costo de compra.
-    // Si aún no está vinculado al catálogo se resuelve o se crea la ficha —
-    // por código si lo trae, o por marca + nombre si no — para que todo
-    // sobrante quede en stock valorado y se pueda asignar a un pedido después.
-    if (item.destino === 'sin_asignar') {
-      if (!articuloId) {
-        await _resolverArticuloCompraItem(itemCreado.id, null, null, adminClient)
-        const { data: itemAct } = await adminClient
-          .from('compra_items').select('articulo_id').eq('id', itemCreado.id).single()
-        articuloId = itemAct?.articulo_id ?? null
-      }
-      if (articuloId) {
-        const { error: errInv } = await adminClient.rpc('registrar_entrada_inventario', {
-          p_articulo_id:    articuloId,
-          p_talla:          item.talla.trim() || null,
-          p_cantidad:       item.cantidad,
-          p_costo_unitario: item.costo_unitario_cop,
-          p_usuario_id:     userId,
-          p_compra_item_id: itemCreado.id,
-          p_sede_id:        null,
-          p_notas:          `Compra ${numeroFactura ?? ''} — ${data.proveedor}`.trim(),
-        })
-        if (errInv) {
-          return { ok: false, error: `Error registrando inventario: ${errInv.message}` }
-        }
-      }
+    // Regla de inventario (cambiada 16-ago-2026): el ítem sin pedido YA NO
+    // entra al stock al registrar la compra — la mercancía suele venir en
+    // camino desde USA. Aquí solo se resuelve/crea la ficha del catálogo; la
+    // ENTRADA al stock la hace el botón "Llegó todo" (marcarLlegadaCompraAction)
+    // cuando la mercancía llega físicamente a Bucaramanga.
+    if (item.destino === 'sin_asignar' && !articuloId) {
+      await _resolverArticuloCompraItem(itemCreado.id, null, null, adminClient)
     }
   }
 
@@ -489,7 +469,12 @@ export async function asignarItemAction(
 //   destino 'sin_asignar'          → el ítem debe estar EN stock (neto = cantidad)
 //   destino 'pedido' / 'contoda'   → el ítem sale del stock (neto = 0)
 // Se calcula el neto de los movimientos que ya tiene y se inserta solo la
-// diferencia, así que llamarla dos veces no duplica nada.
+// diferencia, así que llamarla dos veces no duplica nada. Devuelve el ajuste
+// aplicado (0 = no había nada que mover).
+//
+// ⚠️ La ENTRADA solo ocurre si la compra ya LLEGÓ (compras.llegada_en, mig.
+// 176): mientras la mercancía viene en camino el sobrante no está en stock.
+// La salida sí corre siempre (si nunca entró, el neto es 0 y no hace nada).
 //
 // El movimiento va con pedido_id NULL a propósito: el costo del pedido ya lo
 // aporta compra_items.pedido_id en vista_ganancia_pedidos, y una salida con
@@ -500,14 +485,19 @@ async function _sincronizarStockCompraItem(
   usuarioId: string,
   adminClient: ReturnType<typeof import('@/lib/supabase/admin').createAdminClient>,
   notasEntrada?: string,
-) {
+): Promise<number> {
   const { data: item } = await adminClient
     .from('compra_items')
-    .select('articulo_id, talla, cantidad, costo_unitario_cop')
+    .select('articulo_id, talla, cantidad, costo_unitario_cop, compra_id, compra:compras(llegada_en)')
     .eq('id', itemId)
     .single()
 
-  if (!item) return
+  if (!item) return 0
+
+  if (destino === 'sin_asignar') {
+    const compra = Array.isArray((item as any).compra) ? (item as any).compra[0] : (item as any).compra
+    if (!compra?.llegada_en) return 0   // aún en camino: no entra al stock
+  }
 
   let articuloId = item.articulo_id as string | null
 
@@ -518,7 +508,7 @@ async function _sincronizarStockCompraItem(
       .from('compra_items').select('articulo_id').eq('id', itemId).single()
     articuloId = act?.articulo_id ?? null
   }
-  if (!articuloId) return
+  if (!articuloId) return 0
 
   const { data: movs } = await adminClient
     .from('movimientos_inventario')
@@ -528,7 +518,7 @@ async function _sincronizarStockCompraItem(
   const neto = (movs ?? []).reduce((s: number, m: { delta: number }) => s + m.delta, 0)
   const objetivo = destino === 'sin_asignar' ? item.cantidad : 0
   const ajuste = objetivo - neto
-  if (ajuste === 0) return
+  if (ajuste === 0) return 0
 
   const { data: tr } = await adminClient
     .from('sedes').select('id').eq('codigo', 'TR').maybeSingle()
@@ -547,6 +537,7 @@ async function _sincronizarStockCompraItem(
       ? (notasEntrada || 'Vuelve al stock de Bucaramanga (compra sin asignar)')
       : `Sale del stock de Bucaramanga (compra asignada a ${destino === 'pedido' ? 'pedido' : 'Contoda'})`,
   })
+  return ajuste
 }
 
 async function _resolverArticuloCompraItem(
@@ -893,33 +884,45 @@ export async function eliminarCompraAction(compraId: string): Promise<EliminarCo
   redirect('/compras')
 }
 
-// ─── Llegó todo: marcar en Bucaramanga los pedidos de una compra ─────────────
+// ─── Llegó todo: la mercancía de la compra llegó a Bucaramanga ───────────────
 
 export type MarcarLlegadaResult =
-  | { ok: true; marcados: string[]; omitidos: string[] }
+  | { ok: true; marcados: string[]; omitidos: string[]; stock: number; sinFicha: string[] }
   | { ok: false; error: string }
 
-// Cuando la mercancía de una factura llega completa, este botón pasa TODOS los
-// pedidos asignados a esa compra al estado 'bucaramanga' de una sola vez.
-// Usa el mismo RPC del cambio individual (historial y validaciones incluidos).
-// Solo toca pedidos en camino (pendiente/comprado/usa); los demás se omiten.
+// Cuando la mercancía de una factura llega completa:
+//   1. Los pedidos asignados a la compra pasan a estado 'bucaramanga' (mismo
+//      RPC del cambio individual; solo los en camino, los demás se omiten).
+//   2. Los items SIN pedido (destino sin_asignar) ENTRAN al stock de
+//      Bucaramanga con su costo — desde la mig. 176 el stock ya no se carga al
+//      registrar la compra sino aquí, cuando la mercancía llega físicamente.
+// Es idempotente: repetirlo no duplica stock ni daña pedidos.
 export async function marcarLlegadaCompraAction(compraId: string): Promise<MarcarLlegadaResult> {
   const { userId, adminClient } = await verificarAdmin()
   const supabase = await createClient()
 
-  const { data: items } = await adminClient
-    .from('compra_items')
-    .select('pedido_id, pedido:pedidos (id, numero_orden, estado)')
-    .eq('compra_id', compraId)
-    .not('pedido_id', 'is', null)
+  const { data: compra } = await adminClient
+    .from('compras')
+    .select('numero_factura, proveedor, llegada_en')
+    .eq('id', compraId)
+    .maybeSingle()
+  if (!compra) return { ok: false, error: 'Compra no encontrada' }
 
-  if (!items || items.length === 0) {
-    return { ok: false, error: 'Esta compra no tiene pedidos asignados.' }
+  // Registrar la llegada ANTES de sincronizar stock (la entrada depende de esto).
+  if (!compra.llegada_en) {
+    await adminClient.from('compras')
+      .update({ llegada_en: new Date().toISOString() })
+      .eq('id', compraId)
   }
 
-  // Pedidos únicos (una compra puede tener varios items del mismo pedido)
+  const { data: items } = await adminClient
+    .from('compra_items')
+    .select('id, destino, descripcion, articulo_id, pedido_id, pedido:pedidos (id, numero_orden, estado)')
+    .eq('compra_id', compraId)
+
+  // 1. Avanzar pedidos únicos (una compra puede tener varios items del mismo pedido)
   const pedidos = new Map<string, { numero_orden: string; estado: string }>()
-  for (const it of items as any[]) {
+  for (const it of (items ?? []) as any[]) {
     const p = Array.isArray(it.pedido) ? it.pedido[0] : it.pedido
     if (p) pedidos.set(p.id, { numero_orden: p.numero_orden, estado: p.estado })
   }
@@ -945,8 +948,26 @@ export async function marcarLlegadaCompraAction(compraId: string): Promise<Marca
     }
   }
 
+  // 2. Cargar al stock los items sin pedido (sobrantes para vender en tienda)
+  let stock = 0
+  const sinFicha: string[] = []
+  const nota = `Llegó a Bucaramanga — compra ${compra.proveedor}${compra.numero_factura ? ` ${compra.numero_factura}` : ''}`
+  for (const it of (items ?? []) as any[]) {
+    if (it.destino !== 'sin_asignar' || it.pedido_id) continue
+    const ajuste = await _sincronizarStockCompraItem(it.id, 'sin_asignar', userId, adminClient, nota)
+    if (ajuste > 0) {
+      stock += ajuste
+    } else if (ajuste === 0 && !it.articulo_id) {
+      // Sin ficha del catálogo no hay dónde cargar el stock.
+      const { data: act } = await adminClient
+        .from('compra_items').select('articulo_id').eq('id', it.id).maybeSingle()
+      if (!act?.articulo_id) sinFicha.push(it.descripcion)
+    }
+  }
+
   revalidatePath(`/compras/${compraId}`)
   revalidatePath('/pedidos')
   revalidatePath('/pedidos/galeria')
-  return { ok: true, marcados, omitidos }
+  revalidatePath('/inventario')
+  return { ok: true, marcados, omitidos, stock, sinFicha }
 }
