@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils/cn'
 import { createClient } from '@/lib/supabase/client'
@@ -28,6 +29,8 @@ import {
   Landmark,
   Clock,
   UserMinus,
+  ChevronDown,
+  ChevronRight,
   LucideProps,
 } from 'lucide-react'
 
@@ -55,36 +58,63 @@ type NavIcon = React.ComponentType<LucideProps> | typeof MotoIcon
 // `activo`: prefijo de ruta que mantiene el ítem resaltado cuando difiere del
 // href (Pedidos abre la galería pero cubre también la lista y el detalle).
 // `sedes`: para asesores, códigos de sede que ven el ítem (el admin siempre lo ve).
-const navItems: { href: string; label: string; icon: NavIcon; rol: string[]; activo?: string; sedes?: string[] }[] = [
+type NavItem = { href: string; label: string; icon: NavIcon; rol: string[]; activo?: string; sedes?: string[] }
+
+// Menú reorganizado (pedido de Johan 16-ago-2026): lo de todos los días queda
+// suelto arriba y el resto se agrupa en categorías desplegables.
+const navPrincipal: NavItem[] = [
   { href: '/dashboard',    label: 'Dashboard',    icon: LayoutDashboard, rol: ['asesor', 'admin'] },
   { href: '/pedidos/galeria', label: 'Pedidos',   icon: Package,         rol: ['asesor', 'admin', 'visor'], activo: '/pedidos' },
   { href: '/facturacion/nueva', label: 'Facturar / Vender', icon: FileText, rol: ['asesor', 'admin'] },
-  { href: '/cuentas-por-cobrar', label: 'Por cobrar', icon: HandCoins,   rol: ['asesor', 'admin'] },
-  { href: '/bonos',        label: 'Bonos regalo', icon: Gift,          rol: ['asesor', 'admin'] },
-  { href: '/tareas',       label: 'Tareas',       icon: ClipboardList,   rol: ['asesor', 'admin'] },
-  { href: '/asistencia',   label: 'Asistencia',   icon: Clock,           rol: ['asesor', 'admin'], sedes: ['CR'] },
-  { href: '/retos',        label: 'Retos',        icon: Trophy,          rol: ['asesor', 'admin'] },
-  { href: '/alertas',      label: 'Alertas',      icon: Bell,            rol: ['asesor', 'admin', 'visor'] },
-  { href: '/clientes',     label: 'Clientes',     icon: Users,           rol: ['asesor', 'admin', 'visor'] },
-  { href: '/domicilios',   label: 'Domicilios',   icon: MotoIcon,        rol: ['asesor', 'admin'] },
-  { href: '/envios',       label: 'Envíos',       icon: Send,            rol: ['asesor', 'admin'] },
-  { href: '/cuadre',       label: 'Cuadre caja',  icon: Calculator,  rol: ['asesor', 'admin'] },
-  { href: '/gastos',       label: 'Gastos',       icon: Wallet,      rol: ['asesor', 'admin'] },
-  { href: '/descuentos',   label: 'Descuentos',   icon: UserMinus,   rol: ['admin'] },
-  { href: '/gastos-fijos', label: 'Gastos fijos', icon: Landmark,    rol: ['admin'] },
-  { href: '/flujo-caja',   label: 'Flujo de caja',icon: BarChart2,   rol: ['admin'] },
-  { href: '/consignaciones', label: 'Consignaciones', icon: Landmark, rol: ['admin'] },
-  { href: '/prestamos',    label: 'Préstamos',    icon: HandCoins,   rol: ['admin'] },
-  { href: '/ganancias',    label: 'Ganancias',    icon: TrendingUp,  rol: ['admin'] },
-  { href: '/mensajerias',  label: 'Mensajerías', icon: Package,     rol: ['asesor', 'admin'] },
-  { href: '/inventario',   label: 'Inventario',   icon: Boxes,       rol: ['admin'] },
-  { href: '/inventario/conteo', label: 'Conteo inventario', icon: Boxes, rol: ['asesor'] },
-  { href: '/cartera',      label: 'Cartera',      icon: Wallet,      rol: ['admin'] },
-  { href: '/recompras',    label: 'Recompra RFM', icon: TrendingUp,  rol: ['admin'] },
-  { href: '/estadisticas', label: 'Estadísticas', icon: BarChart2,   rol: ['admin'] },
-  { href: '/compras',      label: 'Compras',      icon: ShoppingBag, rol: ['admin'] },
-  { href: '/usuarios',     label: 'Usuarios',     icon: UserCog,     rol: ['admin'] },
-  { href: '/asistente',    label: 'Asistente IA', icon: Sparkles,    rol: ['asesor', 'admin'] },
+  { href: '/cuadre',       label: 'Cuadre caja',  icon: Calculator,      rol: ['asesor', 'admin'] },
+  { href: '/compras',      label: 'Compras',      icon: ShoppingBag,     rol: ['admin'] },
+]
+
+const navGrupos: { id: string; label: string; icon: NavIcon; items: NavItem[] }[] = [
+  {
+    id: 'clientes', label: 'Clientes y ventas', icon: Users,
+    items: [
+      { href: '/clientes',     label: 'Clientes',     icon: Users,       rol: ['asesor', 'admin', 'visor'] },
+      { href: '/cuentas-por-cobrar', label: 'Por cobrar', icon: HandCoins, rol: ['asesor', 'admin'] },
+      { href: '/cartera',      label: 'Cartera',      icon: Wallet,      rol: ['admin'] },
+      { href: '/bonos',        label: 'Bonos regalo', icon: Gift,        rol: ['asesor', 'admin'] },
+      { href: '/recompras',    label: 'Recompra RFM', icon: TrendingUp,  rol: ['admin'] },
+      { href: '/alertas',      label: 'Alertas',      icon: Bell,        rol: ['asesor', 'admin', 'visor'] },
+    ],
+  },
+  {
+    id: 'logistica', label: 'Logística', icon: Send,
+    items: [
+      { href: '/domicilios',   label: 'Domicilios',   icon: MotoIcon,    rol: ['asesor', 'admin'] },
+      { href: '/envios',       label: 'Envíos',       icon: Send,        rol: ['asesor', 'admin'] },
+      { href: '/mensajerias',  label: 'Mensajerías',  icon: Package,     rol: ['asesor', 'admin'] },
+      { href: '/inventario',   label: 'Inventario',   icon: Boxes,       rol: ['admin'] },
+      { href: '/inventario/conteo', label: 'Conteo inventario', icon: Boxes, rol: ['asesor'] },
+    ],
+  },
+  {
+    id: 'dinero', label: 'Dinero', icon: Wallet,
+    items: [
+      { href: '/gastos',       label: 'Gastos',       icon: Wallet,      rol: ['asesor', 'admin'] },
+      { href: '/gastos-fijos', label: 'Gastos fijos', icon: Landmark,    rol: ['admin'] },
+      { href: '/flujo-caja',   label: 'Flujo de caja',icon: BarChart2,   rol: ['admin'] },
+      { href: '/consignaciones', label: 'Consignaciones', icon: Landmark, rol: ['admin'] },
+      { href: '/prestamos',    label: 'Préstamos',    icon: HandCoins,   rol: ['admin'] },
+      { href: '/ganancias',    label: 'Ganancias',    icon: TrendingUp,  rol: ['admin'] },
+      { href: '/estadisticas', label: 'Estadísticas', icon: BarChart2,   rol: ['admin'] },
+    ],
+  },
+  {
+    id: 'equipo', label: 'Equipo', icon: UserCog,
+    items: [
+      { href: '/tareas',       label: 'Tareas',       icon: ClipboardList, rol: ['asesor', 'admin'] },
+      { href: '/retos',        label: 'Retos',        icon: Trophy,        rol: ['asesor', 'admin'] },
+      { href: '/asistencia',   label: 'Asistencia',   icon: Clock,         rol: ['asesor', 'admin'], sedes: ['CR'] },
+      { href: '/descuentos',   label: 'Descuentos',   icon: UserMinus,     rol: ['admin'] },
+      { href: '/usuarios',     label: 'Usuarios',     icon: UserCog,       rol: ['admin'] },
+      { href: '/asistente',    label: 'Asistente IA', icon: Sparkles,      rol: ['asesor', 'admin'] },
+    ],
+  },
 ]
 
 export function Sidebar({ usuario, sedeCodigo, onClose }: SidebarProps) {
@@ -98,10 +128,36 @@ export function Sidebar({ usuario, sedeCodigo, onClose }: SidebarProps) {
     router.refresh()
   }
 
-  const items = navItems.filter((item) =>
+  const visible = (item: NavItem) =>
     item.rol.includes(usuario.rol) &&
     (!item.sedes || usuario.rol !== 'asesor' || item.sedes.includes(sedeCodigo ?? ''))
-  )
+
+  const esActivo = (item: NavItem) => {
+    const base = item.activo ?? item.href
+    return pathname === base || (base !== '/dashboard' && pathname.startsWith(base))
+  }
+
+  const principales = navPrincipal.filter(visible)
+  const grupos = navGrupos
+    .map(g => ({ ...g, items: g.items.filter(visible) }))
+    .filter(g => g.items.length > 0)
+
+  // Abierto el grupo donde está la página actual; el usuario puede abrir/cerrar
+  // los demás y su elección se mantiene mientras navega.
+  const [abiertos, setAbiertos] = useState<Record<string, boolean>>(() => {
+    const init: Record<string, boolean> = {}
+    for (const g of navGrupos) init[g.id] = g.items.some(esActivo)
+    return init
+  })
+  useEffect(() => {
+    for (const g of navGrupos) {
+      if (g.items.some(esActivo)) {
+        setAbiertos(a => (a[g.id] ? a : { ...a, [g.id]: true }))
+        break
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname])
 
   return (
     <aside className="flex flex-col bg-white border-r border-gray-100 min-h-screen shadow-sm w-52">
@@ -120,14 +176,11 @@ export function Sidebar({ usuario, sedeCodigo, onClose }: SidebarProps) {
         <span className="ml-3 font-bold text-gray-900 text-sm">Tres Bandas</span>
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 flex flex-col items-start gap-1 px-3 py-4">
-        {items.map((item) => {
+      {/* Nav: lo de todos los días suelto arriba, el resto en grupos desplegables */}
+      <nav className="flex-1 flex flex-col items-start gap-1 px-3 py-4 overflow-y-auto">
+        {principales.map((item) => {
           const Icon = item.icon
-          const base = item.activo ?? item.href
-          const active =
-            pathname === base ||
-            (base !== '/dashboard' && pathname.startsWith(base))
+          const active = esActivo(item)
           return (
             <Link
               key={item.href}
@@ -145,6 +198,57 @@ export function Sidebar({ usuario, sedeCodigo, onClose }: SidebarProps) {
               <Icon size={18} className="shrink-0" />
               <span>{item.label}</span>
             </Link>
+          )
+        })}
+
+        <div className="w-full border-t border-gray-100 my-2" />
+
+        {grupos.map((g) => {
+          const GIcon = g.icon
+          const abierto = abiertos[g.id]
+          const tieneActivo = g.items.some(esActivo)
+          return (
+            <div key={g.id} className="w-full">
+              <button
+                type="button"
+                onClick={() => setAbiertos(a => ({ ...a, [g.id]: !a[g.id] }))}
+                className={cn(
+                  'flex items-center gap-3 w-full h-10 rounded-2xl text-sm font-medium px-3 transition-colors',
+                  tieneActivo && !abierto ? 'text-blue-600' : 'text-gray-500',
+                  'hover:bg-gray-100 hover:text-gray-700'
+                )}
+              >
+                <GIcon size={18} className="shrink-0" />
+                <span className="flex-1 text-left">{g.label}</span>
+                {abierto ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              </button>
+              {abierto && (
+                <div className="flex flex-col gap-0.5 mt-0.5 mb-1">
+                  {g.items.map((item) => {
+                    const Icon = item.icon
+                    const active = esActivo(item)
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={onClose}
+                        title={item.label}
+                        className={cn(
+                          'flex items-center gap-2.5 w-full h-9 rounded-xl text-[13px] font-medium pl-8 pr-3',
+                          'transition-all duration-150 ease-out active:scale-95',
+                          active
+                            ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
+                            : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'
+                        )}
+                      >
+                        <Icon size={15} className="shrink-0" />
+                        <span>{item.label}</span>
+                      </Link>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           )
         })}
       </nav>
