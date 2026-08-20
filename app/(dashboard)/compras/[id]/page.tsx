@@ -41,7 +41,7 @@ export default async function CompraDetallePage({
       cuenta:cuentas (nombre),
       compra_items (
         id, compra_id, codigo, descripcion, marca, talla, cantidad, costo_unitario_cop,
-        destino, pedido_id, pedido_item_indice, transferido_contoda, transferido_en, creado_en,
+        destino, pedido_id, pedido_item_indice, articulo_id, transferido_contoda, transferido_en, creado_en,
         pedido:pedidos (numero_orden)
       )
     `)
@@ -54,6 +54,47 @@ export default async function CompraDetallePage({
 
   const itemsSinAsignar = compra.compra_items.filter((i) => i.destino === 'sin_asignar')
   const itemsAsignados = compra.compra_items.filter((i) => i.destino !== 'sin_asignar')
+
+  // Fotos de los productos: la compra no guarda imagen propia — se toma la del
+  // pedido enlazado (por posición del artículo) o, si no, la última foto que
+  // ese artículo del catálogo tenga en cualquier pedido.
+  const pedidoIds = [...new Set(compra.compra_items.map(i => i.pedido_id).filter(Boolean))] as string[]
+  const articuloIds = [...new Set(compra.compra_items.map(i => (i as any).articulo_id).filter(Boolean))] as string[]
+
+  const [itemsPedidosRes, itemsArticulosRes] = await Promise.all([
+    pedidoIds.length > 0
+      ? supabase.from('pedido_items').select('pedido_id, imagen_url').in('pedido_id', pedidoIds).order('id')
+      : Promise.resolve({ data: [] as any[] }),
+    articuloIds.length > 0
+      ? supabase.from('pedido_items').select('articulo_id, imagen_url').in('articulo_id', articuloIds).not('imagen_url', 'is', null).order('id', { ascending: false })
+      : Promise.resolve({ data: [] as any[] }),
+  ])
+
+  const itemsPorPedido = new Map<string, Array<{ imagen_url: string | null }>>()
+  for (const it of (itemsPedidosRes.data ?? []) as any[]) {
+    const arr = itemsPorPedido.get(it.pedido_id) ?? []
+    arr.push(it)
+    itemsPorPedido.set(it.pedido_id, arr)
+  }
+  const fotoArticulo = new Map<string, string>()
+  for (const it of (itemsArticulosRes.data ?? []) as any[]) {
+    if (it.articulo_id && it.imagen_url && !fotoArticulo.has(it.articulo_id)) {
+      fotoArticulo.set(it.articulo_id, it.imagen_url)
+    }
+  }
+
+  function fotoDe(item: CompraItem): string | null {
+    if (item.pedido_id) {
+      const lista = itemsPorPedido.get(item.pedido_id) ?? []
+      const indice = (item as any).pedido_item_indice as number | null
+      const porIndice = indice != null ? lista[indice - 1] : null
+      if (porIndice?.imagen_url) return porIndice.imagen_url
+      const conFoto = lista.find(x => x.imagen_url)
+      if (conFoto?.imagen_url) return conFoto.imagen_url
+    }
+    const artId = (item as any).articulo_id as string | null
+    return artId ? (fotoArticulo.get(artId) ?? null) : null
+  }
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
@@ -150,6 +191,7 @@ export default async function CompraDetallePage({
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="border-b border-gray-200">
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Foto</th>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Código</th>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nombre</th>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Marca</th>
@@ -160,8 +202,20 @@ export default async function CompraDetallePage({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {compra.compra_items.map((item) => (
+              {compra.compra_items.map((item) => {
+                const foto = fotoDe(item)
+                return (
                 <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-3 py-2">
+                    {foto ? (
+                      <a href={foto} target="_blank" rel="noopener noreferrer">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={foto} alt="Producto" className="w-11 h-11 object-cover rounded-lg border border-gray-200" />
+                      </a>
+                    ) : (
+                      <span className="text-gray-300 text-xs">—</span>
+                    )}
+                  </td>
                   <td className="px-3 py-2 font-mono text-xs font-semibold text-blue-700">{(item as any).codigo ?? '—'}</td>
                   <td className="px-3 py-2 text-gray-900">{item.descripcion}</td>
                   <td className="px-3 py-2 text-gray-700">{item.marca || '—'}</td>
@@ -177,11 +231,12 @@ export default async function CompraDetallePage({
                     />
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
             <tfoot>
               <tr className="border-t border-gray-200">
-                <td colSpan={4} className="px-3 py-2 text-right text-xs font-semibold text-gray-600 uppercase">Total</td>
+                <td colSpan={5} className="px-3 py-2 text-right text-xs font-semibold text-gray-600 uppercase">Total</td>
                 <td className="px-3 py-2 text-center font-bold text-gray-900">
                   {compra.compra_items.reduce((s, it) => s + (it.cantidad || 0), 0)}
                 </td>
