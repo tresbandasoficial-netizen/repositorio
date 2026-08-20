@@ -99,6 +99,7 @@ export type FacturaDetalle = FacturaRow & {
       color: string | null
       cantidad: number
       precio_venta: number
+      imagen_url: string | null
     }>
   }>
   abonos: Array<{
@@ -130,7 +131,7 @@ export async function getFacturaDetalle(id: string): Promise<FacturaDetalle | nu
   const [pedidosRes, abonosRes, domicilioRes] = await Promise.all([
     supabase
       .from('pedidos')
-      .select('id, numero_orden, total, fecha_creacion, pedido_items(codigo, descripcion, marca, talla, color, cantidad, precio_venta)')
+      .select('id, numero_orden, total, fecha_creacion, pedido_items(codigo, descripcion, marca, talla, color, cantidad, precio_venta, imagen_url)')
       .eq('factura_id', id)
       .order('fecha_creacion'),
     supabase

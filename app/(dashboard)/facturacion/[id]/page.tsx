@@ -127,14 +127,27 @@ export default async function FacturaDetallePage({
               </div>
               {/* Artículos del pedido */}
               {p.items.length > 0 && (
-                <ul className="mt-2 space-y-1 border-l-2 border-gray-100 pl-3">
+                <ul className="mt-2 space-y-1.5 border-l-2 border-gray-100 pl-3">
                   {p.items.map((it, i) => (
                     <li key={i} className="flex items-center justify-between gap-3 text-xs">
-                      <span className="text-gray-600 truncate">
-                        <span className="text-gray-400 font-medium">{i + 1}.</span>{' '}
-                        {it.codigo && <span className="font-mono text-gray-400">{it.codigo} · </span>}
-                        {[it.descripcion, it.marca, it.talla, it.color].filter(Boolean).join(' · ')}
-                        {it.cantidad > 1 && <span className="text-gray-400"> ×{it.cantidad}</span>}
+                      <span className="flex items-center gap-2 min-w-0">
+                        {/* Foto del artículo (clic para verla completa) */}
+                        {it.imagen_url && (
+                          <a href={it.imagen_url} target="_blank" rel="noopener noreferrer" className="shrink-0">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={it.imagen_url}
+                              alt="Artículo"
+                              className="w-10 h-10 object-cover rounded-lg border border-gray-200"
+                            />
+                          </a>
+                        )}
+                        <span className="text-gray-600 truncate">
+                          <span className="text-gray-400 font-medium">{i + 1}.</span>{' '}
+                          {it.codigo && <span className="font-mono text-gray-400">{it.codigo} · </span>}
+                          {[it.descripcion, it.marca, it.talla, it.color].filter(Boolean).join(' · ')}
+                          {it.cantidad > 1 && <span className="text-gray-400"> ×{it.cantidad}</span>}
+                        </span>
                       </span>
                       <span className="text-gray-500 whitespace-nowrap">{formatCOP(it.precio_venta * it.cantidad)}</span>
                     </li>
