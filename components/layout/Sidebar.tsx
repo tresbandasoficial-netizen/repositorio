@@ -58,7 +58,12 @@ type NavIcon = React.ComponentType<LucideProps> | typeof MotoIcon
 // `activo`: prefijo de ruta que mantiene el ítem resaltado cuando difiere del
 // href (Pedidos abre la galería pero cubre también la lista y el detalle).
 // `sedes`: para asesores, códigos de sede que ven el ítem (el admin siempre lo ve).
-type NavItem = { href: string; label: string; icon: NavIcon; rol: string[]; activo?: string; sedes?: string[] }
+// `usuarios`: ids puntuales que ven el ítem aunque su sede no esté en `sedes`.
+type NavItem = { href: string; label: string; icon: NavIcon; rol: string[]; activo?: string; sedes?: string[]; usuarios?: string[] }
+
+// luisa (asesora SR, tresbandasasesor3@gmail.com) — Johan pidió activarle
+// Asistencia SOLO a ella, sin abrirla a toda la sede (16-ago-2026).
+const LUISA_SR_ID = '35aea4c1-4974-492d-b86e-2ddb345165f1'
 
 // Menú reorganizado (pedido de Johan 16-ago-2026): lo de todos los días queda
 // suelto arriba y el resto se agrupa en categorías desplegables.
@@ -109,7 +114,7 @@ const navGrupos: { id: string; label: string; icon: NavIcon; items: NavItem[] }[
     items: [
       { href: '/tareas',       label: 'Tareas',       icon: ClipboardList, rol: ['asesor', 'admin'] },
       { href: '/retos',        label: 'Retos',        icon: Trophy,        rol: ['asesor', 'admin'] },
-      { href: '/asistencia',   label: 'Asistencia',   icon: Clock,         rol: ['asesor', 'admin'], sedes: ['CR'] },
+      { href: '/asistencia',   label: 'Asistencia',   icon: Clock,         rol: ['asesor', 'admin'], sedes: ['CR'], usuarios: [LUISA_SR_ID] },
       { href: '/descuentos',   label: 'Descuentos',   icon: UserMinus,     rol: ['admin'] },
       { href: '/usuarios',     label: 'Usuarios',     icon: UserCog,       rol: ['admin'] },
       { href: '/asistente',    label: 'Asistente IA', icon: Sparkles,      rol: ['asesor', 'admin'] },
@@ -130,7 +135,9 @@ export function Sidebar({ usuario, sedeCodigo, onClose }: SidebarProps) {
 
   const visible = (item: NavItem) =>
     item.rol.includes(usuario.rol) &&
-    (!item.sedes || usuario.rol !== 'asesor' || item.sedes.includes(sedeCodigo ?? ''))
+    (!item.sedes || usuario.rol !== 'asesor'
+      || item.sedes.includes(sedeCodigo ?? '')
+      || (item.usuarios?.includes(usuario.id) ?? false))
 
   const esActivo = (item: NavItem) => {
     const base = item.activo ?? item.href
