@@ -3,10 +3,11 @@
 import { useState, useRef, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { buscarArticuloPorCodigoAction, cargaMasivaAction, FilaLote } from '@/app/actions/cargaMasiva'
+import { uploadPedidoImage } from '@/lib/utils/uploadPedidoImage'
 import { TallaSelect } from '@/components/ui/TallaSelect'
 import { MarcaSelect } from '@/components/ui/MarcaSelect'
 import { formatMiles } from '@/lib/utils/format'
-import { Loader2, Plus, Trash2, Check, UploadCloud } from 'lucide-react'
+import { Loader2, Plus, Trash2, Check, UploadCloud, Camera } from 'lucide-react'
 
 type Sede = { id: string; codigo: string; nombre: string }
 
@@ -22,11 +23,13 @@ type Fila = {
   cantidad: string
   existente: boolean
   buscando: boolean
+  foto: string | null        // foto del producto (sube a storage; queda en la ficha)
+  subiendoFoto: boolean
 }
 
 let uidSeq = 1
 function filaVacia(): Fila {
-  return { uid: uidSeq++, codigo: '', marca: '', nombre: '', categoria: '', sexo: '', precio: '', talla: '', cantidad: '', existente: false, buscando: false }
+  return { uid: uidSeq++, codigo: '', marca: '', nombre: '', categoria: '', sexo: '', precio: '', talla: '', cantidad: '', existente: false, buscando: false, foto: null, subiendoFoto: false }
 }
 
 const celda = 'w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:bg-gray-50 disabled:text-gray-500'
@@ -67,6 +70,7 @@ export function CargaLotePanel({ sedes, sedeFijaId }: { sedes: Sede[]; sedeFijaI
             categoria: (art.categoria ?? '') as Fila['categoria'],
             sexo: (art.sexo ?? '') as Fila['sexo'],
             precio: art.precio_venta != null ? String(art.precio_venta) : '',
+            foto: art.foto ?? null,
           })
         }
       } catch {
@@ -79,6 +83,32 @@ export function CargaLotePanel({ sedes, sedeFijaId }: { sedes: Sede[]; sedeFijaI
 
   function agregarFilas(n: number) {
     setFilas(prev => [...prev, ...Array.from({ length: n }, filaVacia)])
+  }
+
+  async function subirFoto(uid: number, file: File | null) {
+    if (!file) return
+    patch(uid, { subiendoFoto: true })
+    try {
+      const url = await uploadPedidoImage(file)
+      if (url) {
+        // La misma foto se copia a las demás filas del mismo código que aún no
+        // tengan (un producto con varias tallas = varias filas).
+        setFilas(prev => {
+          const fila = prev.find(f => f.uid === uid)
+          const cod = fila?.codigo.trim().toLowerCase()
+          return prev.map(f =>
+            f.uid === uid ? { ...f, foto: url, subiendoFoto: false }
+            : (cod && f.codigo.trim().toLowerCase() === cod && !f.foto) ? { ...f, foto: url }
+            : f
+          )
+        })
+        return
+      }
+      setError('No se pudo subir la foto — intenta de nuevo')
+    } catch {
+      setError('No se pudo subir la foto — intenta de nuevo')
+    }
+    patch(uid, { subiendoFoto: false })
   }
 
   function quitar(uid: number) {
@@ -117,6 +147,7 @@ export function CargaLotePanel({ sedes, sedeFijaId }: { sedes: Sede[]; sedeFijaI
       precio_venta: f.precio.trim() ? parseInt(f.precio.replace(/\D/g, ''), 10) : null,
       talla: f.talla.trim() || null,
       cantidad: f.cantidad.trim() ? Math.max(0, parseInt(f.cantidad, 10) || 0) : null,
+      foto_url: f.foto,
     }))
 
     const sedeNombre = sedes.find(s => s.id === sedeId)?.nombre ?? ''
@@ -194,6 +225,7 @@ export function CargaLotePanel({ sedes, sedeFijaId }: { sedes: Sede[]; sedeFijaI
           <thead>
             <tr className="bg-gray-50/80 border-b border-gray-100 text-[10px] text-gray-500 uppercase tracking-wider">
               <th className="px-2 py-2.5 text-left w-8">#</th>
+              <th className="px-2 py-2.5 text-left w-14">Foto</th>
               <th className="px-2 py-2.5 text-left w-32">Código</th>
               <th className="px-2 py-2.5 text-left w-28">Marca</th>
               <th className="px-2 py-2.5 text-left">Nombre</th>
@@ -209,6 +241,33 @@ export function CargaLotePanel({ sedes, sedeFijaId }: { sedes: Sede[]; sedeFijaI
             {filas.map((f, i) => (
               <tr key={f.uid} className={f.existente ? 'bg-green-50/40' : ''}>
                 <td className="px-2 py-1.5 text-gray-300 font-medium">{i + 1}</td>
+                <td className="px-2 py-1.5">
+                  {/* Foto del producto: se sube aquí mismo y queda en la ficha
+                      del catálogo (si la ficha ya tiene foto, no se pisa). */}
+                  {f.subiendoFoto ? (
+                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100">
+                      <Loader2 size={13} className="animate-spin text-gray-400" />
+                    </span>
+                  ) : f.foto ? (
+                    <a href={f.foto} target="_blank" rel="noopener noreferrer" title="Ver foto completa">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={f.foto} alt="" className="h-9 w-9 rounded-lg border border-gray-200 object-cover" />
+                    </a>
+                  ) : (
+                    <label
+                      title="Subir foto del producto"
+                      className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-dashed border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-500 transition-colors"
+                    >
+                      <Camera size={14} />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={e => { subirFoto(f.uid, e.target.files?.[0] ?? null); e.target.value = '' }}
+                      />
+                    </label>
+                  )}
+                </td>
                 <td className="px-2 py-1.5">
                   <div className="relative">
                     <input

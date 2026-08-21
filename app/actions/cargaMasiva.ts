@@ -14,6 +14,7 @@ export type ArticuloPorCodigo = {
   categoria: 'ropa' | 'tenis' | 'accesorios' | null
   sexo: 'hombre' | 'mujer' | 'nino' | null
   precio_venta: number | null
+  foto: string | null
 }
 
 export async function buscarArticuloPorCodigoAction(codigo: string): Promise<ArticuloPorCodigo | null> {
@@ -22,11 +23,13 @@ export async function buscarArticuloPorCodigoAction(codigo: string): Promise<Art
   if (!cod) return null
   const { data } = await supabase
     .from('articulos')
-    .select('id, codigo, marca, nombre, categoria, sexo, precio_venta')
+    .select('id, codigo, marca, nombre, categoria, sexo, precio_venta, fotos')
     .ilike('codigo', cod)
     .eq('activo', true)
     .maybeSingle()
-  return (data as ArticuloPorCodigo | null) ?? null
+  if (!data) return null
+  const { fotos, ...resto } = data as any
+  return { ...resto, foto: fotos?.[0] ?? null } as ArticuloPorCodigo
 }
 
 // ─── Carga en lote: crear artículos + fijar stock contado ────────────────────
@@ -40,6 +43,7 @@ export type FilaLote = {
   precio_venta: number | null
   talla: string | null
   cantidad: number | null   // null = solo crear el artículo, sin contar stock
+  foto_url?: string | null  // foto subida en la planilla → queda en la ficha
 }
 
 export type CargaMasivaResult =
@@ -66,6 +70,19 @@ export async function cargaMasivaAction(
   const conteo = new Map<string, { articulo_id: string; talla: string | null; cantidad: number }>()
   // Cache de códigos ya resueltos en esta carga (varias tallas del mismo producto)
   const porCodigo = new Map<string, string>()
+  // Artículos a los que ya se les puso foto en esta carga (no repetir el update)
+  const fotoPuesta = new Set<string>()
+
+  // La foto de la planilla queda en la ficha SOLO si la ficha no tiene fotos
+  // (no se pisa una foto existente).
+  async function ponerFotoSiFalta(articuloId: string, fotoUrl: string | null | undefined) {
+    if (!fotoUrl || fotoPuesta.has(articuloId)) return
+    fotoPuesta.add(articuloId)
+    const { data } = await supabase.from('articulos').select('fotos').eq('id', articuloId).maybeSingle()
+    if (data && (!data.fotos || (data.fotos as string[]).length === 0)) {
+      await supabase.from('articulos').update({ fotos: [fotoUrl] }).eq('id', articuloId)
+    }
+  }
 
   for (let i = 0; i < filas.length; i++) {
     const f = filas[i]
@@ -79,6 +96,7 @@ export async function cargaMasivaAction(
       let articuloId: string | null = null
       if (codigo && porCodigo.has(codigo)) {
         articuloId = porCodigo.get(codigo)!
+        await ponerFotoSiFalta(articuloId, f.foto_url)
       } else if (codigo) {
         const { data } = await supabase.from('articulos').select('id, precio_venta').ilike('codigo', codigo).maybeSingle()
         if (data) {
@@ -88,6 +106,7 @@ export async function cargaMasivaAction(
           if (f.precio_venta !== null && f.precio_venta !== (data as any).precio_venta) {
             await supabase.from('articulos').update({ precio_venta: f.precio_venta }).eq('id', data.id)
           }
+          await ponerFotoSiFalta(data.id, f.foto_url)
         }
       }
 
@@ -105,6 +124,7 @@ export async function cargaMasivaAction(
             sexo: f.categoria === 'accesorios' ? null : f.sexo,
             categoria: f.categoria,
             precio_venta: f.precio_venta,
+            fotos: f.foto_url ? [f.foto_url] : null,
             activo: true,
           })
           .select('id')
