@@ -400,6 +400,10 @@ export function LineaProducto({
           value={linea.talla}
           onChange={talla => onChange({ talla })}
           className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+          // Disponibles por talla junto a cada opción del desplegable
+          stockPorTalla={tallasArticulo
+            ? Object.fromEntries(tallasArticulo.map(t => [(t.talla ?? '').trim().toUpperCase(), t.stock]))
+            : undefined}
         />
         <input
           type="number"

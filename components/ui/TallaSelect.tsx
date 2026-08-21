@@ -7,20 +7,31 @@ import { TALLAS_ROPA, TALLAS_ROPA_NINO, TALLAS_TENIS, tallasDeCategoria, Categor
 //   ropa → 2XS…2XL · ropa de niño → 3 meses…15-16 años · tenis → 5…12 (con
 //   medias tallas) · accesorios → sin talla
 // Si aún no hay categoría elegida, muestra ambos grupos.
+// `stockPorTalla` (opcional): unidades disponibles por talla — se muestran al
+// lado de cada opción ("S — 2 disponibles") para vender de una lo que hay.
 export function TallaSelect({
   categoria,
   sexo,
   value,
   onChange,
   className,
+  stockPorTalla,
 }: {
   categoria?: CategoriaArticulo | '' | null
   sexo?: SexoArticulo | '' | null
   value: string
   onChange: (talla: string) => void
   className?: string
+  stockPorTalla?: Record<string, number>
 }) {
   const esAccesorio = categoria === 'accesorios'
+
+  // "S — 2 disponibles" cuando hay dato de stock para esa talla.
+  const etiqueta = (t: string) => {
+    const stock = stockPorTalla?.[t.trim().toUpperCase()]
+    if (stock == null) return t
+    return stock > 0 ? `${t} — ${stock} disponible${stock === 1 ? '' : 's'}` : `${t} — sin stock`
+  }
 
   // Un accesorio no lleva talla: limpiar cualquier valor viejo.
   useEffect(() => {
@@ -45,19 +56,19 @@ export function TallaSelect({
     <select value={value} onChange={e => onChange(e.target.value)} className={className}>
       <option value="">Talla…</option>
       {opciones.length > 0 ? (
-        opciones.map(t => <option key={t} value={t}>{t}</option>)
+        opciones.map(t => <option key={t} value={t}>{etiqueta(t)}</option>)
       ) : (
         <>
           <optgroup label={esNino ? 'Ropa niño' : 'Ropa'}>
-            {grupoRopa.map(t => <option key={t} value={t}>{t}</option>)}
+            {grupoRopa.map(t => <option key={t} value={t}>{etiqueta(t)}</option>)}
           </optgroup>
           <optgroup label="Tenis">
-            {TALLAS_TENIS.map(t => <option key={t} value={t}>{t}</option>)}
+            {TALLAS_TENIS.map(t => <option key={t} value={t}>{etiqueta(t)}</option>)}
           </optgroup>
         </>
       )}
       {/* Tallas viejas fuera de la lista siguen visibles para no perderlas */}
-      {value && !conocidas.includes(value) && <option value={value}>{value}</option>}
+      {value && !conocidas.includes(value) && <option value={value}>{etiqueta(value)}</option>}
     </select>
   )
 }
