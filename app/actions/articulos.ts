@@ -346,6 +346,8 @@ export type ArticuloBusqueda = {
   // Foto conocida del artículo: la de su ficha, o la del pedido más reciente
   // que lo llevó — para autollenar la foto al elegirlo en un pedido nuevo.
   foto: string | null
+  // Precio de venta de la ficha (para autollenar el precio al elegirlo)
+  precio_venta: number | null
 }
 
 export async function buscarArticulosAction(q: string, sedeId: string | null): Promise<ArticuloBusqueda[]> {
@@ -355,12 +357,12 @@ export async function buscarArticulosAction(q: string, sedeId: string | null): P
 
   const { data: articulos } = await supabase
     .from('articulos')
-    .select('id, codigo, nombre, marca, color, sexo, categoria, fotos')
+    .select('id, codigo, nombre, marca, color, sexo, categoria, fotos, precio_venta')
     .eq('activo', true)
     .or(`nombre.ilike.%${t}%,marca.ilike.%${t}%,codigo.ilike.%${t}%,referencia.ilike.%${t}%,color.ilike.%${t}%`)
     .limit(15)
 
-  const lista = (articulos ?? []) as Array<{ id: string; codigo: string | null; nombre: string; marca: string; color: string | null; sexo: string | null; categoria: string | null; fotos: string[] | null }>
+  const lista = (articulos ?? []) as Array<{ id: string; codigo: string | null; nombre: string; marca: string; color: string | null; sexo: string | null; categoria: string | null; fotos: string[] | null; precio_venta: number | null }>
   if (lista.length === 0) return []
 
   const ids = lista.map(a => a.id)
@@ -410,5 +412,6 @@ export async function buscarArticulosAction(q: string, sedeId: string | null): P
     categoria: a.categoria,
     tallaStock: (stockMap.get(a.id) ?? []).sort((a, b) => (a.talla ?? '').localeCompare(b.talla ?? '')),
     foto: a.fotos?.[0] ?? fotoPorArticulo.get(a.id) ?? null,
+    precio_venta: a.precio_venta ?? null,
   }))
 }

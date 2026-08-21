@@ -36,6 +36,7 @@ type OpcionCatalogo = {
   color: string | null
   sexo: string | null
   categoria: string | null
+  precio_venta: number | null
   tallas: Array<{ talla: string | null; stock: number }>
 }
 
@@ -48,6 +49,7 @@ function aOpciones(articulos: ArticuloBusqueda[]): OpcionCatalogo[] {
     color: a.color,
     sexo: a.sexo,
     categoria: a.categoria,
+    precio_venta: a.precio_venta,
     tallas: a.tallaStock.map(ts => ({ talla: ts.talla, stock: ts.stock })),
   }))
 }
@@ -74,6 +76,9 @@ export function LineaProducto({
   // Tallas en existencia del artículo elegido, para avisar del stock cuando la
   // persona escoja la talla (antes el stock venía pegado a la opción elegida).
   const [tallasArticulo, setTallasArticulo] = useState<Array<{ talla: string | null; stock: number }> | null>(null)
+  // Precio de venta de la ficha del catálogo: para autollenar el precio al
+  // tocar una talla en existencia (si nadie lo ha digitado).
+  const [precioCatalogo, setPrecioCatalogo] = useState<number | null>(null)
   const { avisar, avisarError } = useAviso()
 
   useEffect(() => {
@@ -103,7 +108,10 @@ export function LineaProducto({
     ;(async () => {
       const arts = await buscarArticulosAction(q, sedeId)
       const a = arts.find(x => x.id === linea.articulo_id)
-      if (vivo && a) setTallasArticulo(a.tallaStock.map(ts => ({ talla: ts.talla, stock: ts.stock })))
+      if (vivo && a) {
+        setTallasArticulo(a.tallaStock.map(ts => ({ talla: ts.talla, stock: ts.stock })))
+        setPrecioCatalogo(a.precio_venta ?? null)
+      }
     })()
     return () => { vivo = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -129,8 +137,11 @@ export function LineaProducto({
       color:       item.color ?? linea.color,
       sexo:        (item.sexo ?? linea.sexo) as any,
       categoria:   (item.categoria ?? linea.categoria) as any,
+      // El precio de la ficha se autollena si nadie ha digitado uno.
+      ...(item.precio_venta && !linea.precio_venta ? { precio_venta: item.precio_venta } : {}),
     })
     setTallasArticulo(item.tallas)
+    setPrecioCatalogo(item.precio_venta ?? null)
     setAbierto(false)
     setNoEncontrado(false)
   }
@@ -227,18 +238,25 @@ export function LineaProducto({
         </p>
       )}
       {/* Artículo elegido pero aún sin talla: mostrar de una vez qué tallas hay
-          en la tienda, para que no se venda por encargo lo que ya está aquí. */}
+          en la tienda. Tocar una talla la elige Y llena el precio de la ficha
+          (si no hay uno digitado) — la línea queda lista de un solo toque. */}
       {linea.articulo_id && tallasArticulo && !linea.talla?.trim() && tallasArticulo.some(t => t.stock > 0) && (
         <p className="flex flex-wrap items-center gap-1 text-xs">
-          <span className="text-gray-500">En {sedeCodigo} hay:</span>
+          <span className="text-gray-500">En {sedeCodigo} hay (toca para elegir):</span>
           {tallasArticulo.filter(t => t.stock > 0).map(t => (
-            <span
+            <button
               key={t.talla ?? ''}
-              className="inline-flex items-center gap-1 bg-green-50 border border-green-200 text-green-800 rounded-md px-1.5 py-0.5 text-[11px] font-bold"
+              type="button"
+              onClick={() => onChange({
+                talla: t.talla ?? '',
+                ...(precioCatalogo && !linea.precio_venta ? { precio_venta: precioCatalogo } : {}),
+              })}
+              title="Vender esta talla del inventario"
+              className="inline-flex items-center gap-1 bg-green-50 border border-green-200 text-green-800 rounded-md px-1.5 py-0.5 text-[11px] font-bold hover:bg-green-100 hover:border-green-400 transition-colors cursor-pointer"
             >
               {t.talla ? `Talla ${t.talla}` : 'Sin talla'}
               <span className="font-normal text-green-600">×{t.stock}</span>
-            </span>
+            </button>
           ))}
         </p>
       )}
