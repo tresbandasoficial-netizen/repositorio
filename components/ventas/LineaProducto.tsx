@@ -7,7 +7,7 @@ import { TallaSelect } from '@/components/ui/TallaSelect'
 import { MarcaSelect } from '@/components/ui/MarcaSelect'
 import { useAviso } from '@/components/ui/Aviso'
 import type { CategoriaArticulo } from '@/types'
-import { formatMiles } from '@/lib/utils/format'
+import { formatCOP, formatMiles } from '@/lib/utils/format'
 
 export type Linea = ItemVenta & { key: number; codigo?: string }
 
@@ -37,6 +37,7 @@ type OpcionCatalogo = {
   sexo: string | null
   categoria: string | null
   precio_venta: number | null
+  foto: string | null
   tallas: Array<{ talla: string | null; stock: number }>
 }
 
@@ -50,6 +51,7 @@ function aOpciones(articulos: ArticuloBusqueda[]): OpcionCatalogo[] {
     sexo: a.sexo,
     categoria: a.categoria,
     precio_venta: a.precio_venta,
+    foto: a.foto,
     tallas: a.tallaStock.map(ts => ({ talla: ts.talla, stock: ts.stock })),
   }))
 }
@@ -279,49 +281,73 @@ export function LineaProducto({
           {/* min-w para que el listado no quede del ancho del campo del código:
               los nombres del catálogo son largos y se cortaban. */}
           {abierto && opciones.length > 0 && (
-            <div className="absolute z-10 left-0 mt-1 min-w-[24rem] max-w-[min(32rem,90vw)] bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden max-h-64 overflow-y-auto">
-              {opciones.map(item => {
+            <div className="absolute z-10 left-0 mt-1 min-w-[24rem] max-w-[min(32rem,90vw)] bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden max-h-72 overflow-y-auto">
+              {/* Diseño aprobado por Johan (21-ago): foto · nombre primero con el
+                  color como etiqueta · código+marca+precio en su línea · tallas
+                  en cuadritos (talla arriba, cantidad debajo). Los que no tienen
+                  existencias van al final y en gris. */}
+              {[...opciones]
+                .sort((a, b) =>
+                  (b.tallas.some(t => t.stock > 0) ? 1 : 0) - (a.tallas.some(t => t.stock > 0) ? 1 : 0))
+                .map(item => {
                 const conStock = item.tallas.filter(t => t.stock > 0)
+                const agotado = conStock.length === 0
                 return (
                   <button
                     key={item.articulo_id}
                     type="button"
                     title={`${item.codigo ?? ''} ${item.marca} ${item.nombre}${item.color ? ` · ${item.color}` : ''}`.trim()}
                     onMouseDown={() => elegir(item)}
-                    className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm border-b border-gray-50 last:border-0"
+                    className="w-full text-left px-3 py-2.5 hover:bg-blue-50 text-sm border-b border-gray-50 last:border-0 flex items-center gap-3"
                   >
-                    {/* Una cosa por renglón: código, nombre, existencias. */}
-                    {item.codigo && (
-                      <span className="block font-mono text-[11px] font-semibold text-blue-700 truncate">
-                        {item.codigo}
-                      </span>
-                    )}
-                    {item.marca && (
-                      <span className="block text-[10px] font-bold uppercase tracking-wide text-gray-400 truncate">
-                        {item.marca}{item.color ? ` · ${item.color}` : ''}
-                      </span>
-                    )}
-                    <span className="block font-semibold text-[15px] text-gray-900 leading-snug truncate">
-                      {item.nombre}
-                    </span>
-                    {/* Las tallas son informativas: al elegir no se llena ninguna.
-                        Cada talla va en su fichita para que se distinga de una. */}
-                    {conStock.length > 0 ? (
-                      <span className="flex flex-wrap items-center gap-1 mt-1">
-                        <span className="text-[10px] text-gray-400">En {sedeCodigo}:</span>
-                        {conStock.map(t => (
-                          <span
-                            key={t.talla ?? ''}
-                            className="inline-flex items-center gap-1 bg-green-50 border border-green-200 text-green-800 rounded-md px-1.5 py-0.5 text-[11px] font-bold"
-                          >
-                            {t.talla ? `Talla ${t.talla}` : 'Sin talla'}
-                            <span className="font-normal text-green-600">×{t.stock}</span>
-                          </span>
-                        ))}
-                      </span>
+                    {item.foto ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={item.foto} alt="" className={`h-[52px] w-[52px] shrink-0 rounded-xl border border-gray-200 bg-gray-100 object-cover ${agotado ? 'opacity-40' : ''}`} />
                     ) : (
-                      <span className="block text-xs mt-0.5 text-red-500">Sin existencias en {sedeCodigo}</span>
+                      <span className="h-[52px] w-[52px] shrink-0 rounded-xl bg-gray-100" />
                     )}
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`font-bold text-[14px] leading-snug ${agotado ? 'text-gray-400' : 'text-gray-900'}`}>
+                          {item.nombre}
+                        </span>
+                        {item.color && (
+                          <span className={`inline-block rounded-full border px-2 py-0.5 text-[9.5px] font-extrabold tracking-wide ${
+                            agotado ? 'border-gray-200 bg-gray-50 text-gray-400' : 'border-gray-300 bg-gray-100 text-gray-700'
+                          }`}>
+                            {item.color.toUpperCase()}
+                          </span>
+                        )}
+                      </span>
+                      <span className="flex items-center gap-2 mt-0.5">
+                        {item.codigo ? (
+                          <span className={`font-mono text-[11px] font-bold rounded-md border px-1.5 py-px ${
+                            agotado ? 'border-gray-100 bg-gray-50 text-gray-400' : 'border-blue-100 bg-blue-50 text-blue-700'
+                          }`}>{item.codigo}</span>
+                        ) : (
+                          <span className="inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">SIN CÓDIGO</span>
+                        )}
+                        <span className="text-[11.5px] font-semibold text-gray-500 truncate">{item.marca}</span>
+                        {item.precio_venta != null && item.precio_venta > 0 && (
+                          <span className="ml-auto shrink-0 text-[11.5px] font-bold text-emerald-600">{formatCOP(item.precio_venta)}</span>
+                        )}
+                      </span>
+                      {conStock.length > 0 ? (
+                        <span className="flex flex-wrap gap-1.5 mt-1.5">
+                          {conStock.map(t => (
+                            <span
+                              key={t.talla ?? ''}
+                              className="flex flex-col items-center min-w-[44px] rounded-lg border border-green-200 bg-green-50 px-1.5 py-0.5"
+                            >
+                              <span className="text-[13px] font-bold text-green-800 leading-tight">{t.talla ?? '—'}</span>
+                              <span className="text-[9.5px] font-bold text-green-600">×{t.stock}</span>
+                            </span>
+                          ))}
+                        </span>
+                      ) : (
+                        <span className="block text-[11px] mt-1 font-medium text-red-500">Sin existencias en {sedeCodigo}</span>
+                      )}
+                    </span>
                   </button>
                 )
               })}
