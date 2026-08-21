@@ -108,18 +108,37 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
   // Buscador de artículos con foto bajo el campo de código (igual que en
   // pedidos): al escribir salen las opciones del catálogo para elegir.
   const [opcionesCatalogo, setOpcionesCatalogo] = useState<Record<number, ArticuloBusqueda[]>>({})
+  // Artículos ya digitados EN ESTE FORMULARIO (aún sin guardar): al escribir el
+  // mismo código/nombre en otra fila salen de primeros para reutilizarlos.
+  const [opcionesPropias, setOpcionesPropias] = useState<Record<number, ItemForm[]>>({})
   const [buscadorAbierto, setBuscadorAbierto] = useState<number | null>(null)
+  // El timeout del buscador lee los items 450ms después: la ref evita que vea
+  // una versión vieja del estado.
+  const itemsRef = useRef<ItemForm[]>(items)
+  useEffect(() => { itemsRef.current = items }, [items])
 
   function codigoEnVivo(idx: number, valor: string) {
     actualizarItem(idx, 'codigo', valor)
     if (codigoTimers.current[idx]) clearTimeout(codigoTimers.current[idx])
     codigoTimers.current[idx] = setTimeout(async () => {
       buscarPorCodigo(idx, valor)
-      const q = valor.trim()
+      const q = valor.trim().toLowerCase()
       if (q.length >= 2) {
+        // 1º: coincidencias dentro de la misma factura (únicas por código+nombre)
+        const vistos = new Set<string>()
+        const propias = itemsRef.current.filter((it, i) => {
+          if (i === idx || !it.descripcion.trim()) return false
+          if (!it.codigo.toLowerCase().includes(q) && !it.descripcion.toLowerCase().includes(q)) return false
+          const clave = `${it.codigo.trim().toLowerCase()}|${it.descripcion.trim().toLowerCase()}|${it.marca}`
+          if (vistos.has(clave)) return false
+          vistos.add(clave)
+          return true
+        })
+        setOpcionesPropias(prev => ({ ...prev, [idx]: propias }))
+        // 2º: el catálogo
         const arts = await buscarArticulosAction(q, null)
         setOpcionesCatalogo(prev => ({ ...prev, [idx]: arts }))
-        setBuscadorAbierto(arts.length > 0 ? idx : null)
+        setBuscadorAbierto(arts.length > 0 || propias.length > 0 ? idx : null)
       } else {
         setBuscadorAbierto(null)
       }
@@ -134,6 +153,27 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
       marca:              art.marca,
       articuloId:         art.id,
       articuloEncontrado: true,
+      imagenUrl:          art.foto ?? item.imagenUrl ?? null,
+    } : item))
+    setBuscadorAbierto(null)
+  }
+
+  // Copia a la fila el artículo digitado en otra fila de esta misma factura:
+  // queda todo igual (código, ficha, costo, foto) y solo falta talla y cantidad.
+  function elegirDeFactura(idx: number, fuente: ItemForm) {
+    setItems(prev => prev.map((item, i) => i === idx ? {
+      ...item,
+      codigo:             fuente.codigo,
+      descripcion:        fuente.descripcion,
+      marca:              fuente.marca,
+      color:              fuente.color,
+      sexo:               fuente.sexo,
+      categoria:          fuente.categoria,
+      precio_usd:         fuente.precio_usd,
+      costo_unitario_cop: fuente.costo_unitario_cop,
+      imagenUrl:          fuente.imagenUrl ?? null,
+      articuloId:         fuente.articuloId ?? null,
+      articuloEncontrado: fuente.articuloEncontrado,
     } : item))
     setBuscadorAbierto(null)
   }
@@ -321,6 +361,18 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
 
   function eliminarItem(idx: number) {
     setItems((prev) => prev.filter((_, i) => i !== idx))
+  }
+
+  // Duplica la fila con todos los datos del artículo (código, ficha, costo,
+  // foto) pero talla vacía y cantidad 1: para digitar rápido varias tallas del
+  // mismo artículo sin volver a escribirlo.
+  function duplicarItem(idx: number) {
+    setItems((prev) => {
+      const base = prev[idx]
+      if (!base) return prev
+      const copia: ItemForm = { ...base, talla: '', cantidad: '1' }
+      return [...prev.slice(0, idx + 1), copia, ...prev.slice(idx + 1)]
+    })
   }
 
   function actualizarItem(idx: number, campo: keyof ItemForm, valor: string) {
@@ -1095,6 +1147,14 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
                   </div>
                 )}
                 <div className="flex-1" />
+                <button
+                  type="button"
+                  onClick={() => duplicarItem(idx)}
+                  title="Duplicar este artículo (mismo producto, otra talla)"
+                  className="text-xs text-blue-500 hover:text-blue-700 shrink-0 font-medium"
+                >
+                  ⧉ Duplicar
+                </button>
                 {items.length > 1 && (
                   <button type="button" onClick={() => eliminarItem(idx)} className="text-xs text-red-400 hover:text-red-600 shrink-0">
                     ✕
@@ -1131,10 +1191,34 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
                     <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-medium">✓</span>
                   )}
                   {/* Opciones del catálogo con su FOTO, para elegir sin saberse
-                      el código exacto (mismo buscador de crear pedido). */}
-                  {buscadorAbierto === idx && (opcionesCatalogo[idx]?.length ?? 0) > 0 && (
+                      el código exacto (mismo buscador de crear pedido). Primero
+                      salen los artículos YA digitados en esta misma factura. */}
+                  {buscadorAbierto === idx && ((opcionesCatalogo[idx]?.length ?? 0) > 0 || (opcionesPropias[idx]?.length ?? 0) > 0) && (
                     <div className="absolute z-20 left-0 top-full mt-1 min-w-[22rem] max-w-[min(30rem,90vw)] bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden max-h-72 overflow-y-auto">
-                      {opcionesCatalogo[idx].map(art => (
+                      {(opcionesPropias[idx] ?? []).map((prop, pi) => (
+                        <button
+                          key={`propia-${pi}`}
+                          type="button"
+                          onMouseDown={() => elegirDeFactura(idx, prop)}
+                          className="w-full text-left px-3 py-2 hover:bg-emerald-50 text-sm border-b border-gray-50 flex items-center gap-2.5 bg-emerald-50/40"
+                        >
+                          {prop.imagenUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={prop.imagenUrl} alt="" className="h-11 w-11 shrink-0 rounded-lg bg-gray-100 object-cover" />
+                          ) : (
+                            <span className="h-11 w-11 shrink-0 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 text-lg">⧉</span>
+                          )}
+                          <span className="min-w-0 flex-1">
+                            <span className="inline-block rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">EN ESTA FACTURA</span>
+                            {prop.codigo && <span className="block font-mono text-[11px] font-semibold text-blue-700 truncate">{prop.codigo}</span>}
+                            <span className="block font-medium text-gray-900 truncate">
+                              <span className="text-gray-500">{prop.marca} </span>{prop.descripcion}
+                            </span>
+                            <span className="block text-xs text-gray-400">Solo pones la talla y la cantidad</span>
+                          </span>
+                        </button>
+                      ))}
+                      {(opcionesCatalogo[idx] ?? []).map(art => (
                         <button
                           key={art.id}
                           type="button"
