@@ -17,8 +17,15 @@ export function EliminarPedidoButton({ pedidoId }: { pedidoId: string }) {
 
   if (confirmando) {
     return (
-      <div className="flex items-center gap-2">
-        {error && <span className="text-xs text-red-600">{error}</span>}
+      <div className="flex flex-col items-end gap-2">
+        {/* El candado del servidor puede devolver una explicación larga
+            (abonos reales / pedido facturado): se muestra en bloque. */}
+        {error && (
+          <p className="max-w-md text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-left">
+            {error}
+          </p>
+        )}
+        <div className="flex items-center gap-2">
         <span className="text-xs text-gray-500">¿Eliminar este pedido?</span>
         <button
           onClick={handleEliminar}
@@ -34,6 +41,7 @@ export function EliminarPedidoButton({ pedidoId }: { pedidoId: string }) {
         >
           Cancelar
         </button>
+        </div>
       </div>
     )
   }

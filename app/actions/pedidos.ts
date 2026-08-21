@@ -819,6 +819,32 @@ export async function eliminarPedidoAction(pedidoId: string): Promise<EliminarPe
 
   const adminClient = createAdminClient()
 
+  // Candado (21-ago-2026): eliminar borra los pagos en cascada, y si eran plata
+  // real el ingreso desaparece del flujo de caja pero el dinero físico sigue en
+  // la cuenta → descuadre sin rastro. Un pedido con abonos reales o facturado
+  // NO se elimina hasta resolver la plata.
+  const [{ data: pedido }, { data: pagosReales }] = await Promise.all([
+    adminClient.from('pedidos').select('numero_orden, factura_id').eq('id', pedidoId).maybeSingle(),
+    adminClient.from('pagos').select('monto').eq('pedido_id', pedidoId)
+      .eq('anulado', false).neq('metodo', 'credito'),
+  ])
+  if (!pedido) return { ok: false, error: 'Pedido no encontrado' }
+
+  if (pedido.factura_id) {
+    return {
+      ok: false,
+      error: 'Este pedido está FACTURADO. Anula primero la factura (ahí se revierten sus pagos) y luego sí podrás eliminarlo.',
+    }
+  }
+
+  const totalAbonos = (pagosReales ?? []).reduce((s, p) => s + (p.monto ?? 0), 0)
+  if (totalAbonos > 0) {
+    return {
+      ok: false,
+      error: `Este pedido tiene $${totalAbonos.toLocaleString('es-CO')} en abonos reales — si lo eliminas, esa plata desaparece del flujo de caja y la cuenta queda descuadrada. Primero resuelve el abono: devuélvelo al cliente (como gasto), pásalo a bono, o anúlalo desde el perfil del cliente si fue un error. Después podrás eliminar el pedido.`,
+    }
+  }
+
   const { error } = await adminClient
     .from('pedidos')
     .delete()
