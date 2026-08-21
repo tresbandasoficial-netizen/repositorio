@@ -24,8 +24,75 @@ function inicioMesFecha(): string {
   return hoyBogota().slice(0, 8) + '01'                // 'YYYY-MM-01'
 }
 
-export async function getMetricasAdmin(): Promise<MetricasAdmin> {
+// `sedeId` filtra TODOS los indicadores a una sola sede (chips del dashboard);
+// sin él se comporta como siempre (todo el negocio).
+export async function getMetricasAdmin(sedeId?: string | null): Promise<MetricasAdmin> {
   const supabase = await createClient()
+
+  let qHoy = supabase
+    .from('pedidos')
+    .select('total', { count: 'exact' })
+    .gte('fecha_creacion', hoyInicio())
+    .neq('estado', 'cancelado')
+    .neq('tipo', 'saldo_anterior')
+  if (sedeId) qHoy = qHoy.eq('sede_id', sedeId)
+
+  let qSemana = supabase
+    .from('pedidos')
+    .select('total', { count: 'exact' })
+    .gte('fecha_creacion', hace(7))
+    .neq('estado', 'cancelado')
+    .neq('tipo', 'saldo_anterior')
+  if (sedeId) qSemana = qSemana.eq('sede_id', sedeId)
+
+  let qMes = supabase
+    .from('pedidos')
+    .select('total', { count: 'exact' })
+    .gte('fecha_creacion', inicioMes())
+    .neq('estado', 'cancelado')
+    .neq('tipo', 'saldo_anterior')
+  if (sedeId) qMes = qMes.eq('sede_id', sedeId)
+
+  let qAlertas = supabase
+    .from('vista_pedidos_asesor')
+    .select('en_alerta, es_zombie')
+  if (sedeId) qAlertas = qAlertas.eq('sede_id', sedeId)
+
+  // Los abonos no tienen sede propia: se filtra por la sede del pedido.
+  let qPagos = sedeId
+    ? supabase
+        .from('pagos')
+        .select('monto, pedidos!inner(sede_id)')
+        .eq('anulado', false)
+        .neq('metodo', 'credito')
+        .gte('fecha', inicioMesFecha())
+        .eq('pedidos.sede_id', sedeId)
+    : supabase
+        .from('pagos')
+        .select('monto')
+        .eq('anulado', false)
+        .neq('metodo', 'credito')
+        .gte('fecha', inicioMesFecha())
+
+  // Cartera: con sede se usa la vista por cliente Y sede (mig. 105/124, mismos
+  // bolsillos saldo_entregado/saldo_proceso).
+  const qCartera = sedeId
+    ? supabase
+        .from('vista_cartera_cliente_sede')
+        .select('saldo, saldo_entregado, saldo_proceso')
+        .eq('sede_id', sedeId)
+    : supabase
+        .from('vista_cartera_clientes')
+        .select('saldo, saldo_entregado, saldo_proceso')
+
+  // Facturación del mes: el saldo (no el estado) decide contado vs crédito,
+  // así una factura con estado desactualizado no se clasifica mal.
+  let qFacturas = supabase
+    .from('vista_facturas')
+    .select('total, saldo')
+    .gte('fecha_factura', inicioMesFecha())
+    .neq('estado', 'anulada')
+  if (sedeId) qFacturas = qFacturas.eq('sede_id', sedeId)
 
   const [
     pedidosHoy,
@@ -35,45 +102,7 @@ export async function getMetricasAdmin(): Promise<MetricasAdmin> {
     pagosMes,
     cartera,
     facturasMes,
-  ] = await Promise.all([
-    supabase
-      .from('pedidos')
-      .select('total', { count: 'exact' })
-      .gte('fecha_creacion', hoyInicio())
-      .neq('estado', 'cancelado')
-      .neq('tipo', 'saldo_anterior'),
-    supabase
-      .from('pedidos')
-      .select('total', { count: 'exact' })
-      .gte('fecha_creacion', hace(7))
-      .neq('estado', 'cancelado')
-      .neq('tipo', 'saldo_anterior'),
-    supabase
-      .from('pedidos')
-      .select('total', { count: 'exact' })
-      .gte('fecha_creacion', inicioMes())
-      .neq('estado', 'cancelado')
-      .neq('tipo', 'saldo_anterior'),
-    supabase
-      .from('vista_pedidos_asesor')
-      .select('en_alerta, es_zombie'),
-    supabase
-      .from('pagos')
-      .select('monto')
-      .eq('anulado', false)
-      .neq('metodo', 'credito')
-      .gte('fecha', inicioMesFecha()),
-    supabase
-      .from('vista_cartera_clientes')
-      .select('saldo, saldo_entregado, saldo_proceso'),
-    // Facturación del mes: el saldo (no el estado) decide contado vs crédito,
-    // así una factura con estado desactualizado no se clasifica mal.
-    supabase
-      .from('vista_facturas')
-      .select('total, saldo')
-      .gte('fecha_factura', inicioMesFecha())
-      .neq('estado', 'anulada'),
-  ])
+  ] = await Promise.all([qHoy, qSemana, qMes, qAlertas, qPagos, qCartera, qFacturas])
 
   const sumarTotal = (rows: Array<{ total: number }> | null) =>
     (rows ?? []).reduce((s, r) => s + (r.total ?? 0), 0)

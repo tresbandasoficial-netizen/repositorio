@@ -120,7 +120,11 @@ function QuickLink({ href, label, icon: Icon }: { href: string; label: string; i
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ sede?: string }>
+}) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -143,8 +147,15 @@ export default async function DashboardPage() {
   const { data: cierreHoy } = await cierreQuery.maybeSingle()
 
   if (esAdmin) {
+    // Chips de sede: los indicadores de arriba se filtran a la sede elegida
+    // (?sede=TR/SR/CR); sin chip muestran todo el negocio, como siempre.
+    const sp = await searchParams
+    const { data: sedesLista } = await supabase
+      .from('sedes').select('id, codigo, nombre').order('codigo')
+    const sedeSel = (sedesLista ?? []).find(s => s.codigo === (sp?.sede ?? '').toUpperCase()) ?? null
+
     const [m, sedes, asesores, stats, stats60, deudaSedes, resumenSedes] = await Promise.all([
-      getMetricasAdmin(),
+      getMetricasAdmin(sedeSel?.id ?? null),
       getMetricasPorSede(),
       getMetricasPorAsesor(),
       getEstadisticas(30),
@@ -159,6 +170,38 @@ export default async function DashboardPage() {
 
     return (
       <div className="p-5 md:p-6 space-y-5">
+
+        {/* Selector de sede: filtra todos los indicadores de arriba */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/dashboard"
+            className={`rounded-xl border px-4 py-1.5 text-sm font-semibold transition-colors ${
+              !sedeSel
+                ? 'bg-blue-600 border-blue-600 text-white shadow-sm shadow-blue-200'
+                : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+            }`}
+          >
+            Todo el negocio
+          </Link>
+          {(sedesLista ?? []).map(s => (
+            <Link
+              key={s.id}
+              href={`/dashboard?sede=${s.codigo}`}
+              className={`rounded-xl border px-4 py-1.5 text-sm font-semibold transition-colors ${
+                sedeSel?.id === s.id
+                  ? 'bg-blue-600 border-blue-600 text-white shadow-sm shadow-blue-200'
+                  : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+              }`}
+            >
+              {s.nombre}
+            </Link>
+          ))}
+          {sedeSel && (
+            <span className="text-xs text-gray-400">
+              Indicadores solo de {sedeSel.nombre}
+            </span>
+          )}
+        </div>
 
         {/* Alerta crítica */}
         {(m.pedidos_en_alerta > 0 || m.pedidos_zombie > 0) && (
