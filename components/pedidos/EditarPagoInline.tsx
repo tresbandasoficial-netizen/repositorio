@@ -72,36 +72,39 @@ export function EditarPagoInline({ pagoId, monto, metodo, origen, fecha, sedeCod
     )
   }
 
+  // En vertical: la columna del monto es angosta y en fila los controles se
+  // partían y el OK quedaba escondido (no se podía "editar bien").
   return (
-    <div className="flex flex-col items-end gap-1">
-      <div className="flex items-center gap-1 justify-end flex-wrap">
-        <select
-          value={metodoSel}
-          onChange={e => setMetodoSel(e.target.value)}
-          className="rounded border border-gray-300 px-1.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-36"
-        >
-          {metodos.map(m => (
-            <option key={m} value={m}>{labelMetodo(m as MetodoPago, sedeCodigo)}</option>
-          ))}
-        </select>
-        <input
-          type="text"
-          inputMode="numeric"
-          autoFocus
-          value={formatMiles(valor)}
-          onChange={e => setValor(e.target.value.replace(/\D/g, ''))}
-          onKeyDown={e => { if (e.key === 'Enter') guardar(); if (e.key === 'Escape') setEditando(false) }}
-          className={`w-24 rounded border px-2 py-1 text-xs text-right focus:outline-none focus:ring-2 focus:ring-blue-500 ${error ? 'border-red-400' : 'border-gray-300'}`}
-        />
-        <button type="button" onClick={guardar} disabled={isPending}
-          className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 disabled:opacity-60">
-          {isPending ? '…' : 'OK'}
-        </button>
-        <button type="button" onClick={() => setEditando(false)} className="text-xs text-gray-400 hover:text-gray-600 px-1">
+    <div className="inline-flex flex-col items-end gap-1.5">
+      <select
+        value={metodoSel}
+        onChange={e => setMetodoSel(e.target.value)}
+        className="w-40 rounded-lg border border-blue-300 px-1.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+      >
+        {metodos.map(m => (
+          <option key={m} value={m}>{labelMetodo(m as MetodoPago, sedeCodigo)}</option>
+        ))}
+      </select>
+      <input
+        type="text"
+        inputMode="numeric"
+        autoFocus
+        value={formatMiles(valor)}
+        onChange={e => setValor(e.target.value.replace(/\D/g, ''))}
+        onKeyDown={e => { if (e.key === 'Enter') guardar(); if (e.key === 'Escape') setEditando(false) }}
+        className={`w-40 rounded-lg border px-2 py-1 text-xs text-right focus:outline-none focus:ring-2 focus:ring-blue-500 ${error ? 'border-red-400' : 'border-gray-300'}`}
+      />
+      <div className="flex items-center gap-1">
+        <button type="button" onClick={() => setEditando(false)}
+          className="text-xs px-2 py-1 rounded-lg border border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-50">
           ✕
         </button>
+        <button type="button" onClick={guardar} disabled={isPending}
+          className="text-xs font-bold bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700 disabled:opacity-60">
+          {isPending ? '…' : 'OK'}
+        </button>
       </div>
-      {error && <span className="text-[10px] text-red-600">{error}</span>}
+      {error && <span className="max-w-[12rem] text-[10px] text-red-600 text-right">{error}</span>}
     </div>
   )
 }
