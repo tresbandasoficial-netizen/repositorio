@@ -93,6 +93,7 @@ const navGrupos: { id: string; label: string; icon: NavIcon; items: NavItem[] }[
       { href: '/domicilios',   label: 'Domicilios',   icon: MotoIcon,    rol: ['asesor', 'admin'] },
       { href: '/envios',       label: 'Envíos',       icon: Send,        rol: ['asesor', 'admin'] },
       { href: '/mensajerias',  label: 'Mensajerías',  icon: Package,     rol: ['asesor', 'admin'] },
+      { href: '/envios-usa',   label: 'Envíos USA',   icon: Send,        rol: ['admin'] },
       { href: '/inventario',   label: 'Inventario',   icon: Boxes,       rol: ['admin'] },
       { href: '/inventario/conteo', label: 'Conteo inventario', icon: Boxes, rol: ['asesor'] },
     ],
