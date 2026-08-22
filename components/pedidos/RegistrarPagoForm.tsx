@@ -17,7 +17,9 @@ export function RegistrarPagoForm({ pedidoId, total, totalPagado, sedeCodigo }: 
   const METODOS = metodosDeSede(sedeCodigo).map(v => ({ value: v, label: labelMetodo(v, sedeCodigo) }))
 
   const [monto, setMonto] = useState(saldo.toString())
-  const [metodo, setMetodo] = useState<MetodoPago>('efectivo')
+  // Sin método por defecto: la asesora DEBE elegirlo. Antes arrancaba en
+  // "efectivo" y las transferencias se iban a la caja sin que nadie lo notara.
+  const [metodo, setMetodo] = useState<MetodoPago | ''>('')
   const [fecha, setFecha] = useState(hoyBogota())
   const [notas, setNotas] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -30,6 +32,10 @@ export function RegistrarPagoForm({ pedidoId, total, totalPagado, sedeCodigo }: 
     const montoNum = parseInt(monto.replace(/\D/g, ''), 10)
     if (isNaN(montoNum) || montoNum <= 0) {
       setError('Ingresa un monto válido mayor a cero')
+      return
+    }
+    if (!metodo) {
+      setError('Elige el método de pago (¿efectivo, Bancolombia, Nequi…?)')
       return
     }
 

@@ -212,7 +212,9 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
     + (tipoEntrega === 'domicilio' && quienPagaDom === 'cliente' ? valorEntregaNum : 0)
 
   function agregarAbono() {
-    setAbonos([...abonos, {monto: 0, metodo: 'efectivo', cuenta_id: null}])
+    // Sin método por defecto: hay que elegirlo (antes arrancaba en "efectivo" y
+    // las transferencias se iban a la caja sin que nadie lo notara).
+    setAbonos([...abonos, {monto: 0, metodo: '' as MetodoPago, cuenta_id: null}])
   }
 
   function eliminarAbono(idx: number) {
@@ -234,6 +236,10 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
     // queda algo por cobrar. Si el pedido ya está pago (total 0), se factura igual.
     if (!esCredito && abonoNum <= 0 && totalNeto > 0) {
       setError('Registra cómo pagó el cliente (el valor del pago) o marca "A crédito".'); return
+    }
+    // Cada abono con plata debe tener su método elegido a conciencia.
+    if (!esCredito && abonos.some(a => a.monto > 0 && !a.metodo)) {
+      setError('Elige el método de pago de cada abono (¿efectivo, Bancolombia, Nequi…?)'); return
     }
     // Validar que cada recaudo mensajería tenga mensajería asignada
     if (!esCredito && abonos.some(a => a.monto > 0 && a.metodo === 'recaudo_mensajeria' && !a.mensajeria)) {
@@ -628,8 +634,9 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
                                       mensajeria: m === 'recaudo_mensajeria' ? (abono.mensajeria ?? 'servigo') : null,
                                     })
                                   }}
-                                  className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  className={`w-full rounded-lg border px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${abono.metodo ? 'border-gray-200' : 'border-amber-300 bg-amber-50/50'}`}
                                 >
+                                  <option value="">— Elige el método —</option>
                                   {metodosDeSede(sedeCodigo).map(m => <option key={m} value={m}>{labelMetodo(m, sedeCodigo)}</option>)}
                                   <option value="recaudo_mensajeria">{METODO_PAGO_LABELS['recaudo_mensajeria']}</option>
                                 </select>
@@ -683,7 +690,8 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
                       type="button"
                       onClick={() => {
                         if (abonos.length === 0) {
-                          setAbonos([{monto: totalNeto, metodo: 'efectivo', cuenta_id: null}])
+                          // El método queda vacío a propósito: se elige aparte.
+                          setAbonos([{monto: totalNeto, metodo: '' as MetodoPago, cuenta_id: null}])
                         } else {
                           const nuevos = [...abonos]
                           nuevos[0] = {...nuevos[0], monto: totalNeto}

@@ -13,7 +13,9 @@ export function RegistrarPagoFacturaForm({ facturaId, saldo, sedeCodigo }: { fac
     { value: 'recaudo_mensajeria' as MetodoPago, label: METODO_PAGO_LABELS['recaudo_mensajeria'] },
   ]
   const [monto, setMonto] = useState('')
-  const [metodo, setMetodo] = useState<MetodoPago>('efectivo')
+  // Sin método por defecto: hay que elegirlo (antes arrancaba en "efectivo" y
+  // las transferencias se registraban en la caja sin que nadie lo notara).
+  const [metodo, setMetodo] = useState<MetodoPago | ''>('')
   const [fecha, setFecha] = useState(() => hoyBogota())
   const [notas, setNotas] = useState('')
   const [mensajeria, setMensajeria] = useState<TipoMensajeria>('servigo')
@@ -26,6 +28,7 @@ export function RegistrarPagoFacturaForm({ facturaId, saldo, sedeCodigo }: { fac
     const m = parseInt(monto.replace(/\D/g, ''), 10)
     if (!m || m <= 0) { setError('Ingresa un monto válido'); return }
     if (m > saldo) { setError(`El monto supera el saldo (${formatCOP(saldo)})`); return }
+    if (!metodo) { setError('Elige el método de pago (¿efectivo, Bancolombia, Nequi…?)'); return }
     setError('')
     start(async () => {
       const r = await registrarPagoFacturaAction({
@@ -60,8 +63,9 @@ export function RegistrarPagoFacturaForm({ facturaId, saldo, sedeCodigo }: { fac
           <select
             value={metodo}
             onChange={e => setMetodo(e.target.value as MetodoPago)}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${metodo ? 'border-gray-200' : 'border-amber-300 bg-amber-50/50'}`}
           >
+            <option value="">— Elige el método —</option>
             {METODOS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
           </select>
         </div>
