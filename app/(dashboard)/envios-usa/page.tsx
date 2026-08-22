@@ -21,16 +21,38 @@ export default async function EnviosUsaPage() {
   const [{ data: saldoRow }, { data: envios }, pagosRes, pagosFacRes, trasladosRes] = await Promise.all([
     supabase.from('saldos_cuentas').select('saldo_neto').eq('id', cuentaId ?? '').maybeSingle(),
     supabase.from('envios_usa').select('id, fecha, descripcion, valor, creado_en').order('fecha', { ascending: false }).order('creado_en', { ascending: false }).limit(100),
-    supabase.from('pagos').select('fecha, monto').eq('cuenta_id', cuentaId ?? '').eq('anulado', false).order('fecha', { ascending: false }).limit(15),
-    supabase.from('pagos_factura').select('fecha, monto').eq('cuenta_id', cuentaId ?? '').eq('anulado', false).order('fecha', { ascending: false }).limit(15),
+    supabase.from('pagos').select('fecha, monto, creado_en, pedidos!inner(clientes(nombre))').eq('cuenta_id', cuentaId ?? '').eq('anulado', false).order('fecha', { ascending: false }).limit(60),
+    supabase.from('pagos_factura').select('fecha, monto, creado_en, facturas!inner(clientes(nombre))').eq('cuenta_id', cuentaId ?? '').eq('anulado', false).order('fecha', { ascending: false }).limit(60),
     supabase.from('traslados_caja').select('fecha, monto, notas, origen:cuentas!traslados_caja_origen_cuenta_id_fkey(nombre)').eq('destino_cuenta_id', cuentaId ?? '').order('fecha', { ascending: false }).limit(15),
   ])
 
-  // Plata que ha entrado a la cuenta (les queda a favor): pagos de clientes y
-  // consignaciones/traslados desde las sedes.
+  // Plata que ha entrado a la cuenta (les queda a favor). Un abono repartido
+  // entre varios pedidos/facturas se muestra como UN solo ingreso por el TOTAL:
+  // la transportadora verifica la consignación completa, no el reparto interno.
+  // Se agrupa por cliente + momento exacto del registro (las partes de un mismo
+  // abono comparten el creado_en).
+  const nombreDe = (rel: any) => {
+    const padre = Array.isArray(rel) ? rel[0] : rel
+    const cli = padre?.clientes
+    return (Array.isArray(cli) ? cli[0] : cli)?.nombre ?? 'Cliente'
+  }
+  const grupos = new Map<string, { fecha: string; detalle: string; monto: number }>()
+  for (const p of ((pagosRes.data ?? []) as any[])) {
+    const cliente = nombreDe(p.pedidos)
+    const clave = `${cliente}|${p.creado_en}`
+    const g = grupos.get(clave)
+    if (g) g.monto += p.monto
+    else grupos.set(clave, { fecha: p.fecha, detalle: `Pago de ${cliente}`, monto: p.monto })
+  }
+  for (const p of ((pagosFacRes.data ?? []) as any[])) {
+    const cliente = nombreDe(p.facturas)
+    const clave = `${cliente}|${p.creado_en}`
+    const g = grupos.get(clave)
+    if (g) g.monto += p.monto
+    else grupos.set(clave, { fecha: p.fecha, detalle: `Pago de ${cliente}`, monto: p.monto })
+  }
   const ingresos = [
-    ...((pagosRes.data ?? []) as any[]).map(p => ({ fecha: p.fecha as string, detalle: 'Pago de cliente', monto: p.monto as number })),
-    ...((pagosFacRes.data ?? []) as any[]).map(p => ({ fecha: p.fecha as string, detalle: 'Abono de factura', monto: p.monto as number })),
+    ...grupos.values(),
     ...((trasladosRes.data ?? []) as any[]).map(t => {
       const origen = Array.isArray(t.origen) ? t.origen[0] : t.origen
       return { fecha: t.fecha as string, detalle: [origen?.nombre ? `Consignación desde ${origen.nombre}` : 'Ingreso', t.notas].filter(Boolean).join(' · '), monto: t.monto as number }
