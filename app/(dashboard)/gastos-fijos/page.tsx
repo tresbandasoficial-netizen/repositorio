@@ -78,7 +78,10 @@ export default async function GastosFijosPage({
     .limit(3000)
   if (sedeSel) qGananciaMes = qGananciaMes.eq('sede_id', sedeSel.id)
 
-  const [gastosRes, pedidosRes, variablesRes, margenRes, gananciaMesRes] = await Promise.all([qGastos, qPedidos, qVariables, qMargen, qGananciaMes])
+  // Gastos fijos ya marcados como pagados este mes
+  const qPagados = supabase.from('gastos_fijos_pagos').select('gasto_fijo_id').eq('mes', inicioMes)
+
+  const [gastosRes, pedidosRes, variablesRes, margenRes, gananciaMesRes, pagadosRes] = await Promise.all([qGastos, qPedidos, qVariables, qMargen, qGananciaMes, qPagados])
 
   const gananciaMesRows = (gananciaMesRes.data ?? []) as Array<{ venta: number; utilidad: number; tiene_costo: boolean }>
 
@@ -161,6 +164,8 @@ export default async function GastosFijosPage({
         utilidadRealMes={utilidadRealMes}
         utilidadEstimadaMes={utilidadEstimadaMes}
         ventaSinCostoMes={ventaSinCostoMes}
+        pagadosIds={(pagadosRes.data ?? []).map(p => p.gasto_fijo_id as string)}
+        mesActual={inicioMes}
       />
 
       <p className="text-xs text-gray-400">

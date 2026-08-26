@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatCOP } from '@/lib/utils/format'
-import { guardarGastoFijoAction, eliminarGastoFijoAction } from '@/app/actions/gastos-fijos'
+import { guardarGastoFijoAction, eliminarGastoFijoAction, marcarPagoGastoFijoAction } from '@/app/actions/gastos-fijos'
 import { Button } from '@/components/ui/Button'
 import { Pencil, Trash2, Plus, X, Check, Wallet, CalendarDays, Receipt, Target, TrendingUp, SlidersHorizontal } from 'lucide-react'
 
@@ -33,6 +33,9 @@ interface Props {
   utilidadRealMes: number
   utilidadEstimadaMes: number
   ventaSinCostoMes: number
+  // Gastos fijos ya marcados como pagados este mes + el mes ('YYYY-MM-01')
+  pagadosIds: string[]
+  mesActual: string
 }
 
 // ── KPI card principal (gradiente, estilo dashboard) ─────────────────────────
@@ -97,10 +100,34 @@ function SectionCard({ title, icon: Icon, children, headerRight }: {
   )
 }
 
-export function GastosFijosPanel({ gastos, totalFijos, puntoEquilibrio, ventasMes, gastosVariablesMes, diasMes, margenBruto, diaDelMes, diasCalendario, sedeId, sedeNombre, utilidadRealMes, utilidadEstimadaMes, ventaSinCostoMes }: Props) {
+export function GastosFijosPanel({ gastos, totalFijos, puntoEquilibrio, ventasMes, gastosVariablesMes, diasMes, margenBruto, diaDelMes, diasCalendario, sedeId, sedeNombre, utilidadRealMes, utilidadEstimadaMes, ventaSinCostoMes, pagadosIds, mesActual }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+
+  // Gastos ya pagados este mes. Estado local optimista: el check se pinta de
+  // una y si el servidor falla se revierte.
+  const [pagados, setPagados] = useState<Set<string>>(() => new Set(pagadosIds))
+
+  function togglePago(g: GastoFijo) {
+    const nuevo = !pagados.has(g.id)
+    setPagados(prev => {
+      const s = new Set(prev)
+      if (nuevo) s.add(g.id); else s.delete(g.id)
+      return s
+    })
+    startTransition(async () => {
+      const res = await marcarPagoGastoFijoAction({ gasto_fijo_id: g.id, mes: mesActual, pagado: nuevo })
+      if (!res.ok) {
+        setError(res.error)
+        setPagados(prev => {
+          const s = new Set(prev)
+          if (nuevo) s.delete(g.id); else s.add(g.id)
+          return s
+        })
+      }
+    })
+  }
 
   // Edición inline: id del gasto en edición (o 'nuevo' para el formulario de agregar)
   const [editando, setEditando] = useState<string | null>(null)
@@ -230,11 +257,21 @@ export function GastosFijosPanel({ gastos, totalFijos, puntoEquilibrio, ventasMe
               ganancia no se cuenta hasta que se les asigne su compra.
             </p>
           )}
-          <p className="text-xs text-gray-500">
-            {cubierto
-              ? '✅ La ganancia del mes ya paga todos los gastos fijos — de aquí en adelante es utilidad limpia.'
-              : `Faltan ${formatCOP(faltanteUtilidad)} de ganancia (~${formatCOP(faltanteVentas)} en ventas) para cubrir los fijos.`}
-          </p>
+          {cubierto ? (
+            <div className="bg-green-50 border border-green-100 rounded-2xl px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-green-700">
+                Lo tuyo después de los gastos fijos
+              </p>
+              <p className="text-2xl font-bold text-green-700 tabular-nums">{formatCOP(utilidadMes - totalFijos)}</p>
+              <p className="text-xs text-green-800/70">
+                Ganancia del mes ({formatCOP(utilidadMes)}) menos gastos fijos ({formatCOP(totalFijos)}) — utilidad limpia hasta hoy.
+              </p>
+            </div>
+          ) : (
+            <p className="text-xs text-gray-500">
+              Faltan {formatCOP(faltanteUtilidad)} de ganancia (~{formatCOP(faltanteVentas)} en ventas) para cubrir los fijos.
+            </p>
+          )}
           {utilidadMes > 0 && diaDelMes >= 2 && (
             <div className="flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3">
               <div className="w-9 h-9 rounded-2xl bg-blue-100 flex items-center justify-center shrink-0">
@@ -244,7 +281,11 @@ export function GastosFijosPanel({ gastos, totalFijos, puntoEquilibrio, ventasMe
                 Al ritmo actual (día {diaDelMes} de {diasCalendario}), la ganancia del mes cerraría en{' '}
                 <strong className="text-gray-900">{formatCOP(Math.round((utilidadMes / diaDelMes) * diasCalendario))}</strong>
                 {(utilidadMes / diaDelMes) * diasCalendario >= totalFijos
-                  ? ` — ${(((utilidadMes / diaDelMes) * diasCalendario) / totalFijos).toFixed(1)} veces los gastos fijos.`
+                  ? <> — quedarían{' '}
+                      <strong className="text-green-700">
+                        {formatCOP(Math.round((utilidadMes / diaDelMes) * diasCalendario) - totalFijos)}
+                      </strong>{' '}
+                      limpios después de los fijos.</>
                   : ' — por debajo de los gastos fijos, hay que apretar.'}
               </p>
             </div>
@@ -318,15 +359,20 @@ export function GastosFijosPanel({ gastos, totalFijos, puntoEquilibrio, ventasMe
 
       {/* Lista de gastos fijos (el Agregar solo en la pestaña de una sede) */}
       <SectionCard title={`Gastos fijos — ${sedeNombre}`} icon={Wallet} headerRight={
-        editando !== 'nuevo' && sedeId ? (
-          <Button variant="secondary" onClick={() => abrirEdicion(null)} className="text-xs !py-1.5">
-            <Plus size={14} className="mr-1" /> Agregar
-          </Button>
-        ) : undefined
+        <div className="flex items-center gap-3">
+          <span className={`text-xs font-semibold ${gastos.filter(g => g.activo && pagados.has(g.id)).length === gastos.filter(g => g.activo).length && gastos.length > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+            {gastos.filter(g => g.activo && pagados.has(g.id)).length} de {gastos.filter(g => g.activo).length} pagados este mes
+          </span>
+          {editando !== 'nuevo' && sedeId && (
+            <Button variant="secondary" onClick={() => abrirEdicion(null)} className="text-xs !py-1.5">
+              <Plus size={14} className="mr-1" /> Agregar
+            </Button>
+          )}
+        </div>
       }>
         <div className="divide-y divide-gray-50">
           {gastos.map(g => (
-            <div key={g.id} className="flex items-center gap-2 px-5 py-3">
+            <div key={g.id} className={`flex items-center gap-2 px-5 py-3 ${pagados.has(g.id) ? 'bg-green-50/60' : ''}`}>
               {editando === g.id ? (
                 <>
                   <input
@@ -349,8 +395,28 @@ export function GastosFijosPanel({ gastos, totalFijos, puntoEquilibrio, ventasMe
                 </>
               ) : (
                 <>
-                  <span className="flex-1 text-sm font-medium text-gray-700">{g.concepto}</span>
-                  <span className="text-sm font-bold text-gray-900 tabular-nums">{formatCOP(g.monto)}</span>
+                  {/* Check "ya se pagó este mes" — se guarda por mes en la BD */}
+                  <button
+                    onClick={() => togglePago(g)}
+                    disabled={pending}
+                    title={pagados.has(g.id) ? 'Pagado este mes — clic para desmarcar' : 'Marcar como pagado este mes'}
+                    className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+                      pagados.has(g.id)
+                        ? 'bg-green-500 border-green-500 text-white'
+                        : 'border-gray-300 text-transparent hover:border-green-400'
+                    }`}
+                  >
+                    <Check size={13} strokeWidth={3} />
+                  </button>
+                  <span className={`flex-1 text-sm font-medium ${pagados.has(g.id) ? 'text-green-800' : 'text-gray-700'}`}>
+                    {g.concepto}
+                    {pagados.has(g.id) && (
+                      <span className="ml-2 text-[10px] font-bold uppercase tracking-wide bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">
+                        Pagado
+                      </span>
+                    )}
+                  </span>
+                  <span className={`text-sm font-bold tabular-nums ${pagados.has(g.id) ? 'text-green-700' : 'text-gray-900'}`}>{formatCOP(g.monto)}</span>
                   <button onClick={() => abrirEdicion(g)} className="p-1.5 text-gray-300 hover:text-blue-600 hover:bg-blue-50 rounded-xl">
                     <Pencil size={15} />
                   </button>
@@ -387,11 +453,26 @@ export function GastosFijosPanel({ gastos, totalFijos, puntoEquilibrio, ventasMe
             </div>
           )}
 
-          {/* Total */}
-          <div className="flex items-center px-5 py-4 bg-gray-50">
-            <span className="flex-1 text-sm font-bold text-gray-900">TOTAL FIJO MENSUAL</span>
-            <span className="text-lg font-bold text-gray-900 tabular-nums">{formatCOP(totalFijos)}</span>
-            <span className="w-[76px]" />
+          {/* Total + cuánto va pagado y cuánto falta */}
+          <div className="px-5 py-4 bg-gray-50 space-y-1.5">
+            <div className="flex items-center">
+              <span className="flex-1 text-sm font-bold text-gray-900">TOTAL FIJO MENSUAL</span>
+              <span className="text-lg font-bold text-gray-900 tabular-nums">{formatCOP(totalFijos)}</span>
+              <span className="w-[76px]" />
+            </div>
+            {(() => {
+              const totalPagado = gastos.filter(g => g.activo && pagados.has(g.id)).reduce((s, g) => s + g.monto, 0)
+              const totalPendiente = totalFijos - totalPagado
+              return (
+                <div className="flex items-center text-xs">
+                  <span className="flex-1 text-green-700 font-semibold">Ya pagados: {formatCOP(totalPagado)}</span>
+                  <span className={`font-semibold tabular-nums ${totalPendiente > 0 ? 'text-red-600' : 'text-green-700'}`}>
+                    {totalPendiente > 0 ? `Faltan por pagar: ${formatCOP(totalPendiente)}` : '✓ Todo pagado'}
+                  </span>
+                  <span className="w-[76px]" />
+                </div>
+              )
+            })()}
           </div>
         </div>
       </SectionCard>
