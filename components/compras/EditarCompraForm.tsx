@@ -6,6 +6,7 @@ import { editarCompraAction, EditarCompraInput, EditarCompraItemInput, buscarPed
 import { buscarPorCodigoAction } from '@/app/actions/articulos'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { MarcaSelect } from '@/components/ui/MarcaSelect'
+import { TallaSelect } from '@/components/ui/TallaSelect'
 import { ProveedorSelect } from './ProveedorSelect'
 import { BuscadorArticulo, type ArticuloElegido } from '@/components/ui/BuscadorArticulo'
 import { formatCOP, formatMiles } from '@/lib/utils/format'
@@ -110,6 +111,52 @@ export function EditarCompraForm({ compraId, inicial, itemsIniciales, cuentas, p
 
   function actualizarItem(idx: number, campo: keyof ItemForm, valor: string) {
     setItems(prev => prev.map((item, i) => (i === idx ? { ...item, [campo]: valor } : item)))
+  }
+
+  // Salidas del error "no cuadra": igual que al crear la compra. Sin esto,
+  // cambiar una cantidad dejaba el descuadre sin forma de resolverse desde
+  // aquí y la edición quedaba bloqueada.
+  function usarSumaComoTotal() {
+    const suma = items.reduce(
+      (s, it) => s + ((parseInt(it.costo_unitario_cop, 10) || 0) * (parseInt(it.cantidad, 10) || 0)), 0)
+    if (suma <= 0) { setError('Los productos no tienen costo para sumar'); return }
+    setTotalCopPagado(String(suma))
+    setError(null)
+  }
+
+  function cuadrarConTotal() {
+    const totalCop = parseInt(totalCopPagado.replace(/\D/g, ''), 10) || 0
+    if (totalCop <= 0) { setError('Escribe primero el total en pesos que pagaste'); return }
+
+    setItems(prev => {
+      const cantidades = prev.map(it => parseInt(it.cantidad, 10) || 1)
+      const costosActuales = prev.map(it => parseInt(it.costo_unitario_cop, 10) || 0)
+      const sumaActual = costosActuales.reduce((s, v, i) => s + v * cantidades[i], 0)
+      const totalUnidades = cantidades.reduce((s, c) => s + c, 0)
+
+      let unitarios: number[]
+      if (sumaActual > 0) {
+        // Hay costos digitados: se conservan las proporciones y solo se
+        // reparte la diferencia por partes iguales entre las unidades.
+        const diferencia = totalCop - sumaActual
+        const ajusteUnitario = Math.trunc(diferencia / totalUnidades)
+        unitarios = costosActuales.map(c => Math.max(0, c + ajusteUnitario))
+      } else {
+        const porUnidad = Math.trunc(totalCop / totalUnidades)
+        unitarios = cantidades.map(() => porUnidad)
+      }
+
+      // El residuo del redondeo se le suma al primer producto para que la
+      // suma quede exacta.
+      const sumaNueva = unitarios.reduce((s, v, i) => s + v * cantidades[i], 0)
+      const residuo = totalCop - sumaNueva
+      if (residuo !== 0 && unitarios.length > 0 && cantidades[0] > 0) {
+        unitarios[0] = Math.max(0, unitarios[0] + Math.trunc(residuo / cantidades[0]))
+      }
+
+      return prev.map((item, i) => ({ ...item, costo_unitario_cop: String(unitarios[i]) }))
+    })
+    setError(null)
   }
 
   // Búsqueda EN VIVO por código: mientras se escribe, con una pequeña espera
@@ -440,9 +487,9 @@ export function EditarCompraForm({ compraId, inicial, itemsIniciales, cuentas, p
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Talla</label>
-                  <input type="text" value={item.talla}
-                    onChange={e => actualizarItem(idx, 'talla', e.target.value)}
-                    placeholder="40, L, XL..."
+                  <TallaSelect
+                    value={item.talla}
+                    onChange={talla => actualizarItem(idx, 'talla', talla)}
                     className={`${inputCls} bg-white`} />
                 </div>
                 <div>
@@ -514,7 +561,34 @@ export function EditarCompraForm({ compraId, inicial, itemsIniciales, cuentas, p
       </Card>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">{error}</div>
+        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700 space-y-2">
+          <p>{error}</p>
+          {/* Mismas dos salidas del formulario de crear: cuál sirve depende de
+              qué número sea el bueno — el total pagado o las líneas. */}
+          {error.includes('no cuadra con el total') && (
+            <div className="space-y-2 pt-1">
+              <p className="text-xs text-red-600">¿Cuál es el número correcto?</p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={usarSumaComoTotal}
+                  className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors"
+                >
+                  Los costos están bien → subir el total a{' '}
+                  {formatCOP(items.reduce((s, it) =>
+                    s + ((parseInt(it.costo_unitario_cop, 10) || 0) * (parseInt(it.cantidad, 10) || 0)), 0))}
+                </button>
+                <button
+                  type="button"
+                  onClick={cuadrarConTotal}
+                  className="rounded-lg bg-white border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 transition-colors"
+                >
+                  El total está bien → repartir {formatCOP(totalCopNum)} entre los productos
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       <div className="flex gap-3">

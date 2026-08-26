@@ -8,6 +8,7 @@ import { buscarPorCodigoAction, buscarArticulosAction, ArticuloBusqueda } from '
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { MarcaSelect } from '@/components/ui/MarcaSelect'
+import { TallaSelect } from '@/components/ui/TallaSelect'
 import { ProveedorSelect } from './ProveedorSelect'
 import { formatCOP, formatMiles, hoyBogota } from '@/lib/utils/format'
 
@@ -1306,11 +1307,11 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
                   onChange={marca => actualizarItem(idx, 'marca', marca)}
                   className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 />
-                <input
-                  type="text"
+                <TallaSelect
+                  categoria={(item.categoria as any) || ''}
+                  sexo={(item.sexo as any) || ''}
                   value={item.talla}
-                  onChange={(e) => actualizarItem(idx, 'talla', e.target.value)}
-                  placeholder="Talla"
+                  onChange={talla => actualizarItem(idx, 'talla', talla)}
                   className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 />
                 <input
