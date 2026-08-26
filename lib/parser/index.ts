@@ -7,7 +7,7 @@ const SEDES_VALIDAS = ['TR', 'CR', 'SR'] as const
 const METODOS_PAGO: MetodoPago[] = [
   'efectivo', 'nequi_johan', 'nequi_marisol', 'nequi_luisa',
   'bancolombia_ronaldo', 'bancolombia_johan', 'bancolombia_carlos',
-  'bancolombia_cristian', 'bancolombia_huber', 'bancolombia_jhan_carlos',
+  'bancolombia_cristian', 'bancolombia_huber', 'bancolombia_jhan_carlos', 'bancolombia_angel',
   'davivienda', 'addi', 'bold', 'sistecredito', 'credito',
 ]
 const VERSION_SOPORTADA = '1'
@@ -242,6 +242,7 @@ function detectarMetodo(texto: string): MetodoPago {
   // Bancolombia específicos
   if (/bancolombia.*ronaldo|ronaldo/.test(n))  return 'bancolombia_ronaldo'
   if (/bancolombia.*jhan.*carlos|jhan.*carlos/.test(n))return 'bancolombia_jhan_carlos'
+  if (/bancolombia.*angel|angel/.test(n))      return 'bancolombia_angel'
   if (/bancolombia.*carlos|carlos/.test(n))    return 'bancolombia_carlos'
   if (/bancolombia.*cristian|cristian/.test(n))return 'bancolombia_cristian'
   if (/bancolombia.*huber|huber/.test(n))      return 'bancolombia_huber'
