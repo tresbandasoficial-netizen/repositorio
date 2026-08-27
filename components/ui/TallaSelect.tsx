@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { TALLAS_ROPA, TALLAS_ROPA_NINO, TALLAS_TENIS, tallasDeCategoria, CategoriaArticulo, SexoArticulo } from '@/types'
+import { TALLAS_ROPA, TALLAS_ROPA_NINO, TALLAS_TENIS, TALLAS_TENIS_NINO, tallasDeCategoria, CategoriaArticulo, SexoArticulo } from '@/types'
 
 // Selector de talla según la categoría del artículo:
 //   ropa → 2XS…2XL · ropa de niño → 3 meses…15-16 años · tenis → 5…12 (con
@@ -49,8 +49,13 @@ export function TallaSelect({
 
   const esNino = sexo === 'nino'
   const opciones = tallasDeCategoria(categoria, sexo)
-  const grupoRopa = esNino ? TALLAS_ROPA_NINO : TALLAS_ROPA
-  const conocidas = opciones.length > 0 ? opciones : [...grupoRopa, ...TALLAS_TENIS]
+  // Sin categoría conocida se muestran TODOS los grupos (si al menos se sabe
+  // que es de niño, solo los de niño): así compras y demás pantallas sin ficha
+  // completa siempre tienen las tallas de niño disponibles.
+  const grupos: Array<[string, string[]]> = esNino
+    ? [['Ropa niño', TALLAS_ROPA_NINO], ['Tenis niño', TALLAS_TENIS_NINO]]
+    : [['Ropa', TALLAS_ROPA], ['Tenis', TALLAS_TENIS], ['Ropa niño', TALLAS_ROPA_NINO], ['Tenis niño', TALLAS_TENIS_NINO]]
+  const conocidas = opciones.length > 0 ? opciones : grupos.flatMap(([, ts]) => ts)
 
   return (
     <select value={value} onChange={e => onChange(e.target.value)} className={className}>
@@ -58,14 +63,11 @@ export function TallaSelect({
       {opciones.length > 0 ? (
         opciones.map(t => <option key={t} value={t}>{etiqueta(t)}</option>)
       ) : (
-        <>
-          <optgroup label={esNino ? 'Ropa niño' : 'Ropa'}>
-            {grupoRopa.map(t => <option key={t} value={t}>{etiqueta(t)}</option>)}
+        grupos.map(([label, ts]) => (
+          <optgroup key={label} label={label}>
+            {ts.map(t => <option key={`${label}-${t}`} value={t}>{etiqueta(t)}</option>)}
           </optgroup>
-          <optgroup label="Tenis">
-            {TALLAS_TENIS.map(t => <option key={t} value={t}>{etiqueta(t)}</option>)}
-          </optgroup>
-        </>
+        ))
       )}
       {/* Tallas viejas fuera de la lista siguen visibles para no perderlas */}
       {value && !conocidas.includes(value) && <option value={value}>{etiqueta(value)}</option>}

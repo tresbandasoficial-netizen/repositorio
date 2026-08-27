@@ -420,17 +420,27 @@ export const MARCAS = ['ALO', 'Nike', 'Adidas', 'Puma', 'On', 'Lacoste', 'Hugo B
 // Tallas permitidas por categoría. Los accesorios no llevan talla.
 export const TALLAS_ROPA  = ['2XS', 'XS', 'S', 'M', 'L', 'XL', '2XL']
 export const TALLAS_TENIS = ['5', '5.5', '6', '6.5', '7', '7.5', '8', '8.5', '9', '9.5', '10', '10.5', '11', '11.5', '12']
-// Ropa de niño: por edad (meses y años) en vez de letras.
+// Ropa de niño: por edad — meses y años, sueltos y en rango, como vienen en
+// las marcas (Adidas/Nike). En MAYÚSCULA porque la BD normaliza así (mig. 177).
 export const TALLAS_ROPA_NINO = [
-  '3 meses', '3-6 meses', '6-9 meses', '9-12 meses', '12-18 meses',
-  '1-2 años', '2-3 años', '3-4 años', '4-5 años', '5-6 años',
-  '6-7 años', '7-8 años', '8-9 años', '9-10 años', '10-11 años',
-  '11-12 años', '12-13 años', '13-14 años', '14-15 años', '15-16 años',
+  '3 MESES', '6 MESES', '9 MESES', '12 MESES', '18 MESES', '24 MESES',
+  '3-6 MESES', '6-9 MESES', '9-12 MESES', '12-18 MESES', '18-24 MESES',
+  '1-2 AÑOS', '2 AÑOS', '2-3 AÑOS', '3 AÑOS', '3-4 AÑOS', '4 AÑOS',
+  '4-5 AÑOS', '5-6 AÑOS', '6-7 AÑOS', '7-8 AÑOS', '8-9 AÑOS', '9-10 AÑOS',
+  '10-11 AÑOS', '11-12 AÑOS', '12-13 AÑOS', '13-14 AÑOS', '14-15 AÑOS', '15-16 AÑOS',
+]
+// Tenis de niño (US): bebé/infante con K (3K…13.5K) y juvenil 1…7 — la
+// numeración juvenil NO es la de adulto aunque coincidan los números.
+export const TALLAS_TENIS_NINO = [
+  '3K', '3.5K', '4K', '4.5K', '5K', '5.5K', '6K', '6.5K', '7K', '7.5K',
+  '8K', '8.5K', '9K', '9.5K', '10K', '10.5K', '11K', '11.5K', '12K', '12.5K',
+  '13K', '13.5K',
+  '1', '1.5', '2', '2.5', '3', '3.5', '4', '4.5', '5', '5.5', '6', '6.5', '7',
 ]
 
 export function tallasDeCategoria(cat?: CategoriaArticulo | '' | null, sexo?: SexoArticulo | '' | null): string[] {
   if (cat === 'ropa') return sexo === 'nino' ? TALLAS_ROPA_NINO : TALLAS_ROPA
-  if (cat === 'tenis') return TALLAS_TENIS
+  if (cat === 'tenis') return sexo === 'nino' ? TALLAS_TENIS_NINO : TALLAS_TENIS
   return []
 }
 
