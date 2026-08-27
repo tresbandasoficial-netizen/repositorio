@@ -8,6 +8,13 @@ export async function updateSession(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      global: {
+        // Tiempo límite a la llamada de auth: sin esto, un colgado ocasional
+        // de red dejaba el middleware esperando hasta que Vercel lo mataba a
+        // los 25s (504 MIDDLEWARE_INVOCATION_TIMEOUT para el usuario).
+        fetch: (input: RequestInfo | URL, init?: RequestInit) =>
+          fetch(input, { ...init, signal: AbortSignal.timeout(8000) }),
+      },
       cookies: {
         getAll() {
           return request.cookies.getAll()
@@ -23,10 +30,16 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  // Refresca la sesión sin exponer datos del usuario al cliente
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // Refresca la sesión sin exponer datos del usuario al cliente. Si auth no
+  // responde a tiempo, se deja pasar la petición: cada página vuelve a validar
+  // la sesión en el servidor (getSesion), así que nadie entra sin login.
+  let user: { id: string } | null = null
+  try {
+    const { data } = await supabase.auth.getUser()
+    user = data.user
+  } catch {
+    return supabaseResponse
+  }
 
   const pathname = request.nextUrl.pathname
   // /api/cron/* se protege por su cuenta con CRON_SECRET (Bearer). No debe pasar
