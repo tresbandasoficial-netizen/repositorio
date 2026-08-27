@@ -24,21 +24,26 @@ export default async function CarteraPage({
     .eq('id', user.id)
     .single()
 
-  if (!usuario || usuario.rol !== 'admin') redirect('/dashboard')
+  // Luisa (asesora SR) cobra la cartera de Santa Rosa: entra solo ella entre
+  // los asesores, amarrada a SR y sin el panel de descuadres ni cargar saldos.
+  const LUISA_SR_ID = '35aea4c1-4974-492d-b86e-2ddb345165f1'
+  const esAdmin = usuario?.rol === 'admin'
+  if (!usuario || (!esAdmin && user.id !== LUISA_SR_ID)) redirect('/dashboard')
 
   const { data: sedesRaw } = await supabase.from('sedes').select('id, codigo, nombre').order('codigo')
   const sedes = (sedesRaw ?? []) as { id: string; codigo: string; nombre: string }[]
 
   const { q, pagina: paginaParam, sede: sedeParam } = await searchParams
   const pagina = Math.max(1, parseInt(paginaParam ?? '1', 10) || 1)
-  // Validar la sede contra las sedes reales; si no es válida, se ignora el filtro.
-  const sede = sedes.some(s => s.codigo === sedeParam) ? sedeParam : undefined
+  // Validar la sede contra las sedes reales; si no es válida, se ignora el
+  // filtro. Sin ser admin, la sede va FIJA en Santa Rosa.
+  const sede = esAdmin ? (sedes.some(s => s.codigo === sedeParam) ? sedeParam : undefined) : 'SR'
   const sedeNombre = sedes.find(s => s.codigo === sede)?.nombre
   const [resultado, carteraTotal, deudaSedes, descuadres] = await Promise.all([
     getCartera({ busqueda: q, pagina, sede }),
     getTotalCartera(sede),
     getDeudaPorSede(),
-    getDescuadresCartera(),
+    esAdmin ? getDescuadresCartera() : Promise.resolve([]),
   ])
   const { clientes, total, totalPaginas } = resultado
   // Con búsqueda o paginación las sumas globales no aplican: se suman las filas
@@ -83,7 +88,7 @@ export default async function CarteraPage({
             {q && ` para "${q}"`}
           </p>
         </div>
-        <CargarSaldoButton sedes={sedes} />
+        {esAdmin && <CargarSaldoButton sedes={sedes} />}
       </div>
 
       {/* Centinela: plata mal registrada que hace mentir la deuda de un cliente.
@@ -153,7 +158,9 @@ export default async function CarteraPage({
         </div>
       )}
 
-      {/* Filtro por sede — clic en una tarjeta filtra la cartera de esa sede */}
+      {/* Filtro por sede — clic en una tarjeta filtra la cartera de esa sede.
+          Solo admins: quien entra amarrado a una sede no ve las demás. */}
+      {esAdmin && (
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         <Link
           href={sedeUrl(null)}
@@ -179,6 +186,7 @@ export default async function CarteraPage({
           </Link>
         ))}
       </div>
+      )}
 
       <div className="mb-4">
         <ClientesBusqueda valorInicial={q ?? ''} />

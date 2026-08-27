@@ -81,7 +81,8 @@ const navGrupos: { id: string; label: string; icon: NavIcon; items: NavItem[] }[
     items: [
       { href: '/clientes',     label: 'Clientes',     icon: Users,       rol: ['asesor', 'admin', 'visor'] },
       { href: '/cuentas-por-cobrar', label: 'Por cobrar', icon: HandCoins, rol: ['asesor', 'admin'] },
-      { href: '/cartera',      label: 'Cartera',      icon: Wallet,      rol: ['admin'] },
+      // Cartera: admins y, entre asesores, SOLO Luisa (cobra la de Santa Rosa).
+      { href: '/cartera',      label: 'Cartera',      icon: Wallet,      rol: ['asesor', 'admin'], sedes: [], usuarios: [LUISA_SR_ID] },
       { href: '/bonos',        label: 'Bonos regalo', icon: Gift,        rol: ['asesor', 'admin'] },
       { href: '/recompras',    label: 'Recompra RFM', icon: TrendingUp,  rol: ['admin'] },
       { href: '/alertas',      label: 'Alertas',      icon: Bell,        rol: ['asesor', 'admin', 'visor'] },
