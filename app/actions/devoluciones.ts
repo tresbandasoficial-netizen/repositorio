@@ -113,13 +113,29 @@ export async function registrarDevolucionAction(
 //      saldo total del cliente no cambia ni se duplica.
 
 export type CambioResult =
-  | { ok: true; numeroOrden: string; nuevoPedidoId: string; nuevoNumero: string; abonoTrasladado: number }
+  | { ok: true; numeroOrden: string; nuevoPedidoId: string; nuevoNumero: string; abonoTrasladado: number; saldoAFavor: number }
   | { ok: false; error: string }
+
+// Producto elegido del catálogo para un cambio POR OTRO ARTÍCULO: el pedido
+// nuevo se crea directo con él (sin tener que editarlo después).
+export type NuevoArticuloCambio = {
+  articulo_id: string
+  codigo: string | null
+  marca: string
+  descripcion: string
+  talla: string | null
+  precio_venta: number
+  imagen_url: string | null
+  color: string | null
+  sexo: string | null
+  categoria: string | null
+}
 
 export async function registrarCambioAction(
   pedidoId: string,
   itemId: string,
-  tallaNueva: string | null,   // null = cambio por otro artículo (se edita el pedido nuevo)
+  tallaNueva: string | null,   // null = cambio por otro artículo
+  nuevoArticulo?: NuevoArticuloCambio | null,  // el otro artículo elegido del catálogo (opcional)
 ): Promise<CambioResult> {
   const sesion = await getSesion()
   if (sesion.rol === 'visor') return { ok: false, error: 'Sin permisos' }
@@ -152,8 +168,25 @@ export async function registrarCambioAction(
   if (talla && (item.talla ?? '').trim().toLowerCase() === talla.toLowerCase()) {
     return { ok: false, error: 'La talla nueva es la misma que ya tiene' }
   }
+  if (!talla && nuevoArticulo && !(nuevoArticulo.precio_venta > 0)) {
+    return { ok: false, error: 'El artículo nuevo necesita un precio de venta' }
+  }
 
   const admin = createAdminClient()
+
+  // Candado anti-doble-registro: si ya existe un pedido de cambio vivo para
+  // ESTA misma prenda de ESTE pedido, no se repite (un doble clic en SR6901
+  // entró la prenda dos veces al stock).
+  const prefijoNota = `Cambio del pedido ${pedido.numero_orden}: ${item.marca} ${item.descripcion} T${item.talla || '—'}`
+  const { data: yaExiste } = await admin
+    .from('pedidos')
+    .select('numero_orden')
+    .neq('estado', 'cancelado')
+    .ilike('notas', `${prefijoNota}%`)
+    .limit(1)
+  if (yaExiste && yaExiste.length > 0) {
+    return { ok: false, error: `Este cambio ya está registrado en el pedido ${yaExiste[0].numero_orden}. Si de verdad es OTRO cambio de la misma prenda, cancela ese pedido primero.` }
+  }
 
   // Funciona pagado O a crédito: el valor del artículo entra completo como
   // abono trasladado al pedido nuevo, y si el original tiene saldo, esa deuda
@@ -234,9 +267,29 @@ export async function registrarCambioAction(
   const nuevoNumero = await asignarNumeroOrden(sedeCodigo)
   if (!nuevoNumero) return { ok: false, error: 'La prenda entró al inventario pero no se pudo asignar el número del pedido nuevo. Intenta de nuevo.' }
 
-  const notaNuevo = `Cambio del pedido ${pedido.numero_orden}: ${item.marca} ${item.descripcion} T${item.talla || '—'}${talla ? ` → T${talla}` : ' → otro artículo (editar este pedido)'}${
+  // Con producto elegido del catálogo, el pedido nuevo nace con ÉL y su precio.
+  // Sin producto (cambio de talla, o "lo edito después"), va el mismo artículo.
+  const cantidad = item.cantidad || 1
+  const totalNuevo = (!talla && nuevoArticulo)
+    ? nuevoArticulo.precio_venta * cantidad
+    : valorItem
+  // El abono trasladado nunca supera el total del pedido nuevo: si el producto
+  // nuevo es más barato, la diferencia queda a favor del cliente (se avisa).
+  const abonoTrasladado = Math.min(valorItem, totalNuevo)
+  const saldoAFavor = Math.max(0, valorItem - totalNuevo)
+
+  const destinoNota = talla
+    ? `→ T${talla}`
+    : nuevoArticulo
+      ? `→ ${nuevoArticulo.marca} ${nuevoArticulo.descripcion}${nuevoArticulo.talla ? ` T${nuevoArticulo.talla}` : ''}`
+      : '→ otro artículo (editar este pedido)'
+  const notaNuevo = `Cambio del pedido ${pedido.numero_orden}: ${item.marca} ${item.descripcion} T${item.talla || '—'} ${destinoNota}${
     saldoOriginal > 0
       ? `\n⚠ OJO: el pedido original quedó DEBIENDO $${saldoOriginal.toLocaleString('es-CO')} — esa deuda se cobra por el ${pedido.numero_orden}/su factura (Cartera), NO por este pedido.`
+      : ''
+  }${
+    saldoAFavor > 0
+      ? `\n⚠ El artículo nuevo vale $${saldoAFavor.toLocaleString('es-CO')} MENOS que el devuelto — esa diferencia queda a favor del cliente (bono o devolución).`
       : ''
   }`
   const { data: nuevo, error: errNuevo } = await admin
@@ -248,7 +301,7 @@ export async function registrarCambioAction(
       asesor_id:    sesion.id,
       estado:       'pendiente',
       tipo:         'encargo',
-      total:        valorItem,
+      total:        totalNuevo,
       tipo_entrega: 'sede',
       notas:        notaNuevo,
     })
@@ -256,20 +309,36 @@ export async function registrarCambioAction(
     .single()
   if (errNuevo || !nuevo) return { ok: false, error: `No se pudo crear el pedido nuevo: ${errNuevo?.message}` }
 
-  const { error: errItemNuevo } = await admin.from('pedido_items').insert({
-    pedido_id:    nuevo.id,
-    articulo_id:  item.articulo_id,
-    codigo:       item.codigo,
-    marca:        item.marca,
-    descripcion:  item.descripcion,
-    talla:        talla ?? item.talla,
-    cantidad:     item.cantidad,
-    precio_venta: item.precio_venta,
-    imagen_url:   item.imagen_url,
-    color:        item.color,
-    sexo:         item.sexo,
-    categoria:    item.categoria,
-  })
+  const itemNuevo = (!talla && nuevoArticulo)
+    ? {
+        pedido_id:    nuevo.id,
+        articulo_id:  nuevoArticulo.articulo_id,
+        codigo:       nuevoArticulo.codigo,
+        marca:        nuevoArticulo.marca,
+        descripcion:  nuevoArticulo.descripcion,
+        talla:        nuevoArticulo.talla,
+        cantidad,
+        precio_venta: nuevoArticulo.precio_venta,
+        imagen_url:   nuevoArticulo.imagen_url,
+        color:        nuevoArticulo.color,
+        sexo:         nuevoArticulo.sexo,
+        categoria:    nuevoArticulo.categoria,
+      }
+    : {
+        pedido_id:    nuevo.id,
+        articulo_id:  item.articulo_id,
+        codigo:       item.codigo,
+        marca:        item.marca,
+        descripcion:  item.descripcion,
+        talla:        talla ?? item.talla,
+        cantidad:     item.cantidad,
+        precio_venta: item.precio_venta,
+        imagen_url:   item.imagen_url,
+        color:        item.color,
+        sexo:         item.sexo,
+        categoria:    item.categoria,
+      }
+  const { error: errItemNuevo } = await admin.from('pedido_items').insert(itemNuevo)
   if (errItemNuevo) return { ok: false, error: `El pedido ${nuevoNumero} se creó pero falló su artículo: ${errItemNuevo.message}` }
 
   await admin.from('historial_cambios').insert({
@@ -282,7 +351,7 @@ export async function registrarCambioAction(
   //    (método bono, cuenta NULL) — no toca caja ni se cuenta dos veces.
   const { error: errPago } = await admin.from('pagos').insert({
     pedido_id: nuevo.id,
-    monto:     valorItem,
+    monto:     abonoTrasladado,
     metodo:    'bono',
     cuenta_id: null,
     asesor_id: sesion.id,
@@ -300,5 +369,5 @@ export async function registrarCambioAction(
   revalidatePath(`/pedidos/${pedidoId}`)
   revalidatePath('/pedidos')
   revalidatePath('/inventario')
-  return { ok: true, numeroOrden: pedido.numero_orden, nuevoPedidoId: nuevo.id, nuevoNumero, abonoTrasladado: valorItem }
+  return { ok: true, numeroOrden: pedido.numero_orden, nuevoPedidoId: nuevo.id, nuevoNumero, abonoTrasladado, saldoAFavor }
 }

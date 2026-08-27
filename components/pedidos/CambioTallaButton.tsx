@@ -3,9 +3,11 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { registrarCambioAction } from '@/app/actions/devoluciones'
+import { registrarCambioAction, type NuevoArticuloCambio } from '@/app/actions/devoluciones'
 import { TallaSelect } from '@/components/ui/TallaSelect'
+import { BuscadorArticulo, type ArticuloElegido } from '@/components/ui/BuscadorArticulo'
 import type { CategoriaArticulo, SexoArticulo } from '@/types'
+import { formatMiles } from '@/lib/utils/format'
 import { Repeat, X } from 'lucide-react'
 
 type ItemCambio = {
@@ -27,24 +29,57 @@ export function CambioTallaButton({ pedidoId, items }: { pedidoId: string; items
   const [itemSel, setItemSel] = useState<string | null>(items.length === 1 ? items[0].id : null)
   const [modo, setModo] = useState<'talla' | 'otro'>('talla')
   const [tallaNueva, setTallaNueva] = useState('')
+  // Producto nuevo del catálogo (cambio por otro artículo): se llena aquí
+  // mismo y el pedido nuevo nace ya con él.
+  const [busqueda, setBusqueda] = useState('')
+  const [nuevoArt, setNuevoArt] = useState<ArticuloElegido | null>(null)
+  const [nuevaTallaOtro, setNuevaTallaOtro] = useState('')
+  const [nuevoPrecio, setNuevoPrecio] = useState('')
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [listo, setListo] = useState<{ nuevoPedidoId: string; nuevoNumero: string; abonoTrasladado: number } | null>(null)
+  const [listo, setListo] = useState<{ nuevoPedidoId: string; nuevoNumero: string; abonoTrasladado: number; saldoAFavor: number } | null>(null)
 
   const item = items.find(i => i.id === itemSel)
-  const puedeRegistrar = !!itemSel && (modo === 'otro' || !!tallaNueva.trim())
+  const precioNum = parseInt(nuevoPrecio.replace(/\D/g, ''), 10) || 0
+  const puedeRegistrar = !!itemSel && (
+    modo === 'talla' ? !!tallaNueva.trim() : (!nuevoArt || precioNum > 0)
+  )
+
+  function elegirNuevo(a: ArticuloElegido) {
+    setNuevoArt(a)
+    setBusqueda(a.codigo ? `${a.codigo} — ${a.nombre}` : a.nombre)
+    setNuevaTallaOtro('')
+    setNuevoPrecio(a.precio_venta ? String(a.precio_venta) : '')
+  }
 
   async function registrar() {
     if (!puedeRegistrar || !itemSel) return
+    const conProducto = modo === 'otro' && nuevoArt
     if (!confirm(
       `¿Registrar el cambio?\n\n` +
       `• ${item?.label} (T${item?.talla || '—'}) se devuelve y ENTRA al inventario\n` +
-      `• Se crea un PEDIDO NUEVO ${modo === 'talla' ? `con la talla ${tallaNueva.trim()}` : 'con el mismo artículo (edítalo para poner el nuevo)'}\n` +
+      `• Se crea un PEDIDO NUEVO ${
+        modo === 'talla' ? `con la talla ${tallaNueva.trim()}`
+        : conProducto ? `con ${nuevoArt!.marca} ${nuevoArt!.nombre}${nuevaTallaOtro ? ` T${nuevaTallaOtro}` : ''} ($${precioNum.toLocaleString('es-CO')})`
+        : 'con el mismo artículo (edítalo para poner el nuevo)'
+      }\n` +
       `• El valor pagado pasa como abono al pedido nuevo (sin bonos, sin plata doble)`
     )) return
     setCargando(true)
     setError(null)
-    const r = await registrarCambioAction(pedidoId, itemSel, modo === 'talla' ? tallaNueva : null)
+    const payload: NuevoArticuloCambio | null = conProducto ? {
+      articulo_id:  nuevoArt!.articulo_id,
+      codigo:       nuevoArt!.codigo,
+      marca:        nuevoArt!.marca,
+      descripcion:  nuevoArt!.nombre,
+      talla:        nuevaTallaOtro.trim() || null,
+      precio_venta: precioNum,
+      imagen_url:   nuevoArt!.foto,
+      color:        nuevoArt!.color,
+      sexo:         nuevoArt!.sexo,
+      categoria:    nuevoArt!.categoria,
+    } : null
+    const r = await registrarCambioAction(pedidoId, itemSel, modo === 'talla' ? tallaNueva : null, payload)
     setCargando(false)
     if (!r.ok) { setError(r.error); return }
     setListo(r)
@@ -54,7 +89,7 @@ export function CambioTallaButton({ pedidoId, items }: { pedidoId: string; items
   return (
     <>
       <button
-        onClick={() => { setAbierto(true); setError(null); setListo(null); setTallaNueva(''); setModo('talla') }}
+        onClick={() => { setAbierto(true); setError(null); setListo(null); setTallaNueva(''); setModo('talla'); setBusqueda(''); setNuevoArt(null); setNuevaTallaOtro(''); setNuevoPrecio('') }}
         className="text-sm bg-white border border-sky-300 hover:bg-sky-50 px-3.5 py-2 rounded-xl font-medium text-sky-700 transition-colors inline-flex items-center gap-1.5"
       >
         <Repeat size={15} /> Hacer cambio
@@ -80,7 +115,13 @@ export function CambioTallaButton({ pedidoId, items }: { pedidoId: string; items
                     en estado <strong>Pendiente</strong> — ya aparece en el sistema para pedirlo.
                   </p>
                   <p>• Abono trasladado al pedido nuevo: <strong>{listo.abonoTrasladado.toLocaleString('es-CO')}</strong> (sin bonos, la plata no se cuenta dos veces).</p>
-                  {modo === 'otro' && (
+                  {listo.saldoAFavor > 0 && (
+                    <p className="text-amber-700">
+                      ⚠ El artículo nuevo vale <strong>${listo.saldoAFavor.toLocaleString('es-CO')} menos</strong> que el
+                      devuelto — esa diferencia queda a favor del cliente (entrégala en bono o efectivo).
+                    </p>
+                  )}
+                  {modo === 'otro' && !nuevoArt && (
                     <p className="text-amber-700">✏️ Es cambio por otro artículo: entra al pedido nuevo y edítalo para poner el artículo correcto.</p>
                   )}
                 </div>
@@ -170,10 +211,55 @@ export function CambioTallaButton({ pedidoId, items }: { pedidoId: string; items
                 )}
 
                 {modo === 'otro' && (
-                  <p className="text-xs text-gray-500 border border-gray-200 rounded-xl px-3 py-2">
-                    El pedido nuevo se crea con este mismo artículo y su abono — después lo{' '}
-                    <strong>editas</strong> para poner el artículo que el cliente quiere (el precio se ajusta ahí).
-                  </p>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs font-semibold text-gray-600 uppercase">¿Por cuál artículo lo cambia?</label>
+                      <BuscadorArticulo
+                        valor={busqueda}
+                        onCambiarTexto={v => { setBusqueda(v); if (nuevoArt) setNuevoArt(null) }}
+                        onElegir={elegirNuevo}
+                        estado={nuevoArt ? true : undefined}
+                        placeholder="Código, nombre o marca del artículo nuevo…"
+                        className={`mt-1 w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 ${
+                          nuevoArt ? 'border-green-400 focus:ring-green-400' : 'border-gray-200 focus:ring-sky-500'
+                        }`}
+                      />
+                    </div>
+
+                    {nuevoArt ? (
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-xs font-semibold text-gray-600 uppercase">Talla nueva</label>
+                          <TallaSelect
+                            categoria={nuevoArt.categoria as CategoriaArticulo | null}
+                            sexo={nuevoArt.sexo as SexoArticulo | null}
+                            value={nuevaTallaOtro}
+                            onChange={setNuevaTallaOtro}
+                            stockPorTalla={Object.fromEntries(
+                              nuevoArt.tallas.filter(t => t.talla).map(t => [t.talla!.trim().toUpperCase(), t.stock])
+                            )}
+                            className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-gray-600 uppercase">Precio venta *</label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={formatMiles(nuevoPrecio)}
+                            onChange={e => setNuevoPrecio(e.target.value.replace(/\D/g, ''))}
+                            placeholder="0"
+                            className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-right focus:outline-none focus:ring-2 focus:ring-sky-500"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-500 border border-gray-200 rounded-xl px-3 py-2">
+                        Busca el artículo nuevo para que el pedido quede montado de una vez. Si aún no está
+                        en el catálogo, registra el cambio sin elegirlo y edita el pedido nuevo después.
+                      </p>
+                    )}
+                  </div>
                 )}
 
                 {items.some(i => !i.tieneFicha) && (

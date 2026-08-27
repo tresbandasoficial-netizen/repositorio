@@ -14,6 +14,8 @@ export type ArticuloElegido = {
   sexo: string | null
   categoria: string | null
   tallas: Array<{ talla: string | null; stock: number }>
+  foto: string | null
+  precio_venta: number | null
 }
 
 function aOpciones(arts: ArticuloBusqueda[]): ArticuloElegido[] {
@@ -26,6 +28,8 @@ function aOpciones(arts: ArticuloBusqueda[]): ArticuloElegido[] {
     sexo: a.sexo,
     categoria: a.categoria,
     tallas: a.tallaStock.map(ts => ({ talla: ts.talla, stock: ts.stock })),
+    foto: a.foto,
+    precio_venta: a.precio_venta,
   }))
 }
 
