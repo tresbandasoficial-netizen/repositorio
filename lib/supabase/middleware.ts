@@ -1,6 +1,15 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// Presupuesto TOTAL del middleware para hablar con Supabase Auth. El cliente
+// de auth reintenta por su cuenta cuando un fetch falla, así que un límite por
+// fetch no basta: los reintentos acumulados superaban los 25s y Vercel mataba
+// el middleware (504 para el usuario, 401 timeouts entre el 27 y 29 de agosto).
+const PRESUPUESTO_AUTH_MS = 5000
+
+// Límite de cada fetch individual a Supabase Auth, dentro del presupuesto.
+const TIMEOUT_FETCH_MS = 4000
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
@@ -9,11 +18,8 @@ export async function updateSession(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       global: {
-        // Tiempo límite a la llamada de auth: sin esto, un colgado ocasional
-        // de red dejaba el middleware esperando hasta que Vercel lo mataba a
-        // los 25s (504 MIDDLEWARE_INVOCATION_TIMEOUT para el usuario).
         fetch: (input: RequestInfo | URL, init?: RequestInit) =>
-          fetch(input, { ...init, signal: AbortSignal.timeout(8000) }),
+          fetch(input, { ...init, signal: AbortSignal.timeout(TIMEOUT_FETCH_MS) }),
       },
       cookies: {
         getAll() {
@@ -30,13 +36,25 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  // Refresca la sesión sin exponer datos del usuario al cliente. Si auth no
-  // responde a tiempo, se deja pasar la petición: cada página vuelve a validar
-  // la sesión en el servidor (getSesion), así que nadie entra sin login.
+  // getSession lee la sesión de la cookie SIN ir a Supabase; solo hace red
+  // cuando el access token ya venció (para renovarlo y reescribir la cookie,
+  // cosa que las páginas no pueden hacer). Así la caída o lentitud de Supabase
+  // Auth no tumba la app: el caso común ni siquiera sale del edge.
+  //
+  // Esto decide únicamente el redirect a /login. La validación real de la
+  // sesión la hace cada página en el servidor (getSesion → auth.getUser), así
+  // que nadie entra sin login aunque aquí se deje pasar.
   let user: { id: string } | null = null
   try {
-    const { data } = await supabase.auth.getUser()
-    user = data.user
+    const resultado = await Promise.race([
+      supabase.auth.getSession(),
+      new Promise<'timeout'>(resolve => setTimeout(() => resolve('timeout'), PRESUPUESTO_AUTH_MS)),
+    ])
+    if (resultado === 'timeout') return supabaseResponse
+    // error ≠ sin sesión: si la renovación falló (red/timeout) se deja pasar
+    // en vez de botar a /login a un usuario con refresh token válido.
+    if (resultado.error) return supabaseResponse
+    user = resultado.data.session?.user ?? null
   } catch {
     return supabaseResponse
   }
