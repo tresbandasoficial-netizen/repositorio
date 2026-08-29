@@ -52,11 +52,17 @@ function sexoLetra(it: ItemGaleria): 'M' | 'H' | null {
   return null
 }
 
-// Talla limpia para la etiqueta: si es numérica (tenis) deja solo el número
-// ("6.5 us dama" → "6.5"); si es de ropa (S/M/L…) la deja tal cual.
+// Talla limpia para la etiqueta: solo se recorta el RUIDO conocido de tenis
+// ("6.5 US DAMA" → "6.5"). Antes se extraía el primer número y dañaba las
+// tallas con dígito que no son de tenis: 2XS mostraba "2", 7-8 AÑOS "7".
 function tallaLimpia(talla: string): string {
-  const num = talla.match(/\d+(?:[.,]\d+)?/)
-  return num ? num[0] : talla.toUpperCase()
+  const t = talla.trim().toUpperCase()
+  const limpio = t
+    .replace(/(\d)US\b/g, '$1')
+    .replace(/\b(US|USA|DAMA|MUJER|HOMBRE|CABALLERO|NIÑO|NINO|WMNS|WOMEN|MEN)\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return limpio || t
 }
 
 // La letra M/H solo aplica a tenis (talla numérica): en ropa la talla "M"
