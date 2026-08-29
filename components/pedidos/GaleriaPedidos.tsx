@@ -609,7 +609,16 @@ export function GaleriaPedidos({
                   </div>
                 )}
                 <div className="px-2 py-1.5">
-                  <p className="font-mono font-bold text-[11px] text-gray-900 truncate">{t.ref}</p>
+                  {/* La talla va ARRIBA, junto al número: al final de la línea
+                      del cliente se cortaba cuando el nombre era largo. */}
+                  <div className="flex items-center justify-between gap-1">
+                    <p className="font-mono font-bold text-[11px] text-gray-900 truncate">{t.ref}</p>
+                    {t.item?.talla && (
+                      <span className="shrink-0 text-[10px] font-bold bg-amber-50 border border-amber-400 text-amber-800 px-1.5 rounded-md">
+                        T {tallaLimpia(t.item.talla)}
+                      </span>
+                    )}
+                  </div>
                   {t.item?.codigo && (
                     <p className="font-mono font-bold text-[10px] text-blue-700 truncate">{t.item.codigo}</p>
                   )}
@@ -618,7 +627,6 @@ export function GaleriaPedidos({
                       ? `${SEGMENTO_CONFIG[t.pedido.cliente_segmento].icono} `
                       : ''}
                     {t.pedido.cliente_nombre}
-                    {t.item?.talla ? ` · T ${tallaLimpia(t.item.talla)}` : ''}
                   </p>
                 </div>
               </button>
