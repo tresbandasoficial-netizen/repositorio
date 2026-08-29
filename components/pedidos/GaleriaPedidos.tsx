@@ -615,7 +615,7 @@ export function GaleriaPedidos({
                     <p className="font-mono font-bold text-[11px] text-gray-900 truncate">{t.ref}</p>
                     {t.item?.talla && (
                       <span className="shrink-0 text-[10px] font-bold bg-amber-50 border border-amber-400 text-amber-800 px-1.5 rounded-md">
-                        T {tallaLimpia(t.item.talla)}
+                        T: {tallaLimpia(t.item.talla)}
                       </span>
                     )}
                   </div>
