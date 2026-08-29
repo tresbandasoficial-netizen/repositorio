@@ -220,6 +220,66 @@ export type CrearFacturaUnificadaInput = {
   quien_paga_entrega: QuienPagaEntrega | null
   direccion_entrega: string | null
   articulo_entrega: string | null
+  // Artículos de los pedidos que el asesor confirmó que salieron del STOCK de
+  // la sede (típico: llegaron en un envío como producto suelto porque se olvidó
+  // marcar de qué pedido eran). Se descuentan del inventario al facturar.
+  descontar_stock?: Array<{ pedido_item_id: string }>
+}
+
+// ── Stock en la sede de los artículos de los pedidos a facturar ──────────────
+// Si un artículo de un pedido TAMBIÉN tiene existencias en el inventario de la
+// sede, al facturar se pregunta si esa unidad salió del stock. Devuelve solo
+// los items con stock > 0.
+export type ItemStockFacturar = {
+  pedido_item_id: string
+  pedido_id: string
+  numero_orden: string
+  etiqueta: string
+  cantidad: number
+  stock: number
+}
+
+export async function getStockPedidosFacturarAction(
+  pedidoIds: string[],
+  sedeId: string,
+): Promise<ItemStockFacturar[]> {
+  if (pedidoIds.length === 0 || !sedeId) return []
+  await getSesion()
+  const supabase = await createClient()
+
+  const { data: items } = await supabase
+    .from('pedido_items')
+    .select('id, pedido_id, articulo_id, marca, descripcion, talla, cantidad, pedidos(numero_orden)')
+    .in('pedido_id', pedidoIds.slice(0, 50))
+
+  const conFicha = ((items ?? []) as any[]).filter(i => i.articulo_id)
+  if (conFicha.length === 0) return []
+
+  const { data: stockRows } = await supabase
+    .from('vista_stock_por_sede')
+    .select('articulo_id, talla, stock')
+    .eq('sede_id', sedeId)
+    .in('articulo_id', [...new Set(conFicha.map(i => i.articulo_id as string))])
+
+  const stockDe = new Map<string, number>()
+  for (const s of (stockRows ?? []) as Array<{ articulo_id: string; talla: string | null; stock: number }>) {
+    stockDe.set(`${s.articulo_id}|${(s.talla ?? '').trim().toUpperCase()}`, s.stock ?? 0)
+  }
+
+  return conFicha
+    .map(i => {
+      const ped = Array.isArray(i.pedidos) ? i.pedidos[0] : i.pedidos
+      const stock = stockDe.get(`${i.articulo_id}|${(i.talla ?? '').trim().toUpperCase()}`) ?? 0
+      return {
+        pedido_item_id: i.id as string,
+        pedido_id:      i.pedido_id as string,
+        numero_orden:   ped?.numero_orden ?? '',
+        etiqueta:       `${i.marca ?? ''} ${i.descripcion}${i.talla ? ` · T ${i.talla}` : ''} ×${i.cantidad}`.trim(),
+        cantidad:       i.cantidad as number,
+        stock,
+      }
+    })
+    .filter(r => r.stock > 0)
 }
 
 export async function crearFacturaUnificadaAction(
@@ -414,6 +474,37 @@ export async function crearFacturaUnificadaAction(
   }
 
   if (error) return { ok: false, error: error.message }
+
+  // Descontar del inventario los artículos que el asesor confirmó que salieron
+  // del stock de la sede. Secundario: si falla, la factura ya quedó emitida.
+  if (data.descontar_stock && data.descontar_stock.length > 0) {
+    try {
+      const admin = createAdminClient()
+      const ids = data.descontar_stock.map(d => d.pedido_item_id).slice(0, 100)
+      const { data: itemsDesc } = await admin
+        .from('pedido_items')
+        .select('id, pedido_id, articulo_id, talla, cantidad, pedidos(numero_orden)')
+        .in('id', ids)
+      for (const it of (itemsDesc ?? []) as any[]) {
+        // Solo artículos con ficha y de los pedidos de ESTA factura.
+        if (!it.articulo_id || !pedidoIds.includes(it.pedido_id)) continue
+        const ped = Array.isArray(it.pedidos) ? it.pedidos[0] : it.pedidos
+        await admin.from('movimientos_inventario').insert({
+          articulo_id: it.articulo_id,
+          talla:       it.talla || null,
+          sede_id:     sedeId,
+          delta:       -(it.cantidad || 1),
+          tipo:        'salida',
+          pedido_id:   it.pedido_id,
+          usuario_id:  sesion.id,
+          notas:       `Salió del stock al facturar el pedido ${ped?.numero_orden ?? ''}`.trim(),
+        })
+      }
+      revalidatePath('/inventario')
+    } catch (e) {
+      console.error('Error descontando stock al facturar:', e)
+    }
+  }
 
   // El recaudo de mensajería (líneas con metodo='recaudo_mensajeria') lo crea el
   // RPC crear_factura / crear_factura_venta_local de forma atómica.

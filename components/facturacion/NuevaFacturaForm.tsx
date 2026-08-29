@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { buscarClientesAction, ClienteBusqueda } from '@/app/actions/clientes'
 import {
   getPedidosFacturablesAction, crearFacturaUnificadaAction, buscarPedidoFacturableAction, PedidoFacturable,
+  getStockPedidosFacturarAction, ItemStockFacturar,
 } from '@/app/actions/facturacion'
 import { separarPedidoAction } from '@/app/actions/pedidos'
 import { formatCOP, formatFecha, formatMiles, hoyBogota } from '@/lib/utils/format'
@@ -45,6 +46,13 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
 
   // Productos nuevos del inventario
   const [lineas, setLineas] = useState<Linea[]>([])
+
+  // Pregunta de stock: artículos de los pedidos elegidos que TAMBIÉN tienen
+  // existencias en el inventario de la sede (caso típico: llegaron en un envío
+  // como producto suelto porque se olvidó marcar de qué pedido eran). El asesor
+  // marca cuáles salieron del stock y se descuentan al facturar.
+  const [stockPregunta, setStockPregunta] = useState<ItemStockFacturar[]>([])
+  const [salieronDelStock, setSalieronDelStock] = useState<Set<string>>(new Set())
 
   // Búsqueda por número de pedido
   const [numPedido, setNumPedido] = useState('')
@@ -173,6 +181,30 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
   }
 
   const pedidosElegidos = pedidosSede.filter(p => seleccionados.has(p.id))
+
+  // Al cambiar los pedidos elegidos (o la sede), consultar si sus artículos
+  // están en el stock de la sede para hacer la pregunta.
+  const idsElegidos = pedidosElegidos.map(p => p.id).sort().join(',')
+  useEffect(() => {
+    let vivo = true
+    if (!idsElegidos) { setStockPregunta([]); setSalieronDelStock(new Set()); return }
+    getStockPedidosFacturarAction(idsElegidos.split(','), sedeId).then(r => {
+      if (!vivo) return
+      setStockPregunta(r)
+      // Conservar solo las marcas de items que siguen en la pregunta.
+      setSalieronDelStock(prev => new Set([...prev].filter(id => r.some(it => it.pedido_item_id === id))))
+    })
+    return () => { vivo = false }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idsElegidos, sedeId])
+
+  function toggleSalioStock(id: string) {
+    setSalieronDelStock(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
   const totalPedidos    = pedidosElegidos.reduce((s, p) => s + p.saldo, 0)
   const lineasValidas   = lineas.filter(l => l.descripcion.trim() && l.precio_venta > 0)
 
@@ -280,6 +312,7 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
           : tipoEntrega === 'envio' ? quienPagaEnvio : null,
         direccion_entrega: tipoEntrega === 'domicilio' ? (dirEntrega.trim() || null) : null,
         articulo_entrega: tipoEntrega === 'domicilio' ? (articuloEntrega.trim() || null) : null,
+        descontar_stock: [...salieronDelStock].map(id => ({ pedido_item_id: id })),
       })
       if (!r.ok) { setError(r.error); return }
       router.push(`/facturacion/${r.facturaId}`)
@@ -459,6 +492,43 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
                       )}
                     </div>
                   ))}
+                </div>
+              )}
+
+              {/* Pregunta de stock: ¿la unidad que se lleva el cliente salió
+                  del inventario de la tienda? (llegó como producto suelto) */}
+              {stockPregunta.length > 0 && (
+                <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-4 space-y-2">
+                  <p className="text-sm font-bold text-amber-800">
+                    ⚠ Hay existencias de estos artículos en el inventario de {sedeCodigo}
+                  </p>
+                  <p className="text-xs text-amber-700">
+                    Si la unidad que se lleva el cliente <strong>salió del stock de la tienda</strong> (por
+                    ejemplo, llegó en un envío como producto suelto), márcala y se descuenta del inventario
+                    al facturar. Si su compra vino aparte para este pedido, déjala sin marcar.
+                  </p>
+                  <div className="space-y-1.5">
+                    {stockPregunta.map(it => (
+                      <label key={it.pedido_item_id} className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={salieronDelStock.has(it.pedido_item_id)}
+                          onChange={() => toggleSalioStock(it.pedido_item_id)}
+                          className="w-4 h-4 accent-amber-600 shrink-0"
+                        />
+                        <span className="text-gray-800">
+                          {it.etiqueta} <span className="text-gray-400 font-mono text-xs">({it.numero_orden})</span>
+                          {' '}— hay <strong>{it.stock}</strong> en stock
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                  {salieronDelStock.size > 0 && (
+                    <p className="text-xs font-semibold text-amber-800">
+                      ✓ Al emitir la factura se descuenta{salieronDelStock.size !== 1 ? 'n' : ''}{' '}
+                      {salieronDelStock.size} unidad{salieronDelStock.size !== 1 ? 'es' : ''} del inventario.
+                    </p>
+                  )}
                 </div>
               )}
             </div>
