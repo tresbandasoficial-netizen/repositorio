@@ -191,8 +191,10 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
     getStockPedidosFacturarAction(idsElegidos.split(','), sedeId).then(r => {
       if (!vivo) return
       setStockPregunta(r)
-      // Conservar solo las marcas de items que siguen en la pregunta.
-      setSalieronDelStock(prev => new Set([...prev].filter(id => r.some(it => it.pedido_item_id === id))))
+      // Marcados por defecto: el caso normal es que la unidad SÍ salió del
+      // stock (se envió como producto suelto porque no se encontró el pedido).
+      // El asesor desmarca solo si la compra de ese pedido vino aparte.
+      setSalieronDelStock(new Set(r.map(it => it.pedido_item_id)))
     })
     return () => { vivo = false }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -503,9 +505,9 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
                     ⚠ Hay existencias de estos artículos en el inventario de {sedeCodigo}
                   </p>
                   <p className="text-xs text-amber-700">
-                    Si la unidad que se lleva el cliente <strong>salió del stock de la tienda</strong> (por
-                    ejemplo, llegó en un envío como producto suelto), márcala y se descuenta del inventario
-                    al facturar. Si su compra vino aparte para este pedido, déjala sin marcar.
+                    Al facturar, estas unidades <strong>se descuentan del inventario</strong> (llegaron en un
+                    envío como producto suelto). Desmarca una solo si la compra de ese pedido vino aparte y
+                    lo que hay en stock es otra unidad.
                   </p>
                   <div className="space-y-1.5">
                     {stockPregunta.map(it => (
