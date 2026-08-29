@@ -20,6 +20,59 @@ async function verificarAdmin() {
   return { userId: user.id, adminClient: createAdminClient() }
 }
 
+// ── Pedidos que necesitan un artículo (falta por comprar) ────────────────────
+// Al digitar un artículo en una compra, se sugieren los pedidos SIN compra
+// asignada que llevan ese mismo artículo, para asignárselo de una vez.
+export type PedidoFaltanteArticulo = {
+  numero_orden: string
+  cliente_nombre: string | null
+  talla: string | null
+  estado: string
+}
+
+export async function pedidosFaltantesPorArticuloAction(
+  codigo: string | null,
+  articuloId: string | null,
+): Promise<PedidoFaltanteArticulo[]> {
+  const cod = codigo?.trim().toUpperCase() || null
+  if (!cod && !articuloId) return []
+  const { adminClient } = await verificarAdmin()
+
+  // Items de pedidos con ese artículo (por ficha o por código exacto).
+  const porFicha = articuloId
+    ? adminClient.from('pedido_items').select('pedido_id, talla').eq('articulo_id', articuloId).limit(300)
+    : Promise.resolve({ data: [] as Array<{ pedido_id: string; talla: string | null }> })
+  const porCodigo = cod
+    ? adminClient.from('pedido_items').select('pedido_id, talla').eq('codigo', cod).limit(300)
+    : Promise.resolve({ data: [] as Array<{ pedido_id: string; talla: string | null }> })
+  const [rFicha, rCodigo] = await Promise.all([porFicha, porCodigo])
+
+  const tallaDe = new Map<string, string | null>()
+  for (const it of [...(rFicha.data ?? []), ...(rCodigo.data ?? [])]) {
+    if (!tallaDe.has(it.pedido_id)) tallaDe.set(it.pedido_id, it.talla)
+  }
+  if (tallaDe.size === 0) return []
+
+  // Solo pedidos vivos, sin entregar y SIN compra asignada (falta comprar).
+  const ids = [...tallaDe.keys()].slice(0, 250)
+  const { data: pedidos } = await adminClient
+    .from('vista_pedidos_asesor')
+    .select('id, numero_orden, cliente_nombre, estado, tiene_compra')
+    .in('id', ids)
+    .eq('tiene_compra', false)
+    .not('estado', 'in', '("cancelado","entregado")')
+    .neq('tipo', 'saldo_anterior')
+    .order('fecha_creacion', { ascending: true })
+    .limit(8)
+
+  return ((pedidos ?? []) as any[]).map(p => ({
+    numero_orden:   p.numero_orden as string,
+    cliente_nombre: (p.cliente_nombre as string) ?? null,
+    talla:          tallaDe.get(p.id) ?? null,
+    estado:         p.estado as string,
+  }))
+}
+
 // Resuelve una referencia de pedido a su pedido REAL: primero por número
 // exacto (los pedidos separados por artículo son pedidos de verdad llamados
 // TR6835-1, TR6835-2…); si no existe, el sufijo se interpreta como

@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { crearCompraAction, CrearCompraInput, CompraItemInput, buscarPedidoPorOrdenAction } from '@/app/actions/compras'
+import { crearCompraAction, CrearCompraInput, CompraItemInput, buscarPedidoPorOrdenAction, pedidosFaltantesPorArticuloAction, PedidoFaltanteArticulo } from '@/app/actions/compras'
 import { parsearFacturaAction, FacturaExtraida } from '@/app/actions/parsear-factura'
 import { buscarPorCodigoAction, buscarArticulosAction, ArticuloBusqueda } from '@/app/actions/articulos'
 import { Button } from '@/components/ui/Button'
@@ -157,6 +157,7 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
       imagenUrl:          art.foto ?? item.imagenUrl ?? null,
     } : item))
     setBuscadorAbierto(null)
+    sugerirPedidosFaltantes(idx, art.codigo, art.id)
   }
 
   // Copia a la fila el artículo digitado en otra fila de esta misma factura:
@@ -461,6 +462,7 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
     const cod = codigo.trim()
     if (!cod) {
       setItems(prev => prev.map((item, i) => i === idx ? { ...item, articuloId: null, articuloEncontrado: undefined } : item))
+      setFaltantes(prev => ({ ...prev, [idx]: [] }))
       return
     }
     const articulo = await buscarPorCodigoAction(cod)
@@ -477,6 +479,32 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
       }
       return { ...item, articuloId: null, articuloEncontrado: false }
     }))
+    sugerirPedidosFaltantes(idx, cod, articulo?.id ?? null)
+  }
+
+  // ── Sugerencia "este artículo hace falta": pedidos sin compra que lo llevan ──
+  const [faltantes, setFaltantes] = useState<Record<number, PedidoFaltanteArticulo[]>>({})
+
+  async function sugerirPedidosFaltantes(idx: number, codigo: string | null, articuloId: string | null) {
+    try {
+      const r = await pedidosFaltantesPorArticuloAction(codigo, articuloId)
+      setFaltantes(prev => ({ ...prev, [idx]: r }))
+    } catch {
+      // sugerencia opcional: si falla, no estorba el formulario
+    }
+  }
+
+  // Asigna la fila al pedido sugerido: destino, número y talla quedan de una.
+  function asignarSugerido(idx: number, f: PedidoFaltanteArticulo) {
+    setItems(prev => prev.map((item, i) => i === idx ? {
+      ...item,
+      destino:       'pedido' as const,
+      pedidoRef:     f.numero_orden,
+      pedidoOk:      true,
+      pedidoCliente: f.cliente_nombre,
+      pedidoAviso:   null,
+      talla:         item.talla || (f.talla ?? ''),
+    } : item))
   }
 
   function handleArchivo(e: React.ChangeEvent<HTMLInputElement>) {
@@ -1167,6 +1195,28 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
               )}
               {item.destino === 'pedido' && item.pedidoOk === false && (
                 <p className="text-xs text-red-600">{item.pedidoAviso ?? 'Ese pedido no existe — revisa el número'}</p>
+              )}
+
+              {/* Sugerencia: este artículo hace falta en pedidos SIN compra —
+                  un toque y la fila queda asignada a ese pedido. */}
+              {item.destino === 'sin_asignar' && (faltantes[idx]?.length ?? 0) > 0 && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                  <p className="text-[11px] font-bold text-amber-800 mb-1.5">
+                    ⚠ Este artículo hace falta por comprar en:
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {faltantes[idx].map(f => (
+                      <button
+                        key={`${f.numero_orden}-${f.talla ?? ''}`}
+                        type="button"
+                        onClick={() => asignarSugerido(idx, f)}
+                        className="text-[11px] font-semibold bg-white border border-amber-300 text-amber-800 rounded-full px-2.5 py-1 hover:bg-amber-100 transition-colors"
+                      >
+                        {f.numero_orden} · {f.cliente_nombre ?? 'sin cliente'}{f.talla ? ` · T ${f.talla}` : ''} → asignar
+                      </button>
+                    ))}
+                  </div>
+                </div>
               )}
 
               {/* Fila 2: código + descripción */}
