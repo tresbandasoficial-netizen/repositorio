@@ -4,7 +4,20 @@ import { useState, useTransition } from 'react'
 import { registrarTrasladoAction } from '@/app/actions/traslados'
 import { formatCOP, formatMiles } from '@/lib/utils/format'
 
-type CuentaOpcion = { id: string; nombre: string }
+type CuentaOpcion = { id: string; nombre: string; grupo?: string }
+
+// Agrupa las cuentas por su `grupo` (sede) conservando el orden de llegada,
+// para pintar <optgroup> por sede en el selector de destino.
+function agruparCuentas(cuentas: CuentaOpcion[]): Array<[string, CuentaOpcion[]]> {
+  const grupos: Array<[string, CuentaOpcion[]]> = []
+  for (const c of cuentas) {
+    const g = c.grupo ?? ''
+    const ultimo = grupos[grupos.length - 1]
+    if (ultimo && ultimo[0] === g) ultimo[1].push(c)
+    else grupos.push([g, [c]])
+  }
+  return grupos
+}
 
 // Consignación / envío de dinero entre sedes: sale de la caja de la sede
 // (origen) y entra a la cuenta seleccionada (ej: la asesora de Santa Rosa
@@ -14,10 +27,12 @@ export function ConsignarDineroButton({
   cuentasOrigen,
   cuentasDestino,
   origenDefaultId,
+  label = '🏦 Consignar dinero',
 }: {
   cuentasOrigen: CuentaOpcion[]
   cuentasDestino: CuentaOpcion[]
   origenDefaultId: string
+  label?: string
 }) {
   const [open, setOpen] = useState(false)
   const [pending, start] = useTransition()
@@ -58,7 +73,7 @@ export function ConsignarDineroButton({
         onClick={() => { setOpen(true); setError(''); setExito(null) }}
         className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 text-white px-4 py-2 text-sm font-medium hover:bg-emerald-700"
       >
-        🏦 Consignar dinero
+        {label}
       </button>
 
       {open && (
@@ -92,7 +107,15 @@ export function ConsignarDineroButton({
                     <select value={destino} onChange={e => setDestino(e.target.value)}
                       className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                       <option value="">— Cuenta destino —</option>
-                      {cuentasDestino.filter(c => c.id !== origen).map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                      {agruparCuentas(cuentasDestino.filter(c => c.id !== origen)).map(([grupo, cs], i) =>
+                        grupo ? (
+                          <optgroup key={grupo + i} label={grupo}>
+                            {cs.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                          </optgroup>
+                        ) : (
+                          cs.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)
+                        )
+                      )}
                     </select>
                   </div>
                   <div>

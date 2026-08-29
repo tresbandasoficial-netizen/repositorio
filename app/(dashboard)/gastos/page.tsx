@@ -5,6 +5,7 @@ import { getGastosAction } from '@/app/actions/gastos'
 import { formatCOP, hoyBogota } from '@/lib/utils/format'
 import { CATEGORIA_GASTO_LABELS, CategoriaGasto, CATEGORIAS_GASTO, metodosDeSede } from '@/types'
 import { GastosClientPage } from '@/components/gastos/GastosClientPage'
+import { destinosTraslado } from '@/lib/utils/cuentasTraslado'
 
 function hoy() { return hoyBogota() }
 function inicioMes() { return hoyBogota().slice(0, 8) + '01' }
@@ -39,7 +40,8 @@ export default async function GastosPage({
 
   // Para consignaciones entre sedes: el destino puede ser CUALQUIER cuenta
   // activa (ej: la asesora de Santa Rosa consigna a una cuenta de Bucaramanga).
-  const cuentasDestino = cuentas.map(c => ({ id: c.id, nombre: c.nombre }))
+  // Agrupadas por sede, con Bucaramanga y los bancos del negocio de primeras.
+  const cuentasDestino = destinosTraslado(cuentas, sedes)
   // Origen por defecto: la caja de efectivo de la sede del usuario.
   const origenDefault = cuentas.find(c => c.metodo_pago === 'efectivo' && c.sede_id === (sesion.sede_id ?? ''))?.id ?? ''
 

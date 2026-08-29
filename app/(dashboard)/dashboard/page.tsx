@@ -12,6 +12,8 @@ import { EstadoBadge } from '@/components/pedidos/EstadoBadge'
 import { EstadoPedido } from '@/types'
 import { formatCOP, hoyBogota } from '@/lib/utils/format'
 import { CerrarCajaButton } from '@/components/dashboard/CerrarCajaButton'
+import { ConsignarDineroButton } from '@/components/gastos/ConsignarDineroButton'
+import { destinosTraslado, origenesTraslado } from '@/lib/utils/cuentasTraslado'
 import {
   ShoppingBag,
   TrendingUp,
@@ -454,14 +456,27 @@ export default async function DashboardPage({
   }
 
   // ── Vista Asesor ─────────────────────────────────────────────────────────────
-  const [m, ultimosPedidos, stats, stats60, ventasMensuales] = await Promise.all([
+  const [m, ultimosPedidos, stats, stats60, ventasMensuales, cuentasRes, sedesRes] = await Promise.all([
     getMetricasAsesor(usuario.id),
     getUltimosPedidosAsesor(usuario.id),
     getEstadisticas(30),
     getEstadisticas(60),
     getVentasMensualesAsesor(usuario.id),
+    supabase.from('cuentas').select('id, nombre, tipo, sede_id, metodo_pago, orden').eq('activa', true).neq('tipo', 'credito').order('orden'),
+    supabase.from('sedes').select('id, codigo, nombre').order('codigo'),
   ])
   const diasPrevios = stats60.por_dia.filter(d => d.fecha < stats.desde)
+
+  // Traslado de dinero desde el dashboard: la asesora entrega/consigna plata de
+  // su caja hacia las cuentas de Bucaramanga SIN registrarlo como gasto (el
+  // gasto doble descuadraba la caja: consignación como gasto + la compra que
+  // el admin pagaba con esa misma plata volvía a descontar de la caja).
+  type CuentaRow = { id: string; nombre: string; tipo: string; sede_id: string | null; metodo_pago: string | null }
+  const cuentasActivas = (cuentasRes.data ?? []) as CuentaRow[]
+  const sedesTodas = (sedesRes.data ?? []) as { id: string; codigo: string; nombre: string }[]
+  const trasladoOrigenes = origenesTraslado(cuentasActivas, sedesTodas, usuario.sede_id)
+  const trasladoDestinos = destinosTraslado(cuentasActivas, sedesTodas)
+  const trasladoOrigenDefault = cuentasActivas.find(c => c.metodo_pago === 'efectivo' && c.sede_id === usuario.sede_id)?.id ?? ''
 
   return (
     <div className="p-5 md:p-6 space-y-5 max-w-2xl">
@@ -550,6 +565,14 @@ export default async function DashboardPage({
           Ver mis pedidos
         </Link>
         <CerrarCajaButton yaCerrada={!!cierreHoy} />
+        {trasladoOrigenes.length > 0 && (
+          <ConsignarDineroButton
+            cuentasOrigen={trasladoOrigenes}
+            cuentasDestino={trasladoDestinos}
+            origenDefaultId={trasladoOrigenDefault}
+            label="🏦 Trasladar / consignar dinero"
+          />
+        )}
       </div>
     </div>
   )

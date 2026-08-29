@@ -23,7 +23,7 @@ interface Props {
   porCategoria: { categoria: CategoriaGasto; label: string; total: number }[]
   totalGeneral: number
   filtros: { desde: string; hasta: string; categoria?: CategoriaGasto; sede_id?: string }
-  cuentasDestino?: { id: string; nombre: string }[]
+  cuentasDestino?: { id: string; nombre: string; grupo?: string }[]
   origenTrasladoId?: string
 }
 
