@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 interface Props {
   pedidoId: string
   numeroOrden: string
+  // Aviso extra bajo el número (ej: la compra de más que se asignó sola).
+  aviso?: string
 }
 
 type Dot = {
@@ -21,7 +23,7 @@ type Dot = {
 
 const COLORS = ['#ffffff', '#bbf7d0', '#86efac', '#fbbf24', '#f472b6', '#60a5fa', '#a78bfa', '#fb923c', '#34d399']
 
-export function PedidoSuccessOverlay({ pedidoId, numeroOrden }: Props) {
+export function PedidoSuccessOverlay({ pedidoId, numeroOrden, aviso }: Props) {
   const router = useRouter()
   const [dots, setDots] = useState<Dot[]>([])
 
@@ -167,6 +169,16 @@ export function PedidoSuccessOverlay({ pedidoId, numeroOrden }: Props) {
             {numeroOrden}
           </span>
         </div>
+
+        {/* Aviso extra (ej: compra de más asignada sola) */}
+        {aviso && (
+          <div
+            className="mt-5 max-w-md mx-4 rounded-2xl bg-white/15 border border-white/30 px-4 py-3"
+            style={{ opacity: 0, animation: 'successSlideUp .4s ease 1.3s forwards', backdropFilter: 'blur(4px)' }}
+          >
+            <p className="text-white text-sm font-semibold text-center">{aviso}</p>
+          </div>
+        )}
 
         {/* Redirecting hint */}
         <div

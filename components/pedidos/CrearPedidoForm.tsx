@@ -87,7 +87,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
   const [busquedaHecha, setBusquedaHecha] = useState(false)
   const [clienteExistente, setClienteExistente] = useState<ClientePorTelefono>(null)
   const [ultimaDireccion, setUltimaDireccion] = useState<string | null>(null)
-  const [pedidoCreado, setPedidoCreado] = useState<{ id: string; numero: string } | null>(null)
+  const [pedidoCreado, setPedidoCreado] = useState<{ id: string; numero: string; aviso?: string } | null>(null)
 
   // Abonos: el cliente puede abonar por varias cuentas a la vez.
   const [abonos, setAbonos] = useState<Array<{ monto: number; metodo: MetodoPago }>>([])
@@ -398,7 +398,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
         setErrorAccion(result.error)
         if (result.siguienteNumero) setSiguienteNumero(result.siguienteNumero)
       } else {
-        setPedidoCreado({ id: result.pedidoId, numero: result.numeroOrden })
+        setPedidoCreado({ id: result.pedidoId, numero: result.numeroOrden, aviso: result.avisoCompra })
       }
     })
   }
@@ -408,7 +408,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
   const saldo = total - totalAbonos
 
   if (pedidoCreado) {
-    return <PedidoSuccessOverlay pedidoId={pedidoCreado.id} numeroOrden={pedidoCreado.numero} />
+    return <PedidoSuccessOverlay pedidoId={pedidoCreado.id} numeroOrden={pedidoCreado.numero} aviso={pedidoCreado.aviso} />
   }
 
   return (
