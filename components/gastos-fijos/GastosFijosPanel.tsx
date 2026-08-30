@@ -36,6 +36,10 @@ interface Props {
   // Gastos fijos ya marcados como pagados este mes + el mes ('YYYY-MM-01')
   pagadosIds: string[]
   mesActual: string
+  // Ganancia con costo que aún NO se cuenta en la principal: entregado sin
+  // pagar del todo, y pedidos todavía en camino.
+  utilidadPorCobrarMes: number
+  utilidadEnCaminoMes: number
 }
 
 // ── KPI card principal (gradiente, estilo dashboard) ─────────────────────────
@@ -100,7 +104,7 @@ function SectionCard({ title, icon: Icon, children, headerRight }: {
   )
 }
 
-export function GastosFijosPanel({ gastos, totalFijos, puntoEquilibrio, ventasMes, gastosVariablesMes, diasMes, margenBruto, diaDelMes, diasCalendario, sedeId, sedeNombre, utilidadRealMes, utilidadEstimadaMes, ventaSinCostoMes, pagadosIds, mesActual }: Props) {
+export function GastosFijosPanel({ gastos, totalFijos, puntoEquilibrio, ventasMes, gastosVariablesMes, diasMes, margenBruto, diaDelMes, diasCalendario, sedeId, sedeNombre, utilidadRealMes, utilidadEstimadaMes, ventaSinCostoMes, pagadosIds, mesActual, utilidadPorCobrarMes, utilidadEnCaminoMes }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -236,7 +240,7 @@ export function GastosFijosPanel({ gastos, totalFijos, puntoEquilibrio, ventasMe
         <div className="p-5 space-y-3">
           <div className="flex items-baseline justify-between">
             <p className="text-2xl font-bold tracking-tight text-gray-900">{formatCOP(utilidadMes)}</p>
-            <p className="text-xs text-gray-400">ganancia real del mes</p>
+            <p className="text-xs text-gray-400">ganancia COBRADA del mes</p>
           </div>
           <div className="h-3.5 bg-gray-100 rounded-full overflow-hidden">
             <div
@@ -245,12 +249,23 @@ export function GastosFijosPanel({ gastos, totalFijos, puntoEquilibrio, ventasMe
             />
           </div>
           <p className="text-xs text-gray-500">
-            Ganancia <strong>real</strong> de los pedidos del mes con <strong>costo de compra asignado</strong>{' '}
-            (facturados o pendientes por entregar){utilidadEstimadaMes > 0 && (
-              <> + {formatCOP(utilidadEstimadaMes)} estimada al {(margenBruto * 100).toFixed(0)}% sobre{' '}
-              {formatCOP(ventaSinCostoMes)} vendidos aún sin costo</>
-            )}. Ventas del mes: {formatCOP(ventasMes)}.
+            Solo pedidos <strong>entregados y pagados</strong> con <strong>costo de compra asignado</strong>{' '}
+            (las ventas de entrega inmediata entran aquí). Ventas del mes: {formatCOP(ventasMes)}.
           </p>
+          {(utilidadPorCobrarMes > 0 || utilidadEnCaminoMes > 0) && (
+            <div className="flex flex-wrap gap-2 text-xs">
+              {utilidadPorCobrarMes > 0 && (
+                <span className="rounded-lg bg-red-50 border border-red-100 px-2.5 py-1.5 text-red-700">
+                  + {formatCOP(utilidadPorCobrarMes)} de entregados <strong>aún por cobrar</strong>
+                </span>
+              )}
+              {utilidadEnCaminoMes > 0 && (
+                <span className="rounded-lg bg-amber-50 border border-amber-100 px-2.5 py-1.5 text-amber-700">
+                  + {formatCOP(utilidadEnCaminoMes)} con costo <strong>aún sin entregar</strong>
+                </span>
+              )}
+            </div>
+          )}
           {utilidadEstimadaMes === 0 && ventaSinCostoMes > 0 && (
             <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
               ⚠ Hay {formatCOP(ventaSinCostoMes)} vendidos este mes <strong>sin costo de compra asignado</strong> — esa

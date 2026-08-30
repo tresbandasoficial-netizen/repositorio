@@ -66,12 +66,13 @@ export default async function GastosFijosPage({
     .limit(2000)
   if (sedeSel) qMargen = qMargen.eq('sede_id', sedeSel.id)
 
-  // Ganancia REAL del mes: pedidos del mes con costo de compra asignado —
-  // facturados O todavía por facturar/entregar. Sin estimaciones: lo que aún
-  // no tiene costo no se cuenta (se muestra aparte como aviso).
+  // Ganancia REAL del mes (pedido de Johan 29-ago): solo lo YA COBRADO —
+  // pedidos ENTREGADOS y PAGADOS con costo de compra asignado (las ventas de
+  // entrega inmediata VL nacen entregadas, así que entran solas). Lo entregado
+  // sin pagar y lo que está en camino se muestran aparte.
   let qGananciaMes = supabase
     .from('vista_ganancia_pedidos')
-    .select('venta, utilidad, tiene_costo')
+    .select('pedido_id, venta, utilidad, tiene_costo, estado')
     .neq('estado', 'cancelado')
     .neq('tipo', 'saldo_anterior')
     .gte('fecha_creacion', `${inicioMes}T00:00:00-05:00`)
@@ -83,7 +84,22 @@ export default async function GastosFijosPage({
 
   const [gastosRes, pedidosRes, variablesRes, margenRes, gananciaMesRes, pagadosRes] = await Promise.all([qGastos, qPedidos, qVariables, qMargen, qGananciaMes, qPagados])
 
-  const gananciaMesRows = (gananciaMesRes.data ?? []) as Array<{ venta: number; utilidad: number; tiene_costo: boolean }>
+  const gananciaMesRows = (gananciaMesRes.data ?? []) as Array<{ pedido_id: string; venta: number; utilidad: number; tiene_costo: boolean; estado: string }>
+
+  // ¿Cuáles de esos pedidos ya están PAGADOS del todo? total_pagado (mig. 169:
+  // incluye la parte que le toca de los abonos de su factura) vs total.
+  // .in() por tandas: listas largas revientan la URL de PostgREST (regla ~300).
+  const idsMes = gananciaMesRows.map(g => g.pedido_id)
+  const pagadoDe = new Map<string, boolean>()
+  for (let i = 0; i < idsMes.length; i += 200) {
+    const { data: tanda } = await supabase
+      .from('vista_pedidos_asesor')
+      .select('id, total, total_pagado')
+      .in('id', idsMes.slice(i, i + 200))
+    for (const p of (tanda ?? []) as Array<{ id: string; total: number; total_pagado: number }>) {
+      pagadoDe.set(p.id, (p.total_pagado ?? 0) >= (p.total ?? 0))
+    }
+  }
 
   const gastos = (gastosRes.data ?? []) as { id: string; concepto: string; monto: number; activo: boolean }[]
   const totalFijos = gastos.filter(g => g.activo).reduce((s, g) => s + g.monto, 0)
@@ -96,9 +112,19 @@ export default async function GastosFijosPage({
   const utilidadConCosto = (margenRes.data ?? []).reduce((s, p) => s + (p.utilidad ?? 0), 0)
   const margenBruto = ventaConCosto > 0 ? utilidadConCosto / ventaConCosto : MARGEN_RESPALDO
 
-  // Utilidad del mes: SOLO la real (pedidos con costo asignado). Lo que no
-  // tiene costo no se estima — se muestra aparte como aviso.
-  const utilidadRealMes = gananciaMesRows.filter(g => g.tiene_costo).reduce((s, g) => s + (g.utilidad ?? 0), 0)
+  // Utilidad del mes: SOLO lo cobrado — entregado + pagado + con costo.
+  // Lo entregado sin pagar y lo con costo aún en camino van aparte; lo sin
+  // costo sigue en su aviso.
+  const conCosto = gananciaMesRows.filter(g => g.tiene_costo)
+  const utilidadRealMes = conCosto
+    .filter(g => g.estado === 'entregado' && pagadoDe.get(g.pedido_id) === true)
+    .reduce((s, g) => s + (g.utilidad ?? 0), 0)
+  const utilidadPorCobrarMes = conCosto
+    .filter(g => g.estado === 'entregado' && pagadoDe.get(g.pedido_id) !== true)
+    .reduce((s, g) => s + (g.utilidad ?? 0), 0)
+  const utilidadEnCaminoMes = conCosto
+    .filter(g => g.estado !== 'entregado')
+    .reduce((s, g) => s + (g.utilidad ?? 0), 0)
   const ventaSinCostoMes = gananciaMesRows.filter(g => !g.tiene_costo).reduce((s, g) => s + (g.venta ?? 0), 0)
   const utilidadEstimadaMes = 0
 
@@ -166,6 +192,8 @@ export default async function GastosFijosPage({
         ventaSinCostoMes={ventaSinCostoMes}
         pagadosIds={(pagadosRes.data ?? []).map(p => p.gasto_fijo_id as string)}
         mesActual={inicioMes}
+        utilidadPorCobrarMes={utilidadPorCobrarMes}
+        utilidadEnCaminoMes={utilidadEnCaminoMes}
       />
 
       <p className="text-xs text-gray-400">
