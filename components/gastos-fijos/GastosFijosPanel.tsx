@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { formatCOP } from '@/lib/utils/format'
 import { guardarGastoFijoAction, eliminarGastoFijoAction, marcarPagoGastoFijoAction } from '@/app/actions/gastos-fijos'
@@ -40,6 +41,10 @@ interface Props {
   // pagar del todo, y pedidos todavía en camino.
   utilidadPorCobrarMes: number
   utilidadEnCaminoMes: number
+  // Detalle por pedido de cada bolsillo (para desplegar y ver cuáles son).
+  pedidosCobrados: Array<{ numero: string; utilidad: number }>
+  pedidosPorCobrar: Array<{ numero: string; utilidad: number }>
+  pedidosEnCamino: Array<{ numero: string; utilidad: number }>
 }
 
 // ── KPI card principal (gradiente, estilo dashboard) ─────────────────────────
@@ -104,7 +109,7 @@ function SectionCard({ title, icon: Icon, children, headerRight }: {
   )
 }
 
-export function GastosFijosPanel({ gastos, totalFijos, puntoEquilibrio, ventasMes, gastosVariablesMes, diasMes, margenBruto, diaDelMes, diasCalendario, sedeId, sedeNombre, utilidadRealMes, utilidadEstimadaMes, ventaSinCostoMes, pagadosIds, mesActual, utilidadPorCobrarMes, utilidadEnCaminoMes }: Props) {
+export function GastosFijosPanel({ gastos, totalFijos, puntoEquilibrio, ventasMes, gastosVariablesMes, diasMes, margenBruto, diaDelMes, diasCalendario, sedeId, sedeNombre, utilidadRealMes, utilidadEstimadaMes, ventaSinCostoMes, pagadosIds, mesActual, utilidadPorCobrarMes, utilidadEnCaminoMes, pedidosCobrados, pedidosPorCobrar, pedidosEnCamino }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -141,11 +146,36 @@ export function GastosFijosPanel({ gastos, totalFijos, puntoEquilibrio, ventasMe
   // Avance con GANANCIA, no con ventas: la utilidad real del mes (pedido por
   // pedido, con sus costos de compra) + la estimada de lo que falta por costear
   // contra los gastos fijos. Cubierto = la ganancia ya paga los fijos.
+  // Interactivo: los bolsillos "por cobrar" y "en camino" se prenden y apagan
+  // para ver cómo quedaría el avance contándolos. Lo cobrado siempre cuenta.
+  const [incluirPorCobrar, setIncluirPorCobrar] = useState(false)
+  const [incluirEnCamino, setIncluirEnCamino] = useState(false)
+  const [detalleAbierto, setDetalleAbierto] = useState<null | 'cobrada' | 'porCobrar' | 'enCamino'>(null)
+
   const utilidadMes = utilidadRealMes + utilidadEstimadaMes
+    + (incluirPorCobrar ? utilidadPorCobrarMes : 0)
+    + (incluirEnCamino ? utilidadEnCaminoMes : 0)
   const pctCubierto = totalFijos > 0 ? Math.min(100, (utilidadMes / totalFijos) * 100) : 0
   const faltanteUtilidad = Math.max(0, totalFijos - utilidadMes)
   const faltanteVentas = margenBruto > 0 ? Math.ceil(faltanteUtilidad / margenBruto) : 0
   const cubierto = totalFijos > 0 && utilidadMes >= totalFijos
+
+  // Barra por segmentos: verde = cobrado, rojo = por cobrar, ámbar = en camino.
+  const segmentos = [
+    { v: utilidadRealMes, cls: 'bg-gradient-to-r from-green-500 to-emerald-400' },
+    ...(incluirPorCobrar ? [{ v: utilidadPorCobrarMes, cls: 'bg-gradient-to-r from-red-400 to-rose-400' }] : []),
+    ...(incluirEnCamino ? [{ v: utilidadEnCaminoMes, cls: 'bg-gradient-to-r from-amber-400 to-yellow-400' }] : []),
+  ]
+  let acumuladoPct = 0
+  const segmentosPct = segmentos.map(s => {
+    const pct = totalFijos > 0 ? Math.max(0, Math.min(100 - acumuladoPct, (s.v / totalFijos) * 100)) : 0
+    acumuladoPct += pct
+    return { ...s, pct }
+  })
+
+  const detalles: Record<'cobrada' | 'porCobrar' | 'enCamino', Array<{ numero: string; utilidad: number }>> = {
+    cobrada: pedidosCobrados, porCobrar: pedidosPorCobrar, enCamino: pedidosEnCamino,
+  }
 
   // ── Simulador interactivo ──────────────────────────────────────────────────
   const [simVentas, setSimVentas] = useState(400_000_000)
@@ -239,30 +269,95 @@ export function GastosFijosPanel({ gastos, totalFijos, puntoEquilibrio, ventasMe
       }>
         <div className="p-5 space-y-3">
           <div className="flex items-baseline justify-between">
-            <p className="text-2xl font-bold tracking-tight text-gray-900">{formatCOP(utilidadMes)}</p>
-            <p className="text-xs text-gray-400">ganancia COBRADA del mes</p>
+            <p className="text-2xl font-bold tracking-tight text-gray-900 tabular-nums transition-all">{formatCOP(utilidadMes)}</p>
+            <p className="text-xs text-gray-400">
+              {incluirPorCobrar || incluirEnCamino ? 'cobrado + lo incluido abajo' : 'ganancia COBRADA del mes'}
+            </p>
           </div>
-          <div className="h-3.5 bg-gray-100 rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all ${cubierto ? 'bg-gradient-to-r from-green-500 to-emerald-400' : 'bg-gradient-to-r from-blue-600 to-blue-400'}`}
-              style={{ width: `${pctCubierto}%` }}
-            />
+          {/* Barra por segmentos: verde cobrado · rojo por cobrar · ámbar en camino */}
+          <div className="h-3.5 bg-gray-100 rounded-full overflow-hidden flex">
+            {segmentosPct.map((s, i) => (
+              <div key={i} className={`h-full transition-all duration-500 ${s.cls}`} style={{ width: `${s.pct}%` }} />
+            ))}
           </div>
           <p className="text-xs text-gray-500">
             Solo pedidos <strong>entregados y pagados</strong> con <strong>costo de compra asignado</strong>{' '}
             (las ventas de entrega inmediata entran aquí). Ventas del mes: {formatCOP(ventasMes)}.
+            Toca un bolsillo para sumarlo a la cuenta o ver sus pedidos:
           </p>
-          {(utilidadPorCobrarMes > 0 || utilidadEnCaminoMes > 0) && (
-            <div className="flex flex-wrap gap-2 text-xs">
-              {utilidadPorCobrarMes > 0 && (
-                <span className="rounded-lg bg-red-50 border border-red-100 px-2.5 py-1.5 text-red-700">
-                  + {formatCOP(utilidadPorCobrarMes)} de entregados <strong>aún por cobrar</strong>
-                </span>
-              )}
-              {utilidadEnCaminoMes > 0 && (
-                <span className="rounded-lg bg-amber-50 border border-amber-100 px-2.5 py-1.5 text-amber-700">
-                  + {formatCOP(utilidadEnCaminoMes)} con costo <strong>aún sin entregar</strong>
-                </span>
+
+          {/* Bolsillos interactivos */}
+          <div className="flex flex-wrap gap-2 text-xs">
+            <button
+              type="button"
+              onClick={() => setDetalleAbierto(d => d === 'cobrada' ? null : 'cobrada')}
+              className="rounded-lg bg-green-50 border border-green-200 px-2.5 py-1.5 text-green-800 font-medium hover:bg-green-100 transition-colors"
+            >
+              ● Cobrado: {formatCOP(utilidadRealMes)} <span className="text-green-500">{detalleAbierto === 'cobrada' ? '▴' : '▾'}</span>
+            </button>
+            {utilidadPorCobrarMes > 0 && (
+              <span className={`inline-flex items-stretch rounded-lg border overflow-hidden transition-colors ${incluirPorCobrar ? 'border-red-400 ring-1 ring-red-300' : 'border-red-100'}`}>
+                <button
+                  type="button"
+                  onClick={() => setIncluirPorCobrar(v => !v)}
+                  title={incluirPorCobrar ? 'Quitar de la cuenta' : 'Sumar a la cuenta'}
+                  className={`px-2.5 py-1.5 font-medium transition-colors ${incluirPorCobrar ? 'bg-red-500 text-white' : 'bg-red-50 text-red-700 hover:bg-red-100'}`}
+                >
+                  {incluirPorCobrar ? '✓' : '+'} {formatCOP(utilidadPorCobrarMes)} entregados por cobrar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDetalleAbierto(d => d === 'porCobrar' ? null : 'porCobrar')}
+                  className={`px-2 transition-colors ${incluirPorCobrar ? 'bg-red-400 text-white' : 'bg-red-50 text-red-500 hover:bg-red-100'}`}
+                >
+                  {detalleAbierto === 'porCobrar' ? '▴' : '▾'}
+                </button>
+              </span>
+            )}
+            {utilidadEnCaminoMes > 0 && (
+              <span className={`inline-flex items-stretch rounded-lg border overflow-hidden transition-colors ${incluirEnCamino ? 'border-amber-400 ring-1 ring-amber-300' : 'border-amber-100'}`}>
+                <button
+                  type="button"
+                  onClick={() => setIncluirEnCamino(v => !v)}
+                  title={incluirEnCamino ? 'Quitar de la cuenta' : 'Sumar a la cuenta'}
+                  className={`px-2.5 py-1.5 font-medium transition-colors ${incluirEnCamino ? 'bg-amber-500 text-white' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'}`}
+                >
+                  {incluirEnCamino ? '✓' : '+'} {formatCOP(utilidadEnCaminoMes)} en camino
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDetalleAbierto(d => d === 'enCamino' ? null : 'enCamino')}
+                  className={`px-2 transition-colors ${incluirEnCamino ? 'bg-amber-400 text-white' : 'bg-amber-50 text-amber-500 hover:bg-amber-100'}`}
+                >
+                  {detalleAbierto === 'enCamino' ? '▴' : '▾'}
+                </button>
+              </span>
+            )}
+          </div>
+
+          {/* Detalle desplegable: los pedidos del bolsillo elegido */}
+          {detalleAbierto && (
+            <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 max-h-52 overflow-y-auto">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-1.5">
+                {detalleAbierto === 'cobrada' ? `Pedidos cobrados (${detalles.cobrada.length})`
+                  : detalleAbierto === 'porCobrar' ? `Entregados aún por cobrar (${detalles.porCobrar.length})`
+                  : `Con costo aún sin entregar (${detalles.enCamino.length})`}
+              </p>
+              {detalles[detalleAbierto].length === 0 ? (
+                <p className="text-xs text-gray-400">No hay pedidos aquí.</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
+                  {detalles[detalleAbierto].map(p => (
+                    <Link
+                      key={p.numero}
+                      href={`/pedidos?q=${encodeURIComponent(p.numero)}`}
+                      className="flex items-center justify-between text-xs py-0.5 hover:bg-white rounded px-1 transition-colors"
+                    >
+                      <span className="font-mono text-gray-700">{p.numero}</span>
+                      <span className="tabular-nums font-semibold text-gray-800">{formatCOP(p.utilidad)}</span>
+                    </Link>
+                  ))}
+                </div>
               )}
             </div>
           )}

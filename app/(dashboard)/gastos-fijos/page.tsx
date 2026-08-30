@@ -72,7 +72,7 @@ export default async function GastosFijosPage({
   // sin pagar y lo que está en camino se muestran aparte.
   let qGananciaMes = supabase
     .from('vista_ganancia_pedidos')
-    .select('pedido_id, venta, utilidad, tiene_costo, estado')
+    .select('pedido_id, numero_orden, venta, utilidad, tiene_costo, estado')
     .neq('estado', 'cancelado')
     .neq('tipo', 'saldo_anterior')
     .gte('fecha_creacion', `${inicioMes}T00:00:00-05:00`)
@@ -84,7 +84,7 @@ export default async function GastosFijosPage({
 
   const [gastosRes, pedidosRes, variablesRes, margenRes, gananciaMesRes, pagadosRes] = await Promise.all([qGastos, qPedidos, qVariables, qMargen, qGananciaMes, qPagados])
 
-  const gananciaMesRows = (gananciaMesRes.data ?? []) as Array<{ pedido_id: string; venta: number; utilidad: number; tiene_costo: boolean; estado: string }>
+  const gananciaMesRows = (gananciaMesRes.data ?? []) as Array<{ pedido_id: string; numero_orden: string; venta: number; utilidad: number; tiene_costo: boolean; estado: string }>
 
   // ¿Cuáles de esos pedidos ya están PAGADOS del todo? total_pagado (mig. 169:
   // incluye la parte que le toca de los abonos de su factura) vs total.
@@ -116,15 +116,16 @@ export default async function GastosFijosPage({
   // Lo entregado sin pagar y lo con costo aún en camino van aparte; lo sin
   // costo sigue en su aviso.
   const conCosto = gananciaMesRows.filter(g => g.tiene_costo)
-  const utilidadRealMes = conCosto
-    .filter(g => g.estado === 'entregado' && pagadoDe.get(g.pedido_id) === true)
-    .reduce((s, g) => s + (g.utilidad ?? 0), 0)
-  const utilidadPorCobrarMes = conCosto
-    .filter(g => g.estado === 'entregado' && pagadoDe.get(g.pedido_id) !== true)
-    .reduce((s, g) => s + (g.utilidad ?? 0), 0)
-  const utilidadEnCaminoMes = conCosto
-    .filter(g => g.estado !== 'entregado')
-    .reduce((s, g) => s + (g.utilidad ?? 0), 0)
+  const aLista = (rows: typeof conCosto) => rows
+    .sort((a, b) => (b.utilidad ?? 0) - (a.utilidad ?? 0))
+    .slice(0, 80)
+    .map(g => ({ numero: g.numero_orden, utilidad: g.utilidad ?? 0 }))
+  const cobrados   = conCosto.filter(g => g.estado === 'entregado' && pagadoDe.get(g.pedido_id) === true)
+  const porCobrar  = conCosto.filter(g => g.estado === 'entregado' && pagadoDe.get(g.pedido_id) !== true)
+  const enCamino   = conCosto.filter(g => g.estado !== 'entregado')
+  const utilidadRealMes     = cobrados.reduce((s, g) => s + (g.utilidad ?? 0), 0)
+  const utilidadPorCobrarMes = porCobrar.reduce((s, g) => s + (g.utilidad ?? 0), 0)
+  const utilidadEnCaminoMes  = enCamino.reduce((s, g) => s + (g.utilidad ?? 0), 0)
   const ventaSinCostoMes = gananciaMesRows.filter(g => !g.tiene_costo).reduce((s, g) => s + (g.venta ?? 0), 0)
   const utilidadEstimadaMes = 0
 
@@ -194,6 +195,9 @@ export default async function GastosFijosPage({
         mesActual={inicioMes}
         utilidadPorCobrarMes={utilidadPorCobrarMes}
         utilidadEnCaminoMes={utilidadEnCaminoMes}
+        pedidosCobrados={aLista(cobrados)}
+        pedidosPorCobrar={aLista(porCobrar)}
+        pedidosEnCamino={aLista(enCamino)}
       />
 
       <p className="text-xs text-gray-400">
