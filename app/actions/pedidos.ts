@@ -18,17 +18,14 @@ export type CrearPedidoResult =
   | { ok: true; pedidoId: string; numeroOrden: string; avisoCompra?: string }
   | { ok: false; error: string; siguienteNumero?: string }
 
-// ── Compra de más → pedido nuevo ─────────────────────────────────────────────
+// ── Compra de más → sugerencia por confirmar ─────────────────────────────────
 // Si un artículo del pedido recién creado ya está COMPRADO sin dueño (item de
-// compra sin_asignar del mismo artículo y la MISMA talla), esa compra se
-// asigna sola al pedido: comprar de más hoy cubre el encargo de mañana. La
-// unidad sale del stock si ya había entrado, el pedido pasa a 'comprado' y
-// queda la nota con la factura de origen.
-async function _asignarComprasLibres(
-  pedidoId: string,
-  numeroOrden: string,
-  usuarioId: string,
-): Promise<string | undefined> {
+// compra sin_asignar del mismo artículo y la MISMA talla), ya NO se asigna
+// solo (eso movía stock y estado sin que nadie lo revisara — caso TR7467).
+// La coincidencia queda como sugerencia PENDIENTE en asignaciones_pendientes
+// y el admin la confirma o descarta desde /compras. El pedido sigue su flujo
+// normal hasta que la asignación se confirme.
+async function _sugerirComprasLibres(pedidoId: string): Promise<string | undefined> {
   const admin = createAdminClient()
 
   const { data: itemsPed } = await admin
@@ -39,7 +36,8 @@ async function _asignarComprasLibres(
   if (!itemsPed || itemsPed.length === 0) return undefined
 
   const usados = new Set<string>()
-  const asignadas: string[] = []
+  const sugerencias: Array<{ compra_item_id: string; pedido_id: string; pedido_item_indice: number | null }> = []
+  const avisos: string[] = []
   let indice = 0
   for (const it of itemsPed as any[]) {
     indice++
@@ -64,59 +62,28 @@ async function _asignarComprasLibres(
     if (!c) continue
     usados.add(c.id)
 
-    const { error: errAsig } = await admin
-      .from('compra_items')
-      .update({
-        destino:            'pedido',
-        pedido_id:          pedidoId,
-        pedido_item_indice: itemsPed.length > 1 ? indice : null,
-      })
-      .eq('id', c.id)
-      .is('pedido_id', null) // por si otra sesión la tomó en este instante
-    if (errAsig) continue
-
-    // Si la unidad ya había ENTRADO al stock (la compra llegó), sale ahora:
-    // deja de ser mercancía de vitrina y pasa a ser la del pedido.
-    const { data: movs } = await admin
-      .from('movimientos_inventario')
-      .select('delta, sede_id')
-      .eq('compra_item_id', c.id)
-    const neto = ((movs ?? []) as Array<{ delta: number; sede_id: string | null }>).reduce((s, m) => s + m.delta, 0)
-    if (neto > 0) {
-      await admin.from('movimientos_inventario').insert({
-        articulo_id:    it.articulo_id,
-        talla:          it.talla || null,
-        sede_id:        (movs ?? []).find(m => m.sede_id)?.sede_id ?? null,
-        delta:          -neto,
-        tipo:           'salida',
-        compra_item_id: c.id,
-        pedido_id:      pedidoId,
-        usuario_id:     usuarioId,
-        notas:          `Sale del stock: compra asignada al pedido ${numeroOrden}`,
-      })
-    }
-
+    sugerencias.push({
+      compra_item_id:     c.id,
+      pedido_id:          pedidoId,
+      pedido_item_indice: itemsPed.length > 1 ? indice : null,
+    })
     const compra = Array.isArray(c.compras) ? c.compras[0] : c.compras
-    asignadas.push(`${it.marca ?? ''} ${it.descripcion} T${talla} → factura ${compra?.numero_factura ?? 's/n'} (${compra?.proveedor ?? '¿?'})`.trim())
+    avisos.push(`${it.marca ?? ''} ${it.descripcion} T${talla} → factura ${compra?.numero_factura ?? 's/n'} (${compra?.proveedor ?? '¿?'})`.trim())
   }
 
-  if (asignadas.length === 0) return undefined
+  if (sugerencias.length === 0) return undefined
 
-  // El pedido ya tiene su compra: pasa a 'comprado' y queda la constancia.
-  await admin
-    .from('pedidos')
-    .update({ estado: 'comprado', fecha_actualizacion: new Date().toISOString() })
-    .eq('id', pedidoId)
-    .eq('estado', 'pendiente')
+  // La sugerencia NO asigna nada: ni compra, ni stock, ni estado. Todo eso
+  // pasa solo cuando el admin confirma en /compras.
+  const { error } = await admin
+    .from('asignaciones_pendientes')
+    .upsert(sugerencias, { onConflict: 'compra_item_id,pedido_id', ignoreDuplicates: true })
+  if (error) {
+    console.error('Error guardando sugerencias de compra:', error)
+    return undefined
+  }
 
-  const nota = `✓ Ya estaba comprado (compra de más asignada sola): ${asignadas.join(' · ')}`
-  const { data: ped } = await admin.from('pedidos').select('notas').eq('id', pedidoId).maybeSingle()
-  await admin
-    .from('pedidos')
-    .update({ notas: ped?.notas ? `${ped.notas}\n${nota}` : nota })
-    .eq('id', pedidoId)
-
-  return nota
+  return `🔎 Puede que ya esté comprado — por confirmar en Compras: ${avisos.join(' · ')}`
 }
 
 // Devuelve el error si algún producto está enlazado a una ficha del catálogo
@@ -373,12 +340,13 @@ async function _crearPedidoConDatos(
     }
   }
 
-  // ¿Este artículo ya se compró de más? Asignar la compra libre que calce.
+  // ¿Este artículo ya se compró de más? Queda la sugerencia para que el admin
+  // confirme (o descarte) la asignación en /compras — ya no se asigna sola.
   let avisoCompra: string | undefined
   try {
-    avisoCompra = await _asignarComprasLibres(pedidoId, numeroOrden, usuario.id)
+    avisoCompra = await _sugerirComprasLibres(pedidoId)
   } catch (e) {
-    console.error('Error asignando compras libres al pedido nuevo:', e)
+    console.error('Error sugiriendo compras libres al pedido nuevo:', e)
   }
 
   return { ok: true as const, pedidoId, numeroOrden, avisoCompra }

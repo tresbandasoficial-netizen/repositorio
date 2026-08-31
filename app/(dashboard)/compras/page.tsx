@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Compra } from '@/types'
 import { PuntosAdiclub } from '@/components/compras/PuntosAdiclub'
 import { PanelColapsable } from '@/components/ui/PanelColapsable'
+import { AsignacionesPendientes, AsignacionPendienteUI } from '@/components/compras/AsignacionesPendientes'
 
 export default async function ComprasPage({
   searchParams,
@@ -25,6 +26,42 @@ export default async function ComprasPage({
     .single()
 
   if (!usuario || usuario.rol !== 'admin') redirect('/dashboard')
+
+  // Sugerencias compra→pedido esperando confirmación del admin (mig. 185).
+  const { data: asigRaw } = await supabase
+    .from('asignaciones_pendientes')
+    .select(`
+      id, creado_en, pedido_id,
+      compra_item:compra_items (compra_id, descripcion, marca, talla, codigo, costo_unitario_cop,
+        compras (numero_factura, proveedor, llegada_en)),
+      pedido:pedidos (numero_orden, estado, clientes (nombre))
+    `)
+    .eq('estado', 'pendiente')
+    .order('creado_en', { ascending: true })
+
+  // Un pedido cancelado o entregado ya no recibe compra: esas sugerencias no
+  // se muestran (y si se intentara confirmarlas, la acción las descarta sola).
+  const asignaciones: AsignacionPendienteUI[] = ((asigRaw ?? []) as any[]).map(a => {
+    const item = Array.isArray(a.compra_item) ? a.compra_item[0] : a.compra_item
+    const compra = item ? (Array.isArray(item.compras) ? item.compras[0] : item.compras) : null
+    const pedido = Array.isArray(a.pedido) ? a.pedido[0] : a.pedido
+    const cliente = pedido ? (Array.isArray(pedido.clientes) ? pedido.clientes[0] : pedido.clientes) : null
+    const talla = (item?.talla ?? '').trim().toUpperCase()
+    return {
+      id:           a.id,
+      pedidoId:     a.pedido_id,
+      pedidoNumero: pedido?.numero_orden ?? '¿?',
+      pedidoEstado: pedido?.estado ?? '¿?',
+      cliente:      cliente?.nombre ?? null,
+      articulo:     `${item?.marca ?? ''} ${item?.descripcion ?? ''}${talla ? ` · T${talla}` : ''}`.trim(),
+      codigo:       item?.codigo ?? null,
+      costo:        item?.costo_unitario_cop ?? 0,
+      compraId:     item?.compra_id ?? '',
+      factura:      `${compra?.numero_factura ?? 's/n'} (${compra?.proveedor ?? '¿?'})`,
+      llego:        Boolean(compra?.llegada_en),
+      creadoEn:     a.creado_en,
+    }
+  }).filter(a => a.pedidoEstado !== 'cancelado' && a.pedidoEstado !== 'entregado')
 
   const { proveedor: filtroParam } = await searchParams
   // Se compara en minúsculas: si en la base quedó alguna escritura distinta, el
@@ -114,6 +151,9 @@ export default async function ComprasPage({
           <Button>+ Nueva compra</Button>
         </Link>
       </div>
+
+      {/* Sugerencias compra→pedido por confirmar — nada se asigna solo */}
+      <AsignacionesPendientes filas={asignaciones} />
 
       {/* Filtro por proveedor: ordenados por cuánto se les compra */}
       {proveedores.length > 0 && (
