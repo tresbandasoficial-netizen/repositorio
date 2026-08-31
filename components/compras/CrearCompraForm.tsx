@@ -155,6 +155,8 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
       articuloId:         art.id,
       articuloEncontrado: true,
       imagenUrl:          art.foto ?? item.imagenUrl ?? null,
+      categoria:          art.categoria ?? item.categoria,
+      sexo:               art.sexo ?? item.sexo,
     } : item))
     setBuscadorAbierto(null)
     sugerirPedidosFaltantes(idx, art.codigo, art.id)
@@ -475,6 +477,10 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
           articuloEncontrado: true,
           descripcion: articulo.nombre,
           marca: articulo.marca,
+          // La categoría/sexo de la ficha alimentan el selector de tallas y
+          // la regla de talla obligatoria (accesorios no llevan).
+          categoria: (articulo.categoria as string | null) ?? item.categoria,
+          sexo: (articulo.sexo as string | null) ?? item.sexo,
         }
       }
       return { ...item, articuloId: null, articuloEncontrado: false }
@@ -585,6 +591,12 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
       if (!item.codigo.trim()) { setError(`Producto ${i + 1}: el código del artículo (SKU) es obligatorio`); return }
       if (!item.descripcion.trim()) { setError(`Producto ${i + 1}: falta la descripción`); return }
       if (!parseInt(item.cantidad, 10)) { setError(`Producto ${i + 1}: cantidad inválida`); return }
+      // TALLA obligatoria (pedido de Johan 29-ago): sin talla el stock y la
+      // galería quedan cojos. Los accesorios son la única excepción.
+      if (item.categoria !== 'accesorios' && !item.talla.trim()) {
+        setError(`Producto ${i + 1} (${item.descripcion.trim() || item.codigo.trim()}): falta la TALLA — elígela de la lista. Solo los accesorios van sin talla.`)
+        return
+      }
       // Artículo nuevo en el catálogo: la ficha nace completa o no nace.
       if (item.articuloEncontrado === false) {
         if (!item.marca.trim()) { setError(`Producto ${i + 1} es nuevo en el catálogo: falta la marca`); return }

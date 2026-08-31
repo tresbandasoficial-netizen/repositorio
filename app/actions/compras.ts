@@ -243,6 +243,26 @@ export async function crearCompraAction(data: CrearCompraInput): Promise<CrearCo
     }
   }
 
+  // TALLA obligatoria en cada producto (los accesorios son la excepción): sin
+  // talla el stock por talla y la galería quedan cojos. Para items sin
+  // categoría en el payload se consulta la ficha del catálogo por código.
+  const sinTalla = data.items.filter(it => !it.talla?.trim() && (it as any).categoria !== 'accesorios')
+  if (sinTalla.length > 0) {
+    const codigos = [...new Set(sinTalla.map(it => it.codigo?.trim().toUpperCase()).filter(Boolean))] as string[]
+    const { data: fichas } = codigos.length > 0
+      ? await adminClient.from('articulos').select('codigo, categoria').in('codigo', codigos)
+      : { data: [] as Array<{ codigo: string | null; categoria: string | null }> }
+    const categoriaDe = new Map((fichas ?? []).map(f => [f.codigo?.toUpperCase() ?? '', f.categoria]))
+    const bloqueado = sinTalla.find(it =>
+      categoriaDe.get(it.codigo?.trim().toUpperCase() ?? '') !== 'accesorios')
+    if (bloqueado) {
+      return {
+        ok: false,
+        error: `"${bloqueado.descripcion || bloqueado.codigo}" no tiene TALLA — es obligatoria en todos los productos (solo los accesorios van sin talla).`,
+      }
+    }
+  }
+
   // La suma de los productos debe cuadrar con el total de la factura. La única
   // tolerancia es el redondeo USD→COP: $50 por producto (mín $200); $1.000 de
   // diferencia ya es un dígito mal puesto y se bloquea.
