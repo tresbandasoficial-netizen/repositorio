@@ -8,11 +8,12 @@ import { Compra } from '@/types'
 import { PuntosAdiclub } from '@/components/compras/PuntosAdiclub'
 import { PanelColapsable } from '@/components/ui/PanelColapsable'
 import { AsignacionesPendientes, AsignacionPendienteUI } from '@/components/compras/AsignacionesPendientes'
+import { terminoBusquedaSeguro } from '@/lib/utils/busqueda'
 
 export default async function ComprasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ proveedor?: string }>
+  searchParams: Promise<{ proveedor?: string; q?: string }>
 }) {
   const supabase = await createClient()
 
@@ -63,10 +64,11 @@ export default async function ComprasPage({
     }
   }).filter(a => a.pedidoEstado !== 'cancelado' && a.pedidoEstado !== 'entregado')
 
-  const { proveedor: filtroParam } = await searchParams
+  const { proveedor: filtroParam, q: qParam } = await searchParams
   // Se compara en minúsculas: si en la base quedó alguna escritura distinta, el
   // filtro igual la agarra.
   const filtro = filtroParam?.trim().toLowerCase() || null
+  const q = qParam?.trim() || null
 
   const { data: compras } = await supabase
     .from('compras')
@@ -127,9 +129,63 @@ export default async function ComprasPage({
     }))
     .sort((a, b) => b.total - a.total)   // primero al que más le compras
 
-  const filas = filtro
-    ? todas.filter(c => (c.proveedor ?? '').trim().toLowerCase() === filtro)
-    : todas
+  // ── Buscador: por pedido asignado, por artículo o por número de compra ─────
+  // Junta los ids de compra que coinciden por cualquiera de las tres vías y
+  // guarda POR QUÉ coincidió cada una para mostrarlo en la fila.
+  let idsBusqueda: Set<string> | null = null
+  const motivos = new Map<string, string[]>()
+  const agregarMatch = (compraId: string, motivo: string) => {
+    idsBusqueda!.add(compraId)
+    const lista = motivos.get(compraId) ?? []
+    if (!lista.includes(motivo) && lista.length < 3) lista.push(motivo)
+    motivos.set(compraId, lista)
+  }
+  if (q) {
+    idsBusqueda = new Set<string>()
+    const bq = terminoBusquedaSeguro(q)
+
+    // 1. Número de la factura de compra (sobre las compras ya cargadas)
+    const qLower = q.toLowerCase()
+    for (const c of todas) {
+      if (c.numero_factura && c.numero_factura.toLowerCase().includes(qLower)) {
+        agregarMatch(c.id, `factura ${c.numero_factura}`)
+      }
+    }
+
+    // 2. Artículos de la compra (descripción, código o marca)
+    if (bq.length >= 2) {
+      const { data: itemsArt } = await supabase
+        .from('compra_items')
+        .select('compra_id, descripcion, marca, talla')
+        .or(`descripcion.ilike.%${bq}%,codigo.ilike.%${bq}%,marca.ilike.%${bq}%`)
+        .limit(500)
+      for (const it of (itemsArt ?? []) as any[]) {
+        const talla = (it.talla ?? '').trim()
+        agregarMatch(it.compra_id, `${it.marca ?? ''} ${it.descripcion ?? ''}${talla ? ` T${talla}` : ''}`.trim())
+      }
+    }
+
+    // 3. Pedidos asignados a la compra (por número de orden)
+    const { data: peds } = await supabase
+      .from('pedidos')
+      .select('id, numero_orden')
+      .ilike('numero_orden', `%${q}%`)
+      .limit(100)
+    if (peds && peds.length > 0) {
+      const numeroPorId = new Map(peds.map(p => [p.id, p.numero_orden]))
+      const { data: itemsPed } = await supabase
+        .from('compra_items')
+        .select('compra_id, pedido_id')
+        .in('pedido_id', peds.map(p => p.id))
+      for (const it of (itemsPed ?? []) as any[]) {
+        agregarMatch(it.compra_id, `pedido ${numeroPorId.get(it.pedido_id) ?? ''}`.trim())
+      }
+    }
+  }
+
+  const filas = todas
+    .filter(c => !filtro || (c.proveedor ?? '').trim().toLowerCase() === filtro)
+    .filter(c => !idsBusqueda || idsBusqueda.has(c.id))
 
   const totalFiltrado = filas.reduce((s, c) => s + (c.total_cop ?? 0), 0)
   const nombreFiltro = proveedores.find(p => p.clave === filtro)?.nombre ?? filtroParam
@@ -142,9 +198,11 @@ export default async function ComprasPage({
           <p className="text-sm text-gray-500 mt-0.5">
             {todas.length === 0
               ? 'Sin compras registradas'
-              : filtro
-                ? `${filas.length} de ${todas.length} facturas · ${nombreFiltro} · ${formatCOP(totalFiltrado)}`
-                : `${todas.length} factura${todas.length !== 1 ? 's' : ''} de compra · ${formatCOP(totalFiltrado)}`}
+              : q
+                ? `${filas.length} resultado${filas.length !== 1 ? 's' : ''} para «${q}» · ${formatCOP(totalFiltrado)}`
+                : filtro
+                  ? `${filas.length} de ${todas.length} facturas · ${nombreFiltro} · ${formatCOP(totalFiltrado)}`
+                  : `${todas.length} factura${todas.length !== 1 ? 's' : ''} de compra · ${formatCOP(totalFiltrado)}`}
           </p>
         </div>
         <Link href="/compras/nueva">
@@ -154,6 +212,27 @@ export default async function ComprasPage({
 
       {/* Sugerencias compra→pedido por confirmar — nada se asigna solo */}
       <AsignacionesPendientes filas={asignaciones} />
+
+      {/* Buscador: pedido asignado (TR7467), artículo (falda, W6746R) o nº de compra */}
+      <form action="/compras" method="get" className="mb-4 flex gap-2 items-center">
+        {filtro && <input type="hidden" name="proveedor" value={filtro} />}
+        <input
+          type="text"
+          name="q"
+          defaultValue={q ?? ''}
+          placeholder="Buscar por pedido (TR7467), artículo o número de compra…"
+          className="flex-1 max-w-xl px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        <Button type="submit">Buscar</Button>
+        {q && (
+          <Link
+            href={filtro ? `/compras?proveedor=${encodeURIComponent(filtro)}` : '/compras'}
+            className="px-3 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition-colors"
+          >
+            Limpiar
+          </Link>
+        )}
+      </form>
 
       {/* Filtro por proveedor: ordenados por cuánto se les compra */}
       {proveedores.length > 0 && (
@@ -275,7 +354,9 @@ export default async function ComprasPage({
         <div className="text-center py-16 text-gray-400">
           {todas.length === 0
             ? 'Aún no hay compras registradas'
-            : `Sin compras de ${nombreFiltro}`}
+            : q
+              ? `Ninguna compra coincide con «${q}» — busca por número de pedido, artículo o número de factura`
+              : `Sin compras de ${nombreFiltro}`}
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
@@ -310,6 +391,16 @@ export default async function ComprasPage({
                     )}
                     {c.notas && (
                       <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{c.notas}</p>
+                    )}
+                    {/* Por qué coincidió con la búsqueda */}
+                    {q && (motivos.get(c.id) ?? []).length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {(motivos.get(c.id) ?? []).map((m, i) => (
+                          <span key={i} className="inline-block rounded-full bg-amber-50 border border-amber-200 text-amber-800 px-2 py-0.5 text-[11px]">
+                            {m}
+                          </span>
+                        ))}
+                      </div>
                     )}
                   </td>
                   <td className="px-4 py-4 text-center">
