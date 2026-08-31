@@ -20,7 +20,7 @@ export default async function EnviosUsaPage() {
 
   const [{ data: saldoRow }, { data: envios }, pagosRes, pagosFacRes, trasladosRes] = await Promise.all([
     supabase.from('saldos_cuentas').select('saldo_neto').eq('id', cuentaId ?? '').maybeSingle(),
-    supabase.from('envios_usa').select('id, fecha, descripcion, valor, creado_en').order('fecha', { ascending: false }).order('creado_en', { ascending: false }).limit(100),
+    supabase.from('envios_usa').select('id, fecha, descripcion, valor, creado_en, cant_zapatos, cant_ropa, cant_accesorios').order('fecha', { ascending: false }).order('creado_en', { ascending: false }).limit(100),
     supabase.from('pagos').select('fecha, monto, creado_en, pedidos!inner(clientes(nombre))').eq('cuenta_id', cuentaId ?? '').eq('anulado', false).order('fecha', { ascending: false }).limit(60),
     supabase.from('pagos_factura').select('fecha, monto, creado_en, facturas!inner(clientes(nombre))').eq('cuenta_id', cuentaId ?? '').eq('anulado', false).order('fecha', { ascending: false }).limit(60),
     supabase.from('traslados_caja').select('fecha, monto, notas, origen:cuentas!traslados_caja_origen_cuenta_id_fkey(nombre)').eq('destino_cuenta_id', cuentaId ?? '').order('fecha', { ascending: false }).limit(15),
@@ -68,7 +68,7 @@ export default async function EnviosUsaPage() {
       </p>
       <EnviosUsaPanel
         saldo={saldoRow?.saldo_neto ?? 0}
-        envios={(envios ?? []) as Array<{ id: string; fecha: string; descripcion: string; valor: number }>}
+        envios={(envios ?? []) as Array<{ id: string; fecha: string; descripcion: string; valor: number; cant_zapatos: number; cant_ropa: number; cant_accesorios: number }>}
         ingresos={ingresos}
       />
     </div>

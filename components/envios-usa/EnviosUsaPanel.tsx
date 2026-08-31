@@ -13,7 +13,7 @@ const inputCls = 'w-full rounded-lg border border-gray-200 px-3 py-2 text-sm foc
 // y la plata que ha entrado (pagos de clientes + consignaciones de las sedes).
 export function EnviosUsaPanel({ saldo, envios, ingresos }: {
   saldo: number
-  envios: Array<{ id: string; fecha: string; descripcion: string; valor: number }>
+  envios: Array<{ id: string; fecha: string; descripcion: string; valor: number; cant_zapatos: number; cant_ropa: number; cant_accesorios: number }>
   ingresos: Array<{ fecha: string; detalle: string; monto: number }>
 }) {
   const router = useRouter()
@@ -23,17 +23,36 @@ export function EnviosUsaPanel({ saldo, envios, ingresos }: {
   const [valor, setValor] = useState('')
   const [descripcion, setDescripcion] = useState('')
   const [fecha, setFecha] = useState(hoyBogota())
+  // Cuántas cosas vienen en la caja, por tipo (para el costo por unidad).
+  const [cantZapatos, setCantZapatos] = useState('')
+  const [cantRopa, setCantRopa] = useState('')
+  const [cantAccesorios, setCantAccesorios] = useState('')
 
   function registrar() {
     setError('')
     const v = parseInt(valor.replace(/\D/g, ''), 10) || 0
     start(async () => {
-      const r = await registrarEnvioUsaAction({ valor: v, descripcion, fecha })
+      const r = await registrarEnvioUsaAction({
+        valor: v, descripcion, fecha,
+        cant_zapatos:    parseInt(cantZapatos, 10) || 0,
+        cant_ropa:       parseInt(cantRopa, 10) || 0,
+        cant_accesorios: parseInt(cantAccesorios, 10) || 0,
+      })
       if (!r.ok) { setError(r.error); return }
-      setValor(''); setDescripcion('')
+      setValor(''); setDescripcion(''); setCantZapatos(''); setCantRopa(''); setCantAccesorios('')
       router.refresh()
     })
   }
+
+  // Resumen histórico: cuántas unidades han venido por tipo y cuánto vale
+  // traer cada una (solo con las cajas que tienen cantidades registradas).
+  const conCantidades = envios.filter(e => (e.cant_zapatos + e.cant_ropa + e.cant_accesorios) > 0)
+  const totZapatos    = conCantidades.reduce((s, e) => s + e.cant_zapatos, 0)
+  const totRopa       = conCantidades.reduce((s, e) => s + e.cant_ropa, 0)
+  const totAccesorios = conCantidades.reduce((s, e) => s + e.cant_accesorios, 0)
+  const totUnidades   = totZapatos + totRopa + totAccesorios
+  const totValorCajas = conCantidades.reduce((s, e) => s + e.valor, 0)
+  const costoPorUnidad = totUnidades > 0 ? Math.round(totValorCajas / totUnidades) : 0
 
   function eliminar(id: string, valor: number) {
     if (!confirm(`¿Eliminar este cobro de ${formatCOP(valor)}? La plata vuelve al saldo a favor.`)) return
@@ -74,11 +93,65 @@ export function EnviosUsaPanel({ saldo, envios, ingresos }: {
             {pending ? <Loader2 size={15} className="animate-spin inline" /> : 'Registrar'}
           </button>
         </div>
+        {/* ¿Qué viene en la caja? Cantidades por tipo para el costo por unidad */}
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold text-gray-500">¿Qué viene en la caja?</span>
+          <label className="flex items-center gap-1.5 text-sm text-gray-700">
+            👟
+            <input className={`${inputCls} !w-16 text-center`} type="number" min="0" value={cantZapatos}
+              onChange={e => setCantZapatos(e.target.value)} placeholder="0" title="Pares de zapatos" />
+          </label>
+          <label className="flex items-center gap-1.5 text-sm text-gray-700">
+            👕
+            <input className={`${inputCls} !w-16 text-center`} type="number" min="0" value={cantRopa}
+              onChange={e => setCantRopa(e.target.value)} placeholder="0" title="Prendas de ropa" />
+          </label>
+          <label className="flex items-center gap-1.5 text-sm text-gray-700">
+            🧢
+            <input className={`${inputCls} !w-16 text-center`} type="number" min="0" value={cantAccesorios}
+              onChange={e => setCantAccesorios(e.target.value)} placeholder="0" title="Accesorios" />
+          </label>
+          {(() => {
+            const u = (parseInt(cantZapatos, 10) || 0) + (parseInt(cantRopa, 10) || 0) + (parseInt(cantAccesorios, 10) || 0)
+            const v = parseInt(valor.replace(/\D/g, ''), 10) || 0
+            return u > 0 && v > 0 ? (
+              <span className="text-xs font-semibold text-blue-600">
+                {u} unidades → {formatCOP(Math.round(v / u))} c/u
+              </span>
+            ) : null
+          })()}
+        </div>
         <p className="text-xs text-gray-400 mt-2">
           El valor se descuenta del saldo a favor (sale de la cuenta Davivienda). No es un gasto:
           el costo del envío va dentro del costo de la mercancía en la compra.
         </p>
       </div>
+
+      {/* Cuánto vale traer cada cosa (histórico de cajas con cantidades) */}
+      {totUnidades > 0 && (
+        <div className="bg-white rounded-xl border border-gray-100 p-4">
+          <p className="text-sm font-semibold text-gray-900 mb-2">¿Cuánto me vale traer?</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="rounded-xl bg-gray-50 px-3 py-2.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">👟 Zapatos</p>
+              <p className="font-bold text-gray-900 tabular-nums">{totZapatos} pares</p>
+            </div>
+            <div className="rounded-xl bg-gray-50 px-3 py-2.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">👕 Ropa</p>
+              <p className="font-bold text-gray-900 tabular-nums">{totRopa} prendas</p>
+            </div>
+            <div className="rounded-xl bg-gray-50 px-3 py-2.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">🧢 Accesorios</p>
+              <p className="font-bold text-gray-900 tabular-nums">{totAccesorios} unidades</p>
+            </div>
+            <div className="rounded-xl bg-blue-50 border border-blue-100 px-3 py-2.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-500">Costo por unidad</p>
+              <p className="font-bold text-blue-700 tabular-nums">{formatCOP(costoPorUnidad)}</p>
+              <p className="text-[10px] text-blue-400">{formatCOP(totValorCajas)} ÷ {totUnidades} uds</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Cobros de envíos */}
@@ -92,7 +165,18 @@ export function EnviosUsaPanel({ saldo, envios, ingresos }: {
                 <li key={e.id} className="px-4 py-2.5 flex items-center justify-between gap-3 text-sm">
                   <span className="min-w-0">
                     <span className="block text-gray-800 truncate">{e.descripcion}</span>
-                    <span className="text-xs text-gray-400">{formatFecha(e.fecha)}</span>
+                    <span className="text-xs text-gray-400">
+                      {formatFecha(e.fecha)}
+                      {(e.cant_zapatos + e.cant_ropa + e.cant_accesorios) > 0 && (
+                        <>
+                          {' · '}
+                          {e.cant_zapatos > 0 && `👟${e.cant_zapatos} `}
+                          {e.cant_ropa > 0 && `👕${e.cant_ropa} `}
+                          {e.cant_accesorios > 0 && `🧢${e.cant_accesorios} `}
+                          · {formatCOP(Math.round(e.valor / (e.cant_zapatos + e.cant_ropa + e.cant_accesorios)))} c/u
+                        </>
+                      )}
+                    </span>
                   </span>
                   <span className="inline-flex items-center gap-2 shrink-0">
                     <span className="font-semibold text-red-600">−{formatCOP(e.valor)}</span>

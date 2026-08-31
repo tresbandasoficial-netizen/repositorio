@@ -23,6 +23,10 @@ export async function registrarEnvioUsaAction(data: {
   valor: number
   descripcion: string
   fecha?: string
+  // Cuántas cosas venían en la caja, por tipo (para el costo por unidad).
+  cant_zapatos?: number
+  cant_ropa?: number
+  cant_accesorios?: number
 }): Promise<EnvioUsaResult> {
   const sesion = await getSesion()
   if (sesion.rol !== 'admin') return { ok: false, error: 'Solo el administrador maneja los envíos USA' }
@@ -51,10 +55,13 @@ export async function registrarEnvioUsaAction(data: {
 
   const { error } = await supabase.from('envios_usa').insert({
     fecha,
-    descripcion: data.descripcion.trim(),
-    valor:       data.valor,
-    traslado_id: tr.id,
-    creado_por:  sesion.id,
+    descripcion:     data.descripcion.trim(),
+    valor:           data.valor,
+    traslado_id:     tr.id,
+    creado_por:      sesion.id,
+    cant_zapatos:    Math.max(0, data.cant_zapatos ?? 0),
+    cant_ropa:       Math.max(0, data.cant_ropa ?? 0),
+    cant_accesorios: Math.max(0, data.cant_accesorios ?? 0),
   })
   if (error) return { ok: false, error: error.message }
 
