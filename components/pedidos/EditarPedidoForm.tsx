@@ -4,6 +4,7 @@ import { useState, useTransition, useEffect, useRef } from 'react'
 import { parsearPedido } from '@/lib/parser'
 import { ParsedPedido } from '@/types'
 import { editarPedidoAction } from '@/app/actions/pedidos'
+import { buscarClientesAction, ClienteBusqueda } from '@/app/actions/clientes'
 import { formatCOP } from '@/lib/utils/format'
 import { ImagenProducto } from '@/components/pedidos/ImagenProducto'
 import { uploadPedidoImage } from '@/lib/utils/uploadPedidoImage'
@@ -29,6 +30,7 @@ interface Props {
   tipoEntrega: 'sede' | 'domicilio'
   direccionEntrega: string | null
   productos: Producto[]
+  esAdmin?: boolean
 }
 
 function productosALineas(productos: Producto[]): LineaEdit[] {
@@ -95,6 +97,35 @@ export function EditarPedidoForm(props: Props) {
   const [error, setError]         = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
+  // Cambio de cliente (solo admin): el pedido se mueve a OTRO cliente. Mientras
+  // no se elija ninguno, editar nombre/celular corrige la ficha del cliente
+  // actual, como siempre.
+  const [clienteSel, setClienteSel]   = useState<{ id: string; nombre: string; telefono: string } | null>(null)
+  const [buscadorAbierto, setBuscadorAbierto] = useState(false)
+  const [qCliente, setQCliente]       = useState('')
+  const [resultados, setResultados]   = useState<ClienteBusqueda[]>([])
+
+  useEffect(() => {
+    if (!buscadorAbierto || qCliente.trim().length < 2) { setResultados([]); return }
+    const t = setTimeout(async () => {
+      setResultados(await buscarClientesAction(qCliente.trim()))
+    }, 300)
+    return () => clearTimeout(t)
+  }, [qCliente, buscadorAbierto])
+
+  function elegirCliente(c: ClienteBusqueda) {
+    setClienteSel({ id: c.id, nombre: c.nombre, telefono: c.telefono_normalizado })
+    setParsed(prev => ({ ...prev, cliente_nombre: c.nombre, cliente_telefono: c.telefono_normalizado }))
+    setBuscadorAbierto(false)
+    setQCliente('')
+    setResultados([])
+  }
+
+  function deshacerCambioCliente() {
+    setClienteSel(null)
+    setParsed(prev => ({ ...prev, cliente_nombre: props.clienteNombre, cliente_telefono: props.clienteTelefono }))
+  }
+
   // Producto activo para pegar imagen (Ctrl+V).
   const activeIdxRef = useRef(0)
 
@@ -158,7 +189,7 @@ export function EditarPedidoForm(props: Props) {
         direccion_entrega: parsed.direccion ?? '',
         cliente_nombre:    parsed.cliente_nombre,
         cliente_telefono:  parsed.cliente_telefono,
-        cliente_id:        clienteId,
+        cliente_id:        clienteSel?.id ?? clienteId,
         productos: productos.map(l => ({
           articulo_id:  l.articulo_id ?? null,
           marca:        l.marca,
@@ -242,7 +273,68 @@ export function EditarPedidoForm(props: Props) {
 
       {/* Cliente */}
       <div>
-        <p className="text-sm font-medium text-gray-700 mb-2">Cliente</p>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-sm font-medium text-gray-700">Cliente</p>
+          {props.esAdmin && !clienteSel && (
+            <button
+              type="button"
+              onClick={() => setBuscadorAbierto(v => !v)}
+              className="text-xs font-medium text-blue-600 hover:text-blue-800"
+            >
+              {buscadorAbierto ? 'Cerrar búsqueda' : '⇄ Cambiar de cliente'}
+            </button>
+          )}
+        </div>
+
+        {/* Buscador para mover el pedido a OTRO cliente (solo admin) */}
+        {buscadorAbierto && !clienteSel && (
+          <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 p-3">
+            <input
+              type="text"
+              value={qCliente}
+              onChange={e => setQCliente(e.target.value)}
+              placeholder="Busca por nombre o celular…"
+              autoFocus
+              className="w-full px-3 py-2 border border-blue-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            {resultados.length > 0 && (
+              <div className="mt-2 divide-y divide-blue-100 rounded-lg border border-blue-200 bg-white overflow-hidden">
+                {resultados.filter(c => c.id !== clienteId).map(c => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => elegirCliente(c)}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 transition-colors"
+                  >
+                    <span className="font-medium text-gray-900">{c.nombre}</span>
+                    <span className="ml-2 text-xs text-gray-500">{c.telefono_normalizado}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {qCliente.trim().length >= 2 && resultados.filter(c => c.id !== clienteId).length === 0 && (
+              <p className="mt-2 text-xs text-blue-700">Sin resultados con ese nombre o celular.</p>
+            )}
+          </div>
+        )}
+
+        {/* Aviso: el pedido se moverá al cliente elegido */}
+        {clienteSel && (
+          <div className="mb-3 flex items-center justify-between rounded-lg border border-blue-300 bg-blue-50 px-3 py-2">
+            <p className="text-sm text-blue-900">
+              ⇄ Al guardar, el pedido pasará a <span className="font-semibold">{clienteSel.nombre}</span>
+              <span className="ml-1 text-xs text-blue-700">{clienteSel.telefono}</span>
+            </p>
+            <button
+              type="button"
+              onClick={deshacerCambioCliente}
+              className="text-xs font-medium text-blue-600 hover:text-blue-800 shrink-0 ml-3"
+            >
+              Deshacer
+            </button>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs text-gray-500 mb-1">Nombre</label>

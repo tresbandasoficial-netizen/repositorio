@@ -68,6 +68,7 @@ export default async function EditarPedidoPage({
             notas={pedido.notas}
             tipoEntrega={pedido.tipo_entrega as 'sede' | 'domicilio'}
             direccionEntrega={pedido.direccion_entrega}
+            esAdmin={sesion.rol === 'admin'}
             productos={items.map((it: any) => ({
               marca:        it.marca ?? '',
               descripcion:  it.descripcion ?? '',

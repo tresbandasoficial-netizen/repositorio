@@ -641,9 +641,55 @@ export async function editarPedidoAction(
   const errorFicha = await fichaSinCodigo(supabase, data.productos)
   if (errorFicha) return { ok: false, error: errorFicha }
 
-  // Actualizar cliente (operación independiente — no afecta los items del pedido)
+  // El teléfono se valida ANTES de cualquier escritura: si viene mal, nada
+  // queda a medias (el cambio de cliente de abajo ya escribe en la BD).
   const telefonoNormalizado = normalizarTelefono(data.cliente_telefono)
   if (!telefonoNormalizado) return { ok: false, error: 'Teléfono inválido' }
+
+  // ¿Cambio de cliente? (solo admin): el pedido se puede mover a OTRO cliente
+  // cuando quedó registrado a nombre equivocado. Con factura activa no se
+  // permite — la factura pertenece al cliente original y quedaría descuadrada
+  // (es uno de los chequeos de vista_descuadres_cartera).
+  const { data: pedidoActual } = await supabase
+    .from('pedidos')
+    .select('cliente_id, factura_id')
+    .eq('id', pedidoId)
+    .maybeSingle()
+  if (!pedidoActual) return { ok: false, error: 'Pedido no encontrado' }
+
+  let notasFinales = data.notas.trim()
+  const cambiaCliente = Boolean(data.cliente_id) && data.cliente_id !== pedidoActual.cliente_id
+  if (cambiaCliente) {
+    if (sesion.rol !== 'admin') {
+      return { ok: false, error: 'Solo un administrador puede cambiar el pedido a otro cliente' }
+    }
+    if (pedidoActual.factura_id) {
+      return { ok: false, error: 'El pedido está facturado: anula la factura antes de cambiarlo de cliente' }
+    }
+    const admin = createAdminClient()
+    const { data: nuevoCliente } = await admin
+      .from('clientes')
+      .select('id, nombre')
+      .eq('id', data.cliente_id)
+      .maybeSingle()
+    if (!nuevoCliente) return { ok: false, error: 'El cliente seleccionado no existe' }
+    const { data: viejoCliente } = await admin
+      .from('clientes').select('nombre').eq('id', pedidoActual.cliente_id).maybeSingle()
+
+    const { error: errCli } = await admin
+      .from('pedidos')
+      .update({ cliente_id: data.cliente_id, fecha_actualizacion: new Date().toISOString() })
+      .eq('id', pedidoId)
+    if (errCli) return { ok: false, error: `No se pudo cambiar el cliente: ${errCli.message}` }
+
+    // La constancia va en las notas del pedido (el RPC de abajo las reescribe,
+    // así que se agrega aquí al texto final y no con un update aparte).
+    const constancia = `👤 Cliente cambiado: ${viejoCliente?.nombre ?? '¿?'} → ${nuevoCliente.nombre}`
+    notasFinales = notasFinales ? `${notasFinales}\n${constancia}` : constancia
+  }
+
+  // Actualizar cliente (operación independiente — no afecta los items del
+  // pedido). Si hubo cambio de cliente, aplica sobre el cliente NUEVO.
   await supabase
     .from('clientes')
     .update({ nombre: data.cliente_nombre.trim(), telefono_normalizado: telefonoNormalizado })
@@ -656,7 +702,7 @@ export async function editarPedidoAction(
   const { error } = await supabase.rpc('editar_pedido', {
     p_pedido_id:         pedidoId,
     p_numero_orden:      nuevoNumero,
-    p_notas:             data.notas.trim() || null,
+    p_notas:             notasFinales || null,
     p_tipo_entrega:      data.tipo_entrega,
     p_direccion_entrega: data.tipo_entrega === 'domicilio' ? data.direccion_entrega.trim() : null,
     p_total:             nuevoTotal,
