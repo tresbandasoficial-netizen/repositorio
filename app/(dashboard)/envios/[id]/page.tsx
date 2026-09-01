@@ -28,6 +28,21 @@ export default async function EnvioDetallePage({
   const articulos = envio.items.filter(it => !it.pedido_id)
   const esSantaRosa = envio.destino_codigo === 'SR'
 
+  // El botón "Llegó a Santa Rosa" solo aplica a pedidos que siguen EN CAMINO
+  // (mismos estados que avanza marcarPedidosSantaRosaAction). Si ya todos
+  // llegaron, el botón desaparece y queda la constancia verde.
+  let pedidosEnCamino: string[] = []
+  if (esSantaRosa && pedidos.length > 0) {
+    const { data: estados } = await supabase
+      .from('vista_pedidos_asesor')
+      .select('id, estado')
+      .in('id', pedidos.map(p => p.pedido_id!))
+    const AVANZABLES = ['pendiente', 'comprado', 'usa', 'bucaramanga']
+    pedidosEnCamino = ((estados ?? []) as Array<{ id: string; estado: string }>)
+      .filter(p => AVANZABLES.includes(p.estado))
+      .map(p => p.id)
+  }
+
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <div className="flex items-center gap-3 mb-6 flex-wrap">
@@ -35,8 +50,13 @@ export default async function EnvioDetallePage({
         <span className="text-gray-300">/</span>
         <h1 className="text-lg font-bold text-gray-900">Envío #{envio.consecutivo} → {envio.destino_nombre}</h1>
         <div className="ml-auto flex items-center gap-2">
-          {esSantaRosa && pedidos.length > 0 && (
-            <MarcarSantaRosaButton pedidoIds={pedidos.map(p => p.pedido_id!)} />
+          {esSantaRosa && pedidosEnCamino.length > 0 && (
+            <MarcarSantaRosaButton pedidoIds={pedidosEnCamino} />
+          )}
+          {esSantaRosa && pedidos.length > 0 && pedidosEnCamino.length === 0 && (
+            <span className="flex items-center gap-1.5 px-4 py-2 bg-green-100 text-green-800 text-sm font-bold rounded-xl">
+              ✓ Llegó a Santa Rosa
+            </span>
           )}
           <Link
             href={`/envios/${envio.id}/imprimir`}
