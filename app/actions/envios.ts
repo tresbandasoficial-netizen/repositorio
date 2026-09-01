@@ -7,11 +7,20 @@ import { getSesion, puedeVerPedido } from '@/lib/auth/acceso'
 
 // ─── Buscar pedido para el envío (por número escaneado/digitado) ─────────────
 
+export type PedidoEnvioItem = {
+  marca: string | null
+  descripcion: string | null
+  talla: string | null
+}
+
 export type PedidoEnvio = {
   id: string
   numero_orden: string
   cliente_nombre: string
   estado: string
+  // Artículos del pedido, para que el envío pueda llevarlos POR SEPARADO
+  // (a veces no llegan todos a tiempo y viajan en remisiones distintas).
+  items: PedidoEnvioItem[]
 }
 
 export async function buscarPedidoParaEnvioAction(
@@ -50,7 +59,22 @@ export async function buscarPedidoParaEnvioAction(
   if ((data as any).estado === 'cancelado') return { ok: false, error: `El pedido ${num} está cancelado` }
 
   const p = data as any
-  return { ok: true, pedido: { id: p.id, numero_orden: p.numero_orden, cliente_nombre: p.cliente_nombre, estado: p.estado } }
+
+  // Los artículos del pedido, en el mismo orden estable (por id) que usa el
+  // resto del sistema para la convención del sufijo -N.
+  const { data: itemsRaw } = await supabase
+    .from('pedido_items')
+    .select('marca, descripcion, talla')
+    .eq('pedido_id', p.id)
+    .order('id')
+
+  const items: PedidoEnvioItem[] = ((itemsRaw ?? []) as Array<{ marca: string | null; descripcion: string | null; talla: string | null }>).map(it => ({
+    marca: it.marca ?? null,
+    descripcion: it.descripcion ?? null,
+    talla: it.talla ?? null,
+  }))
+
+  return { ok: true, pedido: { id: p.id, numero_orden: p.numero_orden, cliente_nombre: p.cliente_nombre, estado: p.estado, items } }
 }
 
 // ─── Buscar artículo del catálogo (por código) ───────────────────────────────

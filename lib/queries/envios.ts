@@ -81,17 +81,41 @@ export async function getEnvioDetalle(id: string): Promise<EnvioDetalle | null> 
   // la remisión sin abrir cada pedido.
   const pedidoIds = [...new Set(((e.envio_items ?? []) as any[]).map(it => it.pedido_id).filter(Boolean))] as string[]
   const productosPorPedido = new Map<string, EnvioItem['productos']>()
+  const numeroRealDe = new Map<string, string>()
   if (pedidoIds.length > 0) {
-    const { data: items } = await supabase
-      .from('pedido_items')
-      .select('pedido_id, imagen_url, marca, descripcion, talla, cantidad')
-      .in('pedido_id', pedidoIds)
-      .order('id')
+    const [{ data: items }, { data: peds }] = await Promise.all([
+      supabase
+        .from('pedido_items')
+        .select('pedido_id, imagen_url, marca, descripcion, talla, cantidad')
+        .in('pedido_id', pedidoIds)
+        .order('id'),
+      supabase
+        .from('pedidos')
+        .select('id, numero_orden')
+        .in('id', pedidoIds),
+    ])
     for (const it of (items ?? []) as any[]) {
       const lista = productosPorPedido.get(it.pedido_id) ?? []
       lista.push({ imagen_url: it.imagen_url ?? null, marca: it.marca, descripcion: it.descripcion, talla: it.talla, cantidad: it.cantidad })
       productosPorPedido.set(it.pedido_id, lista)
     }
+    for (const p of (peds ?? []) as Array<{ id: string; numero_orden: string }>) numeroRealDe.set(p.id, p.numero_orden)
+  }
+
+  // Envío parcial: la fila "TR6835-2" (sufijo que NO es el número real del
+  // pedido) lleva SOLO el artículo 2 — en la remisión no deben salir los demás
+  // artículos del pedido, porque viajan (o viajarán) en otro envío.
+  function productosDeFila(it: { pedido_id: string | null; numero_orden: string | null }): EnvioItem['productos'] {
+    if (!it.pedido_id) return []
+    const todos = productosPorPedido.get(it.pedido_id) ?? []
+    const real = numeroRealDe.get(it.pedido_id)
+    const num = it.numero_orden ?? ''
+    const m = num.match(/-(\d+)$/)
+    if (m && real && real.toUpperCase() !== num.toUpperCase()) {
+      const prod = todos[parseInt(m[1], 10) - 1]
+      if (prod) return [{ ...prod, cantidad: 1 }]
+    }
+    return todos
   }
 
   return {
@@ -113,7 +137,7 @@ export async function getEnvioDetalle(id: string): Promise<EnvioDetalle | null> 
         talla: it.talla,
         cantidad: it.cantidad,
         descripcion: it.descripcion,
-        productos: it.pedido_id ? (productosPorPedido.get(it.pedido_id) ?? []) : [],
+        productos: productosDeFila(it),
       })),
   }
 }

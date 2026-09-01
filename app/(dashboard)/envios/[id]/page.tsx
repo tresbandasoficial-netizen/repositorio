@@ -26,6 +26,8 @@ export default async function EnvioDetallePage({
 
   const pedidos = envio.items.filter(it => it.pedido_id)
   const articulos = envio.items.filter(it => !it.pedido_id)
+  // Un pedido partido en varias filas (TR6835-1, TR6835-2) sigue siendo UN pedido.
+  const pedidosUnicos = new Set(pedidos.map(p => p.pedido_id)).size
   const esSantaRosa = envio.destino_codigo === 'SR'
 
   // El botón "Llegó a Santa Rosa" solo aplica a pedidos que siguen EN CAMINO
@@ -84,7 +86,7 @@ export default async function EnvioDetallePage({
         </div>
         <div>
           <p className="text-xs text-gray-400 uppercase font-medium">Contenido</p>
-          <p className="font-semibold text-gray-800">{pedidos.length} pedidos · {articulos.length} artículos</p>
+          <p className="font-semibold text-gray-800">{pedidosUnicos} pedidos · {articulos.length} artículos</p>
         </div>
         {envio.notas && (
           <div className="col-span-2 sm:col-span-4">

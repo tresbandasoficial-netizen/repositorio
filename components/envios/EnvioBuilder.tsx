@@ -7,6 +7,7 @@ import {
   buscarArticuloParaEnvioAction,
   crearEnvioAction,
   ItemEnvioInput,
+  PedidoEnvio,
 } from '@/app/actions/envios'
 import { buscarArticulosAction } from '@/app/actions/articulos'
 import { EstadoBadge } from '@/components/pedidos/EstadoBadge'
@@ -22,8 +23,46 @@ type OpcionArt = {
 }
 
 type ItemLista =
-  | { tipo: 'pedido'; pedido_id: string; numero_orden: string; descripcion: string; estado: string }
+  | { tipo: 'pedido'; pedido_id: string; numero_orden: string; descripcion: string; estado: string; articulo: string | null }
   | { tipo: 'articulo'; codigo: string; talla: string | null; cantidad: number; descripcion: string | null; enCatalogo: boolean }
+
+// Un pedido de VARIOS artículos entra al envío como una fila por artículo
+// (TR6835-1, TR6835-2…), cada una quitable por separado: a veces no llegan
+// todos a tiempo y el resto viaja en otra remisión. Con sufijo escaneado
+// (etiqueta por unidad) entra SOLO ese artículo; el sufijo que coincide con
+// un pedido real (separado) se respeta tal cual.
+type FilaPedido = Extract<ItemLista, { tipo: 'pedido' }>
+
+function filasDePedido(numEscaneado: string, pedido: PedidoEnvio): FilaPedido[] {
+  const base = {
+    tipo: 'pedido' as const,
+    pedido_id: pedido.id,
+    descripcion: pedido.cliente_nombre,
+    estado: pedido.estado,
+  }
+  const etiqueta = (it: { marca: string | null; descripcion: string | null; talla: string | null }) =>
+    [it.marca, it.descripcion, it.talla ? `T${it.talla}` : null].filter(Boolean).join(' ') || null
+
+  const m = numEscaneado.match(/-(\d+)$/)
+  const esParteReal = pedido.numero_orden.toUpperCase() === numEscaneado.toUpperCase()
+  if (m && !esParteReal) {
+    const n = parseInt(m[1], 10)
+    const prod = pedido.items[n - 1]
+    return [{
+      ...base,
+      numero_orden: `${pedido.numero_orden}-${n}`,
+      articulo: prod ? etiqueta(prod) : null,
+    }]
+  }
+  if (pedido.items.length > 1) {
+    return pedido.items.map((prod, i) => ({
+      ...base,
+      numero_orden: `${pedido.numero_orden}-${i + 1}`,
+      articulo: etiqueta(prod),
+    }))
+  }
+  return [{ ...base, numero_orden: pedido.numero_orden, articulo: pedido.items[0] ? etiqueta(pedido.items[0]) : null }]
+}
 
 export function EnvioBuilder({ sedes, sedeOrigenId, pedidosIniciales }: {
   sedes: { id: string; codigo: string; nombre: string }[]
@@ -122,15 +161,11 @@ export function EnvioBuilder({ sedes, sedeOrigenId, pedidosIniciales }: {
       for (const num of nums) {
         const r = await buscarPedidoParaEnvioAction(num)
         if (!r.ok) { fallidos.push(num); continue }
-        setItems(prev => prev.some(it => it.tipo === 'pedido' && it.numero_orden === r.pedido.numero_orden)
-          ? prev
-          : [...prev, {
-              tipo: 'pedido',
-              pedido_id: r.pedido.id,
-              numero_orden: r.pedido.numero_orden,
-              descripcion: r.pedido.cliente_nombre,
-              estado: r.pedido.estado,
-            }])
+        const filas = filasDePedido(num, r.pedido)
+        setItems(prev => [
+          ...prev,
+          ...filas.filter(f => !prev.some(it => it.tipo === 'pedido' && it.numero_orden === f.numero_orden)),
+        ])
       }
       if (fallidos.length > 0) setError(`No se pudieron agregar: ${fallidos.join(', ')}`)
       setCargandoIniciales(false)
@@ -151,13 +186,12 @@ export function EnvioBuilder({ sedes, sedeOrigenId, pedidosIniciales }: {
       const r = await buscarPedidoParaEnvioAction(num)
       if (!r.ok) { setError(r.error) }
       else {
-        setItems(prev => [...prev, {
-          tipo: 'pedido',
-          pedido_id: r.pedido.id,
-          numero_orden: r.pedido.numero_orden,
-          descripcion: r.pedido.cliente_nombre,
-          estado: r.pedido.estado,
-        }])
+        const filas = filasDePedido(num, r.pedido)
+        setItems(prev => {
+          const nuevas = filas.filter(f => !prev.some(it => it.tipo === 'pedido' && it.numero_orden === f.numero_orden))
+          if (nuevas.length === 0) setError(`El pedido ${num} ya está en la lista`)
+          return [...prev, ...nuevas]
+        })
       }
       setNumeroPedido('')
       scanRef.current?.focus()
@@ -222,7 +256,8 @@ export function EnvioBuilder({ sedes, sedeOrigenId, pedidosIniciales }: {
     })
   }
 
-  const numPedidos = items.filter(i => i.tipo === 'pedido').length
+  // Filas partidas del mismo pedido (TR6835-1, TR6835-2) cuentan como UN pedido.
+  const numPedidos = new Set(items.filter(i => i.tipo === 'pedido').map(i => (i as Extract<ItemLista, { tipo: 'pedido' }>).pedido_id)).size
   const numArticulos = items.filter(i => i.tipo === 'articulo').length
 
   return (
@@ -391,7 +426,12 @@ export function EnvioBuilder({ sedes, sedeOrigenId, pedidosIniciales }: {
                   {it.tipo === 'pedido' ? (
                     <>
                       <span className="font-mono font-bold text-sm text-gray-900 w-24 shrink-0">{it.numero_orden}</span>
-                      <span className="flex-1 text-sm text-gray-600 truncate">{it.descripcion}</span>
+                      <span className="flex-1 min-w-0 text-sm text-gray-600">
+                        <span className="block truncate">{it.descripcion}</span>
+                        {it.articulo && (
+                          <span className="block truncate text-xs text-gray-400">{it.articulo}</span>
+                        )}
+                      </span>
                       <EstadoBadge estado={it.estado as EstadoPedido} enAlerta={false} />
                     </>
                   ) : (
