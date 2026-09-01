@@ -14,6 +14,11 @@ function inicioMes() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
 }
 
+// Cuenta entre sedes (mig. 186): plata que una sede invirtió en pedidos de
+// otra. Se calcula sola: la cuenta de pago de la compra dice de dónde salió
+// el dinero y el código del pedido (TR/SR/CR) dice para qué sede fue.
+export type ParEntreSedes = { de: string; para: string; total: number; n: number }
+
 interface Props {
   gastos: Gasto[]
   cuentas: { id: string; nombre: string }[]
@@ -25,9 +30,10 @@ interface Props {
   filtros: { desde: string; hasta: string; categoria?: CategoriaGasto; sede_id?: string }
   cuentasDestino?: { id: string; nombre: string }[]
   origenTrasladoId?: string
+  entreSedes?: ParEntreSedes[]
 }
 
-export function GastosClientPage({ gastos, cuentas, sedes, sedeRestringida, esAdmin = true, porCategoria, totalGeneral, filtros, cuentasDestino = [], origenTrasladoId = '' }: Props) {
+export function GastosClientPage({ gastos, cuentas, sedes, sedeRestringida, esAdmin = true, porCategoria, totalGeneral, filtros, cuentasDestino = [], origenTrasladoId = '', entreSedes = [] }: Props) {
   const [mostrarForm, setMostrarForm] = useState(false)
   // Sede por defecto: la restringida del asesor, o Bucaramanga para el admin
   const sedeDefecto = sedeRestringida?.id ?? sedes.find(s => s.codigo === 'TR')?.id ?? sedes[0]?.id ?? ''
@@ -235,6 +241,40 @@ export function GastosClientPage({ gastos, cuentas, sedes, sedeRestringida, esAd
         </div>
       )}
 
+      {/* Cuenta entre sedes: plata de una sede invertida en pedidos de otra.
+          Automática — la cuenta de pago de cada compra dice de dónde salió el
+          dinero y el código del pedido (TR/SR/CR) dice para qué sede fue. */}
+      {esAdmin && entreSedes.length > 0 && (
+        <div className="bg-white rounded-xl border border-blue-200 overflow-hidden">
+          <div className="px-5 py-3 border-b border-blue-100 bg-blue-50">
+            <p className="text-sm font-bold text-blue-900">🔄 Cuenta entre sedes (acumulado)</p>
+            <p className="text-xs text-blue-700 mt-0.5">
+              Se calcula sola con cada compra: la cuenta de pago dice de dónde salió la plata y el código del pedido (TR/SR) dice para qué sede fue.
+            </p>
+          </div>
+          <div className="p-4 space-y-3">
+            {entreSedes.map(p => (
+              <div key={`${p.de}-${p.para}`} className="flex items-center justify-between text-sm">
+                <p className="text-gray-700">
+                  <span className="font-semibold">{nombreSede(sedes, p.de)}</span> ha invertido en pedidos de{' '}
+                  <span className="font-semibold">{nombreSede(sedes, p.para)}</span>
+                  <span className="text-xs text-gray-400 ml-1.5">({p.n} artículo{p.n !== 1 ? 's' : ''})</span>
+                </p>
+                <p className="font-bold text-gray-900 tabular-nums">{formatCOP(p.total)}</p>
+              </div>
+            ))}
+            {netosEntreSedes(entreSedes).map(neto => (
+              <div key={neto.clave} className="flex items-center justify-between rounded-lg bg-blue-50 border border-blue-200 px-3 py-2 text-sm">
+                <p className="font-semibold text-blue-900">
+                  Neto: {nombreSede(sedes, neto.deudora)} le va debiendo a {nombreSede(sedes, neto.acreedora)}
+                </p>
+                <p className="font-bold text-blue-900 tabular-nums">{formatCOP(neto.valor)}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Lista de gastos agrupada por día, cada gasto en su celda */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
@@ -288,6 +328,34 @@ export function GastosClientPage({ gastos, cuentas, sedes, sedeRestringida, esAd
       </div>
     </div>
   )
+}
+
+function nombreSede(sedes: { codigo: string; nombre: string }[], codigo: string): string {
+  return sedes.find(s => s.codigo === codigo)?.nombre ?? codigo
+}
+
+// Neto por pareja de sedes: quién le va debiendo a quién. La sede cuyos
+// pedidos recibieron MÁS inversión de la otra queda debiendo la diferencia.
+function netosEntreSedes(pares: ParEntreSedes[]): Array<{ clave: string; deudora: string; acreedora: string; valor: number }> {
+  const porPareja = new Map<string, { a: string; b: string; aParaB: number; bParaA: number }>()
+  for (const p of pares) {
+    const [a, b] = [p.de, p.para].sort()
+    const clave = `${a}|${b}`
+    const par = porPareja.get(clave) ?? { a, b, aParaB: 0, bParaA: 0 }
+    if (p.de === a) par.aParaB += p.total
+    else par.bParaA += p.total
+    porPareja.set(clave, par)
+  }
+  const netos: Array<{ clave: string; deudora: string; acreedora: string; valor: number }> = []
+  for (const [clave, par] of porPareja) {
+    const dif = par.aParaB - par.bParaA
+    if (dif === 0) continue
+    // Si A invirtió más en pedidos de B que al revés, B le debe a A.
+    netos.push(dif > 0
+      ? { clave, deudora: par.b, acreedora: par.a, valor: dif }
+      : { clave, deudora: par.a, acreedora: par.b, valor: -dif })
+  }
+  return netos.sort((x, y) => y.valor - x.valor)
 }
 
 // Color de la etiqueta según la categoría del gasto

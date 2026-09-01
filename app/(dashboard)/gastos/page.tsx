@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getSesion } from '@/lib/auth/acceso'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getGastosAction } from '@/app/actions/gastos'
 import { formatCOP, hoyBogota } from '@/lib/utils/format'
 import { CATEGORIA_GASTO_LABELS, CategoriaGasto, CATEGORIAS_GASTO, metodosDeSede } from '@/types'
@@ -56,6 +57,44 @@ export default async function GastosPage({
 
   const sedeRestringida = sedeForzadaId ? (sedes.find(s => s.id === sedeForzadaId) ?? null) : null
 
+  // Cuenta entre sedes (mig. 186, solo admin): plata de una sede invertida en
+  // pedidos de otra. Automática: cada compra dice de qué cuenta salió el
+  // dinero (cuenta → sede; cuentas globales = TR, el hub de compras, igual
+  // que _sincronizarGastoCompra) y el pedido dice para qué sede fue. Se usa
+  // el cliente de servicio porque los costos de compra son solo de admin y
+  // la página ya validó el rol.
+  let entreSedes: { de: string; para: string; total: number; n: number }[] = []
+  if (sesion.rol === 'admin') {
+    const adminClient = createAdminClient()
+    const { data: cruces } = await adminClient
+      .from('compra_items')
+      .select(`
+        costo_unitario_cop, cantidad,
+        pedido:pedidos!inner(sede_id),
+        compra:compras!inner(cuenta_id, cuenta:cuentas(sede_id))
+      `)
+      .not('pedido_id', 'is', null)
+      .limit(10000)
+
+    const codigoDe = (id: string | null) => sedes.find(s => s.id === id)?.codigo ?? null
+    const porDireccion = new Map<string, { de: string; para: string; total: number; n: number }>()
+    for (const raw of (cruces ?? []) as any[]) {
+      const pedido = Array.isArray(raw.pedido) ? raw.pedido[0] : raw.pedido
+      const compra = Array.isArray(raw.compra) ? raw.compra[0] : raw.compra
+      const cuenta = compra ? (Array.isArray(compra.cuenta) ? compra.cuenta[0] : compra.cuenta) : null
+      if (!pedido || !compra?.cuenta_id) continue // sin cuenta no se sabe de dónde salió la plata
+      const de = codigoDe(cuenta?.sede_id ?? null) ?? 'TR' // cuenta global → Bucaramanga
+      const para = codigoDe(pedido.sede_id)
+      if (!para || de === para) continue
+      const clave = `${de}→${para}`
+      const acc = porDireccion.get(clave) ?? { de, para, total: 0, n: 0 }
+      acc.total += (raw.costo_unitario_cop ?? 0) * (raw.cantidad ?? 1)
+      acc.n += raw.cantidad ?? 1
+      porDireccion.set(clave, acc)
+    }
+    entreSedes = [...porDireccion.values()].sort((a, b) => b.total - a.total)
+  }
+
   const totalGeneral = gastos.reduce((s, g) => s + g.valor, 0)
   const porCategoria = CATEGORIAS_GASTO.map(cat => ({
     categoria: cat,
@@ -75,6 +114,7 @@ export default async function GastosPage({
       filtros={{ desde, hasta, categoria, sede_id }}
       cuentasDestino={cuentasDestino}
       origenTrasladoId={origenDefault}
+      entreSedes={entreSedes}
     />
   )
 }
