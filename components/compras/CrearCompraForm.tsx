@@ -246,6 +246,17 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
 
   const totalCopNum = parseInt(totalCopPagado.replace(/\D/g, ''), 10) || 0
 
+  // Suma EN VIVO de lo digitado: se recalcula con cada tecla para ir viendo
+  // si la factura va cuadrando antes de llegar al botón de guardar.
+  const sumaItemsCop = items.reduce(
+    (s, it) => s + ((parseInt(it.costo_unitario_cop, 10) || 0) * (parseInt(it.cantidad, 10) || 0)), 0)
+  const sumaItemsUsd = items.reduce(
+    (s, it) => s + (it.precio_usd ?? 0) * (parseInt(it.cantidad, 10) || 1), 0)
+  const totalUnidades = items.reduce((s, it) => s + (parseInt(it.cantidad, 10) || 0), 0)
+  // La misma tolerancia del cuadre al guardar: solo el redondeo USD→COP.
+  const toleranciaSuma = Math.max(200, items.length * 50)
+  const difCop = totalCopNum - sumaItemsCop
+
   // Base sobre la que se reparten tax y envío. Manda el Subtotal USD de la
   // factura: la suma de los precios ya escritos serviría solo si estuvieran
   // TODOS, y mientras se van digitando uno por uno daría una tasa inflada
@@ -324,10 +335,8 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
   // No dispara el recálculo de costos: eso solo pasa en el onChange del campo,
   // y aquí el total se escribe desde el código. Justo eso rompe el círculo.
   function usarSumaComoTotal() {
-    const suma = items.reduce(
-      (s, it) => s + ((parseInt(it.costo_unitario_cop, 10) || 0) * (parseInt(it.cantidad, 10) || 0)), 0)
-    if (suma <= 0) { setError('Los productos no tienen costo para sumar'); return }
-    setTotalCopPagado(String(suma))
+    if (sumaItemsCop <= 0) { setError('Los productos no tienen costo para sumar'); return }
+    setTotalCopPagado(String(sumaItemsCop))
     setError(null)
   }
 
@@ -570,14 +579,12 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
     if (!cuentaId) { setError('Selecciona la cuenta de pago: de dónde salió el dinero de esta compra'); return }
     // Total en COP: si no lo digitaron, se calcula solo sumando los productos
     // (costo unitario × cantidad). Así no se bloquea la compra por el campo.
-    const totalItemsCop = items.reduce(
-      (s, it) => s + ((parseInt(it.costo_unitario_cop, 10) || 0) * (parseInt(it.cantidad, 10) || 0)), 0)
+    const totalItemsCop = sumaItemsCop
     const totalCopFinal = totalCopNum > 0 ? totalCopNum : totalItemsCop
     // La suma de los productos debe cuadrar con el total de la factura.
     // Tolerancia SOLO para el redondeo USD→COP: $50 por producto (mín $200);
     // una diferencia de $1.000 ya es un dígito mal puesto y se bloquea.
-    const toleranciaCuadre = Math.max(200, items.length * 50)
-    if (totalCopNum > 0 && totalItemsCop > 0 && Math.abs(totalCopNum - totalItemsCop) > toleranciaCuadre) {
+    if (totalCopNum > 0 && totalItemsCop > 0 && Math.abs(totalCopNum - totalItemsCop) > toleranciaSuma) {
       setError(`La suma de los productos (${formatCOP(totalItemsCop)}) no cuadra con el total de la factura (${formatCOP(totalCopNum)}) — diferencia de ${formatCOP(Math.abs(totalCopNum - totalItemsCop))}. Revisa los costos, las cantidades o si hay una fila repetida.`)
       return
     }
@@ -1416,6 +1423,51 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
         </CardContent>
       </Card>
 
+      {/* Suma en vivo de los productos: va corriendo con cada tecla y se queda
+          pegada abajo de la pantalla, para ver si la factura va cuadrando sin
+          tener que llegar hasta el botón de guardar. */}
+      {items.length > 0 && (() => {
+        const hayComparacion = totalCopNum > 0 && sumaItemsCop > 0
+        const cuadra = hayComparacion && Math.abs(difCop) <= toleranciaSuma
+        const falta  = hayComparacion && difCop > toleranciaSuma
+        const sePasa = hayComparacion && difCop < -toleranciaSuma
+        return (
+          <div className="sticky bottom-3 z-10 max-w-3xl">
+            <div className={`rounded-xl border-2 shadow-lg px-4 py-3 flex items-center gap-x-5 gap-y-1 flex-wrap text-sm ${
+              cuadra ? 'border-green-300 bg-green-50' :
+              sePasa ? 'border-red-300 bg-red-50' :
+              falta  ? 'border-amber-300 bg-amber-50' :
+                       'border-gray-200 bg-white'
+            }`}>
+              <span className="text-xs text-gray-500 font-medium shrink-0">
+                {items.length} producto{items.length !== 1 ? 's' : ''} · {totalUnidades} unidad{totalUnidades !== 1 ? 'es' : ''}
+              </span>
+              {moneda === 'USD' && sumaItemsUsd > 0 && (
+                <span className="text-xs text-gray-600 shrink-0">
+                  Suma USD: <span className="font-semibold">${sumaItemsUsd.toFixed(2)}</span>
+                  {parseFloat(subtotalUsd) > 0 && (
+                    <span className="text-gray-400"> / subtotal ${parseFloat(subtotalUsd).toFixed(2)}</span>
+                  )}
+                </span>
+              )}
+              <span className="font-semibold text-gray-900 shrink-0">
+                Suma COP: {formatCOP(sumaItemsCop)}
+              </span>
+              {totalCopNum > 0 && (
+                <span className="text-xs text-gray-500 shrink-0">Total factura: {formatCOP(totalCopNum)}</span>
+              )}
+              <span className="flex-1" />
+              {cuadra && <span className="font-bold text-green-700 shrink-0">✓ Cuadra con el total</span>}
+              {falta  && <span className="font-bold text-amber-700 shrink-0">Faltan {formatCOP(difCop)}</span>}
+              {sePasa && <span className="font-bold text-red-700 shrink-0">Se pasa por {formatCOP(-difCop)}</span>}
+              {totalCopNum <= 0 && sumaItemsCop > 0 && (
+                <span className="text-xs text-gray-400 shrink-0">Sin total digitado — la suma quedará como total</span>
+              )}
+            </div>
+          </div>
+        )
+      })()}
+
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700 space-y-2">
           <p>{error}</p>
@@ -1430,9 +1482,7 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
                   onClick={usarSumaComoTotal}
                   className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors"
                 >
-                  Los costos están bien → subir el total a{' '}
-                  {formatCOP(items.reduce((s, it) =>
-                    s + ((parseInt(it.costo_unitario_cop, 10) || 0) * (parseInt(it.cantidad, 10) || 0)), 0))}
+                  Los costos están bien → subir el total a {formatCOP(sumaItemsCop)}
                 </button>
                 <button
                   type="button"
