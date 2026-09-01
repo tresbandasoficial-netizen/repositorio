@@ -225,6 +225,40 @@ export async function marcarPedidosSantaRosaAction(
   const pedidos = (data ?? []) as Array<{ id: string; numero_orden: string; estado: string; sede_id: string }>
   const AVANZABLES = ['pendiente', 'comprado', 'usa', 'bucaramanga']
 
+  // Cobertura de envíos: el estado 'santa_rosa' significa que el pedido
+  // COMPLETO está en la sede. Un pedido partido en filas por artículo
+  // (TR6835-1, TR6835-2 en envíos distintos) solo avanza cuando ya viajaron
+  // TODOS sus artículos a Santa Rosa; mientras tanto se reporta como parcial
+  // y queda "en camino" para marcarlo con el envío que traiga el resto.
+  const numeroRealDe = new Map(pedidos.map(p => [p.id, p.numero_orden]))
+  const ids = pedidos.map(p => p.id)
+  const [{ data: itemsPed }, { data: filasEnvio }] = await Promise.all([
+    supabase.from('pedido_items').select('pedido_id').in('pedido_id', ids),
+    supabase
+      .from('envio_items')
+      .select('pedido_id, numero_orden, envio:envios!inner(destino:sedes!envios_destino_sede_id_fkey(codigo))')
+      .in('pedido_id', ids),
+  ])
+  const totalArticulos = new Map<string, number>()
+  for (const it of (itemsPed ?? []) as Array<{ pedido_id: string }>) {
+    totalArticulos.set(it.pedido_id, (totalArticulos.get(it.pedido_id) ?? 0) + 1)
+  }
+  const articulosEnviados = new Map<string, Set<number>>() // índices -N que ya viajaron
+  const viajoCompleto = new Set<string>()                   // fila del pedido entero
+  for (const f of (filasEnvio ?? []) as unknown as Array<{ pedido_id: string; numero_orden: string | null; envio: { destino: { codigo: string } | null } | null }>) {
+    if (f.envio?.destino?.codigo !== 'SR') continue
+    const real = numeroRealDe.get(f.pedido_id)
+    const num = f.numero_orden ?? ''
+    const m = num.match(/-(\d+)$/)
+    if (m && real && real.toUpperCase() !== num.toUpperCase()) {
+      const set = articulosEnviados.get(f.pedido_id) ?? new Set<number>()
+      set.add(parseInt(m[1], 10))
+      articulosEnviados.set(f.pedido_id, set)
+    } else {
+      viajoCompleto.add(f.pedido_id)
+    }
+  }
+
   let marcados = 0
   const omitidos: string[] = []
   for (const p of pedidos) {
@@ -232,6 +266,14 @@ export async function marcarPedidosSantaRosaAction(
     if (!puedeVerPedido(sesion, p.sede_id)) { omitidos.push(p.numero_orden); continue }
     if (p.estado === 'santa_rosa') continue // ya está
     if (!AVANZABLES.includes(p.estado)) { omitidos.push(`${p.numero_orden} (${p.estado})`); continue }
+    const total = totalArticulos.get(p.id) ?? 0
+    if (total > 1 && !viajoCompleto.has(p.id)) {
+      const enviados = articulosEnviados.get(p.id)?.size ?? 0
+      if (enviados < total) {
+        omitidos.push(`${p.numero_orden} (parcial: han viajado ${enviados} de ${total} artículos — se marca cuando llegue el resto)`)
+        continue
+      }
+    }
     const { error } = await supabase.rpc('cambiar_estado_pedido', {
       p_pedido_id:    p.id,
       p_nuevo_estado: 'santa_rosa',
