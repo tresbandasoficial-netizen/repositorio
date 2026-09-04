@@ -70,9 +70,12 @@ export async function getGastosAction(filtros: GastosFiltros): Promise<Gasto[]> 
   const sesion = await getSesion()
   const supabase = await createClient()
 
+  // sede:sedes necesita el hint !sede_id desde la migración 186: gastos tiene
+  // dos FK hacia sedes (sede_id y sede_destino_id) y sin hint PostgREST
+  // responde 300 (relación ambigua) — la lista salía vacía en silencio.
   let q = supabase
     .from('gastos')
-    .select('*, sede:sedes(codigo,nombre), cuenta:cuentas(nombre,tipo), responsable:usuarios(nombre)')
+    .select('*, sede:sedes!sede_id(codigo,nombre), cuenta:cuentas(nombre,tipo), responsable:usuarios(nombre)')
     .gte('fecha', filtros.desde)
     .lte('fecha', filtros.hasta)
     .order('fecha', { ascending: false })
@@ -85,7 +88,8 @@ export async function getGastosAction(filtros: GastosFiltros): Promise<Gasto[]> 
   if (filtros.categoria) q = q.eq('categoria', filtros.categoria)
   if (filtros.sede_id)   q = q.eq('sede_id', filtros.sede_id)
 
-  const { data } = await q
+  const { data, error } = await q
+  if (error) console.error('Error consultando gastos:', error)
   return (data ?? []) as Gasto[]
 }
 
