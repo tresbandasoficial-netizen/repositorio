@@ -134,9 +134,11 @@ export function GaleriaPedidos({
   const [cambiandoPrenda, setCambiandoPrenda] = useState<number | null>(null)
 
   async function cambiarEstadoPrenda(pedido: PedidoRow, itemIdx: number, nuevoEstado: EstadoPedido, nItems: number) {
-    const aviso = nItems > 1
-      ? `Este pedido tiene ${nItems} prendas: se separará en ${nItems} pedidos (${pedido.numero_orden}-1…) y SOLO la prenda ${itemIdx + 1} pasará a "${ESTADO_LABELS[nuevoEstado]}". ¿Continuar?`
-      : `¿Pasar la prenda a "${ESTADO_LABELS[nuevoEstado]}"?`
+    const aviso = nuevoEstado === 'cancelado'
+      ? `⚠️ Se CANCELARÁ solo la prenda ${itemIdx + 1} de ${nItems}: el pedido se separa (${pedido.numero_orden}-1…), esa parte queda cancelada y los abonos del cliente pasan a las prendas que siguen. ¿Continuar?`
+      : nItems > 1
+        ? `Este pedido tiene ${nItems} prendas: se separará en ${nItems} pedidos (${pedido.numero_orden}-1…) y SOLO la prenda ${itemIdx + 1} pasará a "${ESTADO_LABELS[nuevoEstado]}". ¿Continuar?`
+        : `¿Pasar la prenda a "${ESTADO_LABELS[nuevoEstado]}"?`
     if (!confirm(aviso)) return
     setCambiandoPrenda(itemIdx)
     const r = await cambiarEstadoPrendaAction(pedido.id, itemIdx, nuevoEstado)
@@ -476,9 +478,11 @@ export function GaleriaPedidos({
                       {cambiandoPrenda === i ? 'Cambiando…' : `${ESTADO_LABELS[sel.pedido.estado as EstadoPedido] ?? sel.pedido.estado} → elegir…`}
                     </option>
                     {transicionesDisponibles(sel.pedido.estado as EstadoPedido, esAdmin ? 'admin' : 'asesor')
-                      .filter(est => est !== 'entregado' && est !== 'cancelado')
+                      .filter(est => est !== 'entregado')
                       .map(est => (
-                        <option key={est} value={est}>{ESTADO_LABELS[est]}</option>
+                        <option key={est} value={est}>
+                          {est === 'cancelado' ? '✕ Cancelar solo esta prenda' : ESTADO_LABELS[est]}
+                        </option>
                       ))}
                   </select>
                 </div>
