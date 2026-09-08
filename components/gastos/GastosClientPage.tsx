@@ -5,7 +5,7 @@ import { formatCOP, formatHora, formatMiles, hoyBogota } from '@/lib/utils/forma
 import {
   Gasto, Cuenta, CategoriaGasto, CATEGORIA_GASTO_LABELS, CATEGORIAS_GASTO,
 } from '@/types'
-import { crearGastoAction, eliminarGastoAction } from '@/app/actions/gastos'
+import { crearGastoAction, eliminarGastoAction, vincularGastoFijoAction } from '@/app/actions/gastos'
 import { ConsignarDineroButton } from './ConsignarDineroButton'
 
 function hoy() { return hoyBogota() }
@@ -31,9 +31,13 @@ interface Props {
   cuentasDestino?: { id: string; nombre: string }[]
   origenTrasladoId?: string
   entreSedes?: ParEntreSedes[]
+  // Gastos fijos activos (solo llega con datos para el admin): permite marcar
+  // un gasto como "el pago del fijo del mes" — el check de /gastos-fijos se
+  // pone solo.
+  gastosFijos?: { id: string; concepto: string; sede_id: string | null }[]
 }
 
-export function GastosClientPage({ gastos, cuentas, sedes, sedeRestringida, esAdmin = true, porCategoria, totalGeneral, filtros, cuentasDestino = [], origenTrasladoId = '', entreSedes = [] }: Props) {
+export function GastosClientPage({ gastos, cuentas, sedes, sedeRestringida, esAdmin = true, porCategoria, totalGeneral, filtros, cuentasDestino = [], origenTrasladoId = '', entreSedes = [], gastosFijos = [] }: Props) {
   const [mostrarForm, setMostrarForm] = useState(false)
   // Sede por defecto: la restringida del asesor, o Bucaramanga para el admin
   const sedeDefecto = sedeRestringida?.id ?? sedes.find(s => s.codigo === 'TR')?.id ?? sedes[0]?.id ?? ''
@@ -44,9 +48,25 @@ export function GastosClientPage({ gastos, cuentas, sedes, sedeRestringida, esAd
     sede_id:     sedeDefecto,
     cuenta_id:   '',
     observacion: '',
+    gasto_fijo_id: '', // '' = no es un gasto fijo
   })
   const [error, setError] = useState<string | null>(null)
   const [isPending, start] = useTransition()
+  const [vinculando, setVinculando] = useState<string | null>(null)
+
+  // Marca/desmarca un gasto ya registrado como el pago de un fijo del mes.
+  function vincularFijo(gastoId: string, gastoFijoId: string | null) {
+    setVinculando(gastoId)
+    start(async () => {
+      const r = await vincularGastoFijoAction(gastoId, gastoFijoId)
+      setVinculando(null)
+      if (!r.ok) { alert(r.error); return }
+      window.location.reload()
+    })
+  }
+
+  const conceptoFijo = (id: string | null | undefined) =>
+    gastosFijos.find(f => f.id === id)?.concepto ?? 'fijo'
 
   // Los costos de compra de mercancía son información solo de admin.
   const categoriasVisibles = esAdmin
@@ -71,10 +91,11 @@ export function GastosClientPage({ gastos, cuentas, sedes, sedeRestringida, esAd
         sede_id:     form.sede_id,
         cuenta_id:   form.cuenta_id || null,
         observacion: form.observacion,
+        gasto_fijo_id: form.gasto_fijo_id || null,
       })
       if (!r.ok) { setError(r.error); return }
       setMostrarForm(false)
-      setForm({ fecha: hoy(), valor: '', categoria: '', sede_id: sedeDefecto, cuenta_id: '', observacion: '' })
+      setForm({ fecha: hoy(), valor: '', categoria: '', sede_id: sedeDefecto, cuenta_id: '', observacion: '', gasto_fijo_id: '' })
       window.location.reload()
     })
   }
@@ -180,6 +201,19 @@ export function GastosClientPage({ gastos, cuentas, sedes, sedeRestringida, esAd
                 placeholder="Detalle del gasto..."
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
+            {esAdmin && gastosFijos.length > 0 && (
+              <div className="col-span-2">
+                <label className="block text-xs text-gray-500 mb-1">📌 ¿Es un gasto fijo del mes?</label>
+                <select value={form.gasto_fijo_id} onChange={e => set('gasto_fijo_id', e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="">No — gasto normal</option>
+                  {gastosFijos
+                    .filter(f => !f.sede_id || f.sede_id === form.sede_id)
+                    .map(f => <option key={f.id} value={f.id}>{f.concepto}</option>)}
+                </select>
+                <p className="text-[11px] text-gray-400 mt-1">Al elegir uno, ese fijo queda marcado como pagado este mes en Punto de equilibrio — sin pasos extra.</p>
+              </div>
+            )}
           </div>
 
           {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-2">{error}</p>}
@@ -308,6 +342,33 @@ export function GastosClientPage({ gastos, cuentas, sedes, sedeRestringida, esAd
                       <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 shrink-0">{(g.sede as any)?.codigo ?? '—'}</span>
                       <span className="text-xs text-gray-500 shrink-0">{(g.cuenta as any)?.nombre ?? 'sin cuenta'}</span>
                       <span className="text-xs text-gray-400 truncate flex-1 min-w-24">{g.observacion ?? ''}</span>
+                      {/* Marcar como gasto fijo del mes (solo admin) */}
+                      {esAdmin && gastosFijos.length > 0 && (
+                        g.gasto_fijo_id ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 shrink-0">
+                            📌 {conceptoFijo(g.gasto_fijo_id)}
+                            <button
+                              onClick={() => { if (confirm('¿Quitar la marca de gasto fijo?')) vincularFijo(g.id, null) }}
+                              disabled={vinculando === g.id}
+                              className="text-indigo-400 hover:text-indigo-800"
+                              title="Quitar marca de fijo"
+                            >✕</button>
+                          </span>
+                        ) : (
+                          <select
+                            value=""
+                            disabled={vinculando === g.id}
+                            onChange={e => { if (e.target.value) vincularFijo(g.id, e.target.value); e.target.value = '' }}
+                            className="text-[11px] border border-gray-200 rounded-lg px-1.5 py-0.5 bg-white text-gray-500 shrink-0 focus:outline-none focus:ring-1 focus:ring-indigo-400 disabled:opacity-50"
+                            title="Marcar este gasto como un gasto fijo del mes"
+                          >
+                            <option value="">{vinculando === g.id ? '…' : '📌 ¿Fijo?'}</option>
+                            {gastosFijos
+                              .filter(f => !f.sede_id || f.sede_id === g.sede_id)
+                              .map(f => <option key={f.id} value={f.id}>{f.concepto}</option>)}
+                          </select>
+                        )
+                      )}
                       <span className="text-sm font-bold text-red-600 shrink-0 ml-auto">{formatCOP(g.valor)}</span>
                       {esAdmin && (
                         <button

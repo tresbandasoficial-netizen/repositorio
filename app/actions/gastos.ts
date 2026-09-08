@@ -16,9 +16,46 @@ export type GastoInput = {
   sede_id: string
   cuenta_id: string | null
   observacion: string
+  // "Este gasto ES el pago de un gasto fijo del mes" (mig. 190, solo admin):
+  // al guardarlo, el fijo queda marcado como pagado en /gastos-fijos.
+  gasto_fijo_id?: string | null
 }
 
 export type GastoResult = { ok: true; id: string } | { ok: false; error: string }
+
+// Marca (o desmarca) el mes del fijo en gastos_fijos_pagos según la fecha del
+// gasto. El desmarque solo borra el check si NINGÚN otro gasto del mes sigue
+// vinculado a ese fijo.
+async function _sincronizarPagoFijo(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  gastoFijoId: string,
+  fechaGasto: string,
+  usuarioId: string,
+  vincular: boolean,
+) {
+  const mes = fechaGasto.slice(0, 8) + '01'
+  if (vincular) {
+    await supabase.from('gastos_fijos_pagos').upsert(
+      { gasto_fijo_id: gastoFijoId, mes, usuario_id: usuarioId },
+      { onConflict: 'gasto_fijo_id,mes' },
+    )
+  } else {
+    const [y, m] = mes.split('-').map(Number)
+    const mesSiguiente = `${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, '0')}-01`
+    const { data: otros } = await supabase
+      .from('gastos')
+      .select('id')
+      .eq('gasto_fijo_id', gastoFijoId)
+      .gte('fecha', mes)
+      .lt('fecha', mesSiguiente)
+      .limit(1)
+    if (!otros || otros.length === 0) {
+      await supabase.from('gastos_fijos_pagos').delete()
+        .eq('gasto_fijo_id', gastoFijoId).eq('mes', mes)
+    }
+  }
+  revalidatePath('/gastos-fijos')
+}
 
 export async function crearGastoAction(data: GastoInput): Promise<GastoResult> {
   if (data.valor <= 0) return { ok: false, error: 'El valor debe ser mayor a cero' }
@@ -37,6 +74,10 @@ export async function crearGastoAction(data: GastoInput): Promise<GastoResult> {
   const sedeId = sesion.rol === 'admin' ? data.sede_id : sesion.sede_id
   if (!sedeId) return { ok: false, error: 'Selecciona una sede para el gasto' }
 
+  // El vínculo con un gasto fijo es solo del admin (la lista de fijos
+  // contiene sueldos y no se muestra a asesores).
+  const gastoFijoId = sesion.rol === 'admin' ? (data.gasto_fijo_id || null) : null
+
   const { data: gasto, error } = await supabase
     .from('gastos')
     .insert({
@@ -48,15 +89,56 @@ export async function crearGastoAction(data: GastoInput): Promise<GastoResult> {
       responsable_id: sesion.id,
       observacion:    data.observacion.trim() || null,
       origen:         'manual',
+      gasto_fijo_id:  gastoFijoId,
     })
     .select('id')
     .single()
 
   if (error || !gasto) return { ok: false, error: error?.message ?? 'Error creando gasto' }
 
+  if (gastoFijoId) {
+    await _sincronizarPagoFijo(supabase, gastoFijoId, data.fecha, sesion.id, true)
+  }
+
   revalidatePath('/gastos')
   revalidatePath('/flujo-caja')
   return { ok: true, id: gasto.id }
+}
+
+// Vincula (o desvincula, con gastoFijoId = null) un gasto YA registrado con
+// un gasto fijo, y deja el check del mes en /gastos-fijos acorde.
+export async function vincularGastoFijoAction(
+  gastoId: string,
+  gastoFijoId: string | null,
+): Promise<GastoResult> {
+  const sesion = await getSesion()
+  if (sesion.rol !== 'admin') return { ok: false, error: 'Solo administradores' }
+  const supabase = await createClient()
+
+  const { data: gasto, error: errGasto } = await supabase
+    .from('gastos')
+    .select('id, fecha, gasto_fijo_id')
+    .eq('id', gastoId)
+    .maybeSingle()
+  if (errGasto) return { ok: false, error: errGasto.message }
+  if (!gasto) return { ok: false, error: 'Gasto no encontrado' }
+
+  const { error } = await supabase
+    .from('gastos')
+    .update({ gasto_fijo_id: gastoFijoId })
+    .eq('id', gastoId)
+  if (error) return { ok: false, error: error.message }
+
+  // Si cambió de fijo, el anterior pierde este respaldo (y su check si quedó solo).
+  if (gasto.gasto_fijo_id && gasto.gasto_fijo_id !== gastoFijoId) {
+    await _sincronizarPagoFijo(supabase, gasto.gasto_fijo_id, gasto.fecha, sesion.id, false)
+  }
+  if (gastoFijoId) {
+    await _sincronizarPagoFijo(supabase, gastoFijoId, gasto.fecha, sesion.id, true)
+  }
+
+  revalidatePath('/gastos')
+  return { ok: true, id: gastoId }
 }
 
 export type GastosFiltros = {

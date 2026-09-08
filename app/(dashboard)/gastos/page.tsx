@@ -57,6 +57,18 @@ export default async function GastosPage({
 
   const sedeRestringida = sedeForzadaId ? (sedes.find(s => s.id === sedeForzadaId) ?? null) : null
 
+  // Gastos fijos activos (mig. 190): para marcar un gasto como "el pago del
+  // fijo del mes". Solo admin — la lista contiene sueldos.
+  let gastosFijos: { id: string; concepto: string; sede_id: string | null }[] = []
+  if (sesion.rol === 'admin') {
+    const { data: fijosRaw } = await supabase
+      .from('gastos_fijos')
+      .select('id, concepto, sede_id')
+      .eq('activo', true)
+      .order('concepto')
+    gastosFijos = (fijosRaw ?? []) as { id: string; concepto: string; sede_id: string | null }[]
+  }
+
   // Cuenta entre sedes (mig. 186/187, solo admin): plata de una sede invertida
   // en pedidos de otra. La vista suma en la base (excluye pedidos cancelados y
   // no depende de límites de filas); se consulta con el cliente de servicio
@@ -93,6 +105,7 @@ export default async function GastosPage({
       cuentasDestino={cuentasDestino}
       origenTrasladoId={origenDefault}
       entreSedes={entreSedes}
+      gastosFijos={gastosFijos}
     />
   )
 }

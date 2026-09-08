@@ -554,6 +554,7 @@ export type Gasto = {
   origen: 'manual' | 'compra' | 'domicilio' | null
   origen_id: string | null
   creado_en: string
+  gasto_fijo_id?: string | null
   sede?: Pick<Sede, 'codigo' | 'nombre'>
   cuenta?: Pick<Cuenta, 'nombre' | 'tipo'>
   responsable?: Pick<Usuario, 'nombre'>
