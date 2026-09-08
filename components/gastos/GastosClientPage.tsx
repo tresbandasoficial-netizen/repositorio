@@ -34,7 +34,7 @@ interface Props {
   // Gastos fijos activos (solo llega con datos para el admin): permite marcar
   // un gasto como "el pago del fijo del mes" — el check de /gastos-fijos se
   // pone solo.
-  gastosFijos?: { id: string; concepto: string; sede_id: string | null }[]
+  gastosFijos?: { id: string; concepto: string; sede_id: string | null; monto: number }[]
 }
 
 export function GastosClientPage({ gastos, cuentas, sedes, sedeRestringida, esAdmin = true, porCategoria, totalGeneral, filtros, cuentasDestino = [], origenTrasladoId = '', entreSedes = [], gastosFijos = [] }: Props) {
@@ -67,6 +67,48 @@ export function GastosClientPage({ gastos, cuentas, sedes, sedeRestringida, esAd
 
   const conceptoFijo = (id: string | null | undefined) =>
     gastosFijos.find(f => f.id === id)?.concepto ?? 'fijo'
+
+  const fijosDeSede = (sedeId: string) =>
+    gastosFijos.filter(f => !f.sede_id || f.sede_id === sedeId)
+
+  // La categoría contable se deriva del concepto del fijo (arriendo→Arriendo,
+  // sueldo→Nómina…) para que el gasto quede bien clasificado sin otro campo.
+  function categoriaDeFijo(concepto: string): CategoriaGasto {
+    const c = concepto.toLowerCase()
+    if (c.includes('arriendo') || c.includes('alquiler')) return 'arriendo'
+    if (c.includes('nomina') || c.includes('nómina') || c.includes('sueldo') || c.includes('salario')) return 'nomina'
+    if (c.includes('wifi') || c.includes('internet') || c.includes('luz') || c.includes('agua') || c.includes('servicio') || c.includes('energ')) return 'servicios'
+    if (c.includes('publicidad') || c.includes('pauta')) return 'publicidad'
+    if (c.includes('transporte')) return 'transporte'
+    return 'otros'
+  }
+
+  // El selector de Categoría trae también los GASTOS FIJOS (valor "fijo:<id>"):
+  // elegir uno fija el vínculo, deriva la categoría y prellena valor/observación.
+  function elegirCategoria(valor: string) {
+    if (valor.startsWith('fijo:')) {
+      const id = valor.slice(5)
+      const fijo = gastosFijos.find(f => f.id === id)
+      if (!fijo) return
+      setForm(f => ({
+        ...f,
+        gasto_fijo_id: id,
+        categoria:     categoriaDeFijo(fijo.concepto),
+        valor:         f.valor || String(fijo.monto ?? ''),
+        observacion:   f.observacion || fijo.concepto,
+      }))
+    } else {
+      setForm(f => ({ ...f, gasto_fijo_id: '', categoria: valor as CategoriaGasto | '' }))
+    }
+  }
+
+  // Al cambiar la sede, un fijo elegido que sea de OTRA sede se suelta.
+  function cambiarSede(sedeId: string) {
+    setForm(f => {
+      const fijoValido = f.gasto_fijo_id !== '' && fijosDeSede(sedeId).some(x => x.id === f.gasto_fijo_id)
+      return { ...f, sede_id: sedeId, gasto_fijo_id: fijoValido ? f.gasto_fijo_id : '' }
+    })
+  }
 
   // Los costos de compra de mercancía son información solo de admin.
   const categoriasVisibles = esAdmin
@@ -163,12 +205,25 @@ export function GastosClientPage({ gastos, cuentas, sedes, sedeRestringida, esAd
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">Categoría *</label>
-              <select value={form.categoria} onChange={e => set('categoria', e.target.value)}
+              {/* Los GASTOS FIJOS salen aquí mismo (pedido de Johan): elegir
+                  uno registra el gasto Y marca el fijo como pagado del mes. */}
+              <select
+                value={form.gasto_fijo_id ? `fijo:${form.gasto_fijo_id}` : form.categoria}
+                onChange={e => elegirCategoria(e.target.value)}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="">Seleccionar...</option>
-                {categoriasVisibles.map(c => (
-                  <option key={c} value={c}>{CATEGORIA_GASTO_LABELS[c]}</option>
-                ))}
+                {esAdmin && fijosDeSede(form.sede_id).length > 0 && (
+                  <optgroup label="📌 Gastos fijos (marca el mes como pagado)">
+                    {fijosDeSede(form.sede_id).map(f => (
+                      <option key={f.id} value={`fijo:${f.id}`}>📌 {f.concepto}</option>
+                    ))}
+                  </optgroup>
+                )}
+                <optgroup label="Categorías">
+                  {categoriasVisibles.map(c => (
+                    <option key={c} value={c}>{CATEGORIA_GASTO_LABELS[c]}</option>
+                  ))}
+                </optgroup>
               </select>
             </div>
             {sedeRestringida ? (
@@ -181,7 +236,7 @@ export function GastosClientPage({ gastos, cuentas, sedes, sedeRestringida, esAd
             ) : (
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Sede *</label>
-                <select value={form.sede_id} onChange={e => set('sede_id', e.target.value)}
+                <select value={form.sede_id} onChange={e => cambiarSede(e.target.value)}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                   {sedes.map(s => <option key={s.id} value={s.id}>{s.nombre} ({s.codigo})</option>)}
                 </select>
@@ -201,17 +256,9 @@ export function GastosClientPage({ gastos, cuentas, sedes, sedeRestringida, esAd
                 placeholder="Detalle del gasto..."
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
-            {esAdmin && gastosFijos.length > 0 && (
-              <div className="col-span-2">
-                <label className="block text-xs text-gray-500 mb-1">📌 ¿Es un gasto fijo del mes?</label>
-                <select value={form.gasto_fijo_id} onChange={e => set('gasto_fijo_id', e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="">No — gasto normal</option>
-                  {gastosFijos
-                    .filter(f => !f.sede_id || f.sede_id === form.sede_id)
-                    .map(f => <option key={f.id} value={f.id}>{f.concepto}</option>)}
-                </select>
-                <p className="text-[11px] text-gray-400 mt-1">Al elegir uno, ese fijo queda marcado como pagado este mes en Punto de equilibrio — sin pasos extra.</p>
+            {form.gasto_fijo_id && (
+              <div className="col-span-2 rounded-lg bg-indigo-50 border border-indigo-200 px-3 py-2 text-xs text-indigo-800">
+                📌 Al guardar, <span className="font-semibold">{conceptoFijo(form.gasto_fijo_id)}</span> queda marcado como pagado de este mes en Punto de equilibrio.
               </div>
             )}
           </div>

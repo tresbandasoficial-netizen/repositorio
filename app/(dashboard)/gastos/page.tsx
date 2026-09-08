@@ -59,14 +59,14 @@ export default async function GastosPage({
 
   // Gastos fijos activos (mig. 190): para marcar un gasto como "el pago del
   // fijo del mes". Solo admin — la lista contiene sueldos.
-  let gastosFijos: { id: string; concepto: string; sede_id: string | null }[] = []
+  let gastosFijos: { id: string; concepto: string; sede_id: string | null; monto: number }[] = []
   if (sesion.rol === 'admin') {
     const { data: fijosRaw } = await supabase
       .from('gastos_fijos')
-      .select('id, concepto, sede_id')
+      .select('id, concepto, sede_id, monto')
       .eq('activo', true)
       .order('concepto')
-    gastosFijos = (fijosRaw ?? []) as { id: string; concepto: string; sede_id: string | null }[]
+    gastosFijos = (fijosRaw ?? []) as { id: string; concepto: string; sede_id: string | null; monto: number }[]
   }
 
   // Cuenta entre sedes (mig. 186/187, solo admin): plata de una sede invertida
