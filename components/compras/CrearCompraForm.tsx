@@ -212,6 +212,9 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
             descripcion:        prod?.descripcion ?? '',
             marca:              prod?.marca ?? '',
             talla:              prod?.talla ?? '',
+            // La categoría de la ficha exonera a los accesorios de la talla
+            categoria:          prod?.categoria ?? '',
+            sexo:               prod?.sexo ?? '',
             cantidad:           '1',
             costo_unitario_cop: '',
             destino:            'pedido',
@@ -422,6 +425,8 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
             descripcion: prod.descripcion || item.descripcion,
             marca:       prod.marca || item.marca,
             talla:       prod.talla || item.talla,
+            categoria:   prod.categoria ?? item.categoria,
+            sexo:        prod.sexo ?? item.sexo,
             imagenUrl:   prod.imagen_url ?? null,
             articuloId:  prod.articulo_id ?? item.articuloId ?? null,
             articuloEncontrado: prod.articulo_id ? true : item.articuloEncontrado,
