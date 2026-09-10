@@ -81,6 +81,16 @@ export default async function ComprasPage({
 
   const todas = (compras ?? []) as (Compra & { compra_items: { id: string }[]; numero_factura: string | null })[]
 
+  // Fotos de los artículos de cada compra (mig. 193): tira horizontal junto
+  // al proveedor. Se resuelve en SQL agregado por compra — traer los items
+  // uno a uno por la API chocaría con el tope de filas de PostgREST.
+  type FotoItem = { foto: string | null; nombre: string }
+  const { data: fotosRaw } = await supabase.rpc('fotos_compras')
+  const fotosPorCompra = new Map<string, FotoItem[]>(
+    ((fotosRaw ?? []) as Array<{ compra_id: string; items: FotoItem[] | null }>)
+      .map(f => [f.compra_id, f.items ?? []])
+  )
+
   // Marcas: la vista viene desglosada por marca Y proveedor, así que la tabla
   // respeta el filtro de proveedor de arriba.
   const { data: marcasRaw } = await supabase
@@ -365,6 +375,7 @@ export default async function ComprasPage({
               <tr className="border-b border-gray-100 bg-gray-50">
                 <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">Fecha</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Proveedor</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Artículos</th>
                 <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">País</th>
                 <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Total COP</th>
                 <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">Items</th>
@@ -398,6 +409,34 @@ export default async function ComprasPage({
                         {(motivos.get(c.id) ?? []).map((m, i) => (
                           <span key={i} className="inline-block rounded-full bg-amber-50 border border-amber-200 text-amber-800 px-2 py-0.5 text-[11px]">
                             {m}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-4">
+                    {/* Tira de fotos de los artículos: con muchos items se
+                        desplaza hacia el lado dentro de la celda. Cada foto
+                        abre en grande; sin foto sale un cuadrito 📦. */}
+                    {(fotosPorCompra.get(c.id) ?? []).length > 0 && (
+                      <div className="flex gap-1.5 overflow-x-auto w-44 sm:w-56 xl:w-80 pb-1">
+                        {(fotosPorCompra.get(c.id) ?? []).map((it, i) => it.foto ? (
+                          <a key={i} href={it.foto} target="_blank" rel="noopener noreferrer" title={it.nombre} className="shrink-0">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={it.foto}
+                              alt={it.nombre}
+                              loading="lazy"
+                              className="w-11 h-11 object-cover rounded-lg border border-gray-200 hover:ring-2 hover:ring-blue-300 transition-shadow"
+                            />
+                          </a>
+                        ) : (
+                          <span
+                            key={i}
+                            title={`${it.nombre} (sin foto)`}
+                            className="shrink-0 w-11 h-11 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center text-sm"
+                          >
+                            📦
                           </span>
                         ))}
                       </div>
