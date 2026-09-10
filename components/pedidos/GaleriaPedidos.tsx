@@ -334,10 +334,11 @@ export function GaleriaPedidos({
             <span className="inline-flex items-center gap-1 bg-gray-200 text-gray-600 text-xs font-bold px-3 py-1 rounded-full">
               Cancelado
             </span>
-          ) : !esAdmin ? null : (sel.item ? (sel.comprado || !!sel.pedido.factura_id) : yaComprado) ? (
-            // Ya comprado: si se sabe de qué compra vino, el badge lleva el
-            // número de factura y abre esa compra. Si vino de varias, se listan.
-            facturasSel.length > 0 ? (
+          ) : (sel.item ? (sel.comprado || !!sel.pedido.factura_id) : yaComprado) ? (
+            // Ya comprado: lo ven TODOS (las asesoras saben qué ya está pedido).
+            // Si se sabe de qué compra vino, el badge lleva el número de factura
+            // y abre esa compra — pero ese enlace es solo del admin (/compras).
+            esAdmin && facturasSel.length > 0 ? (
               <div className="flex flex-wrap items-center gap-1.5 justify-end">
                 {facturasSel.map(f => (
                   <Link
@@ -357,11 +358,13 @@ export function GaleriaPedidos({
                 <Check size={13} /> Ya comprado
               </span>
             )
-          ) : (
+          ) : esAdmin ? (
+            // "Sin comprar" (y el rojo en general) sigue siendo solo del admin:
+            // es información de compras, no de las asesoras.
             <span className="inline-flex items-center gap-1 bg-red-100 text-red-700 text-xs font-bold px-3 py-1 rounded-full">
               <X size={13} /> Sin comprar
             </span>
-          )}
+          ) : null}
         </div>
 
         {/* Cliente */}
@@ -433,9 +436,11 @@ export function GaleriaPedidos({
                   {it.codigo ? (
                     <span className="font-mono text-[11px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md truncate">{it.codigo}</span>
                   ) : null}
-                  {esAdmin && (it.comprado
+                  {it.comprado
                     ? <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" title="Ya comprado" />
-                    : <span className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" title="Sin comprar" />)}
+                    : esAdmin
+                      ? <span className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" title="Sin comprar" />
+                      : null}
                 </span>
                 {it.talla && (
                   <span className="inline-flex items-stretch shrink-0">
@@ -571,7 +576,7 @@ export function GaleriaPedidos({
               <button
                 key={t.ref}
                 onClick={() => elegir(t)}
-                title={faltaComprar ? 'Sin comprar' : esCancelado ? 'Cancelado' : esEntregado ? 'Entregado' : esAdmin ? 'Ya comprado' : undefined}
+                title={faltaComprar ? 'Sin comprar' : esCancelado ? 'Cancelado' : esEntregado ? 'Entregado' : t.comprado ? 'Ya comprado' : undefined}
                 // El BORDE dice el estado de compra y el ANILLO lo que está
                 // seleccionado, así los dos se leen a la vez y no se tapan.
                 // El grosor es siempre 2 para que la tarjeta no cambie de tamaño
@@ -608,6 +613,14 @@ export function GaleriaPedidos({
                 {!!t.pedido.factura_id && !esCancelado && (
                   <span className="absolute top-1.5 right-1.5 z-10 bg-indigo-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md shadow-sm">
                     Facturado
+                  </span>
+                )}
+                {/* Cinta "Comprado": esta pieza ya tiene compra registrada. La
+                    ven TODOS (las asesoras saben qué ya está pedido); en
+                    facturado/entregado no se repite porque ya se sobreentiende. */}
+                {t.comprado && !t.pedido.factura_id && !esCancelado && !esEntregado && (
+                  <span className="absolute top-1.5 right-1.5 z-10 inline-flex items-center gap-0.5 bg-emerald-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md shadow-sm">
+                    <Check size={9} strokeWidth={4} /> Comprado
                   </span>
                 )}
                 {t.imagen ? (

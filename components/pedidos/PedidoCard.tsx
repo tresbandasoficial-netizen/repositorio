@@ -192,6 +192,10 @@ export function PedidoCard({ pedido, esAdmin, seleccionado = false, onToggleSele
   }
 
   const facturado = !!pedido.factura_id
+  // Letrero "Comprado": la compra ya está registrada pero el estado sigue en
+  // Pendiente — así las asesoras ven qué ya se pidió sin depender de que el
+  // estado se avance a mano. En los demás estados el badge de estado ya lo dice.
+  const letreroComprado = !facturado && pedido.estado === 'pendiente' && pedido.tiene_compra
 
   return (
     <div onClick={handleCardClick} className={cn('cursor-pointer transition-colors', facturado ? 'bg-green-50/50 hover:bg-green-50' : 'hover:bg-gray-50/60')}>
@@ -215,6 +219,7 @@ export function PedidoCard({ pedido, esAdmin, seleccionado = false, onToggleSele
             <span className="font-mono font-bold text-sm text-gray-900">{pedido.numero_orden}</span>
             {pedido.es_zombie && <span className="text-xs text-orange-500" title="Pedido zombie">🧟</span>}
             {facturado && <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full">Facturado</span>}
+            {letreroComprado && <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full">🛒 Comprado</span>}
           </div>
           <EstadoInline pedidoId={pedido.id} estadoActual={pedido.estado} sedeCodigo={pedido.sede_codigo} esAdmin={esAdmin} facturado={facturado} />
         </div>
@@ -268,6 +273,9 @@ export function PedidoCard({ pedido, esAdmin, seleccionado = false, onToggleSele
             </div>
             {facturado && (
               <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full">Facturado</span>
+            )}
+            {letreroComprado && (
+              <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full whitespace-nowrap">🛒 Comprado</span>
             )}
           </div>
         </div>
