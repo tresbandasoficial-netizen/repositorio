@@ -8,6 +8,7 @@ import { buscarPorCodigoAction, buscarArticulosAction, ArticuloBusqueda } from '
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { MarcaSelect } from '@/components/ui/MarcaSelect'
+import { ColorSelect } from '@/components/ui/ColorSelect'
 import { TallaSelect } from '@/components/ui/TallaSelect'
 import { ProveedorSelect } from './ProveedorSelect'
 import { formatCOP, formatMiles, hoyBogota } from '@/lib/utils/format'
@@ -1333,12 +1334,10 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
                       la creación de pedidos: Color + botones de sexo y categoría.
                       Sin esto quedaban fichas a medias que no sirven en pedidos. */}
                   <div className="flex flex-wrap gap-2 items-center">
-                    <input
-                      type="text"
+                    <ColorSelect
                       value={item.color ?? ''}
-                      onChange={(e) => actualizarItem(idx, 'color', e.target.value)}
-                      placeholder="Color"
-                      className="w-28 rounded-lg border border-gray-200 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      onChange={color => actualizarItem(idx, 'color', color)}
+                      className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                     {(['hombre', 'mujer', 'nino'] as const).map(s => (
                       <button key={s} type="button"

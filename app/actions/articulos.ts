@@ -211,6 +211,49 @@ export async function editarArticuloAction(data: EditarArticuloInput): Promise<S
   return { ok: true }
 }
 
+// Colores ya usados en el catálogo, del más usado al menos, para el selector
+// de color (escoger en vez de escribir). Agrupa variantes de la misma palabra
+// — plural y femenino: NEGRO/NEGRA/NEGROS/NEGRAS salen como UN solo "NEGRO" —
+// mostrando la grafía real más frecuente del grupo. Solo agrupa lo que se
+// muestra: no toca los datos guardados.
+export async function coloresUsadosAction(): Promise<string[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('colores_usados')
+  if (error) return []
+  const filas = (data ?? []) as Array<{ color: string; usos: number }>
+
+  // Errores de escritura conocidos que las reglas de sufijos no agrupan.
+  const ALIAS: Record<string, string> = { BEIGGE: 'BEIGE' }
+
+  // Clave de agrupación por palabra: quita la S del plural, la E final que
+  // queda de plurales en -ES (AZULES→AZULE→AZUL; VERDE y VERDES caen ambos a
+  // VERD) y pasa la terminación femenina a masculina (NEGRA→NEGRO). Los topes
+  // de longitud protegen palabras cortas: GRIS conserva su S, CAFE su E.
+  const clavePalabra = (p: string) => {
+    let k = ALIAS[p] ?? p
+    if (k.length > 4 && k.endsWith('S')) k = k.slice(0, -1)
+    if (k.length > 4 && k.endsWith('E')) k = k.slice(0, -1)
+    if (k.length > 3 && k.endsWith('A')) k = k.slice(0, -1) + 'O'
+    return k
+  }
+  const clave = (color: string) =>
+    color
+      .split(/([^A-ZÁÉÍÓÚÜÑ]+)/)
+      .map(t => (/^[A-ZÁÉÍÓÚÜÑ]+$/.test(t) ? clavePalabra(t) : t))
+      .join('')
+
+  // Las filas vienen ordenadas por usos: la primera grafía que aparece para
+  // cada clave es la más usada del grupo y es la que se muestra.
+  const grupos = new Map<string, { display: string; usos: number }>()
+  for (const f of filas) {
+    const k = clave(f.color)
+    const g = grupos.get(k)
+    if (g) g.usos += f.usos
+    else grupos.set(k, { display: f.color, usos: f.usos })
+  }
+  return [...grupos.values()].sort((a, b) => b.usos - a.usos).map(g => g.display)
+}
+
 // Busca un artículo por código SKU (para auto-completar al crear pedidos).
 export async function buscarPorCodigoAction(codigo: string): Promise<Articulo | null> {
   if (!codigo.trim()) return null

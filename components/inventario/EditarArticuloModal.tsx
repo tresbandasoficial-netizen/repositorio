@@ -6,6 +6,7 @@ import { editarArticuloAction } from '@/app/actions/articulos'
 import { Button } from '@/components/ui/Button'
 import { useAviso } from '@/components/ui/Aviso'
 import { MarcaSelect } from '@/components/ui/MarcaSelect'
+import { ColorSelect } from '@/components/ui/ColorSelect'
 import { formatMiles } from '@/lib/utils/format'
 import { Articulo, CategoriaArticulo, SexoArticulo } from '@/types'
 
@@ -69,7 +70,7 @@ export function EditarArticuloModal({ articulo, onClose }: { articulo: Articulo;
           <MarcaSelect value={marca} onChange={setMarca} className={`${inputCls} bg-white`} />
           <input className={inputCls} placeholder="Nombre / modelo" value={nombre} onChange={e => setNombre(e.target.value)} />
           <input className={inputCls} placeholder="Referencia del proveedor" value={referencia} onChange={e => setReferencia(e.target.value)} />
-          <input className={inputCls} placeholder="Color" value={color} onChange={e => setColor(e.target.value)} />
+          <ColorSelect className={`${inputCls} bg-white`} value={color} onChange={setColor} />
           <input
             className={inputCls}
             inputMode="numeric"

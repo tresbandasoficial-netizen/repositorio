@@ -5,6 +5,7 @@ import { buscarArticulosAction, guardarArticuloCatalogoAction, guardarNombreArti
 import { ItemVenta } from '@/app/actions/ventas'
 import { TallaSelect } from '@/components/ui/TallaSelect'
 import { MarcaSelect } from '@/components/ui/MarcaSelect'
+import { ColorSelect } from '@/components/ui/ColorSelect'
 import { useAviso } from '@/components/ui/Aviso'
 import type { CategoriaArticulo } from '@/types'
 import { formatCOP, formatMiles } from '@/lib/utils/format'
@@ -442,12 +443,10 @@ export function LineaProducto({
 
       {/* Fila 3: Color · Sexo · Categoría */}
       <div className="flex flex-wrap gap-2 items-center">
-        <input
-          type="text"
+        <ColorSelect
           value={linea.color || ''}
-          onChange={e => onChange({ color: e.target.value })}
-          placeholder="Color"
-          className="w-28 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          onChange={color => onChange({ color })}
+          className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         <div className="flex gap-1">
           {(['hombre', 'mujer', 'nino'] as const).map(s => (
