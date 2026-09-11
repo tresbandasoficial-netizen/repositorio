@@ -13,7 +13,7 @@ export default async function PreciosDolarPage() {
   const [preciosRes, trmRes] = await Promise.all([
     supabase
       .from('precios_dolar')
-      .select('id, tipo_articulo, valor_usd')
+      .select('id, tipo_articulo, valor_usd, categoria')
       .order('tipo_articulo'),
     supabase
       .from('configuracion')
@@ -22,11 +22,12 @@ export default async function PreciosDolarPage() {
       .maybeSingle(),
   ])
 
-  const precios = ((preciosRes.data ?? []) as Array<{ id: string; tipo_articulo: string; valor_usd: number | string }>)
+  const precios = ((preciosRes.data ?? []) as Array<{ id: string; tipo_articulo: string; valor_usd: number | string; categoria: string }>)
     .map<PrecioDolarRow>(p => ({
       id: p.id,
       tipo_articulo: p.tipo_articulo,
       valor_usd: Number(p.valor_usd),
+      categoria: p.categoria === 'zapatos' ? 'zapatos' : 'prendas',
     }))
 
   const trm = Number(trmRes.data?.valor ?? 0)

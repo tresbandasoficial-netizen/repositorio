@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getSesion } from '@/lib/auth/acceso'
+import { CategoriaPrecioDolar } from '@/lib/utils/precios-dolar'
 
 // ─── Precios dólar (sección Equipo) ──────────────────────────────────────────
 // El admin mantiene la TRM del día y la lista de tipos de artículo con su
@@ -33,16 +34,19 @@ export async function guardarTrmAction(valor: number): Promise<PrecioDolarResult
 export async function crearPrecioDolarAction(data: {
   tipo_articulo: string
   valor_usd: number
+  categoria: CategoriaPrecioDolar
 }): Promise<PrecioDolarResult> {
   const sesion = await getSesion()
   if (sesion.rol !== 'admin') return { ok: false, error: 'Solo el administrador agrega precios' }
   if (!data.tipo_articulo.trim()) return { ok: false, error: 'Escribe el tipo de artículo' }
   if (!Number.isFinite(data.valor_usd) || data.valor_usd <= 0) return { ok: false, error: 'El valor en dólares debe ser mayor a cero' }
+  if (data.categoria !== 'zapatos' && data.categoria !== 'prendas') return { ok: false, error: 'Selecciona la categoría' }
 
   const supabase = await createClient()
   const { error } = await supabase.from('precios_dolar').insert({
     tipo_articulo: data.tipo_articulo.trim(),
     valor_usd: data.valor_usd,
+    categoria: data.categoria,
   })
   if (error) return { ok: false, error: error.message }
 
@@ -53,11 +57,13 @@ export async function crearPrecioDolarAction(data: {
 export async function editarPrecioDolarAction(id: string, data: {
   tipo_articulo: string
   valor_usd: number
+  categoria: CategoriaPrecioDolar
 }): Promise<PrecioDolarResult> {
   const sesion = await getSesion()
   if (sesion.rol !== 'admin') return { ok: false, error: 'Solo el administrador edita precios' }
   if (!data.tipo_articulo.trim()) return { ok: false, error: 'Escribe el tipo de artículo' }
   if (!Number.isFinite(data.valor_usd) || data.valor_usd <= 0) return { ok: false, error: 'El valor en dólares debe ser mayor a cero' }
+  if (data.categoria !== 'zapatos' && data.categoria !== 'prendas') return { ok: false, error: 'Selecciona la categoría' }
 
   const supabase = await createClient()
   const { data: fila, error } = await supabase
@@ -65,6 +71,7 @@ export async function editarPrecioDolarAction(id: string, data: {
     .update({
       tipo_articulo: data.tipo_articulo.trim(),
       valor_usd: data.valor_usd,
+      categoria: data.categoria,
       actualizado_en: new Date().toISOString(),
     })
     .eq('id', id)
