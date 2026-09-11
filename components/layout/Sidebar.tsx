@@ -28,6 +28,7 @@ import {
   Trophy,
   Landmark,
   Clock,
+  DollarSign,
   UserMinus,
   ChevronDown,
   ChevronRight,
@@ -116,6 +117,7 @@ const navGrupos: { id: string; label: string; icon: NavIcon; items: NavItem[] }[
     items: [
       { href: '/tareas',       label: 'Tareas',       icon: ClipboardList, rol: ['asesor', 'admin'] },
       { href: '/retos',        label: 'Retos',        icon: Trophy,        rol: ['asesor', 'admin'] },
+      { href: '/precios-dolar', label: 'Precios dólar', icon: DollarSign,  rol: ['asesor', 'admin'] },
       { href: '/asistencia',   label: 'Asistencia',   icon: Clock,         rol: ['asesor', 'admin'], sedes: ['CR'], usuarios: [LUISA_SR_ID] },
       { href: '/descuentos',   label: 'Descuentos',   icon: UserMinus,     rol: ['admin'] },
       { href: '/usuarios',     label: 'Usuarios',     icon: UserCog,       rol: ['admin'] },
