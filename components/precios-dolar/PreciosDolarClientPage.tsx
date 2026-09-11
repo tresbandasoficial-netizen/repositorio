@@ -119,7 +119,7 @@ export function PreciosDolarClientPage({
         {/* La fórmula es información solo del admin; el asesor ve el precio final. */}
         <p className="text-sm text-gray-500 mt-0.5">
           {esAdmin
-            ? 'Todo lleva +7% tax × dólar · Zapatos: +$250.000 hasta $1.000.000, +30% si pasa del millón · Camisas y prendas: +40%'
+            ? 'Todo lleva +7% tax × dólar · Zapatos: +$250.000 hasta $1.000.000, +30% si pasa del millón · Camisas, bolsos y accesorios: +40%'
             : 'Valor de los artículos en dólares y su precio en pesos'}
         </p>
       </div>

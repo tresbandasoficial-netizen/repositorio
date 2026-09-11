@@ -3,12 +3,12 @@
 // ganancia depende de la categoría:
 //   zapatos: +$250.000 si el costo en pesos (ya con tax) no pasa de
 //            $1.000.000; si pasa del millón, +30%.
-//   prendas (camisas y demás): +40%.
+//   prendas (camisas, bolsos y accesorios): +40%.
 export type CategoriaPrecioDolar = 'zapatos' | 'prendas'
 
 export const CATEGORIA_PRECIO_DOLAR_LABELS: Record<CategoriaPrecioDolar, string> = {
   zapatos: 'Zapatos',
-  prendas: 'Camisas y prendas',
+  prendas: 'Camisas, bolsos y accesorios',
 }
 
 export const TAX_USD = 0.07
