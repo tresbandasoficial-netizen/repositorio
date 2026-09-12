@@ -39,12 +39,23 @@ export async function getStockPorSede(): Promise<{ filas: StockAgrupado[]; sedes
   const supabase = await createClient()
   const sesion = await getSesion()
 
-  const [stockRes, sedesRes] = await Promise.all([
-    supabase.from('vista_stock_por_sede').select('*'),
-    supabase.from('sedes').select('id, codigo').order('codigo'),
-  ])
+  // La vista ya pasa de 1000 filas y PostgREST corta en 1000 EN SILENCIO
+  // (sin error): un select('*') simple dejaba stock por fuera de la tabla.
+  // Se trae por páginas con orden estable hasta que venga una página corta.
+  const PAGINA = 1000
+  const stockFilas: StockSede[] = []
+  for (let desde = 0; ; desde += PAGINA) {
+    const { data, error } = await supabase
+      .from('vista_stock_por_sede')
+      .select('*')
+      .order('articulo_id').order('talla').order('sede_id')
+      .range(desde, desde + PAGINA - 1)
+    if (error) throw new Error(`Error cargando stock: ${error.message}`)
+    stockFilas.push(...((data ?? []) as StockSede[]))
+    if (!data || data.length < PAGINA) break
+  }
 
-  if (stockRes.error) throw new Error(`Error cargando stock: ${stockRes.error.message}`)
+  const sedesRes = await supabase.from('sedes').select('id, codigo').order('codigo')
 
   const sedeCodigo = new Map<string, string>()
   for (const s of sedesRes.data ?? []) sedeCodigo.set(s.id, s.codigo)
@@ -57,7 +68,7 @@ export async function getStockPorSede(): Promise<{ filas: StockAgrupado[]; sedes
 
   // Clave única: articulo_id + talla (puede haber varios registros por articulo, uno por talla)
   const mapa = new Map<string, StockAgrupado>()
-  for (const fila of (stockRes.data ?? []) as StockSede[]) {
+  for (const fila of stockFilas) {
     const codigo = fila.sede_id ? (sedeCodigo.get(fila.sede_id) ?? '?') : 'CENTRAL'
 
     if (sesion.rol !== 'admin' && codigo !== 'CENTRAL' && codigo !== miSede) continue

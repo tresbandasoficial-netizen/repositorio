@@ -162,6 +162,14 @@ export function InventarioPanel({
         placeholder="Buscar por código, marca, nombre, color o talla…"
         className="w-full max-w-md rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
+      {/* Los artículos creados desde pedidos quedan en el catálogo SIN stock:
+          no salen en la tabla de arriba, pero el buscador sí los encuentra. */}
+      {!texto && (
+        <p className="text-xs text-gray-400">
+          El catálogo tiene {todos.length.toLocaleString('es-CO')} artículos. Los que no tienen stock
+          (por ejemplo los recién creados desde un pedido) salen al buscarlos aquí.
+        </p>
+      )}
 
       {sedeFiltro && (
         <p className="text-xs text-gray-500">

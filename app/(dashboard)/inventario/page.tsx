@@ -10,10 +10,29 @@ export default async function InventarioPage() {
   if (sesion.rol !== 'admin') redirect('/dashboard')
 
   const supabase = await createClient()
-  const [{ filas, sedes: columnasSedes }, sedesRes, articulosRes] = await Promise.all([
+
+  // El catálogo ya pasa de 1000 artículos y PostgREST corta en 1000 EN
+  // SILENCIO: un select('*') simple dejaba ~600 fichas por fuera (no salían
+  // en el buscador ni en los selectores de entrada/transferencia, y parecía
+  // que los artículos creados desde pedidos "no se guardaban"). Se traen por
+  // páginas con orden estable hasta que venga una página corta.
+  const PAGINA = 1000
+  const articulosTodos: Articulo[] = []
+  for (let desde = 0; ; desde += PAGINA) {
+    const { data, error } = await supabase
+      .from('articulos')
+      .select('*')
+      .eq('activo', true)
+      .order('marca').order('nombre').order('id')
+      .range(desde, desde + PAGINA - 1)
+    if (error) { console.error('[inventario] error cargando catálogo:', error.message); break }
+    articulosTodos.push(...((data ?? []) as Articulo[]))
+    if (!data || data.length < PAGINA) break
+  }
+
+  const [{ filas, sedes: columnasSedes }, sedesRes] = await Promise.all([
     getStockPorSede(),
     supabase.from('sedes').select('id, codigo, nombre').order('codigo'),
-    supabase.from('articulos').select('*').eq('activo', true).order('marca').order('nombre'),
   ])
 
   return (
@@ -30,7 +49,7 @@ export default async function InventarioPage() {
         filas={filas}
         columnasSedes={columnasSedes}
         sedes={(sedesRes.data ?? []) as { id: string; codigo: string; nombre: string }[]}
-        articulos={(articulosRes.data ?? []) as Articulo[]}
+        articulos={articulosTodos}
       />
     </div>
   )
