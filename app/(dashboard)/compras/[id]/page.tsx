@@ -228,6 +228,7 @@ export default async function CompraDetallePage({
                       destino={item.destino}
                       pedidoNumeroOrden={item.pedido?.numero_orden ?? null}
                       pedidoItemIndice={(item as any).pedido_item_indice ?? null}
+                      cantidad={item.cantidad}
                     />
                   </td>
                 </tr>

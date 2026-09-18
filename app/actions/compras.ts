@@ -481,12 +481,36 @@ async function _avisoArticuloDistinto(
 export async function asignarItemAction(
   itemId: string,
   destino: 'pedido' | 'contoda' | 'sin_asignar',
-  pedidoRef?: string
+  pedidoRef?: string,
+  // Cuántas unidades de la fila van al destino. Con menos que la fila completa,
+  // la fila se DIVIDE (mig. 196, RPC atómico): un renglón nuevo con esas
+  // unidades nace YA asignado y el resto se queda exactamente como estaba.
+  unidades?: number
 ): Promise<AsignarItemResult> {
   const { userId, adminClient } = await verificarAdmin()
 
+  // Estado actual de la fila: valida las unidades y detecta reasignaciones.
+  const { data: itemActual, error: errItem } = await adminClient
+    .from('compra_items')
+    .select('cantidad, destino, pedido_id')
+    .eq('id', itemId)
+    .single()
+  if (errItem || !itemActual) {
+    return { ok: false, error: errItem?.message ?? 'Ítem de compra no encontrado' }
+  }
+
+  if (unidades != null && (!Number.isInteger(unidades) || unidades < 1 || unidades > itemActual.cantidad)) {
+    return { ok: false, error: `Las unidades deben estar entre 1 y ${itemActual.cantidad}` }
+  }
+  const esParcial = unidades != null && unidades < itemActual.cantidad
+  if (esParcial && destino === 'sin_asignar') {
+    return { ok: false, error: 'Para dejar la fila sin asignar no hace falta dividirla' }
+  }
+  const unidadesAAsignar = unidades ?? itemActual.cantidad
+
   let pedidoId: string | null = null
   let pedidoItemIndice: number | null = null
+  let pedidoPendienteId: string | null = null
 
   if (destino === 'pedido') {
     if (!pedidoRef?.trim()) {
@@ -503,38 +527,95 @@ export async function asignarItemAction(
 
     pedidoId = pedido.id
     pedidoItemIndice = pedido.indice
+    // El estado se avanza DESPUÉS de escribir la asignación — si el update
+    // falla, el pedido no queda "comprado" sin compra. (En la asignación
+    // parcial lo hace el propio RPC, en la misma transacción.)
+    if (pedido.estado === 'pendiente') pedidoPendienteId = pedido.id
 
-    if (pedido.estado === 'pendiente') {
-      await adminClient
-        .from('pedidos')
-        .update({ estado: 'comprado', fecha_actualizacion: new Date().toISOString() })
-        .eq('id', pedido.id)
+    // El pedido no puede quedar con más compra que artículos (misma validación
+    // de crear compra y de confirmar sugerencias, que evita duplicar el costo
+    // en vista_ganancia_pedidos). Sin esto, dejar el valor por defecto (la
+    // fila entera) le metía las 4 unidades a un pedido que lleva 1.
+    const [itemsPedRes, yaAsignadasRes] = await Promise.all([
+      adminClient.from('pedido_items').select('cantidad').eq('pedido_id', pedido.id),
+      adminClient.from('compra_items').select('id, cantidad').eq('pedido_id', pedido.id),
+    ])
+    // FALLA CERRADO: si la consulta de validación falla, un data null daría
+    // unidadesPedido = 0 y el candado se saltaría en silencio.
+    const errVal = itemsPedRes.error ?? yaAsignadasRes.error
+    if (errVal) {
+      return { ok: false, error: `No se pudo validar la compra del pedido: ${errVal.message}. Intenta de nuevo.` }
+    }
+    const unidadesPedido = ((itemsPedRes.data ?? []) as { cantidad: number | null }[])
+      .reduce((s, p) => s + (p.cantidad ?? 1), 0)
+    const unidadesCompradas = ((yaAsignadasRes.data ?? []) as { id: string; cantidad: number | null }[])
+      .filter(c => c.id !== itemId)   // reasignar esta misma fila no cuenta doble
+      .reduce((s, c) => s + (c.cantidad ?? 1), 0)
+    if (unidadesPedido > 0 && unidadesCompradas + unidadesAAsignar > unidadesPedido) {
+      const faltan = Math.max(0, unidadesPedido - unidadesCompradas)
+      return {
+        ok: false,
+        error: `El pedido ${ref} lleva ${unidadesPedido} unidad${unidadesPedido !== 1 ? 'es' : ''} y ya tiene ${unidadesCompradas} compradas — asignarle ${unidadesAAsignar} duplicaría el costo. ${faltan > 0 ? `Asígnale máximo ${faltan}.` : 'Ya tiene su compra completa.'}`,
+      }
     }
   }
 
-  const { error } = await adminClient
-    .from('compra_items')
-    .update({
-      destino,
-      pedido_id: pedidoId,
-      pedido_item_indice: pedidoItemIndice,
-      transferido_contoda: destino === 'contoda',
-      transferido_en: destino === 'contoda' ? new Date().toISOString() : null,
-    })
-    .eq('id', itemId)
+  let targetId = itemId
 
-  if (error) return { ok: false, error: error.message }
+  if (esParcial) {
+    // División + asignación + stock + estado del pedido en UNA transacción
+    // (mig. 196): nada queda a medias si algo falla. Ojo: si el commit pasa
+    // pero la RESPUESTA se pierde, un reintento dividiría otra vez (la fila
+    // original sigue sin_asignar) — para pedidos lo frena el cupo de arriba y
+    // el formulario bloquea el doble clic; el estado nunca queda inconsistente.
+    const { data: nuevoId, error: errParcial } = await adminClient
+      .rpc('asignar_parcial_compra_item', {
+        p_item_id:            itemId,
+        p_unidades:           unidades,
+        p_destino:            destino,
+        p_pedido_id:          pedidoId,
+        p_pedido_item_indice: pedidoItemIndice,
+        p_usuario_id:         userId,
+      })
+    if (errParcial || !nuevoId) {
+      return { ok: false, error: errParcial?.message ?? 'No se pudo dividir la fila' }
+    }
+    targetId = nuevoId as string
+  } else {
+    const { error } = await adminClient
+      .from('compra_items')
+      .update({
+        destino,
+        pedido_id: pedidoId,
+        pedido_item_indice: pedidoItemIndice,
+        transferido_contoda: destino === 'contoda',
+        transferido_en: destino === 'contoda' ? new Date().toISOString() : null,
+      })
+      .eq('id', targetId)
+
+    if (error) return { ok: false, error: error.message }
+
+    if (pedidoPendienteId) {
+      await adminClient
+        .from('pedidos')
+        .update({ estado: 'comprado', fecha_actualizacion: new Date().toISOString() })
+        .eq('id', pedidoPendienteId)
+        .eq('estado', 'pendiente')
+    }
+  }
 
   // Auto-vincular artículo del catálogo si aún no está vinculado
   let aviso: string | undefined
   if (destino === 'pedido' && pedidoId) {
-    await _resolverArticuloCompraItem(itemId, pedidoId, pedidoItemIndice, adminClient)
-    aviso = await _avisoArticuloDistinto(itemId, pedidoId, pedidoItemIndice, adminClient)
+    await _resolverArticuloCompraItem(targetId, pedidoId, pedidoItemIndice, adminClient)
+    aviso = await _avisoArticuloDistinto(targetId, pedidoId, pedidoItemIndice, adminClient)
   }
 
   // El stock de Bucaramanga sigue al destino: entra si queda sin asignar,
-  // sale cuando se le asigna a un pedido o se va para Contoda.
-  await _sincronizarStockCompraItem(itemId, destino, userId, adminClient)
+  // sale cuando se le asigna a un pedido o se va para Contoda. (En la
+  // asignación parcial el RPC ya dejó el stock cuadrado y esta llamada sobre
+  // el renglón nuevo asignado es un no-op idempotente — objetivo 0, neto 0.)
+  await _sincronizarStockCompraItem(targetId, destino, userId, adminClient)
 
   revalidatePath('/inventario')
   revalidatePath('/compras')
@@ -604,7 +685,9 @@ async function _sincronizarStockCompraItem(
 
   await adminClient.from('movimientos_inventario').insert({
     articulo_id:        articuloId,
-    talla:              item.talla || null,
+    // trim: igual que el RPC de asignación parcial (nullif(trim(...), '')) —
+    // una talla legacy de solo espacios partiría el stock por talla en dos.
+    talla:              item.talla?.trim() || null,
     sede_id:            tr?.id ?? null,
     delta:              ajuste,
     tipo:               ajuste > 0 ? 'entrada' : 'salida',
@@ -614,7 +697,11 @@ async function _sincronizarStockCompraItem(
     usuario_id:         usuarioId,
     notas: ajuste > 0
       ? (notasEntrada || 'Vuelve al stock de Bucaramanga (compra sin asignar)')
-      : `Sale del stock de Bucaramanga (compra asignada a ${destino === 'pedido' ? 'pedido' : 'Contoda'})`,
+      : destino === 'sin_asignar'
+        // Sin asignar con ajuste negativo = la fila quedó con menos unidades
+        // (se dividió para asignar una parte, mig. 196).
+        ? 'Sale del stock de Bucaramanga (la fila se dividió: unidades asignadas aparte)'
+        : `Sale del stock de Bucaramanga (compra asignada a ${destino === 'pedido' ? 'pedido' : 'Contoda'})`,
   })
   return ajuste
 }
@@ -849,12 +936,26 @@ export async function editarCompraAction(compraId: string, data: EditarCompraInp
   // ── Sincronizar items: eliminar los quitados, actualizar los existentes,
   //    insertar los nuevos ──────────────────────────────────────────────────
   const { data: existentes } = await adminClient
-    .from('compra_items').select('id').eq('compra_id', compraId)
+    .from('compra_items').select('id, pedido_id, transferido_contoda').eq('compra_id', compraId)
 
   const idsEnPayload = new Set(data.items.filter(i => i.id).map(i => i.id as string))
   const idsAEliminar = (existentes ?? []).map(e => e.id).filter(id => !idsEnPayload.has(id))
 
   if (idsAEliminar.length > 0) {
+    // Una fila ASIGNADA nunca se borra por reconciliación: el pedido perdería
+    // su costo en silencio. Pasa sobre todo cuando la fila nació DESPUÉS de
+    // abrir el formulario (la asignación parcial divide filas — mig. 196) y el
+    // payload viejo no la trae; también protege el borrado a propósito de una
+    // fila asignada (primero hay que pasarla a "Sin asignar").
+    const asignadas = (existentes ?? []).filter(
+      e => idsAEliminar.includes(e.id) && (e.pedido_id || e.transferido_contoda)
+    )
+    if (asignadas.length > 0) {
+      return {
+        ok: false,
+        error: 'No se puede guardar: se eliminaría una fila que está asignada a un pedido o a Contoda (el pedido perdería su costo). Si no la borraste tú, la compra cambió desde que abriste el formulario — recarga la página; si la borraste a propósito, pásala primero a "Sin asignar".',
+      }
+    }
     const { error: errDel } = await adminClient
       .from('compra_items').delete().in('id', idsAEliminar)
     if (errDel) {

@@ -12,6 +12,7 @@ interface ItemAsignacionProps {
   destino: Destino
   pedidoNumeroOrden: string | null
   pedidoItemIndice: number | null
+  cantidad?: number
 }
 
 const DESTINO_LABELS: Record<Destino, string> = {
@@ -26,7 +27,7 @@ const DESTINO_COLORES: Record<Destino, string> = {
   contoda: 'bg-purple-100 text-purple-800',
 }
 
-export function ItemAsignacion({ itemId, destino, pedidoNumeroOrden, pedidoItemIndice }: ItemAsignacionProps) {
+export function ItemAsignacion({ itemId, destino, pedidoNumeroOrden, pedidoItemIndice, cantidad }: ItemAsignacionProps) {
   const [abierto, setAbierto] = useState(false)
   const router = useRouter()
 
@@ -47,6 +48,7 @@ export function ItemAsignacion({ itemId, destino, pedidoNumeroOrden, pedidoItemI
           itemId={itemId}
           destinoActual={destino}
           pedidoActual={refCompleta}
+          cantidad={cantidad}
           onDone={handleDone}
         />
       </div>
