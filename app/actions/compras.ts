@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { terminoBusquedaSeguro } from '@/lib/utils/busqueda'
 
 async function verificarAdmin() {
   const supabase = await createClient()
@@ -18,6 +19,60 @@ async function verificarAdmin() {
 
   if (usuario?.rol !== 'admin') redirect('/dashboard')
   return { userId: user.id, adminClient: createAdminClient() }
+}
+
+// ── Sobrantes en facturas de compra ──────────────────────────────────────────
+// "¿Este artículo ya está en alguna factura?": unidades compradas que quedaron
+// SIN ASIGNAR a ningún pedido. Para el buscador de la galería — desde ahí se
+// asignan al pedido con asignarItemAction (que valida cupo y divide si la
+// fila trae varias unidades). Solo admin: trae costos.
+export type SobranteCompra = {
+  id: string
+  codigo: string | null
+  descripcion: string
+  marca: string | null
+  talla: string | null
+  cantidad: number
+  costo_unitario_cop: number
+  compra_id: string
+  numero_factura: string | null
+  proveedor: string | null
+  fecha: string
+  llego: boolean
+}
+
+export async function buscarSobrantesAction(q: string): Promise<SobranteCompra[]> {
+  const { adminClient } = await verificarAdmin()
+  const t = terminoBusquedaSeguro(q)
+  if (!t || t.length < 2) return []
+
+  const { data } = await adminClient
+    .from('compra_items')
+    .select('id, codigo, descripcion, marca, talla, cantidad, costo_unitario_cop, compra_id, compras(numero_factura, proveedor, fecha, llegada_en)')
+    .is('pedido_id', null)
+    .eq('destino', 'sin_asignar')
+    .or(`codigo.ilike.%${t}%,descripcion.ilike.%${t}%,marca.ilike.%${t}%`)
+    .limit(30)
+
+  return ((data ?? []) as any[])
+    .map(f => {
+      const c = Array.isArray(f.compras) ? f.compras[0] : f.compras
+      return {
+        id:                 f.id as string,
+        codigo:             (f.codigo ?? null) as string | null,
+        descripcion:        f.descripcion as string,
+        marca:              (f.marca ?? null) as string | null,
+        talla:              (f.talla ?? null) as string | null,
+        cantidad:           (f.cantidad ?? 1) as number,
+        costo_unitario_cop: (f.costo_unitario_cop ?? 0) as number,
+        compra_id:          f.compra_id as string,
+        numero_factura:     (c?.numero_factura ?? null) as string | null,
+        proveedor:          (c?.proveedor ?? null) as string | null,
+        fecha:              (c?.fecha ?? '') as string,
+        llego:              Boolean(c?.llegada_en),
+      }
+    })
+    .sort((a, b) => b.fecha.localeCompare(a.fecha))
 }
 
 // ── Pedidos que necesitan un artículo (falta por comprar) ────────────────────

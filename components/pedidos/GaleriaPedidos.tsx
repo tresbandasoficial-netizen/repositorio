@@ -10,6 +10,7 @@ import { transicionesDisponibles } from '@/lib/domain/estados'
 import { ESTADO_LABELS, EstadoPedido } from '@/types'
 import { SEGMENTO_CONFIG } from '@/components/recompras/BadgeSegmento'
 import { AvisarLlegoButton } from './AvisarLlegoButton'
+import { BuscarEnFacturas } from './BuscarEnFacturas'
 import { formatCOP, formatFecha } from '@/lib/utils/format'
 import { formatearTelefono } from '@/lib/utils/phone'
 import { ImageOff, X, ArrowUpRight, Check, Phone, ShoppingCart, LayoutGrid, Package, ExternalLink, Send, Printer } from 'lucide-react'
@@ -495,6 +496,20 @@ export function GaleriaPedidos({
             </div>
           )
         })}
+
+        {/* Buscador de sobrantes (solo admin, prenda sin comprar): "¿este
+            artículo ya está en alguna factura sin asignar?" — y se asigna al
+            pedido desde aquí mismo. */}
+        {esAdmin && !cancelado && !sel.pedido.factura_id &&
+          (sel.item ? !sel.comprado : !yaComprado) && (
+          <div className="mx-4 mb-3">
+            <BuscarEnFacturas
+              key={sel.ref}
+              pedidoRef={sel.ref}
+              queryInicial={(sel.item?.codigo ?? sel.item?.descripcion ?? itemsSel[0]?.codigo ?? itemsSel[0]?.descripcion ?? '').trim()}
+            />
+          </div>
+        )}
 
         {/* La plata: Total / Abono / Debe (del pedido completo) */}
         <div className="grid grid-cols-3 gap-2 px-4 pb-3">
