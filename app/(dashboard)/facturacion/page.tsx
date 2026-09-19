@@ -72,7 +72,7 @@ export default async function FacturacionPage({
           type="search"
           name="q"
           defaultValue={sp.q ?? ''}
-          placeholder="Buscar por N° de factura, cliente o teléfono…"
+          placeholder="Buscar por N° de factura, cliente, teléfono o código del artículo…"
           className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         <button type="submit" className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700">
@@ -119,6 +119,7 @@ export default async function FacturacionPage({
               <tr className="border-b border-gray-100 bg-gray-50">
                 <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">Factura</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Cliente</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Artículos</th>
                 <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">Sede</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Vence</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase hidden lg:table-cell">Pago</th>
@@ -144,6 +145,34 @@ export default async function FacturacionPage({
                       {f.cliente_nombre}
                     </Link>
                     <p className="text-xs text-gray-400">{f.cliente_telefono}</p>
+                  </td>
+                  <td className="px-4 py-4">
+                    {/* Fotos de TODO lo facturado: con varios artículos la tira
+                        se desplaza hacia el lado dentro de la celda. Cada foto
+                        abre en grande; sin foto sale un cuadrito 📦. */}
+                    {f.fotos.length > 0 && (
+                      <div className="flex gap-1.5 overflow-x-auto w-32 sm:w-44 xl:w-64 pb-1">
+                        {f.fotos.map((it, i) => it.foto ? (
+                          <a key={i} href={it.foto} target="_blank" rel="noopener noreferrer" title={it.nombre} className="shrink-0">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={it.foto}
+                              alt={it.nombre}
+                              loading="lazy"
+                              className="w-10 h-10 object-cover rounded-lg border border-gray-200 hover:ring-2 hover:ring-blue-300 transition-shadow"
+                            />
+                          </a>
+                        ) : (
+                          <span
+                            key={i}
+                            title={`${it.nombre} (sin foto)`}
+                            className="shrink-0 w-10 h-10 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center text-sm"
+                          >
+                            📦
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-4 text-center hidden sm:table-cell">
                     <span className="text-xs font-semibold text-gray-600">{f.sede_codigo}</span>

@@ -3,7 +3,8 @@ import { getSesion } from '@/lib/auth/acceso'
 import { terminoBusquedaSeguro } from '@/lib/utils/busqueda'
 import { FacturaRow, EstadoFactura } from '@/types'
 
-export type FacturaListRow = FacturaRow & { numeros_orden: string[]; metodos: string[] }
+export type FotoFactura = { foto: string | null; nombre: string }
+export type FacturaListRow = FacturaRow & { numeros_orden: string[]; metodos: string[]; fotos: FotoFactura[] }
 
 export async function getFacturas(filtros?: {
   estado?: EstadoFactura
@@ -27,7 +28,40 @@ export async function getFacturas(filtros?: {
   if (filtros?.sede)   query = query.eq('sede_codigo', filtros.sede)
   if (filtros?.q) {
     const t = terminoBusquedaSeguro(filtros.q)
-    if (t) query = query.or(`numero_factura.ilike.%${t}%,cliente_nombre.ilike.%${t}%,cliente_telefono.ilike.%${t}%`)
+    if (t) {
+      // También por CÓDIGO del artículo facturado: los items viven en los
+      // pedidos de la factura (propios o por la ficha del catálogo). Se
+      // priorizan los más recientes si hay demasiadas coincidencias (tope de
+      // ids por el largo de la URL).
+      const [porCodigoItem, porCodigoCatalogo] = await Promise.all([
+        supabase
+          .from('pedido_items')
+          .select('pedidos!inner(factura_id, fecha_creacion)')
+          .ilike('codigo', `%${t}%`)
+          .not('pedidos.factura_id', 'is', null)
+          .order('pedidos(fecha_creacion)', { ascending: false })
+          .limit(300),
+        supabase
+          .from('pedido_items')
+          .select('pedidos!inner(factura_id, fecha_creacion), articulos!inner(id)')
+          .ilike('articulos.codigo', `%${t}%`)
+          .not('pedidos.factura_id', 'is', null)
+          .order('pedidos(fecha_creacion)', { ascending: false })
+          .limit(300),
+      ])
+      const idsPorCodigo = new Set<string>()
+      for (const r of [...(porCodigoItem.data ?? []), ...(porCodigoCatalogo.data ?? [])] as any[]) {
+        const ped = Array.isArray(r.pedidos) ? r.pedidos[0] : r.pedidos
+        if (ped?.factura_id && idsPorCodigo.size < 200) idsPorCodigo.add(ped.factura_id)
+      }
+      const condiciones = [
+        `numero_factura.ilike.%${t}%`,
+        `cliente_nombre.ilike.%${t}%`,
+        `cliente_telefono.ilike.%${t}%`,
+        ...(idsPorCodigo.size > 0 ? [`id.in.(${[...idsPorCodigo].join(',')})`] : []),
+      ]
+      query = query.or(condiciones.join(','))
+    }
   }
 
   const { data, error } = await query
@@ -35,12 +69,20 @@ export async function getFacturas(filtros?: {
   const facturas = (data ?? []) as FacturaRow[]
   if (facturas.length === 0) return []
 
-  // Traer los números de pedido y los métodos de pago de cada factura.
+  // Traer los números de pedido, los métodos de pago y las FOTOS de lo
+  // facturado (mig. 197: una fila por factura con los items en jsonb — item
+  // por item chocaría con el tope de 1000 filas de PostgREST).
   const ids = facturas.map(f => f.id)
-  const [pedsRes, pagosRes] = await Promise.all([
+  const [pedsRes, pagosRes, fotosRes] = await Promise.all([
     supabase.from('pedidos').select('factura_id, numero_orden').in('factura_id', ids).order('numero_orden'),
     supabase.from('pagos_factura').select('factura_id, metodo').in('factura_id', ids).eq('anulado', false),
+    supabase.rpc('fotos_facturas', { p_factura_ids: ids }),
   ])
+
+  const fotosPorFactura = new Map<string, FotoFactura[]>(
+    ((fotosRes.data ?? []) as Array<{ factura_id: string; items: FotoFactura[] | null }>)
+      .map(f => [f.factura_id, f.items ?? []])
+  )
 
   const porFactura = new Map<string, string[]>()
   for (const p of (pedsRes.data ?? []) as Array<{ factura_id: string | null; numero_orden: string }>) {
@@ -63,6 +105,7 @@ export async function getFacturas(filtros?: {
     ...f,
     numeros_orden: porFactura.get(f.id) ?? [],
     metodos: metodosPorFactura.get(f.id) ?? [],
+    fotos: fotosPorFactura.get(f.id) ?? [],
   }))
 }
 
