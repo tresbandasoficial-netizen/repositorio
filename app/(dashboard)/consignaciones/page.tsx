@@ -1,9 +1,11 @@
 import { redirect } from 'next/navigation'
 import { getSesion } from '@/lib/auth/acceso'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { formatCOP } from '@/lib/utils/format'
 import { LIMITE_CONSIGNACION_DEFECTO } from '@/lib/consignaciones'
 import { FilaCuenta, nivelDe, type CuentaConsignacion } from '@/components/consignaciones/FilaCuenta'
+import { TrasladosRecientes, type TrasladoFila, type CuentaOpcion } from '@/components/consignaciones/TrasladosRecientes'
 
 export default async function ConsignacionesPage() {
   const sesion = await getSesion()
@@ -25,6 +27,57 @@ export default async function ConsignacionesPage() {
       </div>
     )
   }
+
+  // Últimos traslados con sus cuentas, para poder corregirlos/anularlos aquí
+  // mismo (pedido de Johan 19-sep-2026). OJO: traslados_caja tiene DOS FKs a
+  // cuentas — los embeds van NOMBRADOS o PostgREST rechaza la consulta (la
+  // lección del apagón de /gastos, migs. 186/188).
+  const admin = createAdminClient()
+  const [trasladosRes, cuentasOpcRes] = await Promise.all([
+    admin
+      .from('traslados_caja')
+      .select('id, fecha, monto, notas, origen_cuenta_id, destino_cuenta_id, origen:cuentas!traslados_caja_origen_cuenta_id_fkey(nombre), destino:cuentas!traslados_caja_destino_cuenta_id_fkey(nombre), responsable:usuarios!traslados_caja_responsable_id_fkey(nombre)')
+      .order('creado_en', { ascending: false })
+      .limit(60),
+    admin.from('cuentas').select('id, nombre').order('nombre'),
+  ])
+  const trasladosRaw = (trasladosRes.data ?? []) as any[]
+
+  // Traslados que pertenecen a otro módulo (préstamos, envíos USA): se marcan
+  // y no se dejan editar aquí — se corrigen desde su módulo.
+  const idsTraslados = trasladosRaw.map(t => t.id)
+  let vinculados = new Map<string, string>()
+  if (idsTraslados.length > 0) {
+    const [ab, en, pr] = await Promise.all([
+      admin.from('abonos_prestamos').select('traslado_id').in('traslado_id', idsTraslados),
+      admin.from('envios_usa').select('traslado_id').in('traslado_id', idsTraslados),
+      admin.from('prestamos_terceros').select('ingreso_traslado_id').in('ingreso_traslado_id', idsTraslados),
+    ])
+    vinculados = new Map<string, string>([
+      ...((ab.data ?? []) as any[]).map(r => [r.traslado_id as string, 'préstamo'] as const),
+      ...((en.data ?? []) as any[]).map(r => [r.traslado_id as string, 'envío USA'] as const),
+      ...((pr.data ?? []) as any[]).map(r => [r.ingreso_traslado_id as string, 'préstamo'] as const),
+    ])
+  }
+
+  const traslados: TrasladoFila[] = trasladosRaw.map(t => {
+    const o = Array.isArray(t.origen) ? t.origen[0] : t.origen
+    const d = Array.isArray(t.destino) ? t.destino[0] : t.destino
+    const r = Array.isArray(t.responsable) ? t.responsable[0] : t.responsable
+    return {
+      id: t.id,
+      fecha: t.fecha,
+      monto: t.monto,
+      notas: t.notas ?? null,
+      origen_cuenta_id: t.origen_cuenta_id ?? null,
+      destino_cuenta_id: t.destino_cuenta_id,
+      origen: o?.nombre ?? null,
+      destino: d?.nombre ?? '¿?',
+      responsable: r?.nombre ?? '',
+      vinculado: vinculados.get(t.id) ?? null,
+    }
+  })
+  const cuentasOpc = (cuentasOpcRes.data ?? []) as CuentaOpcion[]
 
   const cuentas = (data ?? []) as Array<CuentaConsignacion & { anio: number }>
   const anio = cuentas[0]?.anio ?? new Date().getFullYear()
@@ -118,6 +171,9 @@ export default async function ConsignacionesPage() {
           </div>
         </div>
       )}
+
+      {/* Últimos traslados: corregir/anular movimientos mal registrados */}
+      <TrasladosRecientes traslados={traslados} cuentas={cuentasOpc} />
 
       {/* Detalle por cuenta */}
       <div className="space-y-3">
