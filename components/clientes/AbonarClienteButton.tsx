@@ -23,6 +23,8 @@ export function AbonarClienteButton({
   const [notas, setNotas] = useState('')
   const [error, setError] = useState('')
   const [exito, setExito] = useState('')
+  // A cuál pedido/factura se fue cada parte del abono (mig. 198).
+  const [detalle, setDetalle] = useState<Array<{ ref: string; monto: number; tipo: string }>>([])
   const [pending, start] = useTransition()
 
   function abrir() {
@@ -30,6 +32,7 @@ export function AbonarClienteButton({
     setMonto('')
     setError('')
     setExito('')
+    setDetalle([])
     setNotas('')
   }
 
@@ -37,6 +40,7 @@ export function AbonarClienteButton({
     setOpen(false)
     setError('')
     setExito('')
+    setDetalle([])
   }
 
   function submit() {
@@ -49,6 +53,7 @@ export function AbonarClienteButton({
       const r = await abonarClienteAction({ cliente_id: clienteId, monto: m, metodo, cuenta_id: null, notas })
       if (!r.ok) { setError(r.error); return }
       setExito(`✓ Abono de ${formatCOP(r.aplicado)} registrado`)
+      setDetalle(r.detalle)
       setMonto('')
       setNotas('')
       router.refresh()
@@ -128,6 +133,22 @@ export function AbonarClienteButton({
 
               {error && <p className="text-sm text-red-600">{error}</p>}
               {exito && <p className="text-sm text-green-600">{exito}</p>}
+              {/* Cómo se repartió: del pedido/factura más viejo al más nuevo */}
+              {detalle.length > 0 && (
+                <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2">
+                  <p className="text-xs font-semibold text-emerald-900 mb-1">Así se repartió (de lo más viejo a lo más nuevo):</p>
+                  <ul className="space-y-0.5">
+                    {detalle.map((d, i) => (
+                      <li key={i} className="flex items-center justify-between gap-2 text-xs text-emerald-800">
+                        <span className="font-mono font-semibold">
+                          {d.tipo === 'factura' ? '🧾 ' : '📦 '}{d.ref}
+                        </span>
+                        <span className="font-bold tabular-nums">{formatCOP(d.monto)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
 
             {/* Acciones */}

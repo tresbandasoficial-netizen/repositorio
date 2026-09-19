@@ -76,8 +76,12 @@ export type AbonarClienteInput = {
   notas: string
 }
 
+// A cuál pedido/factura se fue cada parte del abono (reparto del más antiguo
+// al más nuevo — mig. 198).
+export type DetalleAbono = { ref: string; monto: number; tipo: 'pedido' | 'factura' }
+
 export type AbonarClienteResult =
-  | { ok: true; aplicado: number; sobrante: number }
+  | { ok: true; aplicado: number; sobrante: number; detalle: DetalleAbono[] }
   | { ok: false; error: string }
 
 export async function abonarClienteAction(data: AbonarClienteInput): Promise<AbonarClienteResult> {
@@ -111,11 +115,12 @@ export async function abonarClienteAction(data: AbonarClienteInput): Promise<Abo
 
   const aplicado = (res as any)?.aplicado ?? 0
   const sobrante = (res as any)?.sobrante ?? data.monto
+  const detalle = (Array.isArray((res as any)?.detalle) ? (res as any).detalle : []) as DetalleAbono[]
   if (aplicado === 0) return { ok: false, error: 'El cliente no tiene deuda pendiente' }
 
   revalidatePath(`/clientes/${data.cliente_id}`)
   revalidatePath('/cartera')
   revalidatePath('/cuadre')
 
-  return { ok: true, aplicado, sobrante }
+  return { ok: true, aplicado, sobrante, detalle }
 }
