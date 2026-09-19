@@ -11,18 +11,35 @@ import { getSesion } from '@/lib/auth/acceso'
 export default async function FacturacionPage({
   searchParams,
 }: {
-  searchParams: Promise<{ estado?: string; q?: string }>
+  searchParams: Promise<{ estado?: string; q?: string; sede?: string }>
 }) {
   const sesion = await getSesion()
   if (sesion.rol === 'visor') redirect('/pedidos')
 
   const sp = await searchParams
   const estado = sp.estado as EstadoFactura | undefined
+  // Filtro por sede (chips TR/SR/CR): solo tiene sentido para el admin — el
+  // asesor ya viene amarrado a su sede en getFacturas.
+  const sede = ['TR', 'SR', 'CR'].includes(sp.sede ?? '') ? sp.sede : undefined
+  const esAdmin = sesion.rol === 'admin'
 
   const [facturas, resumen] = await Promise.all([
-    getFacturas({ estado, q: sp.q }),
+    getFacturas({ estado, q: sp.q, sede }),
     getResumenCxC(),
   ])
+
+  // Arma la URL conservando los demás filtros (estado, búsqueda, sede).
+  const urlCon = (cambios: { estado?: string | null; sede?: string | null; q?: string | null }) => {
+    const p = new URLSearchParams()
+    const e = 'estado' in cambios ? cambios.estado : estado
+    const s = 'sede' in cambios ? cambios.sede : sede
+    const q = 'q' in cambios ? cambios.q : sp.q
+    if (e) p.set('estado', e)
+    if (q) p.set('q', q)
+    if (s) p.set('sede', s)
+    const qs = p.toString()
+    return `/facturacion${qs ? `?${qs}` : ''}`
+  }
 
   const filtros: { key: EstadoFactura | 'todas'; label: string }[] = [
     { key: 'todas', label: 'Todas' },
@@ -68,6 +85,7 @@ export default async function FacturacionPage({
       {/* Búsqueda por N° de factura / cliente / teléfono */}
       <form method="GET" action="/facturacion" className="flex gap-2 mb-4">
         {estado && <input type="hidden" name="estado" value={estado} />}
+        {sede && <input type="hidden" name="sede" value={sede} />}
         <input
           type="search"
           name="q"
@@ -80,7 +98,7 @@ export default async function FacturacionPage({
         </button>
         {sp.q && (
           <Link
-            href={estado ? `/facturacion?estado=${estado}` : '/facturacion'}
+            href={urlCon({ q: null })}
             className="px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 flex items-center"
           >
             Limpiar
@@ -92,14 +110,10 @@ export default async function FacturacionPage({
       <div className="flex flex-wrap gap-2 mb-4">
         {filtros.map(f => {
           const active = (f.key === 'todas' && !estado) || estado === f.key
-          const qPart = sp.q ? `q=${encodeURIComponent(sp.q)}` : ''
-          const href = f.key === 'todas'
-            ? `/facturacion${qPart ? `?${qPart}` : ''}`
-            : `/facturacion?estado=${f.key}${qPart ? `&${qPart}` : ''}`
           return (
             <Link
               key={f.key}
-              href={href}
+              href={urlCon({ estado: f.key === 'todas' ? null : f.key })}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                 active ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
               }`}
@@ -108,6 +122,27 @@ export default async function FacturacionPage({
             </Link>
           )
         })}
+
+        {/* Sede (solo admin: el asesor ya viene amarrado a la suya) */}
+        {esAdmin && (
+          <>
+            <span className="self-center text-xs font-medium text-gray-400 uppercase tracking-wide ml-2">Sede</span>
+            {[null, 'TR', 'SR', 'CR'].map(s => {
+              const active = (s === null && !sede) || sede === s
+              return (
+                <Link
+                  key={s ?? 'todas'}
+                  href={urlCon({ sede: s })}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    active ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  {s ?? 'Todas'}
+                </Link>
+              )
+            })}
+          </>
+        )}
       </div>
 
       {facturas.length === 0 ? (
@@ -123,6 +158,7 @@ export default async function FacturacionPage({
                 <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">Sede</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Vence</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase hidden lg:table-cell">Pago</th>
+                <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">Pagado</th>
                 <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">Saldo</th>
                 <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Estado</th>
                 <th className="px-4 py-3" />
@@ -189,12 +225,16 @@ export default async function FacturacionPage({
                       : f.metodos.map(m => METODO_PAGO_LABELS[m as MetodoPago] ?? m).join(', ')}
                   </td>
                   <td className="px-4 py-4 text-right">
+                    {/* Lo que ha ENTRADO de plata a esta factura (abonos reales) */}
+                    <span className={`font-semibold ${f.total_abonado > 0 ? 'text-emerald-700' : 'text-gray-300'}`}>
+                      {formatCOP(f.total_abonado)}
+                    </span>
+                    <span className="block text-xs text-gray-400">de {formatCOP(f.total)}</span>
+                  </td>
+                  <td className="px-4 py-4 text-right">
                     <span className={`font-semibold ${f.saldo > 0 ? 'text-gray-900' : 'text-green-600'}`}>
                       {formatCOP(f.saldo)}
                     </span>
-                    {f.total_abonado > 0 && f.saldo > 0 && (
-                      <span className="block text-xs text-gray-400">de {formatCOP(f.total)}</span>
-                    )}
                   </td>
                   <td className="px-4 py-4 text-center">
                     <Badge className={ESTADO_FACTURA_COLORES[f.estado]}>{ESTADO_FACTURA_LABELS[f.estado]}</Badge>
