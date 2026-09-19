@@ -50,10 +50,15 @@ export async function registrarTrasladoAction(data: TrasladoInput): Promise<Tras
 // distintas.
 
 // ¿Este traslado lo creó otro módulo? Devuelve el nombre del módulo, o null.
+// Además de las FK (préstamos, envíos USA), la VENTA DE BONOS crea traslados
+// sin FK — el vínculo es solo la nota 'Venta de bono BONO-XXXX' (mig. 099):
+// anularlo dejaría el bono activo y redimible con la plata borrada de caja.
 async function _trasladoVinculado(
   adminClient: ReturnType<typeof createAdminClient>,
   trasladoId: string,
+  notas: string | null,
 ): Promise<string | null> {
+  if (/^venta de bono /i.test((notas ?? '').trim())) return 'la venta de un bono regalo'
   const [abono, envio, prestamo] = await Promise.all([
     adminClient.from('abonos_prestamos').select('id').eq('traslado_id', trasladoId).limit(1),
     adminClient.from('envios_usa').select('id').eq('traslado_id', trasladoId).limit(1),
@@ -64,6 +69,36 @@ async function _trasladoVinculado(
   if ((abono.data ?? []).length > 0) return 'un abono de préstamo'
   if ((envio.data ?? []).length > 0) return 'un envío USA'
   if ((prestamo.data ?? []).length > 0) return 'un préstamo'
+  return null
+}
+
+const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/
+
+// Los saldos NO se calculan sobre todo el histórico: cada cuenta puede tener
+// un CORTE (cuentas.fecha_corte + saldo_inicial, mig. 080/108) y lo anterior
+// está absorbido en el saldo inicial. Mover un traslado a antes del corte lo
+// haría desaparecer del cuadre EN SILENCIO (y al revés, contaría doble).
+// Devuelve el corte que se viola, o null si todo bien.
+async function _violaCorte(
+  adminClient: ReturnType<typeof createAdminClient>,
+  cuentaIds: (string | null)[],
+  fechas: string[],
+): Promise<string | null> {
+  const ids = [...new Set(cuentaIds.filter((x): x is string => !!x))]
+  if (ids.length === 0) return null
+  const { data, error } = await adminClient
+    .from('cuentas')
+    .select('nombre, fecha_corte')
+    .in('id', ids)
+  if (error) return `no se pudo verificar el corte de saldos (${error.message})`
+  for (const c of (data ?? []) as { nombre: string; fecha_corte: string | null }[]) {
+    if (!c.fecha_corte) continue
+    for (const f of fechas) {
+      if (f < c.fecha_corte) {
+        return `la cuenta "${c.nombre}" tiene corte de saldo el ${c.fecha_corte} y este cambio toca el ${f} — lo anterior al corte ya está absorbido en el saldo inicial y editarlo descuadraría la caja en silencio. Usa un ajuste de caja.`
+      }
+    }
+  }
   return null
 }
 
@@ -83,15 +118,16 @@ export async function editarTrasladoAction(
   const sesion = await getSesion()
   if (sesion.rol !== 'admin') return { ok: false, error: 'Solo el administrador puede corregir traslados' }
   if (!data.motivo.trim()) return { ok: false, error: 'Escribe el motivo de la corrección' }
-  if (data.monto <= 0) return { ok: false, error: 'El monto debe ser mayor a cero' }
+  if (!Number.isFinite(data.monto) || data.monto <= 0) return { ok: false, error: 'El monto debe ser mayor a cero' }
+  if (!FECHA_RE.test(data.fecha) || Number.isNaN(new Date(`${data.fecha}T12:00:00`).getTime())) {
+    return { ok: false, error: 'La fecha no es válida' }
+  }
   if (!data.destino_cuenta_id) return { ok: false, error: 'Selecciona la cuenta destino' }
   if (data.origen_cuenta_id && data.origen_cuenta_id === data.destino_cuenta_id) {
     return { ok: false, error: 'Las cuentas de origen y destino deben ser distintas' }
   }
 
   const adminClient = createAdminClient()
-  const vinculo = await _trasladoVinculado(adminClient, trasladoId)
-  if (vinculo) return { ok: false, error: `Este traslado pertenece a ${vinculo} — corrígelo desde ese módulo` }
 
   const { data: actual, error: errActual } = await adminClient
     .from('traslados_caja')
@@ -100,6 +136,18 @@ export async function editarTrasladoAction(
     .maybeSingle()
   if (errActual) return { ok: false, error: errActual.message }
   if (!actual) return { ok: false, error: 'Traslado no encontrado' }
+
+  const vinculo = await _trasladoVinculado(adminClient, trasladoId, actual.notas)
+  if (vinculo) return { ok: false, error: `Este traslado pertenece a ${vinculo} — corrígelo desde ese módulo` }
+
+  // Ni la fecha vieja ni la nueva pueden quedar antes del corte de saldo de
+  // NINGUNA cuenta involucrada (las viejas y las nuevas).
+  const corte = await _violaCorte(
+    adminClient,
+    [actual.origen_cuenta_id, actual.destino_cuenta_id, data.origen_cuenta_id, data.destino_cuenta_id],
+    [actual.fecha, data.fecha],
+  )
+  if (corte) return { ok: false, error: `No se puede corregir: ${corte}` }
 
   const { data: filas, error } = await adminClient
     .from('traslados_caja')
@@ -116,17 +164,23 @@ export async function editarTrasladoAction(
   if (!filas || filas.length === 0) return { ok: false, error: 'El traslado ya no existe' }
 
   // Constancia en el historial: qué decía, qué dice ahora y por qué.
-  await adminClient.from('historial_cambios').insert({
+  const { error: errHist } = await adminClient.from('historial_cambios').insert({
     tabla:          'traslados_caja',
     registro_id:    trasladoId,
     campo:          'correccion',
     valor_anterior: JSON.stringify(actual),
-    valor_nuevo:    JSON.stringify({ monto: Math.round(data.monto), fecha: data.fecha, origen_cuenta_id: data.origen_cuenta_id, destino_cuenta_id: data.destino_cuenta_id, motivo: data.motivo.trim() }),
+    valor_nuevo:    JSON.stringify({ monto: Math.round(data.monto), fecha: data.fecha, origen_cuenta_id: data.origen_cuenta_id, destino_cuenta_id: data.destino_cuenta_id }),
+    motivo:         data.motivo.trim(),
     usuario_id:     sesion.id,
   })
 
   revalidatePath('/consignaciones')
   revalidatePath('/flujo-caja')
+
+  if (errHist) {
+    // La corrección SÍ quedó aplicada; lo que falló fue la constancia.
+    return { ok: false, error: `La corrección quedó aplicada, pero NO se pudo guardar la constancia en el historial (${errHist.message}). Avísale a soporte para dejarla registrada.` }
+  }
   return { ok: true }
 }
 
@@ -139,8 +193,6 @@ export async function eliminarTrasladoAction(
   if (!motivo.trim()) return { ok: false, error: 'Escribe el motivo de la anulación' }
 
   const adminClient = createAdminClient()
-  const vinculo = await _trasladoVinculado(adminClient, trasladoId)
-  if (vinculo) return { ok: false, error: `Este traslado pertenece a ${vinculo} — anúlalo desde ese módulo` }
 
   const { data: actual, error: errActual } = await adminClient
     .from('traslados_caja')
@@ -149,6 +201,18 @@ export async function eliminarTrasladoAction(
     .maybeSingle()
   if (errActual) return { ok: false, error: errActual.message }
   if (!actual) return { ok: false, error: 'Traslado no encontrado' }
+
+  const vinculo = await _trasladoVinculado(adminClient, trasladoId, actual.notas)
+  if (vinculo) return { ok: false, error: `Este traslado pertenece a ${vinculo} — anúlalo desde ese módulo` }
+
+  // Un traslado de ANTES del corte de saldo ya está absorbido en el saldo
+  // inicial: borrarlo no le devuelve la plata a nadie y solo daña el histórico.
+  const corte = await _violaCorte(
+    adminClient,
+    [actual.origen_cuenta_id, actual.destino_cuenta_id],
+    [actual.fecha],
+  )
+  if (corte) return { ok: false, error: `No se puede anular: ${corte}` }
 
   const { data: filas, error } = await adminClient
     .from('traslados_caja')
@@ -160,17 +224,22 @@ export async function eliminarTrasladoAction(
 
   // La fila desaparece de la caja, pero el historial guarda qué era y por qué
   // se anuló — nada de plata borrada en silencio.
-  await adminClient.from('historial_cambios').insert({
+  const { error: errHist } = await adminClient.from('historial_cambios').insert({
     tabla:          'traslados_caja',
     registro_id:    trasladoId,
     campo:          'eliminado',
     valor_anterior: JSON.stringify(actual),
-    valor_nuevo:    motivo.trim(),
+    valor_nuevo:    null,
+    motivo:         motivo.trim(),
     usuario_id:     sesion.id,
   })
 
   revalidatePath('/consignaciones')
   revalidatePath('/flujo-caja')
+
+  if (errHist) {
+    return { ok: false, error: `La anulación quedó aplicada, pero NO se pudo guardar la constancia en el historial (${errHist.message}). Avísale a soporte para dejarla registrada.` }
+  }
   return { ok: true }
 }
 
