@@ -109,6 +109,15 @@ export default async function ClienteDetallePage({
 
   const saldoTotal = totalComprado - totalPagado
   const meses = comprasPorMes(cliente.pedidos)
+
+  // Fotos de los artículos de cada pedido (mig. 199): tira en el historial.
+  const { data: fotosRaw } = await supabase.rpc('fotos_pedidos', {
+    p_pedido_ids: cliente.pedidos.map((p: any) => p.id),
+  })
+  const fotosPorPedido: Record<string, Array<{ foto: string | null; nombre: string }>> = {}
+  for (const f of (fotosRaw ?? []) as Array<{ pedido_id: string; items: Array<{ foto: string | null; nombre: string }> | null }>) {
+    fotosPorPedido[f.pedido_id] = f.items ?? []
+  }
   // Los cancelados no cuentan como pedidos ni en el ticket (sí se ven en el
   // historial, marcados).
   const pedidosVigentes = cliente.pedidos.filter((p) => p.estado !== 'cancelado').length
@@ -211,6 +220,7 @@ export default async function ClienteDetallePage({
                     fecha_creacion: p.fecha_creacion,
                     factura_id: p.factura_id ?? null,
                   }))}
+                  fotosPorPedido={fotosPorPedido}
                 />
               )}
             </CardContent>

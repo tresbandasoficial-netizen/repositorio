@@ -16,12 +16,19 @@ type PedidoHist = {
   factura_id: string | null
 }
 
+export type FotoPedidoHist = { foto: string | null; nombre: string }
+
 type Filtro = 'todos' | 'entregados' | 'sin_entregar'
 
 // Historial de pedidos de la ficha del cliente, con filtro por entrega y la
 // suma de lo visible al pie. "Entregados" excluye deudas cargadas (SALDO-):
-// son saldos viejos, no mercancía entregada.
-export function HistorialPedidosCliente({ pedidos }: { pedidos: PedidoHist[] }) {
+// son saldos viejos, no mercancía entregada. Las fotos de los artículos van
+// EN VEZ de la columna de sede (pedido de Johan 21-sep-2026); la sede queda
+// como texto pequeño bajo el número de orden.
+export function HistorialPedidosCliente({ pedidos, fotosPorPedido = {} }: {
+  pedidos: PedidoHist[]
+  fotosPorPedido?: Record<string, FotoPedidoHist[]>
+}) {
   const [filtro, setFiltro] = useState<Filtro>('todos')
 
   const visibles = useMemo(() => pedidos.filter(p => {
@@ -71,7 +78,7 @@ export function HistorialPedidosCliente({ pedidos }: { pedidos: PedidoHist[] }) 
               <tr className="border-b border-gray-100">
                 <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">Orden</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Estado</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Sede</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Artículos</th>
                 <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">Total</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Fecha</th>
                 <th className="px-4 py-3" />
@@ -95,6 +102,7 @@ export function HistorialPedidosCliente({ pedidos }: { pedidos: PedidoHist[] }) 
                           {p.numero_orden}
                         </Link>
                       )}
+                      <span className="block text-[11px] text-gray-400">{p.sede_nombre}</span>
                     </td>
                     <td className="px-4 py-3">
                       {esSaldo ? (
@@ -103,7 +111,33 @@ export function HistorialPedidosCliente({ pedidos }: { pedidos: PedidoHist[] }) 
                         <EstadoBadge estado={p.estado as EstadoPedido} />
                       )}
                     </td>
-                    <td className="px-4 py-3 text-gray-600 text-xs">{p.sede_nombre}</td>
+                    <td className="px-4 py-3">
+                      {/* Fotos de los artículos del pedido: con varios se
+                          desplaza hacia el lado; cada foto abre en grande. */}
+                      {(fotosPorPedido[p.id] ?? []).length > 0 && (
+                        <div className="flex gap-1.5 overflow-x-auto w-28 sm:w-40 xl:w-56 pb-1">
+                          {(fotosPorPedido[p.id] ?? []).map((it, i) => it.foto ? (
+                            <a key={i} href={it.foto} target="_blank" rel="noopener noreferrer" title={it.nombre} className="shrink-0">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={it.foto}
+                                alt={it.nombre}
+                                loading="lazy"
+                                className="w-10 h-10 object-cover rounded-lg border border-gray-200 hover:ring-2 hover:ring-blue-300 transition-shadow"
+                              />
+                            </a>
+                          ) : (
+                            <span
+                              key={i}
+                              title={`${it.nombre} (sin foto)`}
+                              className="shrink-0 w-10 h-10 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center text-sm"
+                            >
+                              📦
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-right font-medium text-gray-900">
                       {formatCOP(p.total)}
                     </td>
