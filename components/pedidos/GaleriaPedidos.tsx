@@ -361,9 +361,15 @@ export function GaleriaPedidos({
             )
           ) : esAdmin ? (
             // "Sin comprar" (y el rojo en general) sigue siendo solo del admin:
-            // es información de compras, no de las asesoras.
+            // es información de compras, no de las asesoras. Con más de 5 días
+            // sin compra, suena la sirena con los días encima.
             <span className="inline-flex items-center gap-1 bg-red-100 text-red-700 text-xs font-bold px-3 py-1 rounded-full">
               <X size={13} /> Sin comprar
+              {Math.floor((Date.now() - new Date(sel.pedido.fecha_creacion).getTime()) / 86_400_000) > 5 && (
+                <span title="Más de 5 días sin compra asignada">
+                  · 🚨 {Math.floor((Date.now() - new Date(sel.pedido.fecha_creacion).getTime()) / 86_400_000)} días
+                </span>
+              )}
             </span>
           ) : null}
         </div>
@@ -587,6 +593,12 @@ export function GaleriaPedidos({
             // era chiquito y había que buscarlo. Solo lo ve el admin: es
             // información de compras.
             const faltaComprar = esAdmin && !esCancelado && !esEntregado && !t.comprado
+            // 🚨 Sirena: lleva más de 5 días creado y AÚN sin compra asignada
+            // (pedido de Johan 21-sep-2026). Solo admin, igual que el rojo.
+            const diasSinCompra = faltaComprar
+              ? Math.floor((Date.now() - new Date(t.pedido.fecha_creacion).getTime()) / 86_400_000)
+              : 0
+            const enAlertaCompra = faltaComprar && diasSinCompra > 5
             return (
               <button
                 key={t.ref}
@@ -636,6 +648,15 @@ export function GaleriaPedidos({
                 {t.comprado && !t.pedido.factura_id && !esCancelado && !esEntregado && (
                   <span className="absolute top-1.5 right-1.5 z-10 inline-flex items-center gap-0.5 bg-emerald-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md shadow-sm">
                     <Check size={9} strokeWidth={4} /> Comprado
+                  </span>
+                )}
+                {/* 🚨 Más de 5 días sin compra asignada: hay que comprarlo YA */}
+                {enAlertaCompra && (
+                  <span
+                    title={`${diasSinCompra} días sin compra asignada`}
+                    className="absolute top-1.5 right-1.5 z-10 inline-flex items-center gap-0.5 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md shadow-sm animate-pulse"
+                  >
+                    🚨 {diasSinCompra}d
                   </span>
                 )}
                 {t.imagen ? (
