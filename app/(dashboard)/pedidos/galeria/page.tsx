@@ -114,6 +114,20 @@ export default async function GaleriaPedidosPage({
   // alcance por defecto del asesor.
   const sedeFiltro = ['TR', 'SR', 'CR'].includes(params.sede ?? '') ? params.sede : undefined
 
+  // Contador de pedidos SIN FACTURA DE COMPRA (solo admin): mismos criterios
+  // del filtro "⚠ Falta comprar" para que el número cuadre con lo que sale al
+  // hacer clic. head:true = solo el conteo, sin traer filas.
+  let sinCompraTotal: number | null = null
+  if (esAdmin) {
+    const { count } = await supabase
+      .from('vista_pedidos_asesor')
+      .select('id', { count: 'exact', head: true })
+      .not('tipo', 'in', '("venta_inmediata","saldo_anterior")')
+      .not('estado', 'in', '(cancelado,entregado)')
+      .eq('tiene_compra', false)
+    sinCompraTotal = count ?? null
+  }
+
   const resultado = await getPedidos({
     estado: soloSinCompra ? undefined : (params.estado as EstadoPedido | undefined),
     sinCompra: soloSinCompra,
@@ -230,7 +244,20 @@ export default async function GaleriaPedidosPage({
     <div className="p-6">
       <div className="flex items-center justify-between mb-5 gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Galería de pedidos</h1>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-2xl font-bold text-gray-900">Galería de pedidos</h1>
+            {/* Contador de pedidos sin factura de compra (solo admin): clic
+                para ver exactamente esos. */}
+            {sinCompraTotal !== null && sinCompraTotal > 0 && (
+              <Link
+                href="/pedidos/galeria?estado=sin_compra"
+                title="Pedidos activos sin compra asignada — clic para verlos"
+                className="inline-flex items-center gap-1.5 rounded-full bg-red-100 border border-red-300 text-red-800 text-sm font-bold px-3 py-1 hover:bg-red-200 transition-colors"
+              >
+                🛒 {sinCompraTotal.toLocaleString('es-CO')} sin compra
+              </Link>
+            )}
+          </div>
           <p className="text-sm text-gray-400 mt-0.5">{total} pedido{total !== 1 ? 's' : ''} · fotos en grande</p>
         </div>
         <Link
