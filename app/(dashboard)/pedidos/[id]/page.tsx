@@ -9,6 +9,9 @@ import { formatearTelefono, whatsappUrl } from '@/lib/utils/phone'
 import { ESTADO_LABELS } from '@/types'
 import { getSesion, puedeVerPedido } from '@/lib/auth/acceso'
 import { CopiarResumen } from '@/components/pedidos/CopiarResumen'
+import { LinkClienteButton } from '@/components/pedidos/LinkClienteButton'
+import type { LinkCliente } from '@/app/actions/shopify'
+import { createClient } from '@/lib/supabase/server'
 import { EliminarPedidoButton } from '@/components/pedidos/EliminarPedidoButton'
 import { SeguimientoBar } from '@/components/pedidos/SeguimientoBar'
 import { EditarPagoInline } from '@/components/pedidos/EditarPagoInline'
@@ -45,6 +48,31 @@ export default async function PedidoDetallePage({
 
   const esAdmin = sesion.rol === 'admin'
   const saldo = pedido.total - pedido.total_pagado
+
+  // Pedido por Link (mig. 200): ¿este pedido ya tiene link de Shopify? El más
+  // reciente manda (confirmado o pendiente). Se lee con el cliente de SESIÓN
+  // para que la RLS (auth_no_es_visor) haga su trabajo — defensa en
+  // profundidad, no solo el if del render. En cancelados no se muestra nada.
+  let linkCliente: LinkCliente | null = null
+  if (sesion.rol !== 'visor' && pedido.estado !== 'cancelado') {
+    const supabaseLink = await createClient()
+    const { data: sl } = await supabaseLink
+      .from('shopify_links')
+      .select('invoice_url, draft_name, estado, shopify_order_name, confirmado_en')
+      .eq('pedido_id', id)
+      .order('creado_en', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (sl) {
+      linkCliente = {
+        url: sl.invoice_url,
+        draftName: sl.draft_name,
+        estado: sl.estado as 'pendiente' | 'confirmado',
+        shopifyOrderName: sl.shopify_order_name,
+        confirmadoEn: sl.confirmado_en,
+      }
+    }
+  }
   const ganancia = esAdmin ? await getGananciaPedido(id) : null
   // Costo manual por producto (mig. 165) — solo se consulta para admin.
   const costosItems = esAdmin ? await getCostosItemsPedido(id) : {}
@@ -413,6 +441,17 @@ export default async function PedidoDetallePage({
                   Ver cliente
                 </Link>
               </div>
+              {/* Pedido por Link: el cliente llena SUS datos por Shopify.
+                  Resaltado cuando la ficha está incompleta (cliente nuevo).
+                  En cancelados no aparece (como las demás acciones). */}
+              {sesion.rol !== 'visor' && pedido.estado !== 'cancelado' && (
+                <LinkClienteButton
+                  pedidoId={id}
+                  telefono={pedido.cliente_telefono}
+                  datosIncompletos={!pedido.cliente_direccion}
+                  linkInicial={linkCliente}
+                />
+              )}
               <CopiarResumen pedido={pedido} />
             </CardContent>
           </Card>

@@ -67,7 +67,11 @@ export async function updateSession(request: NextRequest) {
     pathname === '/login' ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api/auth') ||
-    pathname.startsWith('/api/cron')
+    pathname.startsWith('/api/cron') ||
+    // Webhook de Shopify (Pedido por Link): lo llama Shopify sin cookie y solo
+    // acepta 2xx (un redirect a /login mata la suscripción). Se protege por su
+    // cuenta con la firma HMAC en la ruta.
+    pathname.startsWith('/api/shopify')
 
   if (!user && !isPublicPath) {
     const url = request.nextUrl.clone()
