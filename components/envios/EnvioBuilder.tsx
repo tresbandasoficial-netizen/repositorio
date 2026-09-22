@@ -10,7 +10,9 @@ import {
 } from '@/app/actions/envios'
 import { buscarArticulosAction } from '@/app/actions/articulos'
 import { EstadoBadge } from '@/components/pedidos/EstadoBadge'
-import { EstadoPedido } from '@/types'
+import { TallaSelect } from '@/components/ui/TallaSelect'
+import { CrearArticuloModal, ArticuloCreado } from '@/components/inventario/CrearArticuloModal'
+import { EstadoPedido, CategoriaArticulo, SexoArticulo } from '@/types'
 import { Loader2, Package, Barcode, Plus, Trash2, Send, Search } from 'lucide-react'
 
 // Opción del buscador de catálogo, aplanada por talla disponible.
@@ -19,6 +21,18 @@ type OpcionArt = {
   descripcion: string   // marca + nombre (+ color)
   talla: string | null
   stock: number | null
+  // Para el selector de tallas al elegir la opción
+  categoria: string | null
+  sexo: string | null
+  stockPorTalla: Record<string, number>
+}
+
+type ArtSeleccionado = {
+  codigo: string | null
+  descripcion: string
+  categoria: string | null
+  sexo: string | null
+  stockPorTalla?: Record<string, number>
 }
 
 type ItemLista =
@@ -53,9 +67,12 @@ export function EnvioBuilder({ sedes, sedeOrigenId, pedidosIniciales }: {
   const [opcionesArt, setOpcionesArt] = useState<OpcionArt[]>([])
   const [buscandoArt, setBuscandoArt] = useState(false)
   const [openArt, setOpenArt] = useState(false)
-  const [artSel, setArtSel] = useState<{ codigo: string | null; descripcion: string } | null>(null)
+  const [artSel, setArtSel] = useState<ArtSeleccionado | null>(null)
   const [tallaArt, setTallaArt] = useState('')
   const [cantArt, setCantArt] = useState(1)
+  // Crear el artículo en el catálogo sin salir del envío (pedido de Johan
+  // 21-sep-2026: "si el artículo no está creado no me deja crearlo ahí mismo").
+  const [creandoArt, setCreandoArt] = useState(false)
   const artTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   function onBusquedaArtChange(valor: string) {
@@ -71,11 +88,15 @@ export function EnvioBuilder({ sedes, sedeOrigenId, pedidosIniciales }: {
         const opts: OpcionArt[] = []
         for (const a of arts) {
           const desc = `${a.marca} ${a.nombre}${a.color ? ` ${a.color}` : ''}`.trim()
+          const stockMap = Object.fromEntries(
+            a.tallaStock.map(ts => [(ts.talla ?? '').trim().toUpperCase(), ts.stock])
+          )
+          const base = { categoria: a.categoria, sexo: a.sexo, stockPorTalla: stockMap }
           if (a.tallaStock.length === 0) {
-            opts.push({ codigo: a.codigo, descripcion: desc, talla: null, stock: null })
+            opts.push({ codigo: a.codigo, descripcion: desc, talla: null, stock: null, ...base })
           } else {
             for (const ts of a.tallaStock) {
-              opts.push({ codigo: a.codigo, descripcion: desc, talla: ts.talla, stock: ts.stock })
+              opts.push({ codigo: a.codigo, descripcion: desc, talla: ts.talla, stock: ts.stock, ...base })
             }
           }
         }
@@ -104,10 +125,26 @@ export function EnvioBuilder({ sedes, sedeOrigenId, pedidosIniciales }: {
   }
 
   function elegirArticulo(opt: OpcionArt) {
-    setArtSel({ codigo: opt.codigo, descripcion: opt.descripcion })
+    setArtSel({
+      codigo: opt.codigo,
+      descripcion: opt.descripcion,
+      categoria: opt.categoria,
+      sexo: opt.sexo,
+      stockPorTalla: opt.stockPorTalla,
+    })
     setBusquedaArt(`${opt.codigo ? `${opt.codigo} · ` : ''}${opt.descripcion}`)
     if (opt.talla) setTallaArt(opt.talla)
     setOpenArt(false)
+  }
+
+  // El artículo recién creado en el catálogo queda seleccionado de una.
+  function articuloCreado(art: ArticuloCreado) {
+    const desc = `${art.marca} ${art.nombre}${art.color ? ` ${art.color}` : ''}`.trim()
+    setArtSel({ codigo: art.codigo, descripcion: desc, categoria: art.categoria, sexo: art.sexo })
+    setBusquedaArt(`${art.codigo ? `${art.codigo} · ` : ''}${desc}`)
+    setOpcionesArt([])
+    setOpenArt(false)
+    setCreandoArt(false)
   }
 
   // Carga los pedidos que vienen pre-marcados desde la galería (una sola vez).
@@ -208,6 +245,13 @@ export function EnvioBuilder({ sedes, sedeOrigenId, pedidosIniciales }: {
     setItems(prev => prev.filter((_, i) => i !== idx))
   }
 
+  // Cantidad editable en la lista, sin tener que quitar y volver a agregar.
+  function cambiarCantidad(idx: number, val: number) {
+    setItems(prev => prev.map((it, i) =>
+      i === idx && it.tipo === 'articulo' ? { ...it, cantidad: Math.max(1, val) } : it
+    ))
+  }
+
   function guardar() {
     if (items.length === 0) { setError('Agrega al menos un pedido o artículo'); return }
     setGuardando(true)
@@ -294,9 +338,21 @@ export function EnvioBuilder({ sedes, sedeOrigenId, pedidosIniciales }: {
             {openArt && (
               <div className="absolute z-30 top-full left-0 right-0 mt-1.5 bg-white border border-gray-200 rounded-xl shadow-xl py-1 max-h-64 overflow-y-auto">
                 {opcionesArt.length === 0 ? (
-                  <p className="px-3 py-2.5 text-xs text-gray-400">
-                    Sin resultados — puedes agregarlo igual con el botón (queda como código libre)
-                  </p>
+                  <div className="px-3 py-2.5 space-y-1.5">
+                    <p className="text-xs text-gray-400">
+                      Ese artículo no está en el catálogo.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => { setOpenArt(false); setCreandoArt(true) }}
+                      className="w-full flex items-center justify-center gap-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-2 py-1.5 transition-colors"
+                    >
+                      <Plus size={12} /> Crear el artículo aquí mismo
+                    </button>
+                    <p className="text-[10px] text-gray-400">
+                      O agrégalo con el botón de abajo y queda como código libre (sin ficha).
+                    </p>
+                  </div>
                 ) : opcionesArt.map((opt, i) => (
                   <button
                     key={`${opt.codigo ?? 'x'}-${opt.talla ?? ''}-${i}`}
@@ -322,14 +378,28 @@ export function EnvioBuilder({ sedes, sedeOrigenId, pedidosIniciales }: {
           )}
 
           <div className="grid grid-cols-[1fr_1fr] gap-2">
-            <input
-              type="text"
-              value={tallaArt}
-              onChange={e => setTallaArt(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); agregarArticulo() } }}
-              placeholder="Talla"
-              className="min-w-0 rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-center bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            {/* Con artículo del catálogo elegido: selector de tallas de verdad
+                (según categoría/sexo, con el stock por talla al lado). Sin
+                selección (código libre) queda el campo de texto. */}
+            {artSel ? (
+              <TallaSelect
+                categoria={(artSel.categoria ?? '') as CategoriaArticulo | ''}
+                sexo={(artSel.sexo ?? '') as SexoArticulo | ''}
+                value={tallaArt}
+                onChange={setTallaArt}
+                className="min-w-0 rounded-xl border border-gray-200 px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                stockPorTalla={artSel.stockPorTalla}
+              />
+            ) : (
+              <input
+                type="text"
+                value={tallaArt}
+                onChange={e => setTallaArt(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); agregarArticulo() } }}
+                placeholder="Talla"
+                className="min-w-0 rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-center bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            )}
             <input
               type="number"
               min={1}
@@ -400,8 +470,16 @@ export function EnvioBuilder({ sedes, sedeOrigenId, pedidosIniciales }: {
                       <span className="flex-1 text-sm text-gray-600 truncate">
                         {it.descripcion ?? <span className="italic text-gray-400">No está en el catálogo</span>}
                       </span>
-                      <span className="text-xs text-gray-500 shrink-0">
-                        {it.talla ? `T${it.talla}` : ''}{it.talla && it.cantidad > 1 ? ' · ' : ''}{it.cantidad > 1 ? `×${it.cantidad}` : ''}
+                      {it.talla && <span className="text-xs text-gray-500 shrink-0">T{it.talla}</span>}
+                      <span className="flex items-center gap-1 shrink-0" title="Cantidad">
+                        <span className="text-[10px] text-gray-400">×</span>
+                        <input
+                          type="number"
+                          min={1}
+                          value={it.cantidad}
+                          onChange={e => cambiarCantidad(i, parseInt(e.target.value) || 1)}
+                          className="w-14 rounded-lg border border-gray-200 px-1.5 py-1 text-xs text-center bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+                        />
                       </span>
                       <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 shrink-0">Artículo</span>
                     </>
@@ -424,6 +502,15 @@ export function EnvioBuilder({ sedes, sedeOrigenId, pedidosIniciales }: {
           Guardar envío ({items.length} ítem{items.length !== 1 ? 's' : ''})
         </button>
       </div>
+
+      {/* Crear artículo del catálogo sin salir del envío */}
+      {creandoArt && (
+        <CrearArticuloModal
+          codigoInicial={/^[a-z0-9-]{3,}$/i.test(busquedaArt.trim()) ? busquedaArt.trim().toUpperCase() : ''}
+          onCreado={articuloCreado}
+          onClose={() => setCreandoArt(false)}
+        />
+      )}
     </div>
   )
 }
