@@ -64,7 +64,7 @@ export async function generarLinkClienteAction(pedidoId: string): Promise<Genera
   }
 
   if (!shopifyConfigurado()) {
-    return { ok: false, error: 'Falta configurar Shopify: pega SHOPIFY_STORE_DOMAIN y SHOPIFY_ADMIN_TOKEN en Vercel (Settings → Environment Variables) y redespliega.' }
+    return { ok: false, error: 'Falta configurar Shopify: pega SHOPIFY_STORE_DOMAIN, SHOPIFY_CLIENT_ID y SHOPIFY_CLIENT_SECRET en Vercel (Settings → Environment Variables) y redespliega.' }
   }
 
   // Los artículos del pedido van como items del borrador, con el precio FIJO.
