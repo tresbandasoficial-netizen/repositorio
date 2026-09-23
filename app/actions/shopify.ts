@@ -85,9 +85,10 @@ export async function generarLinkClienteAction(pedidoId: string): Promise<Genera
   }))
 
   // La IDENTIDAD del link es un UUID nuestro que viaja como tag del borrador
-  // (tb-link:<uuid>). El webhook resuelve por ese UUID — no por el número de
-  // pedido, que puede cambiar (separar/editar) — y como es inadivinable, una
-  // orden ajena con tags inventados no puede confirmar un link que no es suyo.
+  // (tb:<uuid> — los tags de Shopify admiten máximo 40 caracteres). El webhook
+  // resuelve por ese UUID — no por el número de pedido, que puede cambiar
+  // (separar/editar) — y como es inadivinable, una orden ajena con tags
+  // inventados no puede confirmar un link que no es suyo.
   const linkId = crypto.randomUUID()
 
   const r = await shopifyAdminGraphQL(
@@ -100,7 +101,7 @@ export async function generarLinkClienteAction(pedidoId: string): Promise<Genera
     {
       input: {
         note: `Pedido ${pedido.numero_orden} — Tres Bandas (datos del cliente por link)`,
-        tags: [pedido.numero_orden, 'tres-bandas-link', `tb-link:${linkId}`],
+        tags: [pedido.numero_orden, 'tres-bandas-link', `tb:${linkId}`],
         lineItems,
       },
     },

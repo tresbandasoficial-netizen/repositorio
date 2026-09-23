@@ -8,7 +8,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 // 1. FIRMA HMAC obligatoria (SHOPIFY_WEBHOOK_SECRET, timingSafeEqual sobre el
 //    cuerpo crudo): sin firma válida no se toca nada. El cuerpo es contenido
 //    EXTERNO — siempre datos, jamás instrucciones.
-// 2. La IDENTIDAD es el tag tb-link:<uuid> que puso generarLinkClienteAction:
+// 2. La IDENTIDAD es el tag tb:<uuid> que puso generarLinkClienteAction:
 //    un UUID nuestro, inadivinable. Órdenes de la tienda sin ese tag (ventas
 //    normales de Shopify) se ignoran; un tag inventado no matchea ninguna
 //    fila; y el link sobrevive a renombres del pedido (separar/editar).
@@ -54,14 +54,14 @@ export async function POST(req: Request) {
     return new Response('ok', { status: 200 })
   }
 
-  // Identidad: tag tb-link:<uuid> (regla 2). Sin él, no es de nuestros links.
+  // Identidad: tag tb:<uuid> (regla 2). Sin él, no es de nuestros links.
   const tags = String(order?.tags ?? '')
     .split(',')
     .map((t: string) => t.trim().toLowerCase())
     .filter(Boolean)
-  const tagLink = tags.find((t: string) => /^tb-link:[0-9a-f-]{36}$/.test(t))
+  const tagLink = tags.find((t: string) => /^tb:[0-9a-f-]{36}$/.test(t))
   if (!tagLink) return new Response('ok', { status: 200 })
-  const linkId = tagLink.slice('tb-link:'.length)
+  const linkId = tagLink.slice('tb:'.length)
 
   const admin = createAdminClient()
 
