@@ -103,6 +103,11 @@ export async function generarLinkClienteAction(pedidoId: string): Promise<Genera
         note: `Pedido ${pedido.numero_orden} — Tres Bandas (datos del cliente por link)`,
         tags: [pedido.numero_orden, 'tres-bandas-link', `tb:${linkId}`],
         lineItems,
+        // Envío fijo en $0: sin esto el checkout aplica las tarifas de la
+        // tienda (le sumaba "Envío estándar" al cliente) y el total del link
+        // dejaba de ser el precio del pedido. Preseleccionado, el cliente no
+        // puede cambiarlo; el envío se acuerda por WhatsApp como siempre.
+        shippingLine: { title: 'Envío', priceWithCurrency: { amount: '0', currencyCode: 'COP' } },
       },
     },
   )
