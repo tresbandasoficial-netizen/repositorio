@@ -30,6 +30,7 @@ import {
   Clock,
   DollarSign,
   UserMinus,
+  ArrowLeftRight,
   ChevronDown,
   ChevronRight,
   LucideProps,
@@ -103,10 +104,11 @@ const navGrupos: { id: string; label: string; icon: NavIcon; items: NavItem[] }[
   {
     id: 'dinero', label: 'Dinero', icon: Wallet,
     items: [
-      { href: '/gastos',       label: 'Gastos',       icon: Wallet,      rol: ['asesor', 'admin'] },
-      { href: '/gastos-fijos', label: 'Gastos fijos', icon: Landmark,    rol: ['admin'] },
-      { href: '/flujo-caja',   label: 'Flujo de caja',icon: BarChart2,   rol: ['admin'] },
-      { href: '/consignaciones', label: 'Consignaciones', icon: Landmark, rol: ['admin'] },
+      { href: '/gastos',       label: 'Gastos',       icon: Wallet,          rol: ['asesor', 'admin'] },
+      { href: '/flujo-caja/mis-movimientos', label: 'Mis movimientos', icon: ArrowLeftRight, rol: ['asesor'] },
+      { href: '/gastos-fijos', label: 'Gastos fijos', icon: Landmark,        rol: ['admin'] },
+      { href: '/flujo-caja',   label: 'Flujo de caja',icon: BarChart2,       rol: ['admin'] },
+      { href: '/consignaciones', label: 'Consignaciones', icon: Landmark,    rol: ['admin'] },
       { href: '/prestamos',    label: 'Préstamos',    icon: HandCoins,   rol: ['admin'] },
       { href: '/ganancias',    label: 'Ganancias',    icon: TrendingUp,  rol: ['admin'] },
       { href: '/estadisticas', label: 'Estadísticas', icon: BarChart2,   rol: ['admin'] },

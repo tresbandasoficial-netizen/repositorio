@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { normalizarTelefono } from '@/lib/utils/phone'
 
 // Webhook de Shopify — "Pedido por Link" (mig. 200).
 // Shopify llama aquí cuando el cliente COMPLETA el checkout del borrador
@@ -72,15 +73,7 @@ export async function POST(req: Request) {
     .maybeSingle()
   if (errLink) return new Response('Error BD', { status: 500 })   // Shopify reintenta
   if (!link) return new Response('ok', { status: 200 })            // uuid sin fila (huérfano/ajeno)
-  if (link.estado === 'confirmado') return new Response('ok', { status: 200 }) // ya procesado
-
-  const { data: pedido, error: errPed } = await admin
-    .from('pedidos')
-    .select('id, cliente_id, estado, tipo_entrega, direccion_entrega')
-    .eq('id', link.pedido_id)
-    .maybeSingle()
-  if (errPed) return new Response('Error BD', { status: 500 })
-  if (!pedido) return new Response('ok', { status: 200 })
+  if (link.estado !== 'pendiente') return new Response('ok', { status: 200 }) // ya procesado
 
   // Datos que llenó el cliente (contenido externo: solo datos).
   const ship = order?.shipping_address ?? null
@@ -90,6 +83,85 @@ export async function POST(req: Request) {
   const direccion = [limpiar(ship?.address1), limpiar(ship?.address2)].filter(Boolean).join(' ')
   const ciudad = limpiar(ship?.city)
   const email = limpiar(order?.email) || limpiar(order?.contact_email) || limpiar(cust?.email)
+  const telefonoCrudo = limpiar(ship?.phone) || limpiar(order?.phone) || limpiar(cust?.phone) || limpiar(order?.billing_address?.phone)
+
+  // ── Link para cliente NUEVO (sin pedido previo, mig. 201) ──────────────────
+  // El celular es la llave de identidad del cliente en el sistema: sin uno
+  // usable no se puede crear nada → el link queda 'sin_telefono' con los
+  // datos guardados, y la asesora crea el pedido a mano.
+  if (!link.pedido_id) {
+    const telefono = telefonoCrudo ? normalizarTelefono(telefonoCrudo) : null
+    const telefonoOk = !!telefono && /^\+?\d{7,15}$/.test(telefono)
+    const datosNuevo = {
+      nombre, direccion, ciudad, email,
+      telefono: telefonoCrudo,
+      shopify_order: limpiar(order?.name),
+      financial_status: limpiar(order?.financial_status),
+    }
+    if (!telefonoOk) {
+      const { data: marcado, error: errSinTel } = await admin
+        .from('shopify_links')
+        .update({
+          estado: 'sin_telefono',
+          shopify_order_id: String(order?.id ?? ''),
+          shopify_order_name: limpiar(order?.name) || null,
+          datos_cliente: datosNuevo,
+          confirmado_en: new Date().toISOString(),
+        })
+        .eq('id', link.id)
+        .eq('estado', 'pendiente')
+        .select('id')
+      if (errSinTel) return new Response('Error BD', { status: 500 })
+      void marcado
+      return new Response('ok', { status: 200 })
+    }
+    // Cliente + pedido + marca del link en UNA transacción (idempotente: si
+    // el link ya tiene pedido, la RPC devuelve ese pedido sin tocar nada).
+    const { error: errRpc } = await admin.rpc('confirmar_link_nuevo', {
+      p_link_id: link.id,
+      p_telefono: telefono,
+      p_nombre: nombre,
+      p_direccion: direccion,
+      p_ciudad: ciudad,
+      p_email: email,
+      p_shopify_order_id: String(order?.id ?? ''),
+      p_shopify_order_name: limpiar(order?.name) || null,
+      p_datos: datosNuevo,
+    })
+    if (errRpc) {
+      // Error PERMANENTE (regla de negocio P0001 o constraint 23xxx: renglón
+      // inválido, asesora borrada…): reintentar no lo arregla y Shopify acabaría
+      // descartando el evento con el pedido del cliente perdido en silencio. Se
+      // guarda como 'sin_telefono' con el error para que la asesora lo cree a
+      // mano con los datos. Lo demás (red, timeout, deadlock) → 500 y reintento.
+      const code = String((errRpc as { code?: string }).code ?? '')
+      const permanente = code === 'P0001' || code.startsWith('23')
+      if (!permanente) return new Response('Error BD', { status: 500 })
+      const { error: errMarca } = await admin
+        .from('shopify_links')
+        .update({
+          estado: 'sin_telefono',
+          shopify_order_id: String(order?.id ?? ''),
+          shopify_order_name: limpiar(order?.name) || null,
+          datos_cliente: { ...datosNuevo, error: String(errRpc.message ?? '').slice(0, 300) },
+          confirmado_en: new Date().toISOString(),
+        })
+        .eq('id', link.id)
+        .eq('estado', 'pendiente')
+      if (errMarca) return new Response('Error BD', { status: 500 })
+      return new Response('ok', { status: 200 })
+    }
+    return new Response('ok', { status: 200 })
+  }
+
+  const { data: pedido, error: errPed } = await admin
+    .from('pedidos')
+    .select('id, cliente_id, estado, tipo_entrega, direccion_entrega')
+    .eq('id', link.pedido_id)
+    .maybeSingle()
+  if (errPed) return new Response('Error BD', { status: 500 })
+  if (!pedido) return new Response('ok', { status: 200 })
+
   const datos = {
     nombre, direccion, ciudad, email,
     shopify_order: limpiar(order?.name),

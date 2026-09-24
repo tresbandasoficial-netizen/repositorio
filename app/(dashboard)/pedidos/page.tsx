@@ -64,6 +64,15 @@ export default async function PedidosPage({
           >
             🖼 Galería
           </Link>
+          {usuario.rol !== 'visor' && (
+            <Link
+              href="/pedidos/link-nuevo"
+              className="inline-flex items-center gap-2 bg-white border border-violet-200 hover:bg-violet-50 text-violet-700 text-sm font-semibold px-4 py-2.5 rounded-2xl transition-colors"
+              title="Link de Shopify solo con el producto: el cliente nuevo llena sus datos y el pedido se crea solo"
+            >
+              🔗 Link cliente nuevo
+            </Link>
+          )}
           <Link
             href="/pedidos/nuevo"
             className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-4 py-2.5 rounded-2xl transition-colors shadow-md shadow-blue-200"
