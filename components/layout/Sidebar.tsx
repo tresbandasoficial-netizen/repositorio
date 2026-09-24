@@ -105,7 +105,7 @@ const navGrupos: { id: string; label: string; icon: NavIcon; items: NavItem[] }[
     id: 'dinero', label: 'Dinero', icon: Wallet,
     items: [
       { href: '/gastos',       label: 'Gastos',       icon: Wallet,          rol: ['asesor', 'admin'] },
-      { href: '/flujo-caja/mis-movimientos', label: 'Mis movimientos', icon: ArrowLeftRight, rol: ['asesor'] },
+      { href: '/flujo-caja/mis-movimientos', label: 'Mis movimientos', icon: ArrowLeftRight, rol: ['asesor', 'admin'] },
       { href: '/gastos-fijos', label: 'Gastos fijos', icon: Landmark,        rol: ['admin'] },
       { href: '/flujo-caja',   label: 'Flujo de caja',icon: BarChart2,       rol: ['admin'] },
       { href: '/consignaciones', label: 'Consignaciones', icon: Landmark,    rol: ['admin'] },

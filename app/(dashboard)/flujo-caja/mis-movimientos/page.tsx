@@ -1,12 +1,12 @@
 import { redirect } from 'next/navigation'
 import { BotonVolver } from '@/components/ui/BotonVolver'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getSesion } from '@/lib/auth/acceso'
 import { formatCOP } from '@/lib/utils/format'
 
-// Página para asesores: ven los traslados y consignaciones que ellos mismos
-// registraron. No muestra los de otros usuarios ni la vista global de cuentas
-// (esa es exclusiva de admin en /flujo-caja).
+// Admin: ve todos los traslados/consignaciones con nombre del responsable.
+// Asesor: ve solo los suyos (filtro por responsable_id = sesion.id).
 
 type CuentaRef = { nombre: string; tipo: string }
 
@@ -18,6 +18,7 @@ type Traslado = {
   creado_en: string
   origen: CuentaRef | null
   destino: CuentaRef
+  responsable: { nombre: string } | null
 }
 
 function fechaCorta(iso: string) {
@@ -44,18 +45,23 @@ export default async function MisMovimientosPage() {
   const sesion = await getSesion()
   if (sesion.rol === 'visor') redirect('/dashboard')
 
-  const supabase = await createClient()
-  const { data, error } = await supabase
+  const esAdmin = sesion.rol === 'admin'
+  // Admin usa client con privilegios para poder leer usuarios (join).
+  const client = esAdmin ? createAdminClient() : await createClient()
+  let consulta = client
     .from('traslados_caja')
     .select(`
       id, monto, fecha, notas, creado_en,
       origen:origen_cuenta_id(nombre, tipo),
-      destino:destino_cuenta_id(nombre, tipo)
+      destino:destino_cuenta_id(nombre, tipo),
+      responsable:responsable_id(nombre)
     `)
-    .eq('responsable_id', sesion.id)
     .order('creado_en', { ascending: false })
-    .limit(100)
+    .limit(200)
 
+  if (!esAdmin) consulta = consulta.eq('responsable_id', sesion.id)
+
+  const { data, error } = await consulta
   const traslados = (data ?? []) as unknown as Traslado[]
 
   return (
@@ -66,7 +72,9 @@ export default async function MisMovimientosPage() {
         <h1 className="text-lg font-bold text-gray-900">Mis movimientos de caja</h1>
       </div>
       <p className="text-sm text-gray-500 mb-6">
-        Traslados y consignaciones que has registrado. Solo los tuyos, más recientes primero.
+        {esAdmin
+          ? 'Todos los traslados y consignaciones del equipo, más recientes primero.'
+          : 'Traslados y consignaciones que has registrado. Solo los tuyos, más recientes primero.'}
       </p>
 
       {error && (
@@ -93,6 +101,9 @@ export default async function MisMovimientosPage() {
                       <span className="text-gray-400">→</span>{' '}
                       {t.destino.nombre}
                     </p>
+                    {(esAdmin && t.responsable) && (
+                      <p className="text-xs text-blue-600 font-medium mt-0.5">{t.responsable.nombre}</p>
+                    )}
                     {t.notas && (
                       <p className="text-xs text-gray-500 mt-0.5 truncate" title={t.notas}>{t.notas}</p>
                     )}
