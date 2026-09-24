@@ -17,7 +17,7 @@ type Traslado = {
   notas: string | null
   creado_en: string
   origen: CuentaRef | null
-  destino: CuentaRef
+  destino: CuentaRef | null
   responsable: { nombre: string } | null
 }
 
@@ -35,8 +35,8 @@ function fechaCorta(iso: string) {
 const TIPOS_BANCO = ['bancolombia', 'nequi', 'daviplata', 'bold', 'otro']
 const TIPOS_EFECTIVO = ['efectivo']
 
-function etiqueta(origen: CuentaRef | null, destino: CuentaRef) {
-  if (origen && TIPOS_EFECTIVO.includes(origen.tipo) && TIPOS_BANCO.includes(destino.tipo))
+function etiqueta(origen: CuentaRef | null, destino: CuentaRef | null) {
+  if (origen && destino && TIPOS_EFECTIVO.includes(origen.tipo) && TIPOS_BANCO.includes(destino.tipo))
     return 'Consignación'
   return 'Traslado'
 }
@@ -99,7 +99,7 @@ export default async function MisMovimientosPage() {
                     <p className="text-sm font-medium text-gray-900">
                       {t.origen ? t.origen.nombre : 'Ingreso externo'}{' '}
                       <span className="text-gray-400">→</span>{' '}
-                      {t.destino.nombre}
+                      {t.destino ? t.destino.nombre : '(cuenta eliminada)'}
                     </p>
                     {(esAdmin && t.responsable) && (
                       <p className="text-xs text-blue-600 font-medium mt-0.5">{t.responsable.nombre}</p>
