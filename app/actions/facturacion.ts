@@ -617,7 +617,7 @@ export async function anularFacturaAction(facturaId: string): Promise<SimpleResu
   if (sesion.rol !== 'admin') return { ok: false, error: 'Solo el administrador puede anular facturas' }
   const supabase = await createClient()
 
-  const { error } = await supabase.rpc('anular_factura', { p_factura_id: facturaId })
+  const { error } = await supabase.rpc('anular_factura', { p_factura_id: facturaId, p_usuario_id: sesion.id })
   if (error) return { ok: false, error: error.message }
 
   revalidatePath('/facturacion')
