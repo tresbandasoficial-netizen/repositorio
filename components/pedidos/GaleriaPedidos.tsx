@@ -589,6 +589,8 @@ export function GaleriaPedidos({
             const esCancelado = t.pedido.estado === 'cancelado'
             // Recuadro VERDE = ya entregado (lo ven admin y asesores).
             const esEntregado = t.pedido.estado === 'entregado'
+            // Franja NARANJA = ya llegó a Bucaramanga (lo ven todos).
+            const esBucaramanga = t.pedido.estado === 'bucaramanga'
             // Recuadro ROJO = falta comprarlo. Reemplaza al punto de color, que
             // era chiquito y había que buscarlo. Solo lo ve el admin: es
             // información de compras.
@@ -603,7 +605,7 @@ export function GaleriaPedidos({
               <button
                 key={t.ref}
                 onClick={() => elegir(t)}
-                title={faltaComprar ? 'Sin comprar' : esCancelado ? 'Cancelado' : esEntregado ? 'Entregado' : t.comprado ? 'Ya comprado' : undefined}
+                title={faltaComprar ? 'Sin comprar' : esCancelado ? 'Cancelado' : esEntregado ? 'Entregado' : esBucaramanga ? 'Ya está en Bucaramanga' : t.comprado ? 'Ya comprado' : undefined}
                 // El BORDE dice el estado de compra y el ANILLO lo que está
                 // seleccionado, así los dos se leen a la vez y no se tapan.
                 // El grosor es siempre 2 para que la tarjeta no cambie de tamaño
@@ -612,6 +614,7 @@ export function GaleriaPedidos({
                   faltaComprar ? 'border-red-500'
                   : esEntregado ? 'border-emerald-500'
                   : esCancelado ? 'border-gray-300'
+                  : esBucaramanga ? 'border-orange-400'
                   : 'border-gray-200'
                 } ${
                   marcado ? 'ring-2 ring-purple-400 shadow-md'
@@ -659,14 +662,21 @@ export function GaleriaPedidos({
                     🚨 {diasSinCompra}d
                   </span>
                 )}
-                {t.imagen ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={t.imagen} alt={t.ref} loading="lazy" className="w-full aspect-square object-cover" />
-                ) : (
-                  <div className="w-full aspect-square bg-gray-50 flex items-center justify-center text-gray-300">
-                    <ImageOff size={20} />
-                  </div>
-                )}
+                <div className="relative">
+                  {t.imagen ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={t.imagen} alt={t.ref} loading="lazy" className="w-full aspect-square object-cover" />
+                  ) : (
+                    <div className="w-full aspect-square bg-gray-50 flex items-center justify-center text-gray-300">
+                      <ImageOff size={20} />
+                    </div>
+                  )}
+                  {esBucaramanga && (
+                    <div className="absolute bottom-0 left-0 right-0 bg-orange-500/90 text-white text-[9px] font-bold text-center py-0.5 leading-tight">
+                      📍 En Bucaramanga
+                    </div>
+                  )}
+                </div>
                 <div className="px-2 py-1.5">
                   {/* La talla va ARRIBA, junto al número: al final de la línea
                       del cliente se cortaba cuando el nombre era largo. */}
