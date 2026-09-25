@@ -175,6 +175,39 @@ export async function crearEnvioAction(data: {
 
   revalidatePath('/envios')
   revalidatePath('/inventario')
+
+  // Auto-avanzar pedidos a 'santa_rosa' cuando el destino es la sede SR.
+  const pedidosDelEnvio = data.items
+    .filter(it => it.tipo === 'pedido')
+    .map(it => (it as Extract<ItemEnvioInput, { tipo: 'pedido' }>).pedido_id)
+
+  if (pedidosDelEnvio.length > 0) {
+    const { data: sedeDestino } = await supabase
+      .from('sedes')
+      .select('codigo')
+      .eq('id', data.destino_sede_id)
+      .maybeSingle()
+
+    if ((sedeDestino as any)?.codigo === 'SR') {
+      const AVANZABLES = ['pendiente', 'comprado', 'usa', 'bucaramanga']
+      const { data: pedidosData } = await supabase
+        .from('vista_pedidos_asesor')
+        .select('id, estado')
+        .in('id', pedidosDelEnvio)
+
+      for (const p of (pedidosData ?? [])) {
+        if (!AVANZABLES.includes((p as any).estado)) continue
+        await supabase.rpc('cambiar_estado_pedido', {
+          p_pedido_id:    p.id,
+          p_nuevo_estado: 'santa_rosa',
+          p_usuario_id:   sesion.id,
+        })
+      }
+      revalidatePath('/pedidos')
+      revalidatePath('/pedidos/galeria')
+    }
+  }
+
   return { ok: true, envioId: envio.id }
 }
 
