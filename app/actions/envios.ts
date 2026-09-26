@@ -176,7 +176,11 @@ export async function crearEnvioAction(data: {
   revalidatePath('/envios')
   revalidatePath('/inventario')
 
-  // Auto-avanzar pedidos a 'santa_rosa' cuando el destino es la sede SR.
+  // Auto-gestionar pedidos cuando el destino es Santa Rosa (SR).
+  // — Pedido de UNA prenda  → avanzar a 'santa_rosa' directamente.
+  // — Pedido de VARIAS prendas → separar en sub-pedidos (SR7764-1-1, -2…)
+  //   para que cada prenda tenga su propio estado; el avance lo hace el asesor
+  //   manualmente porque no sabemos cuál prenda específica va en este envío.
   const pedidosDelEnvio = data.items
     .filter(it => it.tipo === 'pedido')
     .map(it => (it as Extract<ItemEnvioInput, { tipo: 'pedido' }>).pedido_id)
@@ -195,13 +199,33 @@ export async function crearEnvioAction(data: {
         .select('id, estado')
         .in('id', pedidosDelEnvio)
 
+      // Contar prendas por pedido para saber si separar o avanzar.
+      const { data: filaItems } = await supabase
+        .from('pedido_items')
+        .select('pedido_id')
+        .in('pedido_id', pedidosDelEnvio)
+
+      const nPrendas = new Map<string, number>()
+      for (const fi of (filaItems ?? [])) {
+        nPrendas.set(fi.pedido_id, (nPrendas.get(fi.pedido_id) ?? 0) + 1)
+      }
+
       for (const p of (pedidosData ?? [])) {
         if (!AVANZABLES.includes((p as any).estado)) continue
-        await supabase.rpc('cambiar_estado_pedido', {
-          p_pedido_id:    p.id,
-          p_nuevo_estado: 'santa_rosa',
-          p_usuario_id:   sesion.id,
-        })
+        const n = nPrendas.get(p.id) ?? 0
+        if (n > 1) {
+          // Varias prendas: separar para que cada una tenga estado propio.
+          // Ignoramos el error: si ya está separado o falla, el asesor lo
+          // resuelve manualmente.
+          await supabase.rpc('separar_pedido_por_articulos', { p_pedido_id: p.id })
+        } else {
+          // Una sola prenda (o pedido ya separado): avanzar a santa_rosa.
+          await supabase.rpc('cambiar_estado_pedido', {
+            p_pedido_id:    p.id,
+            p_nuevo_estado: 'santa_rosa',
+            p_usuario_id:   sesion.id,
+          })
+        }
       }
       revalidatePath('/pedidos')
       revalidatePath('/pedidos/galeria')
