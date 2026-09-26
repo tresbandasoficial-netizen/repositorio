@@ -16,7 +16,7 @@ export type PedidoEnvio = {
 
 export async function buscarPedidoParaEnvioAction(
   numero: string
-): Promise<{ ok: true; pedido: PedidoEnvio } | { ok: false; error: string }> {
+): Promise<{ ok: true; pedido: PedidoEnvio; itemIdx: number | null } | { ok: false; error: string }> {
   const sesion = await getSesion()
   if (sesion.rol === 'visor') return { ok: false, error: 'Sin permisos' }
   const supabase = await createClient()
@@ -34,6 +34,8 @@ export async function buscarPedidoParaEnvioAction(
   // o la etiqueta del "artículo N" de un pedido de varias unidades (SR7081-1).
   // SIEMPRE número exacto primero; si no existe, se recorta el sufijo y se
   // busca el pedido base — así el escáner de etiquetas por unidad funciona.
+  // Cuando se recorta, se guarda el índice (0-base) para avanzar solo esa prenda.
+  let itemIdx: number | null = null
   if (!data && /-\d+$/.test(num)) {
     const base = num.replace(/-\d+$/, '')
     const r = await supabase
@@ -41,6 +43,10 @@ export async function buscarPedidoParaEnvioAction(
       .select('id, numero_orden, cliente_nombre, estado, sede_id')
       .eq('numero_orden', base)
       .maybeSingle()
+    if (r.data) {
+      const match = num.match(/-(\d+)$/)
+      if (match) itemIdx = parseInt(match[1]) - 1  // UI usa 1-base, internamente 0-base
+    }
     data = r.data
   }
 
@@ -50,7 +56,7 @@ export async function buscarPedidoParaEnvioAction(
   if ((data as any).estado === 'cancelado') return { ok: false, error: `El pedido ${num} está cancelado` }
 
   const p = data as any
-  return { ok: true, pedido: { id: p.id, numero_orden: p.numero_orden, cliente_nombre: p.cliente_nombre, estado: p.estado } }
+  return { ok: true, pedido: { id: p.id, numero_orden: p.numero_orden, cliente_nombre: p.cliente_nombre, estado: p.estado }, itemIdx }
 }
 
 // ─── Buscar artículo del catálogo (por código) ───────────────────────────────
@@ -84,7 +90,7 @@ export async function buscarArticuloParaEnvioAction(
 // ─── Crear envío ──────────────────────────────────────────────────────────────
 
 export type ItemEnvioInput =
-  | { tipo: 'pedido'; pedido_id: string; numero_orden: string; descripcion: string }
+  | { tipo: 'pedido'; pedido_id: string; numero_orden: string; descripcion: string; item_idx?: number | null }
   | { tipo: 'articulo'; codigo: string; talla: string | null; cantidad: number; descripcion: string | null }
 
 export type CrearEnvioResult =
@@ -177,13 +183,21 @@ export async function crearEnvioAction(data: {
   revalidatePath('/inventario')
 
   // Auto-gestionar pedidos cuando el destino es Santa Rosa (SR).
-  // — Pedido de UNA prenda  → avanzar a 'santa_rosa' directamente.
-  // — Pedido de VARIAS prendas → separar en sub-pedidos (SR7764-1-1, -2…)
-  //   para que cada prenda tenga su propio estado; el avance lo hace el asesor
-  //   manualmente porque no sabemos cuál prenda específica va en este envío.
-  const pedidosDelEnvio = data.items
+  // Comportamiento según lo escaneado:
+  // — Escaneó la prenda concreta (ej SR7764-1-1, item_idx=0):
+  //     · Si el pedido tiene >1 prenda: separar y avanzar SOLO esa prenda a santa_rosa.
+  //     · Si tiene 1 prenda: avanzar el pedido completo.
+  // — Escaneó el pedido completo (ej SR7764-1, item_idx=null):
+  //     · Si tiene >1 prenda: separar SIN avanzar (cada parte queda en su estado).
+  //     · Si tiene 1 prenda: avanzar a santa_rosa.
+  type PedidoEnvioItem = { pedido_id: string; item_idx: number | null }
+  const pedidosEnvioItems: PedidoEnvioItem[] = data.items
     .filter(it => it.tipo === 'pedido')
-    .map(it => (it as Extract<ItemEnvioInput, { tipo: 'pedido' }>).pedido_id)
+    .map(it => {
+      const p = it as Extract<ItemEnvioInput, { tipo: 'pedido' }>
+      return { pedido_id: p.pedido_id, item_idx: p.item_idx ?? null }
+    })
+  const pedidosDelEnvio = pedidosEnvioItems.map(p => p.pedido_id)
 
   if (pedidosDelEnvio.length > 0) {
     const { data: sedeDestino } = await supabase
@@ -196,10 +210,9 @@ export async function crearEnvioAction(data: {
       const AVANZABLES = ['pendiente', 'comprado', 'usa', 'bucaramanga']
       const { data: pedidosData } = await supabase
         .from('vista_pedidos_asesor')
-        .select('id, estado')
+        .select('id, estado, numero_orden')
         .in('id', pedidosDelEnvio)
 
-      // Contar prendas por pedido para saber si separar o avanzar.
       const { data: filaItems } = await supabase
         .from('pedido_items')
         .select('pedido_id')
@@ -212,19 +225,39 @@ export async function crearEnvioAction(data: {
 
       for (const p of (pedidosData ?? [])) {
         if (!AVANZABLES.includes((p as any).estado)) continue
+        const envioItem = pedidosEnvioItems.find(e => e.pedido_id === p.id)
+        const itemIdx = envioItem?.item_idx ?? null
         const n = nPrendas.get(p.id) ?? 0
-        if (n > 1) {
-          // Varias prendas: separar para que cada una tenga estado propio.
-          // Ignoramos el error: si ya está separado o falla, el asesor lo
-          // resuelve manualmente.
-          await supabase.rpc('separar_pedido_por_articulos', { p_pedido_id: p.id })
-        } else {
-          // Una sola prenda (o pedido ya separado): avanzar a santa_rosa.
+
+        if (n <= 1) {
+          // Una sola prenda (o pedido ya separado): avanzar completo.
           await supabase.rpc('cambiar_estado_pedido', {
             p_pedido_id:    p.id,
             p_nuevo_estado: 'santa_rosa',
             p_usuario_id:   sesion.id,
           })
+        } else if (itemIdx !== null) {
+          // Escanearon una prenda específica: separar y avanzar solo esa.
+          const { data: sepData } = await supabase.rpc('separar_pedido_por_articulos', {
+            p_pedido_id: p.id,
+          })
+          const partes = ((sepData as any)?.partes ?? []) as string[]
+          const numeroParte = partes[itemIdx] ?? `${(p as any).numero_orden}-${itemIdx + 1}`
+          const { data: parte } = await supabase
+            .from('pedidos')
+            .select('id, estado')
+            .eq('numero_orden', numeroParte)
+            .maybeSingle()
+          if (parte && (parte as any).estado !== 'santa_rosa') {
+            await supabase.rpc('cambiar_estado_pedido', {
+              p_pedido_id:    (parte as any).id,
+              p_nuevo_estado: 'santa_rosa',
+              p_usuario_id:   sesion.id,
+            })
+          }
+        } else {
+          // Escanearon el pedido completo con varias prendas: solo separar.
+          await supabase.rpc('separar_pedido_por_articulos', { p_pedido_id: p.id })
         }
       }
       revalidatePath('/pedidos')

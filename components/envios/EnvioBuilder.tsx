@@ -36,7 +36,7 @@ type ArtSeleccionado = {
 }
 
 type ItemLista =
-  | { tipo: 'pedido'; pedido_id: string; numero_orden: string; descripcion: string; estado: string }
+  | { tipo: 'pedido'; pedido_id: string; numero_orden: string; descripcion: string; estado: string; item_idx: number | null }
   | { tipo: 'articulo'; codigo: string; talla: string | null; cantidad: number; descripcion: string | null; enCatalogo: boolean }
 
 export function EnvioBuilder({ sedes, sedeOrigenId, pedidosIniciales }: {
@@ -167,6 +167,7 @@ export function EnvioBuilder({ sedes, sedeOrigenId, pedidosIniciales }: {
               numero_orden: r.pedido.numero_orden,
               descripcion: r.pedido.cliente_nombre,
               estado: r.pedido.estado,
+              item_idx: r.itemIdx,
             }])
       }
       if (fallidos.length > 0) setError(`No se pudieron agregar: ${fallidos.join(', ')}`)
@@ -194,6 +195,7 @@ export function EnvioBuilder({ sedes, sedeOrigenId, pedidosIniciales }: {
           numero_orden: r.pedido.numero_orden,
           descripcion: r.pedido.cliente_nombre,
           estado: r.pedido.estado,
+          item_idx: r.itemIdx,
         }])
       }
       setNumeroPedido('')
@@ -258,7 +260,7 @@ export function EnvioBuilder({ sedes, sedeOrigenId, pedidosIniciales }: {
     startTransition(async () => {
       setError(null)
       const payload: ItemEnvioInput[] = items.map(it => it.tipo === 'pedido'
-        ? { tipo: 'pedido', pedido_id: it.pedido_id, numero_orden: it.numero_orden, descripcion: it.descripcion }
+        ? { tipo: 'pedido', pedido_id: it.pedido_id, numero_orden: it.numero_orden, descripcion: it.descripcion, item_idx: it.item_idx }
         : { tipo: 'articulo', codigo: it.codigo, talla: it.talla, cantidad: it.cantidad, descripcion: it.descripcion })
       const r = await crearEnvioAction({ destino_sede_id: destino, notas, items: payload })
       if (!r.ok) { setError(r.error); setGuardando(false) }
