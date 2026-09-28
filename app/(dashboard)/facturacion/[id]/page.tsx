@@ -13,6 +13,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { DomicilioDesdeFacturaPanel } from '@/components/domicilios/DomicilioDesdeFacturaPanel'
 import { DomicilioFacturaCard } from '@/components/domicilios/DomicilioFacturaCard'
 import { EditarPagoInline } from '@/components/pedidos/EditarPagoInline'
+import { CambioTallaButton, type ItemCambio } from '@/components/pedidos/CambioTallaButton'
+import type { CategoriaArticulo, SexoArticulo } from '@/types'
 
 export default async function FacturaDetallePage({
   params,
@@ -25,6 +27,23 @@ export default async function FacturaDetallePage({
 
   const activa = factura.estado === 'pendiente' || factura.estado === 'vencida'
   const esAdmin = sesion.rol === 'admin'
+
+  // Cambios: las prendas de los pedidos ENTREGADOS de la factura (mismo flujo
+  // que en el detalle del pedido: la acción valida estado y sede).
+  const itemsCambio: ItemCambio[] = factura.estado === 'anulada' || sesion.rol === 'visor'
+    ? []
+    : factura.pedidos
+        .filter(p => p.estado === 'entregado')
+        .flatMap(p => p.items.map(it => ({
+          id: it.id,
+          pedidoId: p.id,
+          numeroOrden: factura.pedidos.length > 1 ? p.numero_orden : undefined,
+          label: `${it.marca ?? ''} ${it.descripcion} · ×${it.cantidad}`.trim(),
+          talla: it.talla,
+          categoria: it.categoria as CategoriaArticulo | null,
+          sexo: it.sexo as SexoArticulo | null,
+          tieneFicha: !!it.articulo_id,
+        })))
 
   // Lista de asesores para el cambio de asesor de la factura (solo admin; la
   // lista de usuarios está restringida por RLS, el acceso ya se validó).
@@ -65,6 +84,7 @@ export default async function FacturaDetallePage({
             className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 text-white px-4 py-2 text-sm font-medium hover:bg-gray-800">
             🧾 Generar imagen para el cliente
           </Link>
+          {itemsCambio.length > 0 && <CambioTallaButton items={itemsCambio} />}
           {/* Si la factura no se creó con domicilio, permitir crearlo aquí (respaldo). */}
           {!factura.domicilio && (
             <DomicilioDesdeFacturaPanel
@@ -125,6 +145,10 @@ export default async function FacturaDetallePage({
                 </Link>
                 <span className="text-sm font-medium text-gray-700">{formatCOP(p.total)}</span>
               </div>
+              {/* Cambios ya registrados sobre este pedido (nota que deja el flujo de cambio) */}
+              {(p.notas ?? '').split('\n').filter(l => l.startsWith('Cambio:')).map((l, i) => (
+                <p key={i} className="mt-1 text-xs text-sky-700 bg-sky-50 rounded-lg px-2 py-1">↻ {l.replace(/^Cambio:\s*/, '')}</p>
+              ))}
               {/* Artículos del pedido */}
               {p.items.length > 0 && (
                 <ul className="mt-2 space-y-1.5 border-l-2 border-gray-100 pl-3">

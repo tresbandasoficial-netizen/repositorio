@@ -135,9 +135,9 @@ export default async function PedidoDetallePage({
           {!esSaldo && pedido.estado === 'entregado' && (
             <>
               <CambioTallaButton
-                pedidoId={id}
                 items={pedido.items.map((it: any) => ({
                   id: it.id,
+                  pedidoId: id,
                   label: `${it.marca} ${it.descripcion} · ×${it.cantidad}`,
                   talla: it.talla ?? null,
                   categoria: it.categoria ?? null,
