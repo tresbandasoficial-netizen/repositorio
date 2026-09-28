@@ -19,14 +19,15 @@ const TOPE = 60
 export default async function RecomprasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ pendientes?: string; vista?: string }>
+  searchParams: Promise<{ pendientes?: string; vista?: string; seg?: string }>
 }) {
   const sesion = await getSesion()
   if (sesion.rol !== 'admin') redirect('/dashboard')
 
-  const { pendientes, vista } = await searchParams
+  const { pendientes, vista, seg } = await searchParams
   const soloPendientes = pendientes === '1'
   const esLista = vista === 'lista'
+  const segActivo = (ORDEN.includes(seg as ClienteSegmentoRfm) ? seg : null) as ClienteSegmentoRfm | null
 
   const supabase = await createClient()
 
@@ -115,14 +116,47 @@ export default async function RecomprasPage({
       {/* ── VISTA LISTA: tabla limpia por segmento ── */}
       {esLista && (
         <div className="space-y-4">
-          {ORDEN.map(seg => {
-            const lista = porSegmento.get(seg) ?? []
+          {/* Filtro por segmento */}
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/recompras?vista=lista"
+              className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
+                !segActivo
+                  ? 'bg-gray-900 text-white border-gray-900'
+                  : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'
+              }`}
+            >
+              Todos ({clientes.length})
+            </Link>
+            {ORDEN.map(s => {
+              const n = (porSegmento.get(s) ?? []).length
+              if (n === 0) return null
+              const activo = segActivo === s
+              return (
+                <Link
+                  key={s}
+                  href={`/recompras?vista=lista&seg=${s}`}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
+                    activo
+                      ? 'bg-gray-900 text-white border-gray-900'
+                      : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'
+                  }`}
+                >
+                  {SEGMENTO_CONFIG[s].etiquetaWhatsapp} ({n})
+                </Link>
+              )
+            })}
+          </div>
+
+          {/* Tabla(s) */}
+          {(segActivo ? [segActivo] : ORDEN).map(s => {
+            const lista = porSegmento.get(s) ?? []
             if (lista.length === 0) return null
-            const cfg = SEGMENTO_CONFIG[seg]
+            const cfg = SEGMENTO_CONFIG[s]
             return (
-              <div key={seg} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div key={s} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <div className="flex items-center gap-3 px-4 py-2.5 bg-gray-50 border-b border-gray-100">
-                  <BadgeSegmento segmento={seg} />
+                  <BadgeSegmento segmento={s} />
                   <span className="text-sm text-gray-500">{lista.length} cliente{lista.length !== 1 ? 's' : ''}</span>
                   <span className="text-xs text-gray-400 ml-1">— {cfg.queHacer}</span>
                 </div>
