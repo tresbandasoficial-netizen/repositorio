@@ -71,7 +71,10 @@ export async function updateSession(request: NextRequest) {
     // Webhook de Shopify (Pedido por Link): lo llama Shopify sin cookie y solo
     // acepta 2xx (un redirect a /login mata la suscripción). Se protege por su
     // cuenta con la firma HMAC en la ruta.
-    pathname.startsWith('/api/shopify')
+    pathname.startsWith('/api/shopify') ||
+    // Webhook de WhatsApp (RONALDO): lo llama Meta sin cookie. Se protege con
+    // la firma X-Hub-Signature-256 y la lista ronaldo_acceso.
+    pathname.startsWith('/api/whatsapp')
 
   if (!user && !isPublicPath) {
     const url = request.nextUrl.clone()
