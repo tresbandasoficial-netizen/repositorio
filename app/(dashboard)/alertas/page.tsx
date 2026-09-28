@@ -1,12 +1,15 @@
-import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { getPedidos } from '@/lib/queries/pedidos'
+import { getSesion } from '@/lib/auth/acceso'
 import { EstadoBadge } from '@/components/pedidos/EstadoBadge'
 import { EstadoPedido, ESTADO_LABELS } from '@/types'
 
 function diasDesde(fecha: string) {
   return Math.floor((Date.now() - new Date(fecha).getTime()) / 86_400_000)
+}
+
+function hace(dias: number) {
+  return new Date(Date.now() - dias * 86_400_000).toISOString()
 }
 
 function getMotivoAlerta(p: {
@@ -40,118 +43,154 @@ function getMotivoAlerta(p: {
   return 'Requiere atención'
 }
 
-function urgencia(p: { estado: EstadoPedido; fecha_actualizacion: string; fecha_creacion: string }): number {
-  const diasEstado   = diasDesde(p.fecha_actualizacion)
-  const diasCreacion = diasDesde(p.fecha_creacion)
-  return Math.max(diasEstado, diasCreacion)
+function urgencia(p: { fecha_actualizacion: string; fecha_creacion: string }): number {
+  return Math.max(diasDesde(p.fecha_actualizacion), diasDesde(p.fecha_creacion))
+}
+
+type FilaPedido = {
+  id: string
+  numero_orden: string
+  estado: EstadoPedido
+  cliente_nombre: string
+  asesor_nombre: string
+  sede_codigo: string
+  fecha_creacion: string
+  fecha_actualizacion: string
+}
+
+const COLUMNAS = 'id, numero_orden, estado, cliente_nombre, asesor_nombre, sede_codigo, fecha_creacion, fecha_actualizacion'
+const TIPOS_EXCLUIDOS = '("venta_inmediata","saldo_anterior")'
+// Mismo umbral que la sirena 🚨 de la galería.
+const DIAS_SIN_COMPRA = 5
+// Más viejos que esto casi siempre son pedidos que ya no siguen vivos: van
+// aparte para que no tapen a los que sí hay que comprar ya.
+const DIAS_VIGENTE = 30
+
+function ListaPedidos({ pedidos, motivo }: { pedidos: FilaPedido[]; motivo: (p: FilaPedido) => string }) {
+  return (
+    <div className="divide-y divide-gray-100">
+      {pedidos.map(p => (
+        <Link
+          key={p.id}
+          href={`/pedidos/${p.id}`}
+          className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 hover:bg-red-50/30 transition-colors"
+        >
+          <span className="font-mono font-semibold text-sm text-blue-600 w-24 shrink-0">{p.numero_orden}</span>
+          <EstadoBadge estado={p.estado} enAlerta={true} />
+          <span className="text-sm text-gray-700 flex-1 min-w-[8rem] truncate">{p.cliente_nombre}</span>
+          <span className="text-xs text-red-600 font-medium">{motivo(p)}</span>
+          <span className="text-xs text-gray-400 w-28 truncate text-right">{p.asesor_nombre}</span>
+        </Link>
+      ))}
+    </div>
+  )
 }
 
 export default async function AlertasPage() {
+  const sesion = await getSesion()
+  const esAdmin = sesion.rol === 'admin'
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
 
-  const { data: usuario } = await supabase
-    .from('usuarios')
-    .select('rol, sedes(codigo)')
-    .eq('id', user.id)
-    .single()
+  // El visor solo ve su sede (igual que antes).
+  let sedeCodigo: string | undefined
+  if (sesion.rol === 'visor' && sesion.sede_id) {
+    const { data } = await supabase.from('sedes').select('codigo').eq('id', sesion.sede_id).maybeSingle()
+    sedeCodigo = data?.codigo
+  }
 
-  if (!usuario) redirect('/login')
+  // Todas las alertas, sin paginar: antes se mostraban solo las 25 más nuevas y
+  // los pedidos con más días quedaban por fuera.
+  let qAlertas = supabase
+    .from('vista_pedidos_asesor')
+    .select(COLUMNAS)
+    .eq('en_alerta', true)
+    .not('tipo', 'in', TIPOS_EXCLUIDOS)
+    .limit(1000)
+  if (sedeCodigo) qAlertas = qAlertas.eq('sede_codigo', sedeCodigo)
 
-  const sedeCodigo = usuario.rol === 'visor' ? (usuario.sedes as any)?.codigo : undefined
-  const { pedidos } = await getPedidos({ alerta: true, pagina: 1, ...(sedeCodigo ? { sede: sedeCodigo } : {}) })
+  // Sin comprar: pedidos vivos sin compra asignada ni factura, con más de 5
+  // días. Solo admin (información de compras, igual que el rojo de la galería).
+  const qSinCompra = esAdmin
+    ? supabase
+        .from('vista_pedidos_asesor')
+        .select(COLUMNAS)
+        .in('estado', ['pendiente', 'comprado', 'usa'])
+        .eq('tiene_compra', false)
+        .is('factura_id', null)
+        .not('tipo', 'in', TIPOS_EXCLUIDOS)
+        .lt('fecha_creacion', hace(DIAS_SIN_COMPRA))
+        .order('fecha_creacion', { ascending: true })
+        .limit(1000)
+    : null
 
-  const ordenados = [...pedidos].sort(
-    (a, b) => urgencia(b) - urgencia(a)
-  )
+  const [{ data: alertasData }, sinCompraRes] = await Promise.all([qAlertas, qSinCompra])
+  const alertas = (alertasData ?? []) as FilaPedido[]
+  const sinCompra = (sinCompraRes?.data ?? []) as FilaPedido[]
+
+  const limiteVigente = hace(DIAS_VIGENTE)
+  const sinCompraRecientes = sinCompra.filter(p => p.fecha_creacion >= limiteVigente)
+  const sinCompraViejos = sinCompra.filter(p => p.fecha_creacion < limiteVigente)
+  const idsSinCompra = new Set(sinCompra.map(p => p.id))
+  const otras = alertas
+    .filter(p => !idsSinCompra.has(p.id))
+    .sort((a, b) => urgencia(b) - urgencia(a))
+
+  const motivoSinCompra = (p: FilaPedido) => `${diasDesde(p.fecha_creacion)} días sin compra`
+  const total = otras.length + sinCompra.length
 
   return (
     <div className="p-6 space-y-6">
       <div>
         <h1 className="text-xl font-bold text-gray-900">Alertas</h1>
         <p className="text-sm text-gray-500 mt-0.5">
-          {pedidos.length === 0
+          {total === 0
             ? 'Todos los pedidos están al día.'
-            : `${pedidos.length} ${pedidos.length === 1 ? 'pedido requiere' : 'pedidos requieren'} atención`}
+            : `${total} ${total === 1 ? 'pedido requiere' : 'pedidos requieren'} atención`}
         </p>
       </div>
 
-      {pedidos.length === 0 ? (
-        <div className="bg-green-50 border border-green-200 rounded-xl p-8 text-center">
-          <p className="text-green-700 font-medium">Sin alertas activas</p>
-          <p className="text-green-600 text-sm mt-1">Todos los pedidos están dentro de los tiempos.</p>
-        </div>
-      ) : (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          {/* Móvil */}
-          <div className="md:hidden divide-y divide-gray-100">
-            {ordenados.map((p) => {
-              const motivo = getMotivoAlerta(p)
-              return (
-                <Link key={p.id} href={`/pedidos/${p.id}`} className="block px-4 py-3 hover:bg-red-50/30 transition-colors">
-                  <div className="flex items-center justify-between gap-2 mb-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-sm text-gray-900">{p.numero_orden}</span>
-                      <EstadoBadge estado={p.estado as EstadoPedido} enAlerta={true} />
-                    </div>
-                    <span className="inline-block px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg bg-white text-gray-700 shrink-0">Ver</span>
-                  </div>
-                  <p className="text-sm text-gray-700">{p.cliente_nombre}</p>
-                  <p className="text-xs text-red-600 font-medium mt-0.5">{motivo}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">{p.asesor_nombre}</p>
-                </Link>
-              )
-            })}
+      {esAdmin && (
+        <section className="bg-white border-2 border-red-200 rounded-xl overflow-hidden">
+          <div className="px-4 py-3 bg-red-50 border-b border-red-100">
+            <h2 className="text-sm font-bold text-red-800">
+              🚨 Sin comprar · {sinCompraRecientes.length} {sinCompraRecientes.length === 1 ? 'pedido' : 'pedidos'}
+            </h2>
+            <p className="text-xs text-red-700/80 mt-0.5">
+              Más de {DIAS_SIN_COMPRA} días creados y todavía sin compra asignada. Los de más días primero.
+            </p>
           </div>
-          {/* Desktop */}
-          <table className="hidden md:table w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50">
-                <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase">Pedido</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Cliente</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Estado</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Alerta</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Asesor</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {ordenados.map((p) => {
-                const motivo = getMotivoAlerta(p)
-                return (
-                  <tr key={p.id} className="hover:bg-red-50/30 transition-colors">
-                    <td className="px-5 py-3">
-                      <Link href={`/pedidos/${p.id}`} className="font-mono font-semibold text-blue-600 hover:underline">
-                        {p.numero_orden}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">{p.cliente_nombre}</td>
-                    <td className="px-4 py-3">
-                      <EstadoBadge estado={p.estado as EstadoPedido} enAlerta={true} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-red-600 font-medium text-xs">{motivo}</span>
-                    </td>
-                    <td className="px-4 py-3 text-gray-400 text-xs">{p.asesor_nombre}</td>
-                    <td className="px-4 py-3 text-right">
-                      <Link
-                        href={`/pedidos/${p.id}`}
-                        className="inline-block px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 transition-colors"
-                      >
-                        Ver
-                      </Link>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+          {sinCompraRecientes.length === 0 ? (
+            <p className="px-4 py-4 text-sm text-gray-500">Ningún pedido reciente está esperando compra.</p>
+          ) : (
+            <ListaPedidos pedidos={sinCompraRecientes} motivo={motivoSinCompra} />
+          )}
+          {sinCompraViejos.length > 0 && (
+            <details className="border-t border-red-100">
+              <summary className="px-4 py-3 text-xs font-semibold text-gray-600 cursor-pointer hover:bg-gray-50">
+                {sinCompraViejos.length} con más de {DIAS_VIGENTE} días sin compra — revisar si siguen vigentes o cancelarlos
+              </summary>
+              <ListaPedidos pedidos={sinCompraViejos} motivo={motivoSinCompra} />
+            </details>
+          )}
+        </section>
       )}
+
+      <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+          <h2 className="text-sm font-semibold text-gray-900">
+            {esAdmin ? 'Otras alertas' : 'Alertas'} · {otras.length}
+          </h2>
+        </div>
+        {otras.length === 0 ? (
+          <p className="px-4 py-4 text-sm text-gray-500">Sin alertas activas.</p>
+        ) : (
+          <ListaPedidos pedidos={otras} motivo={getMotivoAlerta} />
+        )}
+      </section>
 
       <div className="text-xs text-gray-400 space-y-1">
         <p><span className="font-medium text-gray-500">Umbrales:</span></p>
+        {esAdmin && <p>· Sin comprar: más de {DIAS_SIN_COMPRA} días creado sin compra asignada</p>}
         <p>· Pendiente: más de 2 días sin cambio</p>
         <p>· Comprado: más de 8 días sin cambio</p>
         <p>· Cualquier pedido activo: más de 15 días sin llegar a Colombia</p>
