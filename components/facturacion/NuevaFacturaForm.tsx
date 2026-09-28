@@ -191,10 +191,10 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
     getStockPedidosFacturarAction(idsElegidos.split(','), sedeId).then(r => {
       if (!vivo) return
       setStockPregunta(r)
-      // Marcados por defecto: el caso normal es que la unidad SÍ salió del
-      // stock (se envió como producto suelto porque no se encontró el pedido).
-      // El asesor desmarca solo si la compra de ese pedido vino aparte.
-      setSalieronDelStock(new Set(r.map(it => it.pedido_item_id)))
+      // Marcados por defecto solo los sugeridos: la unidad llegó como producto
+      // suelto, o el pedido no tiene compra propia. Si tiene compra asignada y
+      // no llegó suelta, lo que hay en stock es OTRA unidad.
+      setSalieronDelStock(new Set(r.filter(it => it.sugerido).map(it => it.pedido_item_id)))
     })
     return () => { vivo = false }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -505,9 +505,9 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
                     ⚠ Hay existencias de estos artículos en el inventario de {sedeCodigo}
                   </p>
                   <p className="text-xs text-amber-700">
-                    Al facturar, estas unidades <strong>se descuentan del inventario</strong> (llegaron en un
-                    envío como producto suelto). Desmarca una solo si la compra de ese pedido vino aparte y
-                    lo que hay en stock es otra unidad.
+                    Marca solo las unidades que el cliente se lleva <strong>del inventario de la tienda</strong>
+                    (llegaron en un envío como producto suelto). Si la prenda del pedido llegó por su propia
+                    compra, déjala sin marcar: lo que hay en stock es otra unidad.
                   </p>
                   <div className="space-y-1.5">
                     {stockPregunta.map(it => (
@@ -521,6 +521,11 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
                         <span className="text-gray-800">
                           {it.etiqueta} <span className="text-gray-400 font-mono text-xs">({it.numero_orden})</span>
                           {' '}— hay <strong>{it.stock}</strong> en stock
+                          {it.tiene_compra && !it.sugerido && (
+                            <span className="block text-xs text-gray-500">
+                              Este pedido ya tiene su propia compra asignada: normalmente NO sale del stock.
+                            </span>
+                          )}
                         </span>
                       </label>
                     ))}

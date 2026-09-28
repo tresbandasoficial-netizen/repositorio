@@ -230,6 +230,10 @@ export type CrearFacturaUnificadaInput = {
 // Si un artículo de un pedido TAMBIÉN tiene existencias en el inventario de la
 // sede, al facturar se pregunta si esa unidad salió del stock. Devuelve solo
 // los items con stock > 0.
+// `sugerido` decide si la casilla arranca marcada: NO si la prenda ya tiene
+// compra asignada al pedido y no llegó a esta sede como producto suelto — esa
+// unidad nunca entró al stock, y descontarla dejaba el inventario corto y el
+// costo duplicado (TR7810, TR7130, TR7208…).
 export type ItemStockFacturar = {
   pedido_item_id: string
   pedido_id: string
@@ -237,6 +241,8 @@ export type ItemStockFacturar = {
   etiqueta: string
   cantidad: number
   stock: number
+  sugerido: boolean
+  tiene_compra: boolean
 }
 
 export async function getStockPedidosFacturarAction(
@@ -249,7 +255,7 @@ export async function getStockPedidosFacturarAction(
 
   const { data: items } = await supabase
     .from('pedido_items')
-    .select('id, pedido_id, articulo_id, marca, descripcion, talla, cantidad, pedidos(numero_orden)')
+    .select('id, pedido_id, articulo_id, codigo, marca, descripcion, talla, cantidad, pedidos(numero_orden)')
     .in('pedido_id', pedidoIds.slice(0, 50))
 
   const conFicha = ((items ?? []) as any[]).filter(i => i.articulo_id)
@@ -261,22 +267,53 @@ export async function getStockPedidosFacturarAction(
     .eq('sede_id', sedeId)
     .in('articulo_id', [...new Set(conFicha.map(i => i.articulo_id as string))])
 
+  const norm = (t: string | null | undefined) => (t ?? '').trim().toUpperCase()
   const stockDe = new Map<string, number>()
   for (const s of (stockRows ?? []) as Array<{ articulo_id: string; talla: string | null; stock: number }>) {
-    stockDe.set(`${s.articulo_id}|${(s.talla ?? '').trim().toUpperCase()}`, s.stock ?? 0)
+    stockDe.set(`${s.articulo_id}|${norm(s.talla)}`, s.stock ?? 0)
   }
+
+  // Compras asignadas y envíos sueltos: con el cliente admin porque compra_items
+  // no es visible para asesores. Solo se leen columnas sin costos.
+  const admin = createAdminClient()
+  const articuloIds = [...new Set(conFicha.map(i => i.articulo_id as string))]
+  const hace60 = new Date(Date.now() - 60 * 86400_000).toISOString()
+  const [{ data: compras }, { data: sueltos }] = await Promise.all([
+    admin.from('compra_items')
+      .select('pedido_id, articulo_id, codigo, talla')
+      .in('pedido_id', pedidoIds.slice(0, 50)),
+    admin.from('movimientos_inventario')
+      .select('articulo_id, talla')
+      .eq('sede_id', sedeId)
+      .eq('tipo', 'entrada')
+      .like('notas', 'Envío #%')
+      .in('articulo_id', articuloIds)
+      .gte('creado_en', hace60),
+  ])
+  const llegoSuelto = new Set(
+    ((sueltos ?? []) as Array<{ articulo_id: string; talla: string | null }>)
+      .map(m => `${m.articulo_id}|${norm(m.talla)}`)
+  )
+  const comprasDe = (compras ?? []) as Array<{ pedido_id: string; articulo_id: string | null; codigo: string | null; talla: string | null }>
 
   return conFicha
     .map(i => {
       const ped = Array.isArray(i.pedidos) ? i.pedidos[0] : i.pedidos
-      const stock = stockDe.get(`${i.articulo_id}|${(i.talla ?? '').trim().toUpperCase()}`) ?? 0
+      const clave = `${i.articulo_id}|${norm(i.talla)}`
+      const tieneCompra = comprasDe.some(c =>
+        c.pedido_id === i.pedido_id &&
+        norm(c.talla) === norm(i.talla) &&
+        (c.articulo_id === i.articulo_id || (!!i.codigo && norm(c.codigo) === norm(i.codigo)))
+      )
       return {
         pedido_item_id: i.id as string,
         pedido_id:      i.pedido_id as string,
         numero_orden:   ped?.numero_orden ?? '',
         etiqueta:       `${i.marca ?? ''} ${i.descripcion}${i.talla ? ` · T ${i.talla}` : ''} ×${i.cantidad}`.trim(),
         cantidad:       i.cantidad as number,
-        stock,
+        stock:          stockDe.get(clave) ?? 0,
+        sugerido:       !tieneCompra || llegoSuelto.has(clave),
+        tiene_compra:   tieneCompra,
       }
     })
     .filter(r => r.stock > 0)
