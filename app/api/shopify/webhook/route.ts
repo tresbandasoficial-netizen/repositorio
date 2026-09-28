@@ -156,7 +156,7 @@ export async function POST(req: Request) {
 
   const { data: pedido, error: errPed } = await admin
     .from('pedidos')
-    .select('id, cliente_id, estado, tipo_entrega, direccion_entrega')
+    .select('id, numero_orden, cliente_id, estado, tipo_entrega, direccion_entrega')
     .eq('id', link.pedido_id)
     .maybeSingle()
   if (errPed) return new Response('Error BD', { status: 500 })
@@ -226,6 +226,21 @@ export async function POST(req: Request) {
         .update({ direccion_entrega: direccion })
         .eq('id', pedido.id)
       if (errDir) return new Response('Error BD', { status: 500 })
+
+      // Pedido separado por prendas: las demás partes a domicilio sin dirección
+      // también la reciben (el link cobró todas).
+      const base = pedido.numero_orden.match(/^(.*)-\d+$/)?.[1]
+      if (base) {
+        const { error: errHer } = await admin
+          .from('pedidos')
+          .update({ direccion_entrega: direccion })
+          .like('numero_orden', `${base}-%`)
+          .neq('id', pedido.id)
+          .neq('estado', 'cancelado')
+          .eq('tipo_entrega', 'domicilio')
+          .or('direccion_entrega.is.null,direccion_entrega.eq.')
+        if (errHer) return new Response('Error BD', { status: 500 })
+      }
     }
   }
 

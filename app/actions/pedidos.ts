@@ -25,7 +25,7 @@ export type CrearPedidoResult =
 // La coincidencia queda como sugerencia PENDIENTE en asignaciones_pendientes
 // y el admin la confirma o descarta desde /compras. El pedido sigue su flujo
 // normal hasta que la asignación se confirme.
-async function _sugerirComprasLibres(pedidoId: string): Promise<string | undefined> {
+async function _sugerirComprasLibres(pedidoId: string, usados = new Set<string>()): Promise<string | undefined> {
   const admin = createAdminClient()
 
   const { data: itemsPed } = await admin
@@ -35,7 +35,6 @@ async function _sugerirComprasLibres(pedidoId: string): Promise<string | undefin
     .order('id')
   if (!itemsPed || itemsPed.length === 0) return undefined
 
-  const usados = new Set<string>()
   const sugerencias: Array<{ compra_item_id: string; pedido_id: string; pedido_item_indice: number | null }> = []
   const avisos: string[] = []
   let indice = 0
@@ -84,6 +83,27 @@ async function _sugerirComprasLibres(pedidoId: string): Promise<string | undefin
   }
 
   return `🔎 Puede que ya esté comprado — por confirmar en Compras: ${avisos.join(' · ')}`
+}
+
+// Cada prenda lleva su propio estado (llegan en tiempos distintos), así que un
+// pedido con varias prendas se separa en uno por prenda (TR7900 → TR7900-1,
+// -2…). El RPC reparte los abonos y se lleva las compras de cada prenda. No
+// aplica a facturados, cancelados, partes ya separadas ni ventas/saldos.
+async function _separarSiVariasPrendas(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  pedidoId: string,
+): Promise<{ partes: string[] } | { error: string } | null> {
+  const [{ data: ped }, { count }] = await Promise.all([
+    supabase.from('pedidos').select('numero_orden, factura_id, estado, tipo').eq('id', pedidoId).maybeSingle(),
+    supabase.from('pedido_items').select('id', { count: 'exact', head: true }).eq('pedido_id', pedidoId),
+  ])
+  if (!ped || (count ?? 0) < 2) return null
+  if (ped.factura_id || ped.estado === 'cancelado' || /-\d+$/.test(ped.numero_orden)) return null
+  if (ped.tipo === 'venta_inmediata' || ped.tipo === 'saldo_anterior') return null
+
+  const { data, error } = await supabase.rpc('separar_pedido_por_articulos', { p_pedido_id: pedidoId })
+  if (error) return { error: error.message }
+  return { partes: ((data as { partes?: string[] } | null)?.partes ?? []) }
 }
 
 // Devuelve el error si algún producto está enlazado a una ficha del catálogo
@@ -340,16 +360,40 @@ async function _crearPedidoConDatos(
     }
   }
 
+  // Separar DESPUÉS de todos los abonos: registrar_pago_pedido valida contra el
+  // saldo del pedido completo, y el RPC de separación reparte lo abonado.
+  let partes = [numeroOrden]
+  const avisos: string[] = []
+  const sep = await _separarSiVariasPrendas(supabase, pedidoId)
+  if (sep && 'error' in sep) {
+    avisos.push(`⚠ No se pudo separar por prenda (${sep.error}) — sepáralo desde la galería.`)
+  } else if (sep && sep.partes.length > 1) {
+    partes = sep.partes
+    avisos.push(`Separado en ${partes.length} pedidos, uno por prenda: cada uno lleva su propio estado.`)
+  }
+
   // ¿Este artículo ya se compró de más? Queda la sugerencia para que el admin
   // confirme (o descarte) la asignación en /compras — ya no se asigna sola.
-  let avisoCompra: string | undefined
+  // Va por parte, para que cada sugerencia apunte al pedido de su prenda.
   try {
-    avisoCompra = await _sugerirComprasLibres(pedidoId)
+    const idsPartes = partes.length > 1
+      ? (((await supabase.from('pedidos').select('id').in('numero_orden', partes)).data ?? []) as Array<{ id: string }>).map(p => p.id)
+      : [pedidoId]
+    const usados = new Set<string>()
+    for (const id of idsPartes) {
+      const aviso = await _sugerirComprasLibres(id, usados)
+      if (aviso) avisos.push(aviso)
+    }
   } catch (e) {
     console.error('Error sugiriendo compras libres al pedido nuevo:', e)
   }
 
-  return { ok: true as const, pedidoId, numeroOrden, avisoCompra }
+  return {
+    ok: true as const,
+    pedidoId,
+    numeroOrden: partes.join(' · '),
+    avisoCompra: avisos.length > 0 ? avisos.join(' ') : undefined,
+  }
 }
 
 export async function crearPedidoAction(
@@ -641,6 +685,16 @@ export async function editarPedidoAction(
   const errorFicha = await fichaSinCodigo(supabase, data.productos)
   if (errorFicha) return { ok: false, error: errorFicha }
 
+  // Una parte separada (TR7900-1) es de una sola prenda, con su propio estado:
+  // una prenda nueva va como pedido aparte, no dentro de la parte.
+  if (/-\d+$/.test(nuevoNumero) && data.productos.length > 1) {
+    const { count: prendasActuales } = await supabase
+      .from('pedido_items').select('id', { count: 'exact', head: true }).eq('pedido_id', pedidoId)
+    if (data.productos.length > (prendasActuales ?? 0)) {
+      return { ok: false, error: `${nuevoNumero} es un pedido de una sola prenda. Para agregar otra prenda, crea un pedido nuevo.` }
+    }
+  }
+
   // El teléfono se valida ANTES de cualquier escritura: si viene mal, nada
   // queda a medias (el cambio de cliente de abajo ya escribe en la BD).
   const telefonoNormalizado = normalizarTelefono(data.cliente_telefono)
@@ -729,6 +783,14 @@ export async function editarPedidoAction(
   if ((ped as any)?.factura_id) {
     await supabase.rpc('recalcular_factura', { p_factura_id: (ped as any).factura_id })
     revalidatePath(`/facturacion/${(ped as any).factura_id}`)
+  }
+
+  // Si quedó con varias prendas, se separa una por prenda (igual que al crear).
+  const sep = await _separarSiVariasPrendas(supabase, pedidoId)
+  if (sep && 'error' in sep) console.error(`No se pudo separar ${nuevoNumero} al editar:`, sep.error)
+  if (sep && 'partes' in sep) {
+    revalidatePath('/pedidos')
+    revalidatePath('/pedidos/galeria')
   }
 
   redirect(`/pedidos/${pedidoId}`)

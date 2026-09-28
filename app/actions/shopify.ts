@@ -42,13 +42,30 @@ export async function generarLinkClienteAction(pedidoId: string): Promise<Genera
 
   const adminClient = createAdminClient()
 
+  // Pedido separado por prendas (TR7900-1, -2…): el link cobra todas las partes
+  // vivas y sin facturar, no solo la que se abrió.
+  const base = pedido.numero_orden.match(/^(.*)-\d+$/)?.[1]
+  let idsCobro = [pedidoId]
+  if (base) {
+    const { data: hermanos, error: errHer } = await supabase
+      .from('pedidos')
+      .select('id, numero_orden, estado, factura_id')
+      .like('numero_orden', `${base}-%`)
+    if (errHer) return { ok: false, error: errHer.message }
+    idsCobro = ((hermanos ?? []) as Array<{ id: string; numero_orden: string; estado: string; factura_id: string | null }>)
+      .filter(h => /^\d+$/.test(h.numero_orden.slice(base.length + 1)) && h.estado !== 'cancelado' && !h.factura_id)
+      .map(h => h.id)
+    if (!idsCobro.includes(pedidoId)) idsCobro.push(pedidoId)
+  }
+
   // Idempotente: si ya hay un link pendiente, se devuelve el mismo (repetir el
   // clic o el doble clic no crea borradores duplicados en Shopify).
   const { data: existente, error: errExist } = await adminClient
     .from('shopify_links')
     .select('invoice_url, draft_name, estado, shopify_order_name, confirmado_en')
-    .eq('pedido_id', pedidoId)
+    .in('pedido_id', idsCobro)
     .eq('estado', 'pendiente')
+    .limit(1)
     .maybeSingle()
   if (errExist) return { ok: false, error: errExist.message }
   if (existente) {
@@ -72,7 +89,7 @@ export async function generarLinkClienteAction(pedidoId: string): Promise<Genera
   const { data: items, error: errItems } = await supabase
     .from('pedido_items')
     .select('marca, descripcion, talla, cantidad, precio_venta')
-    .eq('pedido_id', pedidoId)
+    .in('pedido_id', idsCobro)
     .order('id')
   if (errItems) return { ok: false, error: errItems.message }
   if (!items || items.length === 0) return { ok: false, error: 'El pedido no tiene artículos' }
@@ -101,7 +118,7 @@ export async function generarLinkClienteAction(pedidoId: string): Promise<Genera
     }`,
     {
       input: {
-        note: `Pedido ${pedido.numero_orden} — Tres Bandas (datos del cliente por link)`,
+        note: `Pedido ${idsCobro.length > 1 ? base : pedido.numero_orden} — Tres Bandas (datos del cliente por link)`,
         tags: [pedido.numero_orden, 'tres-bandas-link', `tb:${linkId}`],
         lineItems,
         // Envío fijo en $0: sin esto el checkout aplica las tarifas de la
