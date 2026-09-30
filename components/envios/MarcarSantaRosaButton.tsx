@@ -2,22 +2,22 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { marcarPedidosSantaRosaAction } from '@/app/actions/envios'
+import { marcarEnvioSantaRosaAction } from '@/app/actions/envios'
 import { Loader2, PackageCheck, Check } from 'lucide-react'
 
-// En el detalle de un envío a Santa Rosa: marca todos los pedidos del envío
-// con estado 'santa_rosa' (llegaron a la sede) en un solo paso.
-export function MarcarSantaRosaButton({ pedidoIds }: { pedidoIds: string[] }) {
+// En el detalle de un envío a Santa Rosa: marca como 'santa_rosa' lo que viajó
+// (la prenda de cada renglón, o el pedido completo) en un solo paso.
+export function MarcarSantaRosaButton({ envioId, pendientes }: { envioId: string; pendientes: number }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [resultado, setResultado] = useState<{ marcados: number; omitidos: string[] } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   function handleClick() {
-    if (!window.confirm(`¿Marcar ${pedidoIds.length} pedido${pedidoIds.length !== 1 ? 's' : ''} como en Santa Rosa?`)) return
+    if (!window.confirm(`¿Marcar ${pendientes} renglón${pendientes !== 1 ? 'es' : ''} del envío como en Santa Rosa?`)) return
     startTransition(async () => {
       setError(null)
-      const r = await marcarPedidosSantaRosaAction(pedidoIds)
+      const r = await marcarEnvioSantaRosaAction(envioId)
       if (r.ok) { setResultado({ marcados: r.marcados, omitidos: r.omitidos }); router.refresh() }
       else setError(r.error)
     })
@@ -46,7 +46,7 @@ export function MarcarSantaRosaButton({ pedidoIds }: { pedidoIds: string[] }) {
         className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl transition-colors disabled:opacity-60"
       >
         {isPending ? <Loader2 size={15} className="animate-spin" /> : <PackageCheck size={15} />}
-        Llegó a Santa Rosa ({pedidoIds.length})
+        Llegó a Santa Rosa ({pendientes})
       </button>
       {error && (
         <span className="text-xs bg-red-50 border border-red-300 text-red-700 rounded-lg px-2 py-1">{error}</span>

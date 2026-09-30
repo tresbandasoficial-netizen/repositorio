@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type { PedidoRow } from '@/lib/queries/pedidos'
 import { EstadoInline } from './PedidoCard'
-import { separarPedidoAction, cambiarEstadoInlineAction, cambiarEstadoPrendaAction, marcarLlegadaPrendasAction } from '@/app/actions/pedidos'
+import { cambiarEstadoInlineAction, cambiarEstadoPrendaAction, marcarLlegadaPrendasAction } from '@/app/actions/pedidos'
 import { transicionesDisponibles } from '@/lib/domain/estados'
 import { ESTADO_LABELS, EstadoPedido } from '@/types'
 import { SEGMENTO_CONFIG } from '@/components/recompras/BadgeSegmento'
@@ -16,6 +16,8 @@ import { formatearTelefono } from '@/lib/utils/phone'
 import { ImageOff, X, ArrowUpRight, Check, Phone, ShoppingCart, LayoutGrid, Package, ExternalLink, Send, Printer } from 'lucide-react'
 
 export type ItemGaleria = {
+  id: string
+  estado: EstadoPedido | null   // estado propio de la prenda (mig. 205)
   codigo: string | null
   marca: string
   descripcion: string
@@ -39,6 +41,7 @@ type Tile = {
   itemIdx: number | null
   imagen: string | null
   comprado: boolean
+  estado: EstadoPedido        // de la prenda (vista por artículo) o del pedido
 }
 
 // Sexo del artículo como letra: M = mujer, H = hombre. Si el campo sexo no
@@ -110,8 +113,6 @@ export function GaleriaPedidos({
   const [verMovil, setVerMovil] = useState(false)
   // Selección múltiple (admin): refs marcadas para registrar compra
   const [marcados, setMarcados] = useState<string[]>([])
-  // Separar pedido en partes (un pedido por artículo, cada uno con su estado)
-  const [separando, setSeparando] = useState(false)
   // Marcar llegada en lote de lo seleccionado
   const [marcandoLote, setMarcandoLote] = useState(false)
 
@@ -130,68 +131,61 @@ export function GaleriaPedidos({
     return [...map.values()]
   }
 
-  // Estado por PRENDA: separa el pedido (si hace falta) y aplica el estado a
-  // la parte de ese artículo. Cada prenda queda con su propia pestaña.
+  // Estado por PRENDA (mig. 205): solo cambia esa prenda; el pedido sigue
+  // siendo uno y queda en el estado de su prenda más atrasada. Cancelar una
+  // sola prenda sí separa el pedido (cambia la plata).
   const [cambiandoPrenda, setCambiandoPrenda] = useState<number | null>(null)
 
-  async function cambiarEstadoPrenda(pedido: PedidoRow, itemIdx: number, nuevoEstado: EstadoPedido, nItems: number) {
-    const aviso = nuevoEstado === 'cancelado'
-      ? `⚠️ Se CANCELARÁ solo la prenda ${itemIdx + 1} de ${nItems}: el pedido se separa (${pedido.numero_orden}-1…), esa parte queda cancelada y los abonos del cliente pasan a las prendas que siguen. ¿Continuar?`
-      : nItems > 1
-        ? `Este pedido tiene ${nItems} prendas: se separará en ${nItems} pedidos (${pedido.numero_orden}-1…) y SOLO la prenda ${itemIdx + 1} pasará a "${ESTADO_LABELS[nuevoEstado]}". ¿Continuar?`
-        : `¿Pasar la prenda a "${ESTADO_LABELS[nuevoEstado]}"?`
-    if (!confirm(aviso)) return
+  async function cambiarEstadoPrenda(pedido: PedidoRow, item: ItemGaleria, itemIdx: number, nuevoEstado: EstadoPedido, nItems: number) {
+    if (nuevoEstado === 'cancelado' && !confirm(
+      `⚠️ Se CANCELARÁ solo la prenda ${itemIdx + 1} de ${nItems}: el pedido se separa (${pedido.numero_orden}-1…), esa parte queda cancelada y los abonos del cliente pasan a las prendas que siguen. ¿Continuar?`
+    )) return
     setCambiandoPrenda(itemIdx)
-    const r = await cambiarEstadoPrendaAction(pedido.id, itemIdx, nuevoEstado)
+    const r = await cambiarEstadoPrendaAction(pedido.id, item.id, nuevoEstado)
     setCambiandoPrenda(null)
     if (!r.ok) { alert(r.error); return }
-    alert(`✅ ${r.numeroParte} quedó en "${ESTADO_LABELS[nuevoEstado]}".`)
     router.refresh()
   }
 
   async function marcarLlegadaLote() {
     const EN_CAMINO = ['pendiente', 'comprado', 'usa']
-    // La llegada se marca POR PRENDA: si de un pedido de varias prendas solo
-    // se seleccionaron algunas, el pedido se separa y solo esas partes llegan.
-    // Con todas las prendas seleccionadas, el pedido avanza completo.
-    type Grupo = { pedido: PedidoRow; idxs: number[]; totalPrendas: number; refs: string[] }
+    // La llegada se marca POR PRENDA: de un pedido de varias prendas solo
+    // llegan las seleccionadas; las demás siguen en camino y el pedido queda
+    // en el estado de su prenda más atrasada. En la vista "por pedido" llega
+    // el pedido completo.
+    type Grupo = { pedido: PedidoRow; idxs: number[]; refs: string[] }
     const grupos = new Map<string, Grupo>()
     for (const t of tiles) {
+      if (!marcados.includes(t.ref)) continue
       let g = grupos.get(t.pedido.id)
-      if (!g) { g = { pedido: t.pedido, idxs: [], totalPrendas: 0, refs: [] }; grupos.set(t.pedido.id, g) }
-      g.totalPrendas += 1
-      if (marcados.includes(t.ref)) {
-        g.refs.push(t.ref)
-        if (t.itemIdx !== null) g.idxs.push(t.itemIdx)
-      }
+      if (!g) { g = { pedido: t.pedido, idxs: [], refs: [] }; grupos.set(t.pedido.id, g) }
+      // Por prenda solo cuentan las que siguen en camino.
+      if (t.itemIdx !== null && !EN_CAMINO.includes(t.estado)) continue
+      g.refs.push(t.ref)
+      if (t.itemIdx !== null) g.idxs.push(t.itemIdx)
     }
-    const seleccion = [...grupos.values()].filter(g => g.refs.length > 0)
-    const aMarcar = seleccion.filter(g => EN_CAMINO.includes(g.pedido.estado))
-    const omitidos = seleccion.filter(g => !EN_CAMINO.includes(g.pedido.estado))
+    const seleccion = [...grupos.values()]
+    const aMarcar = seleccion.filter(g => g.idxs.length > 0 || (g.refs.length > 0 && EN_CAMINO.includes(g.pedido.estado)))
+    const omitidos = seleccion.filter(g => !aMarcar.includes(g))
     if (aMarcar.length === 0) {
       alert('Ninguno de los seleccionados está en camino (pendiente/comprado/USA) — no hay nada que marcar.')
       return
     }
-    const parciales = aMarcar.filter(g => vista === 'articulo' && g.idxs.length > 0 && g.refs.length < g.totalPrendas)
     if (!confirm(
       `¿Marcar como LLEGÓ A BUCARAMANGA?\n\n` +
       aMarcar.flatMap(g => g.refs).join(', ') +
-      (parciales.length > 0
-        ? `\n\n✂️ OJO: ${parciales.map(g => g.pedido.numero_orden).join(', ')} se separará(n) por prendas — SOLO llegan las seleccionadas, las demás siguen en camino.`
-        : '') +
       (omitidos.length > 0 ? `\n\nSe omiten (ya en sede/entregados): ${omitidos.map(g => g.pedido.numero_orden).join(', ')}` : '')
     )) return
     setMarcandoLote(true)
     const errores: string[] = []
     let marcadasTotal = 0
     for (const g of aMarcar) {
-      const esParcial = vista === 'articulo' && g.idxs.length > 0 && g.refs.length < g.totalPrendas
-      if (esParcial) {
+      if (g.idxs.length > 0) {
         const r = await marcarLlegadaPrendasAction(g.pedido.id, g.idxs)
         if (!r.ok) errores.push(`${g.pedido.numero_orden}: ${r.error}`)
         else marcadasTotal += r.partes.length
       } else {
-        const r = await cambiarEstadoInlineAction(g.pedido.id, g.pedido.estado as any, 'bucaramanga')
+        const r = await cambiarEstadoInlineAction(g.pedido.id, g.pedido.estado as EstadoPedido, 'bucaramanga')
         if (!r.ok) errores.push(`${g.pedido.numero_orden}: ${r.error}`)
         else marcadasTotal += 1
       }
@@ -201,21 +195,6 @@ export function GaleriaPedidos({
     alert(errores.length === 0
       ? `✅ ${marcadasTotal} marcado(s) en Bucaramanga.`
       : `Marcados ${marcadasTotal}. Con error:\n${errores.join('\n')}`)
-    router.refresh()
-  }
-
-  async function separarPedido(pedidoId: string, numeroOrden: string) {
-    if (!confirm(
-      `¿Separar ${numeroOrden} en un pedido por artículo?\n\n` +
-      `Cada artículo queda como pedido aparte (${numeroOrden}-1, ${numeroOrden}-2…) ` +
-      `con su PROPIO estado — útil cuando llegan en tiempos distintos. ` +
-      `Los abonos se reparten solos y no se puede deshacer.`
-    )) return
-    setSeparando(true)
-    const r = await separarPedidoAction(pedidoId)
-    setSeparando(false)
-    if (!r.ok) { alert(r.error); return }
-    alert(`Listo: quedó separado en ${r.partes.length} pedidos (${r.partes.join(', ')}). Ya puedes cambiarle el estado a cada uno.`)
     router.refresh()
   }
 
@@ -252,6 +231,7 @@ export function GaleriaPedidos({
           item: null,
           itemIdx: null,
           imagen: imagenPedido,
+          estado: p.estado as EstadoPedido,
           comprado: facturado || (vista === 'pedido'
             ? (items.length > 0 ? items.every(it => it.comprado) : pedidoComprado)
             : pedidoComprado),
@@ -268,6 +248,7 @@ export function GaleriaPedidos({
             item: it,
             itemIdx: i,
             imagen: it.imagen_url ?? imagenPedido,
+            estado: (it.estado ?? p.estado) as EstadoPedido,
             comprado: facturado || it.comprado,
           })
         })
@@ -412,18 +393,6 @@ export function GaleriaPedidos({
           />
         </div>
 
-        {/* Con varios artículos, se puede separar para dar estado a cada uno
-            (llegan en tiempos distintos). No aplica si ya está facturado. */}
-        {itemsSel.length > 1 && !sel.pedido.factura_id && (
-          <button
-            onClick={() => separarPedido(sel.pedido.id, sel.pedido.numero_orden)}
-            disabled={separando}
-            className="mx-4 mb-3 flex items-center justify-center gap-1.5 w-[calc(100%-2rem)] text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl px-3 py-2 disabled:opacity-50"
-          >
-            ✂️ {separando ? 'Separando…' : `Separar en ${itemsSel.length} pedidos (estado propio por artículo)`}
-          </button>
-        )}
-
         {/* Artículos: el elegido queda resaltado */}
         {itemsSel.map((it, i) => {
           const letra = esTallaNumerica(it.talla) ? sexoLetra(it) : null
@@ -470,10 +439,11 @@ export function GaleriaPedidos({
                 </div>
                 <span className="text-[13px] font-bold text-gray-900 shrink-0">{formatCOP(it.precio_venta * it.cantidad)}</span>
               </div>
-              {/* Estado de ESTA prenda: al usarlo el pedido se separa solo y el
-                  estado aplica únicamente a este artículo. Solo con 2+ prendas
-                  y sin facturar (facturado se maneja completo). */}
-              {itemsSel.length > 1 && !sel.pedido.factura_id && puedeSel && (
+              {/* Estado de ESTA prenda (mig. 205): cambiarlo no mueve las demás.
+                  Cancelar una sola prenda separa el pedido, así que no aplica
+                  si ya está facturado. */}
+              {itemsSel.length > 1 && puedeSel && it.estado &&
+                !['cancelado', 'entregado'].includes(sel.pedido.estado) && (
                 <div className="flex items-center gap-2 mt-2">
                   <span className="text-[11px] text-gray-400 shrink-0">Estado de esta prenda:</span>
                   <select
@@ -481,16 +451,16 @@ export function GaleriaPedidos({
                     disabled={cambiandoPrenda !== null}
                     onChange={e => {
                       const v = e.target.value as EstadoPedido
-                      if (v) cambiarEstadoPrenda(sel.pedido, i, v, itemsSel.length)
+                      if (v) cambiarEstadoPrenda(sel.pedido, it, i, v, itemsSel.length)
                       e.target.value = ''
                     }}
                     className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
                   >
                     <option value="">
-                      {cambiandoPrenda === i ? 'Cambiando…' : `${ESTADO_LABELS[sel.pedido.estado as EstadoPedido] ?? sel.pedido.estado} → elegir…`}
+                      {cambiandoPrenda === i ? 'Cambiando…' : `${ESTADO_LABELS[it.estado] ?? it.estado} → elegir…`}
                     </option>
-                    {transicionesDisponibles(sel.pedido.estado as EstadoPedido, esAdmin ? 'admin' : 'asesor')
-                      .filter(est => est !== 'entregado')
+                    {transicionesDisponibles(it.estado, esAdmin ? 'admin' : 'asesor')
+                      .filter(est => est !== 'entregado' && (est !== 'cancelado' || !sel.pedido.factura_id))
                       .map(est => (
                         <option key={est} value={est}>
                           {est === 'cancelado' ? '✕ Cancelar solo esta prenda' : ESTADO_LABELS[est]}
@@ -586,11 +556,11 @@ export function GaleriaPedidos({
           {tiles.map((t) => {
             const activa = sel?.ref === t.ref
             const marcado = marcados.includes(t.ref)
-            const esCancelado = t.pedido.estado === 'cancelado'
+            const esCancelado = t.estado === 'cancelado'
             // Recuadro VERDE = ya entregado (lo ven admin y asesores).
-            const esEntregado = t.pedido.estado === 'entregado'
+            const esEntregado = t.estado === 'entregado'
             // Franja NARANJA = ya llegó a Bucaramanga (lo ven todos).
-            const esBucaramanga = t.pedido.estado === 'bucaramanga'
+            const esBucaramanga = t.estado === 'bucaramanga'
             // Recuadro ROJO = falta comprarlo. Reemplaza al punto de color, que
             // era chiquito y había que buscarlo. Solo lo ve el admin: es
             // información de compras.

@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { prendasDePedido, identificarPrenda, marcarPrendaDeCompra, EN_CAMINO, type PrendaPedido } from '@/lib/pedidos/prendas'
 import { terminoBusquedaSeguro } from '@/lib/utils/busqueda'
 
 async function verificarAdmin() {
@@ -452,14 +453,11 @@ export async function crearCompraAction(data: CrearCompraInput): Promise<CrearCo
         await adminClient.from('compra_items')
           .update({ pedido_id: pedido.id, pedido_item_indice: pedido.indice })
           .eq('id', itemCreado.id)
-        // El pedido avanza de pendiente → comprado al asignarle la compra.
-        if (pedido.estado === 'pendiente') {
-          await adminClient.from('pedidos')
-            .update({ estado: 'comprado', fecha_actualizacion: new Date().toISOString() })
-            .eq('id', pedido.id)
-        }
         // Vincular el artículo del catálogo si aplica.
         await _resolverArticuloCompraItem(itemCreado.id, pedido.id, pedido.indice, adminClient)
+        // Solo la prenda de esta fila pasa a comprado (mig. 205).
+        await marcarPrendaDeCompra(adminClient, itemCreado.id, userId)
+          .catch(e => console.error('No se pudo marcar la prenda comprada:', e))
       }
     }
 
@@ -565,7 +563,6 @@ export async function asignarItemAction(
 
   let pedidoId: string | null = null
   let pedidoItemIndice: number | null = null
-  let pedidoPendienteId: string | null = null
 
   if (destino === 'pedido') {
     if (!pedidoRef?.trim()) {
@@ -582,10 +579,6 @@ export async function asignarItemAction(
 
     pedidoId = pedido.id
     pedidoItemIndice = pedido.indice
-    // El estado se avanza DESPUÉS de escribir la asignación — si el update
-    // falla, el pedido no queda "comprado" sin compra. (En la asignación
-    // parcial lo hace el propio RPC, en la misma transacción.)
-    if (pedido.estado === 'pendiente') pedidoPendienteId = pedido.id
 
     // El pedido no puede quedar con más compra que artículos (misma validación
     // de crear compra y de confirmar sugerencias, que evita duplicar el costo
@@ -649,20 +642,16 @@ export async function asignarItemAction(
       .eq('id', targetId)
 
     if (error) return { ok: false, error: error.message }
-
-    if (pedidoPendienteId) {
-      await adminClient
-        .from('pedidos')
-        .update({ estado: 'comprado', fecha_actualizacion: new Date().toISOString() })
-        .eq('id', pedidoPendienteId)
-        .eq('estado', 'pendiente')
-    }
   }
 
   // Auto-vincular artículo del catálogo si aún no está vinculado
   let aviso: string | undefined
   if (destino === 'pedido' && pedidoId) {
     await _resolverArticuloCompraItem(targetId, pedidoId, pedidoItemIndice, adminClient)
+    // El estado se avanza DESPUÉS de escribir la asignación (si falla, el pedido
+    // no queda "comprado" sin compra) y solo para la prenda de esta fila.
+    await marcarPrendaDeCompra(adminClient, targetId, userId)
+      .catch(e => console.error('No se pudo marcar la prenda comprada:', e))
     aviso = await _avisoArticuloDistinto(targetId, pedidoId, pedidoItemIndice, adminClient)
   }
 
@@ -1025,14 +1014,12 @@ export async function editarCompraAction(compraId: string, data: EditarCompraInp
     // Resolver pedido si el destino es 'pedido' y viene la referencia
     let pedidoId: string | null = null
     let pedidoItemIndice: number | null = null
-    let pedidoEstado: string | null = null
     if (item.destino === 'pedido' && item.pedido_ref?.trim()) {
       const ref = item.pedido_ref.trim().toUpperCase()
       const pedido = await _resolverPedidoPorRef(adminClient, ref)
       if (!pedido) return { ok: false, error: `Pedido "${ref}" no encontrado` }
       pedidoId = pedido.id
       pedidoItemIndice = pedido.indice
-      pedidoEstado = pedido.estado
     }
 
     const campos = {
@@ -1071,12 +1058,10 @@ export async function editarCompraAction(compraId: string, data: EditarCompraInp
 
     // Avanzar el pedido y vincular artículo del catálogo si se asignó a pedido
     if (pedidoId) {
-      if (pedidoEstado === 'pendiente') {
-        await adminClient.from('pedidos')
-          .update({ estado: 'comprado', fecha_actualizacion: new Date().toISOString() })
-          .eq('id', pedidoId)
-      }
       await _resolverArticuloCompraItem(itemId, pedidoId, pedidoItemIndice, adminClient)
+      // Solo la prenda de esta fila pasa a comprado (mig. 205).
+      await marcarPrendaDeCompra(adminClient, itemId, userId)
+        .catch(e => console.error('No se pudo marcar la prenda comprada:', e))
     }
   }
 
@@ -1152,34 +1137,57 @@ export async function marcarLlegadaCompraAction(compraId: string): Promise<Marca
 
   const { data: items } = await adminClient
     .from('compra_items')
-    .select('id, destino, descripcion, articulo_id, pedido_id, pedido:pedidos (id, numero_orden, estado)')
+    .select('id, destino, descripcion, articulo_id, codigo, talla, pedido_id, pedido_item_indice, pedido:pedidos (id, numero_orden, estado)')
     .eq('compra_id', compraId)
 
-  // 1. Avanzar pedidos únicos (una compra puede tener varios items del mismo pedido)
-  const pedidos = new Map<string, { numero_orden: string; estado: string }>()
+  // 1. Avanzar SOLO las prendas que vienen en esta compra (mig. 205): de un
+  //    pedido de varias prendas, las que vienen en otra compra siguen en camino.
+  type Pista = { indice: number | null; articulo_id: string | null; codigo: string | null; talla: string | null }
+  const pedidos = new Map<string, { numero_orden: string; estado: string; pistas: Pista[] }>()
   for (const it of (items ?? []) as any[]) {
     const p = Array.isArray(it.pedido) ? it.pedido[0] : it.pedido
-    if (p) pedidos.set(p.id, { numero_orden: p.numero_orden, estado: p.estado })
+    if (!p) continue
+    const g = pedidos.get(p.id) ?? { numero_orden: p.numero_orden, estado: p.estado, pistas: [] as Pista[] }
+    g.pistas.push({ indice: it.pedido_item_indice ?? null, articulo_id: it.articulo_id ?? null, codigo: it.codigo ?? null, talla: it.talla ?? null })
+    pedidos.set(p.id, g)
   }
 
-  const EN_CAMINO = ['pendiente', 'comprado', 'usa']
   const marcados: string[] = []
   const omitidos: string[] = []
 
   for (const [id, p] of pedidos) {
-    if (!EN_CAMINO.includes(p.estado)) {
+    if (p.estado === 'cancelado' || p.estado === 'entregado') {
       omitidos.push(`${p.numero_orden} (${p.estado})`)
       continue
     }
-    const { error } = await supabase.rpc('cambiar_estado_pedido', {
+    const prendas = await prendasDePedido(adminClient, id).catch(() => [] as PrendaPedido[])
+    const deEstaCompra = new Set<string>()
+    let sinIdentificar = 0
+    for (const pista of p.pistas) {
+      const prenda = identificarPrenda(prendas, pista, deEstaCompra)
+      if (prenda) deEstaCompra.add(prenda.id)
+      else sinIdentificar++
+    }
+    if (sinIdentificar > 0) {
+      omitidos.push(`${p.numero_orden} (no se identificó ${sinIdentificar === 1 ? 'una prenda' : `${sinIdentificar} prendas`} — márcala desde la galería)`)
+    }
+    const aMover = prendas.filter(pr => deEstaCompra.has(pr.id) && EN_CAMINO.includes(pr.estado)).map(pr => pr.id)
+    if (aMover.length === 0) {
+      if (sinIdentificar === 0) omitidos.push(`${p.numero_orden} (ya había llegado)`)
+      continue
+    }
+    const { error } = await supabase.rpc('cambiar_estado_prendas', {
       p_pedido_id:    id,
+      p_item_ids:     aMover,
       p_nuevo_estado: 'bucaramanga',
       p_usuario_id:   userId,
     })
     if (error) {
       omitidos.push(`${p.numero_orden} (error: ${error.message})`)
     } else {
-      marcados.push(p.numero_orden)
+      marcados.push(prendas.length > 1
+        ? aMover.map(x => `${p.numero_orden}-${prendas.findIndex(pr => pr.id === x) + 1}`).join(', ')
+        : p.numero_orden)
     }
   }
 

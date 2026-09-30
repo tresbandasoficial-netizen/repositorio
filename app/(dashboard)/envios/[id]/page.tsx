@@ -28,19 +28,22 @@ export default async function EnvioDetallePage({
   const articulos = envio.items.filter(it => !it.pedido_id)
   const esSantaRosa = envio.destino_codigo === 'SR'
 
-  // El botón "Llegó a Santa Rosa" solo aplica a pedidos que siguen EN CAMINO
-  // (mismos estados que avanza marcarPedidosSantaRosaAction). Si ya todos
-  // llegaron, el botón desaparece y queda la constancia verde.
-  let pedidosEnCamino: string[] = []
+  // El botón "Llegó a Santa Rosa" solo aplica a lo que sigue EN CAMINO: por
+  // renglón, la prenda que viajó (etiqueta TR7900-2) o el pedido completo. Si ya
+  // todo llegó, el botón desaparece y queda la constancia verde.
+  const AVANZABLES = ['pendiente', 'comprado', 'usa', 'bucaramanga']
+  let pendientesSR = 0
   if (esSantaRosa && pedidos.length > 0) {
-    const { data: estados } = await supabase
-      .from('vista_pedidos_asesor')
-      .select('id, estado')
-      .in('id', pedidos.map(p => p.pedido_id!))
-    const AVANZABLES = ['pendiente', 'comprado', 'usa', 'bucaramanga']
-    pedidosEnCamino = ((estados ?? []) as Array<{ id: string; estado: string }>)
-      .filter(p => AVANZABLES.includes(p.estado))
-      .map(p => p.id)
+    const { data: renglones } = await supabase
+      .from('envio_items')
+      .select('pedido_item_id, pedido_items(estado), pedidos(estado)')
+      .eq('envio_id', id)
+      .not('pedido_id', 'is', null)
+    type Est = { estado: string } | { estado: string }[] | null
+    const uno = (x: Est) => (Array.isArray(x) ? x[0] : x)?.estado ?? ''
+    pendientesSR = ((renglones ?? []) as Array<{ pedido_item_id: string | null; pedido_items: Est; pedidos: Est }>)
+      .filter(r => AVANZABLES.includes(r.pedido_item_id ? uno(r.pedido_items) : uno(r.pedidos)))
+      .length
   }
 
   return (
@@ -50,10 +53,10 @@ export default async function EnvioDetallePage({
         <span className="text-gray-300">/</span>
         <h1 className="text-lg font-bold text-gray-900">Envío #{envio.consecutivo} → {envio.destino_nombre}</h1>
         <div className="ml-auto flex items-center gap-2">
-          {esSantaRosa && pedidosEnCamino.length > 0 && (
-            <MarcarSantaRosaButton pedidoIds={pedidosEnCamino} />
+          {esSantaRosa && pendientesSR > 0 && (
+            <MarcarSantaRosaButton envioId={id} pendientes={pendientesSR} />
           )}
-          {esSantaRosa && pedidos.length > 0 && pedidosEnCamino.length === 0 && (
+          {esSantaRosa && pedidos.length > 0 && pendientesSR === 0 && (
             <span className="flex items-center gap-1.5 px-4 py-2 bg-green-100 text-green-800 text-sm font-bold rounded-xl">
               ✓ Llegó a Santa Rosa
             </span>

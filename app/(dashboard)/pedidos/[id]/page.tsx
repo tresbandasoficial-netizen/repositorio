@@ -19,6 +19,7 @@ import { DevolucionButton } from '@/components/pedidos/DevolucionButton'
 import { CambioTallaButton } from '@/components/pedidos/CambioTallaButton'
 import { BloqueGanancia } from '@/components/pedidos/BloqueGanancia'
 import { CostoItemInline } from '@/components/pedidos/CostoItemInline'
+import { EstadoPrendaSelect } from '@/components/pedidos/EstadoPrendaSelect'
 import { CambiarAsesorPedido } from '@/components/pedidos/CambiarAsesorPedido'
 import { getGananciaPedido, getCostosItemsPedido } from '@/lib/queries/ganancias'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -83,6 +84,13 @@ export default async function PedidoDetallePage({
   }, 0)
   // Los saldos antiguos (deudas) no son pedidos de venta: no llevan estado ni productos.
   const esSaldo = pedido.numero_orden.startsWith('SALDO-')
+  // Con varias prendas, cada una muestra y cambia su propio estado (mig. 205).
+  const estadoPorPrenda = pedido.items.length > 1 && sesion.rol !== 'visor' &&
+    !['cancelado', 'entregado'].includes(pedido.estado)
+  const estadoPrenda = (item: (typeof pedido.items)[number]) =>
+    estadoPorPrenda && item.estado
+      ? <EstadoPrendaSelect pedidoId={id} itemId={item.id} estado={item.estado} esAdmin={esAdmin} />
+      : null
 
   // Lista de asesores para el cambio de asesor del pedido (solo admin; la
   // lista de usuarios está restringida por RLS, el acceso ya se validó).
@@ -184,6 +192,7 @@ export default async function PedidoDetallePage({
                         {item.talla && <span>Talla {item.talla} · </span>}
                         <span>×{item.cantidad}</span>
                       </div>
+                      {estadoPrenda(item)}
                       {esAdmin && (
                         <div className="text-xs text-gray-400 mt-1">
                           Costo: <CostoItemInline itemId={item.id} costoManual={costosItems[item.id] ?? null} cantidad={item.cantidad} />
@@ -224,7 +233,10 @@ export default async function PedidoDetallePage({
                           {item.imagen_url && (
                             <img src={item.imagen_url} alt="Producto" className="w-9 h-9 object-cover rounded-md border border-gray-200 flex-shrink-0" />
                           )}
-                          <span className="text-gray-900">{item.descripcion}</span>
+                          <div className="min-w-0">
+                            <span className="text-gray-900">{item.descripcion}</span>
+                            <div>{estadoPrenda(item)}</div>
+                          </div>
                         </div>
                       </td>
                       <td className="px-2 py-3 text-gray-700 truncate">{item.marca}</td>

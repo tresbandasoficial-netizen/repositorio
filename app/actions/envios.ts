@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getSesion, puedeVerPedido } from '@/lib/auth/acceso'
+import { prendasDePedido, type PrendaPedido } from '@/lib/pedidos/prendas'
 
 // ─── Buscar pedido para el envío (por número escaneado/digitado) ─────────────
 
@@ -120,9 +121,32 @@ export async function crearEnvioAction(data: {
 
   if (errEnvio || !envio) return { ok: false, error: `Error creando el envío: ${errEnvio?.message}` }
 
-  const filas = data.items.map(it => it.tipo === 'pedido'
-    ? { envio_id: envio.id, pedido_id: it.pedido_id, numero_orden: it.numero_orden, descripcion: it.descripcion, cantidad: 1 }
-    : { envio_id: envio.id, codigo: it.codigo, talla: it.talla, cantidad: it.cantidad, descripcion: it.descripcion })
+  // Prendas de cada pedido del envío (por id, como las etiquetas -1, -2…).
+  const prendasCache = new Map<string, PrendaPedido[]>()
+  const prendasDe = async (pedidoId: string) => {
+    let lista = prendasCache.get(pedidoId)
+    if (!lista) {
+      lista = await prendasDePedido(supabase, pedidoId).catch(() => [] as PrendaPedido[])
+      prendasCache.set(pedidoId, lista)
+    }
+    return lista
+  }
+
+  // Cada renglón de pedido guarda qué prenda viaja (etiqueta TR7900-2 → prenda
+  // 2); sin prenda, viaja el pedido completo.
+  const filas: Array<Record<string, unknown>> = []
+  for (const it of data.items) {
+    if (it.tipo === 'pedido') {
+      let pedidoItemId: string | null = null
+      if (it.item_idx != null) {
+        const prendas = await prendasDe(it.pedido_id)
+        if (prendas.length > 1) pedidoItemId = prendas[it.item_idx]?.id ?? null
+      }
+      filas.push({ envio_id: envio.id, pedido_id: it.pedido_id, pedido_item_id: pedidoItemId, numero_orden: it.numero_orden, descripcion: it.descripcion, cantidad: 1 })
+    } else {
+      filas.push({ envio_id: envio.id, codigo: it.codigo, talla: it.talla, cantidad: it.cantidad, descripcion: it.descripcion })
+    }
+  }
 
   const { error: errItems } = await supabase.from('envio_items').insert(filas)
   if (errItems) {
@@ -182,84 +206,20 @@ export async function crearEnvioAction(data: {
   revalidatePath('/envios')
   revalidatePath('/inventario')
 
-  // Auto-gestionar pedidos cuando el destino es Santa Rosa (SR).
-  // Comportamiento según lo escaneado:
-  // — Escaneó la prenda concreta (ej SR7764-1-1, item_idx=0):
-  //     · Si el pedido tiene >1 prenda: separar y avanzar SOLO esa prenda a santa_rosa.
-  //     · Si tiene 1 prenda: avanzar el pedido completo.
-  // — Escaneó el pedido completo (ej SR7764-1, item_idx=null):
-  //     · Si tiene >1 prenda: separar SIN avanzar (cada parte queda en su estado).
-  //     · Si tiene 1 prenda: avanzar a santa_rosa.
-  type PedidoEnvioItem = { pedido_id: string; item_idx: number | null }
-  const pedidosEnvioItems: PedidoEnvioItem[] = data.items
-    .filter(it => it.tipo === 'pedido')
-    .map(it => {
-      const p = it as Extract<ItemEnvioInput, { tipo: 'pedido' }>
-      return { pedido_id: p.pedido_id, item_idx: p.item_idx ?? null }
-    })
-  const pedidosDelEnvio = pedidosEnvioItems.map(p => p.pedido_id)
-
-  if (pedidosDelEnvio.length > 0) {
+  // Destino Santa Rosa: lo que viaja pasa a 'santa_rosa' de una vez (mig. 205).
+  //   · Renglón de una prenda (etiqueta TR7900-2): solo esa prenda; el pedido
+  //     queda en el estado de su prenda más atrasada.
+  //   · Renglón del pedido completo (TR7900): todas sus prendas.
+  const renglonesPedido = filas.filter(f => f.pedido_id) as Array<{ pedido_id: string; pedido_item_id: string | null }>
+  if (renglonesPedido.length > 0) {
     const { data: sedeDestino } = await supabase
       .from('sedes')
       .select('codigo')
       .eq('id', data.destino_sede_id)
       .maybeSingle()
 
-    if ((sedeDestino as any)?.codigo === 'SR') {
-      const AVANZABLES = ['pendiente', 'comprado', 'usa', 'bucaramanga']
-      const { data: pedidosData } = await supabase
-        .from('vista_pedidos_asesor')
-        .select('id, estado, numero_orden')
-        .in('id', pedidosDelEnvio)
-
-      const { data: filaItems } = await supabase
-        .from('pedido_items')
-        .select('pedido_id')
-        .in('pedido_id', pedidosDelEnvio)
-
-      const nPrendas = new Map<string, number>()
-      for (const fi of (filaItems ?? [])) {
-        nPrendas.set(fi.pedido_id, (nPrendas.get(fi.pedido_id) ?? 0) + 1)
-      }
-
-      for (const p of (pedidosData ?? [])) {
-        if (!AVANZABLES.includes((p as any).estado)) continue
-        const envioItem = pedidosEnvioItems.find(e => e.pedido_id === p.id)
-        const itemIdx = envioItem?.item_idx ?? null
-        const n = nPrendas.get(p.id) ?? 0
-
-        if (n <= 1) {
-          // Una sola prenda (o pedido ya separado): avanzar completo.
-          await supabase.rpc('cambiar_estado_pedido', {
-            p_pedido_id:    p.id,
-            p_nuevo_estado: 'santa_rosa',
-            p_usuario_id:   sesion.id,
-          })
-        } else if (itemIdx !== null) {
-          // Escanearon una prenda específica: separar y avanzar solo esa.
-          const { data: sepData } = await supabase.rpc('separar_pedido_por_articulos', {
-            p_pedido_id: p.id,
-          })
-          const partes = ((sepData as any)?.partes ?? []) as string[]
-          const numeroParte = partes[itemIdx] ?? `${(p as any).numero_orden}-${itemIdx + 1}`
-          const { data: parte } = await supabase
-            .from('pedidos')
-            .select('id, estado')
-            .eq('numero_orden', numeroParte)
-            .maybeSingle()
-          if (parte && (parte as any).estado !== 'santa_rosa') {
-            await supabase.rpc('cambiar_estado_pedido', {
-              p_pedido_id:    (parte as any).id,
-              p_nuevo_estado: 'santa_rosa',
-              p_usuario_id:   sesion.id,
-            })
-          }
-        } else {
-          // Escanearon el pedido completo con varias prendas: solo separar.
-          await supabase.rpc('separar_pedido_por_articulos', { p_pedido_id: p.id })
-        }
-      }
+    if ((sedeDestino as { codigo?: string } | null)?.codigo === 'SR') {
+      await _avanzarSantaRosa(supabase, renglonesPedido, sesion.id)
       revalidatePath('/pedidos')
       revalidatePath('/pedidos/galeria')
     }
@@ -268,45 +228,86 @@ export async function crearEnvioAction(data: {
   return { ok: true, envioId: envio.id }
 }
 
-// ─── Marcar los pedidos del envío como llegados a Santa Rosa ─────────────────
-// (mismo espíritu que marcarLlegadaBucaramangaAction: solo avanza, con historial)
+const AVANZABLES_SR = ['pendiente', 'comprado', 'usa', 'bucaramanga']
+
+// Avanza a 'santa_rosa' lo que viajó: por prenda cuando el renglón la trae,
+// el pedido completo cuando no. Devuelve lo que no se pudo mover.
+async function _avanzarSantaRosa(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  renglones: Array<{ pedido_id: string; pedido_item_id: string | null }>,
+  usuarioId: string,
+): Promise<{ marcados: number; omitidos: string[] }> {
+  const porPedido = new Map<string, { completo: boolean; prendas: Set<string> }>()
+  for (const r of renglones) {
+    const g = porPedido.get(r.pedido_id) ?? { completo: false, prendas: new Set<string>() }
+    if (r.pedido_item_id) g.prendas.add(r.pedido_item_id)
+    else g.completo = true
+    porPedido.set(r.pedido_id, g)
+  }
+
+  const { data: pedidos } = await supabase
+    .from('pedidos')
+    .select('id, numero_orden, estado')
+    .in('id', [...porPedido.keys()])
+
+  let marcados = 0
+  const omitidos: string[] = []
+  for (const p of (pedidos ?? []) as Array<{ id: string; numero_orden: string; estado: string }>) {
+    const g = porPedido.get(p.id)!
+    if (g.completo) {
+      if (!AVANZABLES_SR.includes(p.estado)) { if (p.estado !== 'santa_rosa') omitidos.push(`${p.numero_orden} (${p.estado})`); continue }
+      const { error } = await supabase.rpc('cambiar_estado_pedido', {
+        p_pedido_id: p.id, p_nuevo_estado: 'santa_rosa', p_usuario_id: usuarioId,
+      })
+      if (error) omitidos.push(`${p.numero_orden} (${error.message})`)
+      else marcados++
+      continue
+    }
+    const prendas = await prendasDePedido(supabase, p.id).catch(() => [] as PrendaPedido[])
+    const aMover = prendas.filter(pr => g.prendas.has(pr.id) && AVANZABLES_SR.includes(pr.estado)).map(pr => pr.id)
+    if (aMover.length === 0) continue
+    const { error } = await supabase.rpc('cambiar_estado_prendas', {
+      p_pedido_id: p.id, p_item_ids: aMover, p_nuevo_estado: 'santa_rosa', p_usuario_id: usuarioId,
+    })
+    if (error) omitidos.push(`${p.numero_orden} (${error.message})`)
+    else marcados += aMover.length
+  }
+  return { marcados, omitidos }
+}
+
+// ─── Marcar lo del envío como llegado a Santa Rosa ───────────────────────────
+// Por renglón del envío: la prenda que viajó, o el pedido completo. Solo
+// avanza (con historial) lo que sigue en camino.
 
 export type MarcarSantaRosaResult =
   | { ok: true; marcados: number; omitidos: string[] }
   | { ok: false; error: string }
 
-export async function marcarPedidosSantaRosaAction(
-  pedidoIds: string[]
-): Promise<MarcarSantaRosaResult> {
+export async function marcarEnvioSantaRosaAction(envioId: string): Promise<MarcarSantaRosaResult> {
   const sesion = await getSesion()
   if (sesion.rol === 'visor') return { ok: false, error: 'Sin permisos para cambiar estados' }
-  if (pedidoIds.length === 0) return { ok: false, error: 'Sin pedidos' }
   const supabase = await createClient()
 
-  const { data } = await supabase
-    .from('vista_pedidos_asesor')
-    .select('id, numero_orden, estado, sede_id')
-    .in('id', pedidoIds)
+  const { data: renglones, error } = await supabase
+    .from('envio_items')
+    .select('pedido_id, pedido_item_id, pedidos(sede_id, numero_orden)')
+    .eq('envio_id', envioId)
+    .not('pedido_id', 'is', null)
+  if (error) return { ok: false, error: error.message }
 
-  const pedidos = (data ?? []) as Array<{ id: string; numero_orden: string; estado: string; sede_id: string }>
-  const AVANZABLES = ['pendiente', 'comprado', 'usa', 'bucaramanga']
-
-  let marcados = 0
   const omitidos: string[] = []
-  for (const p of pedidos) {
+  const permitidos: Array<{ pedido_id: string; pedido_item_id: string | null }> = []
+  for (const r of (renglones ?? []) as Array<{ pedido_id: string; pedido_item_id: string | null; pedidos: { sede_id: string; numero_orden: string } | { sede_id: string; numero_orden: string }[] | null }>) {
+    const ped = Array.isArray(r.pedidos) ? r.pedidos[0] : r.pedidos
     // Avance logístico (solo hacia adelante, auditado): permitido entre sedes.
-    if (!puedeVerPedido(sesion, p.sede_id)) { omitidos.push(p.numero_orden); continue }
-    if (p.estado === 'santa_rosa') continue // ya está
-    if (!AVANZABLES.includes(p.estado)) { omitidos.push(`${p.numero_orden} (${p.estado})`); continue }
-    const { error } = await supabase.rpc('cambiar_estado_pedido', {
-      p_pedido_id:    p.id,
-      p_nuevo_estado: 'santa_rosa',
-      p_usuario_id:   sesion.id,
-    })
-    if (error) omitidos.push(`${p.numero_orden} (${error.message})`)
-    else marcados++
+    if (!ped || !puedeVerPedido(sesion, ped.sede_id)) { omitidos.push(ped?.numero_orden ?? r.pedido_id); continue }
+    permitidos.push({ pedido_id: r.pedido_id, pedido_item_id: r.pedido_item_id })
   }
+  if (permitidos.length === 0 && omitidos.length === 0) return { ok: false, error: 'El envío no tiene pedidos' }
 
+  const r = await _avanzarSantaRosa(supabase, permitidos, sesion.id)
   revalidatePath('/pedidos')
-  return { ok: true, marcados, omitidos }
+  revalidatePath('/pedidos/galeria')
+  revalidatePath(`/envios/${envioId}`)
+  return { ok: true, marcados: r.marcados, omitidos: [...omitidos, ...r.omitidos] }
 }

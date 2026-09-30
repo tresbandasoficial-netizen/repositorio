@@ -159,7 +159,7 @@ export default async function GaleriaPedidosPage({
     const [{ data: items }, { data: compras }] = await Promise.all([
       supabase
         .from('pedido_items')
-        .select('pedido_id, codigo, marca, descripcion, talla, cantidad, precio_venta, sexo, categoria, imagen_url, articulo_id, costo_manual, articulos(codigo, sexo, categoria)')
+        .select('id, pedido_id, estado, codigo, marca, descripcion, talla, cantidad, precio_venta, sexo, categoria, imagen_url, articulo_id, costo_manual, articulos(codigo, sexo, categoria)')
         .in('pedido_id', ids)
         .order('id'),
       supabase
@@ -174,6 +174,8 @@ export default async function GaleriaPedidosPage({
       const art = Array.isArray(it.articulos) ? it.articulos[0] : it.articulos
       ;(costeadosPorPedido[it.pedido_id] ??= []).push(it.costo_manual != null)
       ;(itemsPorPedido[it.pedido_id] ??= []).push({
+        id: it.id,
+        estado: it.estado ?? null,
         codigo: it.codigo ?? art?.codigo ?? null,
         marca: it.marca,
         descripcion: it.descripcion,

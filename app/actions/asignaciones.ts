@@ -178,25 +178,28 @@ export async function confirmarAsignacionAction(asignacionId: string): Promise<R
 
   const compra = (Array.isArray(item.compras) ? item.compras[0] : item.compras) as any
 
-  // Estado del pedido: al confirmar pasa a 'comprado'; si la mercancía de esa
-  // factura ya llegó, sigue a 'bucaramanga' (mismo RPC del flujo de llegada).
-  if (pedido.estado === 'pendiente') {
-    await adminClient
-      .from('pedidos')
-      .update({ estado: 'comprado', fecha_actualizacion: ahora })
-      .eq('id', asig.pedido_id)
-      .eq('estado', 'pendiente')
-  }
+  // Estado de LA PRENDA de esta compra (mig. 205): pasa a 'comprado'; si la
+  // mercancía de esa factura ya llegó, sigue a 'bucaramanga'. Las demás
+  // prendas del pedido no se tocan.
+  const { error: errComprada } = await adminClient.rpc('marcar_prenda_comprada', {
+    p_pedido_id:  asig.pedido_id,
+    p_indice:     indiceMatch,
+    p_usuario_id: userId,
+  })
+  if (errComprada) console.error('Confirmación: no se pudo marcar la prenda comprada:', errComprada)
   if (compra?.llegada_en) {
-    const { data: pAct } = await adminClient
-      .from('pedidos').select('estado').eq('id', asig.pedido_id).maybeSingle()
-    if (pAct && ['pendiente', 'comprado', 'usa'].includes(pAct.estado)) {
-      const { error: errRpc } = await supabase.rpc('cambiar_estado_pedido', {
+    const prendaId = lista[indiceMatch - 1]?.id as string | undefined
+    const { data: pAct } = prendaId
+      ? await adminClient.from('pedido_items').select('estado').eq('id', prendaId).maybeSingle()
+      : { data: null }
+    if (prendaId && pAct && ['pendiente', 'comprado', 'usa'].includes(pAct.estado)) {
+      const { error: errRpc } = await supabase.rpc('cambiar_estado_prendas', {
         p_pedido_id:    asig.pedido_id,
+        p_item_ids:     [prendaId],
         p_nuevo_estado: 'bucaramanga',
         p_usuario_id:   userId,
       })
-      if (errRpc) console.error('Confirmación: no se pudo pasar el pedido a bucaramanga:', errRpc)
+      if (errRpc) console.error('Confirmación: no se pudo pasar la prenda a bucaramanga:', errRpc)
     }
   }
 

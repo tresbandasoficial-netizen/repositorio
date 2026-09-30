@@ -48,6 +48,7 @@ export type PedidoDetalle = PedidoRow & {
     cantidad: number
     precio_venta: number
     imagen_url: string | null
+    estado: EstadoPedido | null   // estado propio de la prenda (mig. 205); null si aún no existe
   }>
   pagos: Array<{
     id: string
@@ -238,7 +239,7 @@ export async function getPedidoDetalle(id: string): Promise<PedidoDetalle | null
     supabase.from('vista_pedidos_asesor').select('*').eq('id', id).single(),
     supabase
       .from('pedido_items')
-      .select('id, articulo_id, marca, descripcion, talla, cantidad, precio_venta, imagen_url, codigo, sexo, categoria, articulos(codigo, sexo, categoria)')
+      .select('id, articulo_id, marca, descripcion, talla, cantidad, precio_venta, imagen_url, codigo, sexo, categoria, estado, articulos(codigo, sexo, categoria)')
       .eq('pedido_id', id)
       .order('id'),
     supabase
@@ -275,7 +276,7 @@ export async function getPedidoDetalle(id: string): Promise<PedidoDetalle | null
       .select('id, marca, descripcion, talla, cantidad, precio_venta')
       .eq('pedido_id', id)
       .order('id')
-    itemsData = (fallback.data ?? []).map(it => ({ ...it, imagen_url: null, codigo: null }))
+    itemsData = (fallback.data ?? []).map(it => ({ ...it, imagen_url: null, codigo: null, estado: null }))
   } else {
     // Código, sexo y categoría pueden venir del item o del artículo vinculado.
     itemsData = (itemsRes.data ?? []).map((it: any) => {

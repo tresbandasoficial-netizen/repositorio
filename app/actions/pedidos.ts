@@ -13,6 +13,7 @@ import { EstadoPedido, MetodoPago, ParsedPedido, tallasDeCategoria } from '@/typ
 import { getSesion, puedeAccederSede, puedeVerPedido } from '@/lib/auth/acceso'
 import { bloqueoCajaCerrada } from '@/lib/auth/caja'
 import { cuentaIdPorMetodo } from '@/lib/queries/cuentas'
+import { prendasDePedido, EN_CAMINO, type PrendaPedido } from '@/lib/pedidos/prendas'
 
 export type CrearPedidoResult =
   | { ok: true; pedidoId: string; numeroOrden: string; avisoCompra?: string }
@@ -1029,18 +1030,16 @@ export async function separarPedidoAction(pedidoId: string): Promise<SepararPedi
 }
 
 export type CambiarEstadoPrendaResult =
-  | { ok: true; numeroParte: string }
+  | { ok: true; ref: string }
   | { ok: false; error: string }
 
-// Cambia el estado de UNA prenda de un pedido con varios artículos: si el
-// pedido no está separado todavía, se separa primero (TR6835 → -1, -2…) y el
-// estado se aplica solo a la parte de esa prenda. Pedido de Johan/Ronaldo:
-// cada prenda con su propia pestaña de estado, porque llegan en tiempos
-// distintos. El índice es el del artículo en el pedido (0 = primera prenda),
-// mismo orden por id que usa el RPC al numerar las partes.
+// Cambia el estado de UNA prenda sin tocar las demás (mig. 205): el pedido
+// sigue siendo uno y su estado pasa a ser el de su prenda más atrasada. Pedido
+// de Johan/Ronaldo: las prendas llegan en tiempos distintos. Cancelar una sola
+// prenda sí separa el pedido, porque cambia la plata (cancelar_prenda_parte).
 export async function cambiarEstadoPrendaAction(
   pedidoId: string,
-  itemIdx: number,
+  itemId: string,
   nuevoEstado: EstadoPedido
 ): Promise<CambiarEstadoPrendaResult> {
   const sesion = await getSesion()
@@ -1055,110 +1054,103 @@ export async function cambiarEstadoPrendaAction(
   if (!pedido || !puedeAccederSede(sesion, pedido.sede_id)) {
     return { ok: false, error: 'Sin acceso a este pedido' }
   }
-  if (pedido.factura_id) {
-    return { ok: false, error: 'El pedido ya está facturado — no se puede separar por prendas.' }
-  }
   if (nuevoEstado === 'entregado') {
     return { ok: false, error: 'Entregar se hace desde el pedido completo (requiere factura), no por prenda.' }
   }
 
-  // Un error de lectura NO puede degradar a "cero prendas": con nItems=0 la
-  // acción cancelaría el pedido COMPLETO anulando todos sus abonos (mig. 076).
-  const { data: itemsPed, error: errItems } = await supabase
-    .from('pedido_items')
-    .select('id, precio_venta, cantidad')
-    .eq('pedido_id', pedidoId)
-    .order('id')
-  if (errItems) return { ok: false, error: `No se pudieron leer las prendas: ${errItems.message}` }
-  const lista = (itemsPed ?? []) as Array<{ id: string; precio_venta: number; cantidad: number }>
-  const nItems = lista.length
+  let prendas: PrendaPedido[]
+  try {
+    prendas = await prendasDePedido(supabase, pedidoId)
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+  const itemIdx = prendas.findIndex(p => p.id === itemId)
+  if (itemIdx < 0) return { ok: false, error: 'La pantalla está desactualizada — recarga la página.' }
+  const prenda = prendas[itemIdx]
+  const ref = prendas.length > 1 ? `${pedido.numero_orden}-${itemIdx + 1}` : pedido.numero_orden
 
-  // Guardas contra la galería desactualizada (otro usuario pudo separar o
-  // editar el pedido después de que se cargó la pantalla).
-  if (nItems === 0) return { ok: false, error: 'El pedido no tiene prendas — recarga la página.' }
-  if (itemIdx >= nItems) return { ok: false, error: 'La galería está desactualizada — recarga la página.' }
-  if (nuevoEstado === 'cancelado' && nItems === 1) {
-    return { ok: false, error: 'Este pedido tiene una sola prenda — cancélalo completo desde su detalle.' }
+  if (!puedeTransicionar(prenda.estado as EstadoPedido, nuevoEstado, sesion.rol)) {
+    return { ok: false, error: `Transición inválida: ${prenda.estado} → ${nuevoEstado}` }
   }
 
-  // La transición se valida ANTES de separar (separar es irreversible): las
-  // partes heredan el estado del pedido, así que el chequeo es el mismo.
-  if (!puedeTransicionar(pedido.estado as EstadoPedido, nuevoEstado, sesion.rol)) {
-    return { ok: false, error: `Transición inválida: ${pedido.estado} → ${nuevoEstado}` }
-  }
-
-  // Cancelar una prenda: los abonos del cliente deben caber en las prendas que
-  // siguen vivas — si abonó más que lo que queda, primero hay que devolver o
-  // anular la diferencia. (El RPC cancelar_prenda_parte lo revalida en la
-  // transacción; este chequeo temprano evita separar el pedido en vano.)
-  if (nuevoEstado === 'cancelado') {
-    const { data: pagosPed, error: errPagos } = await supabase
-      .from('pagos')
-      .select('monto, metodo')
-      .eq('pedido_id', pedidoId)
-      .eq('anulado', false)
-    if (errPagos) return { ok: false, error: `No se pudieron leer los abonos: ${errPagos.message}` }
-    const abonosReales = ((pagosPed ?? []) as Array<{ monto: number; metodo: string }>)
-      .filter(p => p.metodo !== 'credito')
-      .reduce((s, p) => s + (p.monto || 0), 0)
-    const valorRestante = lista.reduce((s, it, i) => i === itemIdx ? s : s + it.precio_venta * it.cantidad, 0)
-    if (abonosReales > valorRestante) {
-      return {
-        ok: false,
-        error: `El cliente tiene abonados $${abonosReales.toLocaleString('es-CO')} y las prendas que quedan valen $${valorRestante.toLocaleString('es-CO')} — anula o devuelve la diferencia antes de cancelar esta prenda.`,
-      }
-    }
-  }
-
-  let parteId = pedido.id
-  let numeroParte = pedido.numero_orden
-  if (nItems > 1) {
-    const { data, error } = await supabase.rpc('separar_pedido_por_articulos', { p_pedido_id: pedidoId })
-    if (error) return { ok: false, error: `No se pudo separar el pedido: ${error.message}` }
-    const partes = ((data as any)?.partes ?? []) as string[]
-    numeroParte = partes[itemIdx] ?? `${pedido.numero_orden}-${itemIdx + 1}`
-    const { data: parte, error: errParte } = await supabase
-      .from('pedidos')
-      .select('id, estado')
-      .eq('numero_orden', numeroParte)
-      .single()
-    if (errParte || !parte) return { ok: false, error: `Se separó, pero no se encontró la parte ${numeroParte}` }
-    parteId = parte.id
-  }
-
-  if (nuevoEstado === 'cancelado') {
-    // Todo en UNA transacción (mig. 189): mueve los abonos a las partes vivas,
-    // libera la compra asignada (vuelve al stock si ya llegó) y cancela la
-    // parte por el flujo oficial. Si algo no cuadra, falla completo sin tocar
-    // nada — jamás queda plata a medio mover.
-    const { error: errCancelar } = await supabase.rpc('cancelar_prenda_parte', {
-      p_parte_id:   parteId,
-      p_usuario_id: sesion.id,
-    })
-    if (errCancelar) return { ok: false, error: errCancelar.message }
-  } else {
-    const { error: errEstado } = await supabase.rpc('cambiar_estado_pedido', {
-      p_pedido_id:    parteId,
+  if (nuevoEstado !== 'cancelado') {
+    const { error } = await supabase.rpc('cambiar_estado_prendas', {
+      p_pedido_id:    pedidoId,
+      p_item_ids:     [itemId],
       p_nuevo_estado: nuevoEstado,
       p_usuario_id:   sesion.id,
     })
-    if (errEstado) return { ok: false, error: errEstado.message }
+    if (error) return { ok: false, error: error.message }
+    revalidatePath('/pedidos')
+    revalidatePath('/pedidos/galeria')
+    revalidatePath(`/pedidos/${pedidoId}`)
+    return { ok: true, ref }
   }
+
+  // ── Cancelar SOLO esta prenda: separa el pedido y cancela su parte ──────────
+  if (pedido.factura_id) {
+    return { ok: false, error: 'El pedido ya está facturado — no se puede cancelar una sola prenda.' }
+  }
+  if (prendas.length === 1) {
+    return { ok: false, error: 'Este pedido tiene una sola prenda — cancélalo completo desde su detalle.' }
+  }
+
+  // Los abonos del cliente deben caber en las prendas que siguen vivas — si
+  // abonó más que lo que queda, primero hay que devolver o anular la
+  // diferencia. (El RPC cancelar_prenda_parte lo revalida en la transacción;
+  // este chequeo temprano evita separar el pedido en vano.)
+  const [{ data: itemsPrecio, error: errItems }, { data: pagosPed, error: errPagos }] = await Promise.all([
+    supabase.from('pedido_items').select('id, precio_venta, cantidad').eq('pedido_id', pedidoId).order('id'),
+    supabase.from('pagos').select('monto, metodo').eq('pedido_id', pedidoId).eq('anulado', false),
+  ])
+  if (errItems) return { ok: false, error: `No se pudieron leer las prendas: ${errItems.message}` }
+  if (errPagos) return { ok: false, error: `No se pudieron leer los abonos: ${errPagos.message}` }
+  const abonosReales = ((pagosPed ?? []) as Array<{ monto: number; metodo: string }>)
+    .filter(p => p.metodo !== 'credito')
+    .reduce((s, p) => s + (p.monto || 0), 0)
+  const valorRestante = ((itemsPrecio ?? []) as Array<{ id: string; precio_venta: number; cantidad: number }>)
+    .reduce((s, it) => it.id === itemId ? s : s + it.precio_venta * it.cantidad, 0)
+  if (abonosReales > valorRestante) {
+    return {
+      ok: false,
+      error: `El cliente tiene abonados $${abonosReales.toLocaleString('es-CO')} y las prendas que quedan valen $${valorRestante.toLocaleString('es-CO')} — anula o devuelve la diferencia antes de cancelar esta prenda.`,
+    }
+  }
+
+  const { data, error } = await supabase.rpc('separar_pedido_por_articulos', { p_pedido_id: pedidoId })
+  if (error) return { ok: false, error: `No se pudo separar el pedido: ${error.message}` }
+  const partes = ((data as { partes?: string[] } | null)?.partes ?? []) as string[]
+  const numeroParte = partes[itemIdx] ?? `${pedido.numero_orden}-${itemIdx + 1}`
+  const { data: parte, error: errParte } = await supabase
+    .from('pedidos')
+    .select('id')
+    .eq('numero_orden', numeroParte)
+    .single()
+  if (errParte || !parte) return { ok: false, error: `Se separó, pero no se encontró la parte ${numeroParte}` }
+
+  // Todo en UNA transacción (mig. 189): mueve los abonos a las partes vivas,
+  // libera la compra asignada (vuelve al stock si ya llegó) y cancela la
+  // parte por el flujo oficial. Si algo no cuadra, falla completo sin tocar
+  // nada — jamás queda plata a medio mover.
+  const { error: errCancelar } = await supabase.rpc('cancelar_prenda_parte', {
+    p_parte_id:   parte.id,
+    p_usuario_id: sesion.id,
+  })
+  if (errCancelar) return { ok: false, error: errCancelar.message }
 
   revalidatePath('/pedidos')
   revalidatePath('/pedidos/galeria')
   revalidatePath('/inventario')
-  return { ok: true, numeroParte }
+  return { ok: true, ref: numeroParte }
 }
 
 export type MarcarLlegadaPrendasResult =
   | { ok: true; partes: string[] }
   | { ok: false; error: string }
 
-// Marca la llegada a Bucaramanga de SOLO algunas prendas de un pedido: si el
-// pedido tiene varias y no todas llegaron, se separa primero (TR7115 → -1…-7)
-// y únicamente las partes elegidas pasan a 'bucaramanga'. Con todas
-// seleccionadas (o una sola prenda), el pedido avanza completo sin separarse.
+// Marca la llegada a Bucaramanga de SOLO las prendas elegidas de un pedido
+// (índices de la galería, 0 = primera). Las demás siguen en camino; el pedido
+// queda en el estado de su prenda más atrasada.
 export async function marcarLlegadaPrendasAction(
   pedidoId: string,
   itemIdxs: number[],
@@ -1170,59 +1162,39 @@ export async function marcarLlegadaPrendasAction(
 
   const { data: pedido } = await supabase
     .from('pedidos')
-    .select('id, numero_orden, estado, sede_id, factura_id')
+    .select('id, numero_orden, sede_id')
     .eq('id', pedidoId)
     .single()
   if (!pedido || !puedeAccederSede(sesion, pedido.sede_id)) {
     return { ok: false, error: 'Sin acceso a este pedido' }
   }
 
-  const { count } = await supabase
-    .from('pedido_items')
-    .select('id', { count: 'exact', head: true })
-    .eq('pedido_id', pedidoId)
-  const nItems = count ?? 0
+  let prendas: PrendaPedido[]
+  try {
+    prendas = await prendasDePedido(supabase, pedidoId)
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+  if (itemIdxs.some(i => i < 0 || i >= prendas.length)) {
+    return { ok: false, error: 'La galería está desactualizada — recarga la página.' }
+  }
 
-  // Todas las prendas llegaron (o es de una sola): avanza el pedido completo.
-  if (nItems <= 1 || itemIdxs.length >= nItems) {
-    const { error } = await supabase.rpc('cambiar_estado_pedido', {
-      p_pedido_id: pedidoId, p_nuevo_estado: 'bucaramanga', p_usuario_id: sesion.id,
+  const ref = (i: number) => prendas.length > 1 ? `${pedido.numero_orden}-${i + 1}` : pedido.numero_orden
+  const aMover = itemIdxs.filter(i => EN_CAMINO.includes(prendas[i].estado))
+
+  if (aMover.length > 0) {
+    const { error } = await supabase.rpc('cambiar_estado_prendas', {
+      p_pedido_id:    pedidoId,
+      p_item_ids:     aMover.map(i => prendas[i].id),
+      p_nuevo_estado: 'bucaramanga',
+      p_usuario_id:   sesion.id,
     })
     if (error) return { ok: false, error: error.message }
-    revalidatePath('/pedidos')
-    revalidatePath('/pedidos/galeria')
-    return { ok: true, partes: [pedido.numero_orden] }
-  }
-
-  if (pedido.factura_id) {
-    return { ok: false, error: `${pedido.numero_orden} ya está facturado — no se puede separar por prendas. Marca la llegada del pedido completo.` }
-  }
-
-  const { data, error: errSep } = await supabase.rpc('separar_pedido_por_articulos', { p_pedido_id: pedidoId })
-  if (errSep) return { ok: false, error: `No se pudo separar ${pedido.numero_orden}: ${errSep.message}` }
-  const partes = ((data as any)?.partes ?? []) as string[]
-
-  const marcadas: string[] = []
-  for (const idx of itemIdxs) {
-    const numeroParte = partes[idx] ?? `${pedido.numero_orden}-${idx + 1}`
-    const { data: parte } = await supabase
-      .from('pedidos')
-      .select('id, estado')
-      .eq('numero_orden', numeroParte)
-      .single()
-    if (!parte) return { ok: false, error: `Se separó, pero no se encontró la parte ${numeroParte}` }
-    if (parte.estado !== 'bucaramanga') {
-      const { error } = await supabase.rpc('cambiar_estado_pedido', {
-        p_pedido_id: parte.id, p_nuevo_estado: 'bucaramanga', p_usuario_id: sesion.id,
-      })
-      if (error) return { ok: false, error: `${numeroParte}: ${error.message}` }
-    }
-    marcadas.push(numeroParte)
   }
 
   revalidatePath('/pedidos')
   revalidatePath('/pedidos/galeria')
-  return { ok: true, partes: marcadas }
+  return { ok: true, partes: aMover.map(ref) }
 }
 
 // Cambiar el asesor de un pedido (solo admin): corrige pedidos registrados

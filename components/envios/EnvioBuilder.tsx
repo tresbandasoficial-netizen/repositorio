@@ -39,6 +39,11 @@ type ItemLista =
   | { tipo: 'pedido'; pedido_id: string; numero_orden: string; descripcion: string; estado: string; item_idx: number | null }
   | { tipo: 'articulo'; codigo: string; talla: string | null; cantidad: number; descripcion: string | null; enCatalogo: boolean }
 
+// Referencia del renglón: la prenda escaneada (TR7900-2) o el pedido completo.
+// Cada prenda es un renglón aparte, así se pueden mandar dos prendas del mismo pedido.
+const refPedido = (numero: string, itemIdx: number | null) =>
+  itemIdx !== null ? `${numero}-${itemIdx + 1}` : numero
+
 export function EnvioBuilder({ sedes, sedeOrigenId, pedidosIniciales }: {
   sedes: { id: string; codigo: string; nombre: string }[]
   sedeOrigenId: string | null
@@ -159,12 +164,13 @@ export function EnvioBuilder({ sedes, sedeOrigenId, pedidosIniciales }: {
       for (const num of nums) {
         const r = await buscarPedidoParaEnvioAction(num)
         if (!r.ok) { fallidos.push(num); continue }
-        setItems(prev => prev.some(it => it.tipo === 'pedido' && it.numero_orden === r.pedido.numero_orden)
+        const ref = refPedido(r.pedido.numero_orden, r.itemIdx)
+        setItems(prev => prev.some(it => it.tipo === 'pedido' && it.numero_orden === ref)
           ? prev
           : [...prev, {
               tipo: 'pedido',
               pedido_id: r.pedido.id,
-              numero_orden: r.pedido.numero_orden,
+              numero_orden: ref,
               descripcion: r.pedido.cliente_nombre,
               estado: r.pedido.estado,
               item_idx: r.itemIdx,
@@ -192,7 +198,7 @@ export function EnvioBuilder({ sedes, sedeOrigenId, pedidosIniciales }: {
         setItems(prev => [...prev, {
           tipo: 'pedido',
           pedido_id: r.pedido.id,
-          numero_orden: r.pedido.numero_orden,
+          numero_orden: refPedido(r.pedido.numero_orden, r.itemIdx),
           descripcion: r.pedido.cliente_nombre,
           estado: r.pedido.estado,
           item_idx: r.itemIdx,
