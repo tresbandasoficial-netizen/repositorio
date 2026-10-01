@@ -288,7 +288,7 @@ export type ResumenCxC = {
   facturasVencidas: number
 }
 
-export async function getResumenCxC(): Promise<ResumenCxC> {
+export async function getResumenCxC(sedeCodigo?: string): Promise<ResumenCxC> {
   const supabase = await createClient()
   const sesion = await getSesion()
 
@@ -298,6 +298,7 @@ export async function getResumenCxC(): Promise<ResumenCxC> {
     .in('estado', ['pendiente', 'vencida'])
 
   if (sesion.rol !== 'admin' && sesion.sede_id) query = query.eq('sede_id', sesion.sede_id)
+  else if (sedeCodigo) query = query.eq('sede_codigo', sedeCodigo)
 
   const { data } = await query
   const filas = (data ?? []) as Array<{ saldo: number; estado: string; dias_atraso: number }>
