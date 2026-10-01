@@ -30,10 +30,15 @@ export type CarteraResult = {
   totalPaginas: number
 }
 
+export type TipoDeuda = 'entregado' | 'proceso'
+
 export async function getCartera(params?: {
   busqueda?: string
   pagina?: number
   sede?: string   // código de sede (TR/CR/SR); si viene, cartera de esa sede
+  // 'entregado' = deben algo ya entregado/facturado; 'proceso' = deben pedidos
+  // que aún no se les entregan. Sin tipo, todos los que deben.
+  tipo?: TipoDeuda
 }): Promise<CarteraResult> {
   const supabase = await createClient()
   const pagina = Math.max(1, params?.pagina ?? 1)
@@ -44,8 +49,12 @@ export async function getCartera(params?: {
   let query = params?.sede
     ? supabase.from('vista_cartera_cliente_sede').select('*', { count: 'exact' }).eq('sede_codigo', params.sede)
     : supabase.from('vista_cartera_clientes').select('*', { count: 'exact' })
+  const columna = params?.tipo === 'entregado' ? 'saldo_entregado'
+    : params?.tipo === 'proceso' ? 'saldo_proceso'
+    : 'saldo'
+  if (params?.tipo) query = query.gt(columna, 0)
   query = query
-    .order('saldo', { ascending: false })
+    .order(columna, { ascending: false })
     .range(desde, hasta)
 
   if (params?.busqueda) {

@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { getCartera, getTotalCartera } from '@/lib/queries/cartera'
+import { getCartera, getTotalCartera, type TipoDeuda } from '@/lib/queries/cartera'
 import { getDescuadresCartera } from '@/lib/queries/descuadres'
 import { getDeudaPorSede } from '@/lib/queries/metricas'
 import { formatCOP } from '@/lib/utils/format'
@@ -12,7 +12,7 @@ import { CargarSaldoButton } from '@/components/cartera/CargarSaldoButton'
 export default async function CarteraPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; pagina?: string; sede?: string }>
+  searchParams: Promise<{ q?: string; pagina?: string; sede?: string; tipo?: string }>
 }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -33,14 +33,15 @@ export default async function CarteraPage({
   const { data: sedesRaw } = await supabase.from('sedes').select('id, codigo, nombre').order('codigo')
   const sedes = (sedesRaw ?? []) as { id: string; codigo: string; nombre: string }[]
 
-  const { q, pagina: paginaParam, sede: sedeParam } = await searchParams
+  const { q, pagina: paginaParam, sede: sedeParam, tipo: tipoParam } = await searchParams
+  const tipo: TipoDeuda | undefined = tipoParam === 'entregado' || tipoParam === 'proceso' ? tipoParam : undefined
   const pagina = Math.max(1, parseInt(paginaParam ?? '1', 10) || 1)
   // Validar la sede contra las sedes reales; si no es válida, se ignora el
   // filtro. Sin ser admin, la sede va FIJA en Santa Rosa.
   const sede = esAdmin ? (sedes.some(s => s.codigo === sedeParam) ? sedeParam : undefined) : 'SR'
   const sedeNombre = sedes.find(s => s.codigo === sede)?.nombre
   const [resultado, carteraTotal, deudaSedes, descuadres] = await Promise.all([
-    getCartera({ busqueda: q, pagina, sede }),
+    getCartera({ busqueda: q, pagina, sede, tipo }),
     getTotalCartera(sede),
     getDeudaPorSede(),
     esAdmin ? getDescuadresCartera() : Promise.resolve([]),
@@ -60,6 +61,7 @@ export default async function CarteraPage({
     const params = new URLSearchParams()
     if (q) params.set('q', q)
     if (sede) params.set('sede', sede)
+    if (tipo) params.set('tipo', tipo)
     if (p > 1) params.set('pagina', p.toString())
     const qs = params.toString()
     return `/cartera${qs ? `?${qs}` : ''}`
@@ -70,6 +72,17 @@ export default async function CarteraPage({
     const params = new URLSearchParams()
     if (q) params.set('q', q)
     if (codigo) params.set('sede', codigo)
+    if (tipo) params.set('tipo', tipo)
+    const qs = params.toString()
+    return `/cartera${qs ? `?${qs}` : ''}`
+  }
+
+  // URL para el filtro por tipo de deuda (preserva búsqueda y sede).
+  function tipoUrl(t: TipoDeuda | null) {
+    const params = new URLSearchParams()
+    if (q) params.set('q', q)
+    if (sede) params.set('sede', sede)
+    if (t) params.set('tipo', t)
     const qs = params.toString()
     return `/cartera${qs ? `?${qs}` : ''}`
   }
@@ -83,7 +96,9 @@ export default async function CarteraPage({
           <p className="text-sm text-gray-500 mt-0.5">
             {total === 0
               ? 'Sin saldos pendientes'
-              : `${desde}–${hasta} de ${total} cliente${total !== 1 ? 's' : ''} con saldo`}
+              : `${desde}–${hasta} de ${total} cliente${total !== 1 ? 's' : ''} ${
+                  tipo === 'entregado' ? 'que deben lo ya entregado' : tipo === 'proceso' ? 'que deben pedidos sin entregar' : 'con saldo'
+                }`}
             {sede && ` · ${sedeNombre}`}
             {q && ` para "${q}"`}
           </p>
@@ -188,13 +203,38 @@ export default async function CarteraPage({
       </div>
       )}
 
+      {/* Qué deuda ver: la de lo ya entregado/facturado (se cobra ya) o la de
+          pedidos que aún no se entregan (se cobra al entregar). */}
+      <div className="flex flex-wrap gap-2 mb-4" role="tablist" aria-label="Tipo de deuda">
+        {([
+          { t: null, label: 'Todos', monto: carteraTotal.saldo, activa: 'bg-gray-900 text-white border-gray-900' },
+          { t: 'entregado' as const, label: '🚚 Ya entregado o facturado', monto: carteraTotal.entregado, activa: 'bg-red-600 text-white border-red-600' },
+          { t: 'proceso' as const, label: '⏳ Sin entregar', monto: carteraTotal.proceso, activa: 'bg-amber-500 text-white border-amber-500' },
+        ]).map(o => (
+          <Link
+            key={o.label}
+            href={tipoUrl(o.t)}
+            role="tab"
+            aria-selected={(tipo ?? null) === o.t}
+            className={`rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-colors ${
+              (tipo ?? null) === o.t ? o.activa : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+            }`}
+          >
+            {o.label} <span className="font-normal opacity-80">· {formatCOP(o.monto)}</span>
+          </Link>
+        ))}
+      </div>
+
       <div className="mb-4">
         <ClientesBusqueda valorInicial={q ?? ''} />
       </div>
 
       {clientes.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
-          {q ? `Sin resultados para "${q}"` : 'Todos los clientes están al día'}
+          {q ? `Sin resultados para "${q}"`
+            : tipo === 'entregado' ? 'Nadie debe mercancía ya entregada o facturada'
+            : tipo === 'proceso' ? 'Nadie debe pedidos sin entregar'
+            : 'Todos los clientes están al día'}
         </div>
       ) : (
         <>
