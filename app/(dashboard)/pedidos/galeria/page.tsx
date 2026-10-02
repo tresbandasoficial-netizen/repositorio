@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getPedidos } from '@/lib/queries/pedidos'
 import { GaleriaPedidos, type ItemGaleria } from '@/components/pedidos/GaleriaPedidos'
 import { AutoSubmitSelect } from '@/components/ui/AutoSubmitSelect'
@@ -162,9 +163,15 @@ export default async function GaleriaPedidosPage({
         .select('id, pedido_id, estado, codigo, marca, descripcion, talla, cantidad, precio_venta, sexo, categoria, imagen_url, articulo_id, costo_manual, articulos(codigo, sexo, categoria)')
         .in('pedido_id', ids)
         .order('id'),
-      supabase
+      // compra_items es solo de admin por RLS: con el cliente del asesor llegaba
+      // vacío y la cinta "Comprado" (que es para todos) nunca le salía. Se lee
+      // con el cliente admin, SOLO de los pedidos que ya ve en pantalla y sin
+      // costos; la factura de compra (proveedor) sigue siendo solo del admin.
+      createAdminClient()
         .from('compra_items')
-        .select('pedido_id, codigo, talla, articulo_id, cantidad, pedido_item_indice, compra_id, compras(numero_factura)')
+        .select(esAdmin
+          ? 'pedido_id, codigo, talla, articulo_id, cantidad, pedido_item_indice, compra_id, compras(numero_factura)'
+          : 'pedido_id, codigo, talla, articulo_id, cantidad, pedido_item_indice')
         .in('pedido_id', ids),
     ])
     // Solo el HECHO de tener costo manual (boolean) — el monto no viaja al
