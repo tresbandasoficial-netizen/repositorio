@@ -55,6 +55,7 @@ export type MetodoPago =
   | 'bancolombia_huber'
   | 'bancolombia_jhan_carlos'
   | 'bancolombia_angel'
+  | 'bancolombia_victor'
   | 'bancolombia_mayra'
   | 'davivienda'
   | 'addi'
@@ -87,6 +88,7 @@ export const METODO_PAGO_LABELS: Record<MetodoPago, string> = {
   bancolombia_huber:     'Bancolombia Huber',
   bancolombia_jhan_carlos: 'Bancolombia Jhan Carlos',
   bancolombia_angel:     'Bancolombia Angel',
+  bancolombia_victor:    'Bancolombia Victor',
   bancolombia_mayra:     'Bancolombia Mayra',
   davivienda:            'Davivienda',
   addi:                  'Addi',
@@ -111,7 +113,7 @@ export const METODOS_PAGO: MetodoPago[] = [
   'efectivo',
   'nequi_johan', 'nequi_marisol', 'nequi_luisa',
   'bancolombia_ronaldo', 'bancolombia_johan', 'bancolombia_carlos',
-  'bancolombia_cristian', 'bancolombia_huber', 'bancolombia_jhan_carlos', 'bancolombia_angel', 'bancolombia_mayra',
+  'bancolombia_cristian', 'bancolombia_huber', 'bancolombia_jhan_carlos', 'bancolombia_angel', 'bancolombia_victor', 'bancolombia_mayra',
   'davivienda', 'addi', 'bold', 'bold_cucuta', 'bold_santa_rosa', 'sistecredito', 'credito',
 ]
 
@@ -125,7 +127,7 @@ export const METODOS_PAGO_POR_SEDE: Record<string, MetodoPago[]> = {
     'efectivo',
     'nequi_johan', 'nequi_marisol',
     'bancolombia_ronaldo', 'bancolombia_johan', 'bancolombia_carlos',
-    'bancolombia_cristian', 'bancolombia_huber', 'bancolombia_jhan_carlos', 'bancolombia_angel',
+    'bancolombia_cristian', 'bancolombia_huber', 'bancolombia_jhan_carlos', 'bancolombia_angel', 'bancolombia_victor',
     'davivienda', 'addi', 'bold', 'sistecredito', 'credito',
   ],
   SR: ['efectivo', 'nequi_luisa', 'addi', 'sistecredito', 'bold_santa_rosa', 'credito'],
