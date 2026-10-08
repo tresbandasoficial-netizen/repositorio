@@ -104,21 +104,20 @@ export async function getLiquidacionesHistorialAction(
 }
 
 // ─── Cuadrar mensajería (cobro por cobro) ─────────────────────────────────────
-// El dueño marca los cobros que el mensajero le entregó (con el valor recogido) y
-// anota cuántos domicilios descuenta el mensajero. El RPC marca los cobros como
-// liquidados, los domicilios de esas facturas como entregados, crea el gasto de
-// domicilios y mete el neto (recogido − descuento) a Efectivo Bucaramanga.
+// El dueño marca los cobros que el mensajero le entregó (con el valor recogido).
+// El RPC marca los cobros como liquidados, los domicilios de esas facturas como
+// entregados y mete todo lo recogido a Efectivo Bucaramanga. No descuenta
+// domicilios: ese gasto se registra a mano en Gastos.
 
 export type CuadrarInput = {
   mensajeria: TipoMensajeria
   fecha: string
   items: Array<{ id: string; monto: number }>
-  descuento: number
   notas: string
 }
 
 export type CuadrarResult =
-  | { ok: true; cobros: number; recogido: number; descuento: number; neto: number }
+  | { ok: true; cobros: number; recogido: number }
   | { ok: false; error: string }
 
 export async function cuadrarMensajeriaAction(data: CuadrarInput): Promise<CuadrarResult> {
@@ -129,7 +128,6 @@ export async function cuadrarMensajeriaAction(data: CuadrarInput): Promise<Cuadr
   const { data: r, error } = await supabase.rpc('cuadrar_mensajeria', {
     p_mensajeria:     data.mensajeria,
     p_items:          data.items,
-    p_descuento:      data.descuento,
     p_fecha:          data.fecha,
     p_cuenta_id:      null,
     p_responsable_id: user.id,
@@ -142,14 +140,8 @@ export async function cuadrarMensajeriaAction(data: CuadrarInput): Promise<Cuadr
   revalidatePath('/flujo-caja')
   revalidatePath('/domicilios')
 
-  const res = (r ?? {}) as { cobros?: number; recogido?: number; descuento?: number; neto?: number }
-  return {
-    ok: true,
-    cobros: res.cobros ?? 0,
-    recogido: res.recogido ?? 0,
-    descuento: res.descuento ?? 0,
-    neto: res.neto ?? 0,
-  }
+  const res = (r ?? {}) as { cobros?: number; recogido?: number }
+  return { ok: true, cobros: res.cobros ?? 0, recogido: res.recogido ?? 0 }
 }
 
 // ─── Legacy (conservado para compatibilidad) ──────────────────────────────────

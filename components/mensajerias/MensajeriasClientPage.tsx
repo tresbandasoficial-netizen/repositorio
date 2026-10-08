@@ -38,7 +38,6 @@ export function MensajeriasClientPage({ cuadres, recaudos, liquidaciones, activa
   const router = useRouter()
   // Por cobro: si el dueño lo tachó (el mensajero lo entregó) y el valor que recogió.
   const [sel, setSel] = useState<Record<string, { on: boolean; monto: string }>>({})
-  const [descuento, setDescuento] = useState('')
   const [fecha, setFecha] = useState(hoyBogota())
   const [notas, setNotas] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -49,8 +48,6 @@ export function MensajeriasClientPage({ cuadres, recaudos, liquidaciones, activa
 
   const marcados = recaudos.filter(r => estado(r).on)
   const recogido = marcados.reduce((s, r) => s + aNumero(estado(r).monto), 0)
-  const desc = aNumero(descuento)
-  const neto = recogido - desc
   const todosMarcados = recaudos.length > 0 && marcados.length === recaudos.length
   const totalPendiente = recaudos.reduce((s, r) => s + r.monto, 0)
 
@@ -80,23 +77,19 @@ export function MensajeriasClientPage({ cuadres, recaudos, liquidaciones, activa
     setExito(null)
     if (marcados.length === 0) { setError('Marca al menos un cobro que el mensajero te entregó'); return }
     if (marcados.some(r => aNumero(estado(r).monto) <= 0)) { setError('Cada cobro marcado necesita un valor mayor a cero'); return }
-    if (desc > recogido) { setError('El descuento de domicilios no puede ser mayor que lo recogido. Si les debes plata, regístrala en Gastos.'); return }
 
     start(async () => {
       const r = await cuadrarMensajeriaAction({
         mensajeria: activaMensajeria,
         fecha,
         items: marcados.map(x => ({ id: x.id, monto: aNumero(estado(x).monto) })),
-        descuento: desc,
         notas,
       })
       if (!r.ok) { setError(r.error); return }
       setExito(
-        `Cuadre guardado: ${r.cobros} cobro${r.cobros === 1 ? '' : 's'}, entraron ${formatCOP(r.neto)} a Efectivo Bucaramanga` +
-        (r.descuento > 0 ? ` (descuento de domicilios ${formatCOP(r.descuento)})` : '') + '.'
+        `Cuadre guardado: ${r.cobros} cobro${r.cobros === 1 ? '' : 's'}, entraron ${formatCOP(r.recogido)} a Efectivo Bucaramanga.`
       )
       setSel({})
-      setDescuento('')
       setNotas('')
       router.refresh()
     })
@@ -107,7 +100,7 @@ export function MensajeriasClientPage({ cuadres, recaudos, liquidaciones, activa
       <div>
         <h1 className="text-xl font-bold text-gray-900">Mensajerías</h1>
         <p className="text-sm text-gray-500 mt-0.5">
-          Marca los cobros que el mensajero te entregó, anota cuántos domicilios descuenta y confirma.
+          Marca los cobros que el mensajero te entregó y confirma. Entran completos a Efectivo Bucaramanga.
         </p>
       </div>
 
@@ -204,31 +197,16 @@ export function MensajeriasClientPage({ cuadres, recaudos, liquidaciones, activa
                 <span>Cobros marcados ({marcados.length})</span>
                 <span className="font-medium text-green-700">{formatCOP(recogido)}</span>
               </div>
-              <div className="flex justify-between text-gray-700">
-                <span>Descuento de domicilios</span>
-                <span className="font-medium text-orange-600">− {formatCOP(desc)}</span>
-              </div>
               <div className="flex justify-between font-semibold text-gray-900 pt-1.5 border-t border-gray-200">
                 <span>Entra a Efectivo Bucaramanga</span>
-                <span className={neto < 0 ? 'text-red-600' : ''}>{formatCOP(neto)}</span>
+                <span>{formatCOP(recogido)}</span>
               </div>
+              <p className="text-[11px] text-gray-400 pt-1">
+                Los domicilios no se descuentan aquí: regístralos a mano en Gastos.
+              </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Descuento de domicilios</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
-                  <input
-                    type="text" inputMode="numeric"
-                    value={formatMiles(descuento)}
-                    onChange={e => setDescuento(e.target.value.replace(/\D/g, ''))}
-                    placeholder="0"
-                    className="w-full pl-7 pr-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
-                  />
-                </div>
-                <p className="text-[11px] text-gray-400 mt-1">Lo que el mensajero informa que descuenta. Se registra como gasto de domicilios.</p>
-              </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Fecha</label>
                 <input
