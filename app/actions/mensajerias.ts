@@ -71,6 +71,45 @@ export async function getRecaudosPendientesAction(
   }))
 }
 
+// ─── Domicilios que paga TB (solo consulta) ───────────────────────────────────
+// Lista para confirmar contra lo que apunta el mensajero. No suma ni descuenta
+// nada en ninguna parte: el descuento se registra a mano en Gastos.
+
+export type DomicilioPagadoTB = {
+  id: string
+  fecha: string
+  cliente_nombre: string
+  valor: number
+  numero_factura: string | null
+}
+
+export async function getDomiciliosPagadosTBAction(
+  mensajeria: TipoMensajeria,
+  desde: string
+): Promise<DomicilioPagadoTB[]> {
+  const supabase = await createClient()
+
+  const { data } = await supabase
+    .from('domicilios')
+    .select('id, fecha, cliente_nombre, valor_domicilio, factura:facturas(numero_factura, estado)')
+    .eq('mensajeria', mensajeria)
+    .eq('tipo_cobro', 'tb_cobra')
+    .gt('valor_domicilio', 0)
+    .gte('fecha', desde)
+    .order('fecha', { ascending: false })
+    .order('creado_en', { ascending: false })
+
+  return (data ?? [])
+    .filter((r: any) => r.factura?.estado !== 'anulada')
+    .map((r: any) => ({
+      id: r.id,
+      fecha: r.fecha,
+      cliente_nombre: r.cliente_nombre,
+      valor: r.valor_domicilio,
+      numero_factura: r.factura?.numero_factura ?? null,
+    }))
+}
+
 // ─── Historial de liquidaciones ───────────────────────────────────────────────
 
 export type LiquidacionEntry = {

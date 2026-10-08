@@ -10,6 +10,7 @@ import type {
   CuadreMensajeria,
   RecaudoPendiente,
   LiquidacionEntry,
+  DomicilioPagadoTB,
 } from '@/app/actions/mensajerias'
 
 const MENSAJERIAS: TipoMensajeria[] = ['exneider', 'servigo']
@@ -31,11 +32,24 @@ interface Props {
   cuadres: CuadreMensajeria[]
   recaudos: RecaudoPendiente[]
   liquidaciones: LiquidacionEntry[]
+  domiciliosTB: DomicilioPagadoTB[]
   activaMensajeria: TipoMensajeria
 }
 
-export function MensajeriasClientPage({ cuadres, recaudos, liquidaciones, activaMensajeria }: Props) {
+function haceDias(n: number): string {
+  return new Date(Date.parse(`${hoyBogota()}T00:00:00Z`) - n * 86_400_000).toISOString().slice(0, 10)
+}
+
+export function MensajeriasClientPage({ cuadres, recaudos, liquidaciones, domiciliosTB, activaMensajeria }: Props) {
   const router = useRouter()
+  // Domicilios que paga TB (solo consulta): rango de fechas para confirmar con el mensajero.
+  const [domDesde, setDomDesde] = useState(haceDias(7))
+  const [domHasta, setDomHasta] = useState(hoyBogota())
+  const domRango = domiciliosTB.filter(d => d.fecha >= domDesde && d.fecha <= domHasta)
+  const domPorDia = [...new Set(domRango.map(d => d.fecha))].map(f => {
+    const items = domRango.filter(d => d.fecha === f)
+    return { fecha: f, items, total: items.reduce((s, d) => s + d.valor, 0) }
+  })
   // Por cobro: si el dueño lo tachó (el mensajero lo entregó) y el valor que recogió.
   const [sel, setSel] = useState<Record<string, { on: boolean; monto: string }>>({})
   const [fecha, setFecha] = useState(hoyBogota())
@@ -242,6 +256,57 @@ export function MensajeriasClientPage({ cuadres, recaudos, liquidaciones, activa
           </div>
         </>
       )}
+
+      {/* Domicilios que pagamos nosotros: solo consulta, no suma ni descuenta nada */}
+      <div className="bg-white rounded-xl border border-orange-200 overflow-hidden">
+        <div className="px-5 py-3 border-b border-orange-100 bg-orange-50 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-orange-800">Domicilios que pagamos nosotros — {MENSAJERIA_LABELS[activaMensajeria]}</p>
+            <p className="text-xs text-orange-700/80">
+              Solo para confirmar con lo que apunta el mensajero. No se descuenta ni se suma en ningún lado.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-gray-600">
+            <label className="flex items-center gap-1">Desde
+              <input type="date" value={domDesde} onChange={e => setDomDesde(e.target.value)}
+                className="rounded border border-gray-300 px-2 py-1 text-xs" />
+            </label>
+            <label className="flex items-center gap-1">Hasta
+              <input type="date" value={domHasta} onChange={e => setDomHasta(e.target.value)}
+                className="rounded border border-gray-300 px-2 py-1 text-xs" />
+            </label>
+          </div>
+        </div>
+        {domPorDia.length === 0 ? (
+          <p className="px-5 py-4 text-sm text-gray-400">No hay domicilios pagados por nosotros en ese rango.</p>
+        ) : (
+          <>
+            {domPorDia.map(dia => (
+              <div key={dia.fecha}>
+                <div className="px-5 py-1.5 bg-gray-50 border-y border-gray-100 flex justify-between text-xs font-semibold text-gray-600">
+                  <span>{dia.fecha} · {dia.items.length} {dia.items.length === 1 ? 'domicilio' : 'domicilios'}</span>
+                  <span>{formatCOP(dia.total)}</span>
+                </div>
+                <ul className="divide-y divide-gray-50">
+                  {dia.items.map(d => (
+                    <li key={d.id} className="px-5 py-2 flex items-center justify-between gap-4 text-sm">
+                      <span className="text-gray-700 truncate">
+                        {d.cliente_nombre}
+                        {d.numero_factura && <span className="ml-2 text-xs">· <FacLink numero={d.numero_factura} /></span>}
+                      </span>
+                      <span className="font-medium text-orange-600 whitespace-nowrap">{formatCOP(d.valor)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+            <div className="px-5 py-2.5 border-t-2 border-gray-200 bg-gray-50 flex justify-between text-sm font-bold text-gray-900">
+              <span>Total del rango ({domRango.length})</span>
+              <span>{formatCOP(domRango.reduce((s, d) => s + d.valor, 0))}</span>
+            </div>
+          </>
+        )}
+      </div>
 
       {/* Historial de liquidaciones */}
       {liquidaciones.length > 0 && (
