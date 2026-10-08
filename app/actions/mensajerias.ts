@@ -2,59 +2,14 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getSesion } from '@/lib/auth/acceso'
 import { TipoMensajeria, PagoMensajeria } from '@/types'
-
-// ─── Editar el valor de una deuda pendiente (solo admin) ─────────────────────
-// Corrige el monto de un domicilio/recaudo que aún no se ha liquidado.
-// Queda en historial_cambios con quién y cuándo.
-export async function editarDeudaMensajeriaAction(
-  deudaId: string,
-  nuevoMonto: number
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const sesion = await getSesion()
-  if (sesion.rol !== 'admin') return { ok: false, error: 'Solo el administrador puede editar deudas' }
-  if (!nuevoMonto || nuevoMonto <= 0) return { ok: false, error: 'El monto debe ser mayor a cero' }
-
-  const admin = createAdminClient()
-  const { data: deuda } = await admin
-    .from('pagos_mensajeria')
-    .select('monto, estado, tipo')
-    .eq('id', deudaId)
-    .maybeSingle()
-
-  if (!deuda) return { ok: false, error: 'Deuda no encontrada' }
-  if (deuda.tipo !== 'deuda' || deuda.estado !== 'pendiente') {
-    return { ok: false, error: 'Solo se pueden editar deudas pendientes (esta ya fue liquidada)' }
-  }
-
-  const { error } = await admin
-    .from('pagos_mensajeria')
-    .update({ monto: nuevoMonto })
-    .eq('id', deudaId)
-  if (error) return { ok: false, error: error.message }
-
-  await admin.from('historial_cambios').insert({
-    tabla:          'pagos_mensajeria',
-    registro_id:    deudaId,
-    campo:          'monto',
-    valor_anterior: String(deuda.monto),
-    valor_nuevo:    String(nuevoMonto),
-    usuario_id:     sesion.id,
-  })
-
-  revalidatePath('/mensajerias')
-  return { ok: true }
-}
 
 // ─── Cuadre por mensajería ────────────────────────────────────────────────────
 
 export type CuadreMensajeria = {
   mensajeria: TipoMensajeria
-  recaudos_pendientes: number  // mensajero nos debe (cobró al cliente)
-  domicilios_tb: number        // TB le debe (domicilios que TB asumió)
-  saldo_neto: number           // positivo = mensajero nos paga; negativo = TB le paga
+  recaudos_pendientes: number  // lo que el mensajero cobró a clientes y aún no ha entregado
+  cobros_pendientes: number    // cuántos cobros
 }
 
 export async function getCuadresMensajeriasAction(): Promise<CuadreMensajeria[]> {
@@ -62,21 +17,19 @@ export async function getCuadresMensajeriasAction(): Promise<CuadreMensajeria[]>
 
   const { data } = await supabase
     .from('pagos_mensajeria')
-    .select('mensajeria, monto, concepto')
+    .select('mensajeria, monto')
     .eq('tipo', 'deuda')
+    .eq('concepto', 'recaudo')
     .eq('estado', 'pendiente')
 
   const MENSAJERIAS: TipoMensajeria[] = ['exneider', 'servigo']
 
   return MENSAJERIAS.map(m => {
     const rows = (data ?? []).filter((r: any) => r.mensajeria === m)
-    const recaudos  = rows.filter((r: any) => r.concepto === 'recaudo').reduce((s: number, r: any) => s + r.monto, 0)
-    const domicilios = rows.filter((r: any) => r.concepto !== 'recaudo').reduce((s: number, r: any) => s + r.monto, 0)
     return {
       mensajeria: m,
-      recaudos_pendientes: recaudos,
-      domicilios_tb: domicilios,
-      saldo_neto: recaudos - domicilios,
+      recaudos_pendientes: rows.reduce((s: number, r: any) => s + r.monto, 0),
+      cobros_pendientes: rows.length,
     }
   })
 }
@@ -118,46 +71,6 @@ export async function getRecaudosPendientesAction(
   }))
 }
 
-// ─── Domicilios TB pendientes ─────────────────────────────────────────────────
-
-export type DomicilioTBPendiente = {
-  id: string
-  fecha: string
-  monto: number
-  notas: string | null
-  numero_factura: string | null
-  cliente_nombre: string | null
-  es_legacy: boolean
-}
-
-export async function getDomiciliosTBPendientesAction(
-  mensajeria: TipoMensajeria
-): Promise<DomicilioTBPendiente[]> {
-  const supabase = await createClient()
-
-  const { data } = await supabase
-    .from('pagos_mensajeria')
-    .select(`
-      id, monto, fecha, notas, concepto,
-      factura:facturas(numero_factura, cliente:clientes(nombre))
-    `)
-    .eq('mensajeria', mensajeria)
-    .eq('tipo', 'deuda')
-    .or('concepto.eq.domicilio_tb,concepto.is.null')
-    .eq('estado', 'pendiente')
-    .order('fecha', { ascending: false })
-
-  return (data ?? []).map((r: any) => ({
-    id: r.id,
-    fecha: r.fecha,
-    monto: r.monto,
-    notas: r.notas ?? null,
-    numero_factura: r.factura?.numero_factura ?? null,
-    cliente_nombre: r.factura?.cliente?.nombre ?? null,
-    es_legacy: r.concepto === null,
-  }))
-}
-
 // ─── Historial de liquidaciones ───────────────────────────────────────────────
 
 export type LiquidacionEntry = {
@@ -190,83 +103,53 @@ export async function getLiquidacionesHistorialAction(
   }))
 }
 
-// ─── Liquidar mensajería ──────────────────────────────────────────────────────
+// ─── Cuadrar mensajería (cobro por cobro) ─────────────────────────────────────
+// El dueño marca los cobros que el mensajero le entregó (con el valor recogido) y
+// anota cuántos domicilios descuenta el mensajero. El RPC marca los cobros como
+// liquidados, los domicilios de esas facturas como entregados, crea el gasto de
+// domicilios y mete el neto (recogido − descuento) a Efectivo Bucaramanga.
 
-export type LiquidarInput = {
+export type CuadrarInput = {
   mensajeria: TipoMensajeria
-  monto: number
   fecha: string
-  cuenta_id: string | null
+  items: Array<{ id: string; monto: number }>
+  descuento: number
   notas: string
-  // true = el neto es negativo: TB le paga al mensajero (sale dinero de la cuenta)
-  tb_paga?: boolean
-  // Domicilios TB elegidos en este cuadre, con el valor REAL que cobra la
-  // mensajería. Solo estos se liquidan; los demás quedan pendientes.
-  domicilios?: Array<{ id: string; monto: number }>
 }
 
-export type LiquidarResult = { ok: true } | { ok: false; error: string }
+export type CuadrarResult =
+  | { ok: true; cobros: number; recogido: number; descuento: number; neto: number }
+  | { ok: false; error: string }
 
-export async function liquidarMensajeriaAction(
-  data: LiquidarInput
-): Promise<LiquidarResult> {
+export async function cuadrarMensajeriaAction(data: CuadrarInput): Promise<CuadrarResult> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { ok: false, error: 'No autenticado' }
 
-  const { error } = await supabase.rpc('liquidar_mensajeria', {
+  const { data: r, error } = await supabase.rpc('cuadrar_mensajeria', {
     p_mensajeria:     data.mensajeria,
-    p_monto:          data.monto,
+    p_items:          data.items,
+    p_descuento:      data.descuento,
     p_fecha:          data.fecha,
-    p_cuenta_id:      data.cuenta_id || null,
+    p_cuenta_id:      null,
     p_responsable_id: user.id,
     p_notas:          data.notas.trim() || null,
-    p_tb_paga:        data.tb_paga ?? false,
-    p_domicilios:     data.domicilios ?? null,
   })
 
   if (error) return { ok: false, error: error.message }
 
   revalidatePath('/mensajerias')
   revalidatePath('/flujo-caja')
-  return { ok: true }
-}
+  revalidatePath('/domicilios')
 
-// ─── Liquidar mensajería POR DÍA ──────────────────────────────────────────────
-
-export type LiquidarDiaInput = {
-  mensajeria: TipoMensajeria
-  fecha: string
-  monto: number
-  cuenta_id: string | null
-  notas: string
-  // true = el neto del día es negativo: TB le paga al mensajero
-  tb_paga?: boolean
-  // Domicilios TB elegidos en este cuadre (de cualquier fecha), con su valor real
-  domicilios?: Array<{ id: string; monto: number }>
-}
-
-export async function liquidarMensajeriaDiaAction(data: LiquidarDiaInput): Promise<LiquidarResult> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { ok: false, error: 'No autenticado' }
-
-  const { error } = await supabase.rpc('liquidar_mensajeria_dia', {
-    p_mensajeria:     data.mensajeria,
-    p_fecha:          data.fecha,
-    p_monto:          data.monto,
-    p_cuenta_id:      data.cuenta_id || null,
-    p_responsable_id: user.id,
-    p_notas:          data.notas.trim() || null,
-    p_tb_paga:        data.tb_paga ?? false,
-    p_domicilios:     data.domicilios ?? null,
-  })
-
-  if (error) return { ok: false, error: error.message }
-
-  revalidatePath('/mensajerias')
-  revalidatePath('/flujo-caja')
-  return { ok: true }
+  const res = (r ?? {}) as { cobros?: number; recogido?: number; descuento?: number; neto?: number }
+  return {
+    ok: true,
+    cobros: res.cobros ?? 0,
+    recogido: res.recogido ?? 0,
+    descuento: res.descuento ?? 0,
+    neto: res.neto ?? 0,
+  }
 }
 
 // ─── Legacy (conservado para compatibilidad) ──────────────────────────────────

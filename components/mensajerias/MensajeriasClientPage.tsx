@@ -1,224 +1,104 @@
 'use client'
 
-import { Fragment, useState, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { formatCOP, formatMiles, hoyBogota } from '@/lib/utils/format'
-import { TipoMensajeria, MENSAJERIA_LABELS, Cuenta } from '@/types'
-import { liquidarMensajeriaAction, liquidarMensajeriaDiaAction, editarDeudaMensajeriaAction } from '@/app/actions/mensajerias'
+import { TipoMensajeria, MENSAJERIA_LABELS } from '@/types'
+import { cuadrarMensajeriaAction } from '@/app/actions/mensajerias'
 import type {
   CuadreMensajeria,
   RecaudoPendiente,
-  DomicilioTBPendiente,
   LiquidacionEntry,
 } from '@/app/actions/mensajerias'
 
-function hoy() { return hoyBogota() }
+const MENSAJERIAS: TipoMensajeria[] = ['exneider', 'servigo']
 
 // Enlace a una factura por su número (lleva al detalle con sus artículos).
 function FacLink({ numero }: { numero: string }) {
   return (
-    <Link href={`/facturacion/n/${encodeURIComponent(numero)}`} className="text-blue-600 hover:underline" onClick={e => e.stopPropagation()}>
+    <Link href={`/facturacion/n/${encodeURIComponent(numero)}`} className="text-blue-600 hover:underline">
       Fac. {numero}
     </Link>
   )
 }
 
-const MENSAJERIAS: TipoMensajeria[] = ['exneider', 'servigo']
+function aNumero(v: string): number {
+  return parseInt(v.replace(/\D/g, ''), 10) || 0
+}
 
 interface Props {
   cuadres: CuadreMensajeria[]
   recaudos: RecaudoPendiente[]
-  domiciliosTB: DomicilioTBPendiente[]
   liquidaciones: LiquidacionEntry[]
-  cuentas: Cuenta[]
   activaMensajeria: TipoMensajeria
-  esAdmin?: boolean
 }
 
-// Monto de una deuda pendiente, editable por el admin (clic → corregir → OK).
-function MontoDeudaEditable({ deudaId, monto, esAdmin }: { deudaId: string; monto: number; esAdmin: boolean }) {
-  const [editando, setEditando] = useState(false)
-  const [valor, setValor] = useState(String(monto))
-  const [err, setErr] = useState<string | null>(null)
-  const [pending, start] = useTransition()
-
-  if (!esAdmin) return <p className="font-semibold text-orange-600 whitespace-nowrap">{formatCOP(monto)}</p>
-
-  function guardar() {
-    const nuevo = parseInt(valor.replace(/\D/g, ''), 10)
-    if (!nuevo || nuevo <= 0) { setErr('Monto inválido'); return }
-    start(async () => {
-      setErr(null)
-      try {
-        const r = await editarDeudaMensajeriaAction(deudaId, nuevo)
-        if (!r.ok) { setErr(r.error); return }
-        setEditando(false)
-        window.location.reload()
-      } catch {
-        setErr('Recarga la página e intenta de nuevo')
-      }
-    })
-  }
-
-  if (!editando) {
-    return (
-      <button
-        onClick={() => { setValor(String(monto)); setErr(null); setEditando(true) }}
-        title="Editar el valor de esta deuda"
-        className="font-semibold text-orange-600 whitespace-nowrap hover:text-orange-800 hover:underline"
-      >
-        {formatCOP(monto)} ✎
-      </button>
-    )
-  }
-
-  return (
-    <span className="flex flex-col items-end gap-1">
-      <span className="flex items-center gap-1">
-        <input
-          type="text" inputMode="numeric" autoFocus
-          value={formatMiles(valor)}
-          onChange={e => setValor(e.target.value.replace(/\D/g, ''))}
-          onKeyDown={e => { if (e.key === 'Enter') guardar(); if (e.key === 'Escape') setEditando(false) }}
-          className="w-24 rounded border border-orange-300 px-2 py-1 text-xs text-right focus:outline-none focus:ring-2 focus:ring-orange-400"
-        />
-        <button onClick={guardar} disabled={pending}
-          className="text-xs bg-orange-600 text-white px-2 py-1 rounded hover:bg-orange-700 disabled:opacity-60">
-          {pending ? '…' : 'OK'}
-        </button>
-        <button onClick={() => setEditando(false)} className="text-xs text-gray-400 hover:text-gray-600 px-1">✕</button>
-      </span>
-      {err && <span className="text-[10px] text-red-600">{err}</span>}
-    </span>
-  )
-}
-
-export function MensajeriasClientPage({
-  cuadres, recaudos, domiciliosTB, liquidaciones, cuentas, activaMensajeria, esAdmin = false,
-}: Props) {
-  const [activa, setActiva] = useState<TipoMensajeria>(activaMensajeria)
-  const [mostrarLiquidar, setMostrarLiquidar] = useState(false)
-  const [diaAbierto, setDiaAbierto] = useState<string | null>(null)
-  const [diaLiquidando, setDiaLiquidando] = useState<string | null>(null)
-  // true = el neto que se está liquidando es negativo: TB le paga al mensajero
-  const [tbPaga, setTbPaga] = useState(false)
-  // Selección de domicilios TB del cuadre: qué cobra la mensajería y por cuánto.
-  // Solo los marcados se liquidan/descuentan; el resto queda pendiente.
-  const [domSel, setDomSel] = useState<Record<string, { on: boolean; monto: string }>>({})
-  // Las liquidaciones entran por defecto al efectivo de Bucaramanga (hub de domicilios).
-  const cuentaEfectivoTR = cuentas.find(c => c.metodo_pago === 'efectivo' && c.sede?.codigo === 'TR')?.id ?? ''
-  const [form, setForm] = useState({ monto: '', fecha: hoy(), cuenta_id: cuentaEfectivoTR, notas: '' })
+export function MensajeriasClientPage({ cuadres, recaudos, liquidaciones, activaMensajeria }: Props) {
+  const router = useRouter()
+  // Por cobro: si el dueño lo tachó (el mensajero lo entregó) y el valor que recogió.
+  const [sel, setSel] = useState<Record<string, { on: boolean; monto: string }>>({})
+  const [descuento, setDescuento] = useState('')
+  const [fecha, setFecha] = useState(hoyBogota())
+  const [notas, setNotas] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [exito, setExito] = useState<string | null>(null)
   const [isPending, start] = useTransition()
 
-  const cuadreActivo = cuadres.find(c => c.mensajeria === activa) ?? {
-    mensajeria: activa, recaudos_pendientes: 0, domicilios_tb: 0, saldo_neto: 0,
+  const estado = (r: RecaudoPendiente) => sel[r.id] ?? { on: false, monto: String(r.monto) }
+
+  const marcados = recaudos.filter(r => estado(r).on)
+  const recogido = marcados.reduce((s, r) => s + aNumero(estado(r).monto), 0)
+  const desc = aNumero(descuento)
+  const neto = recogido - desc
+  const todosMarcados = recaudos.length > 0 && marcados.length === recaudos.length
+  const totalPendiente = recaudos.reduce((s, r) => s + r.monto, 0)
+
+  function toggle(r: RecaudoPendiente) {
+    const e = estado(r)
+    setSel(s => ({ ...s, [r.id]: { ...e, on: !e.on } }))
   }
 
-  const hayPendientes = cuadreActivo.recaudos_pendientes > 0 || cuadreActivo.domicilios_tb > 0
+  function setMonto(r: RecaudoPendiente, monto: string) {
+    setSel(s => ({ ...s, [r.id]: { on: true, monto } }))
+  }
 
-  // Desglose día por día: por cada fecha, lo que el mensajero nos debe (recaudos
-  // que cobró) menos lo que TB le debe (domicilios asumidos) = neto del día.
-  const porDia = (() => {
-    const m = new Map<string, { recaudos: number; domicilios: number }>()
-    for (const r of recaudos)     { const e = m.get(r.fecha) ?? { recaudos: 0, domicilios: 0 }; e.recaudos   += r.monto; m.set(r.fecha, e) }
-    for (const d of domiciliosTB) { const e = m.get(d.fecha) ?? { recaudos: 0, domicilios: 0 }; e.domicilios += d.monto; m.set(d.fecha, e) }
-    return [...m.entries()]
-      .map(([fecha, v]) => ({ fecha, recaudos: v.recaudos, domicilios: v.domicilios, neto: v.recaudos - v.domicilios }))
-      .sort((a, b) => b.fecha.localeCompare(a.fecha))
-  })()
-
-  function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })) }
+  function toggleTodos() {
+    const on = !todosMarcados
+    const next: Record<string, { on: boolean; monto: string }> = {}
+    for (const r of recaudos) next[r.id] = { on, monto: estado(r).monto }
+    setSel(next)
+  }
 
   function cambiarMensajeria(m: TipoMensajeria) {
-    setActiva(m)
-    setMostrarLiquidar(false)
-    window.history.replaceState(null, '', `/mensajerias?mensajeria=${m}`)
-    window.location.reload()
+    if (m === activaMensajeria) return
+    router.push(`/mensajerias?mensajeria=${m}`)
   }
 
-  // Recaudos base del cuadre abierto (del día, o todos si es cuadre general)
-  function recaudosBaseDe(dia: string | null): number {
-    return dia
-      ? recaudos.filter(r => r.fecha === dia).reduce((s, r) => s + r.monto, 0)
-      : recaudos.reduce((s, r) => s + r.monto, 0)
-  }
-
-  // Total de los domicilios marcados con el valor digitado
-  function totalDomSel(sel: Record<string, { on: boolean; monto: string }>): number {
-    return domiciliosTB.reduce((s, d) => {
-      const e = sel[d.id]
-      return e?.on ? s + (parseInt((e.monto || '').replace(/\D/g, ''), 10) || 0) : s
-    }, 0)
-  }
-
-  // Recalcula monto y dirección (ingreso o pago a la mensajería) según la selección
-  function aplicarSeleccion(sel: Record<string, { on: boolean; monto: string }>, dia: string | null) {
-    const neto = recaudosBaseDe(dia) - totalDomSel(sel)
-    setDomSel(sel)
-    setTbPaga(neto < 0)
-    setForm(f => ({ ...f, monto: Math.abs(neto).toString() }))
-  }
-
-  function toggleDom(id: string) {
-    const actual = domSel[id] ?? { on: false, monto: String(domiciliosTB.find(d => d.id === id)?.monto ?? 0) }
-    aplicarSeleccion({ ...domSel, [id]: { ...actual, on: !actual.on } }, diaLiquidando)
-  }
-
-  function setDomMonto(id: string, monto: string) {
-    const actual = domSel[id] ?? { on: true, monto: '' }
-    aplicarSeleccion({ ...domSel, [id]: { ...actual, monto } }, diaLiquidando)
-  }
-
-  function abrirLiquidar() {
+  function confirmar() {
     setError(null)
-    setDiaLiquidando(null)
-    // Cuadre general: arranca con todos los domicilios pendientes marcados
-    const sel: Record<string, { on: boolean; monto: string }> = {}
-    for (const d of domiciliosTB) sel[d.id] = { on: true, monto: String(d.monto) }
-    const neto = recaudosBaseDe(null) - totalDomSel(sel)
-    setDomSel(sel)
-    setTbPaga(neto < 0)
-    setForm({ monto: Math.abs(neto).toString(), fecha: hoy(), cuenta_id: cuentaEfectivoTR, notas: '' })
-    setMostrarLiquidar(true)
-  }
-
-  function abrirLiquidarDia(fecha: string) {
-    setError(null)
-    setDiaLiquidando(fecha)
-    // Arrancan marcados solo los domicilios de ese día; los demás quedan
-    // disponibles para agregarlos al cuadre si la mensajería los cobra hoy.
-    const sel: Record<string, { on: boolean; monto: string }> = {}
-    for (const d of domiciliosTB) sel[d.id] = { on: d.fecha === fecha, monto: String(d.monto) }
-    const neto = recaudosBaseDe(fecha) - totalDomSel(sel)
-    setDomSel(sel)
-    setTbPaga(neto < 0)
-    setForm({ monto: Math.abs(neto).toString(), fecha, cuenta_id: cuentaEfectivoTR, notas: `Cuadre del día ${fecha}` })
-    setMostrarLiquidar(true)
-    // Llevar el panel a la vista
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
-
-  function handleLiquidar() {
-    setError(null)
-    const monto = parseInt(form.monto.replace(/\D/g, ''), 10) || 0
-    if (monto < 0) { setError('Ingresa el monto liquidado'); return }
-    if (!form.cuenta_id) { setError(tbPaga ? 'Selecciona la cuenta de la que sale el dinero' : 'Selecciona la cuenta donde entró el dinero (ej: Efectivo Bucaramanga) para que se sume al flujo de caja'); return }
-
-    // Solo los domicilios marcados se liquidan, con el valor digitado
-    const domicilios = domiciliosTB
-      .filter(d => domSel[d.id]?.on)
-      .map(d => ({ id: d.id, monto: parseInt((domSel[d.id].monto || '').replace(/\D/g, ''), 10) || 0 }))
+    setExito(null)
+    if (marcados.length === 0) { setError('Marca al menos un cobro que el mensajero te entregó'); return }
+    if (marcados.some(r => aNumero(estado(r).monto) <= 0)) { setError('Cada cobro marcado necesita un valor mayor a cero'); return }
+    if (desc > recogido) { setError('El descuento de domicilios no puede ser mayor que lo recogido. Si les debes plata, regístrala en Gastos.'); return }
 
     start(async () => {
-      const r = diaLiquidando
-        ? await liquidarMensajeriaDiaAction({ mensajeria: activa, fecha: diaLiquidando, monto, cuenta_id: form.cuenta_id || null, notas: form.notas, tb_paga: tbPaga, domicilios })
-        : await liquidarMensajeriaAction({ mensajeria: activa, monto, fecha: form.fecha, cuenta_id: form.cuenta_id || null, notas: form.notas, tb_paga: tbPaga, domicilios })
+      const r = await cuadrarMensajeriaAction({
+        mensajeria: activaMensajeria,
+        fecha,
+        items: marcados.map(x => ({ id: x.id, monto: aNumero(estado(x).monto) })),
+        descuento: desc,
+        notas,
+      })
       if (!r.ok) { setError(r.error); return }
-      setMostrarLiquidar(false)
-      setDiaLiquidando(null)
-      setForm({ monto: '', fecha: hoy(), cuenta_id: cuentaEfectivoTR, notas: '' })
-      window.location.reload()
+      setExito(
+        `Cuadre guardado: ${r.cobros} cobro${r.cobros === 1 ? '' : 's'}, entraron ${formatCOP(r.neto)} a Efectivo Bucaramanga` +
+        (r.descuento > 0 ? ` (descuento de domicilios ${formatCOP(r.descuento)})` : '') + '.'
+      )
+      setSel({})
+      setDescuento('')
+      setNotas('')
+      router.refresh()
     })
   }
 
@@ -226,30 +106,32 @@ export function MensajeriasClientPage({
     <div className="p-6 space-y-6">
       <div>
         <h1 className="text-xl font-bold text-gray-900">Mensajerías</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Cuadre de recaudos y domicilios</p>
+        <p className="text-sm text-gray-500 mt-0.5">
+          Marca los cobros que el mensajero te entregó, anota cuántos domicilios descuenta y confirma.
+        </p>
       </div>
 
       {/* Tabs mensajerías */}
       <div className="flex gap-2">
         {MENSAJERIAS.map(m => {
           const c = cuadres.find(x => x.mensajeria === m)
-          const neto = c?.saldo_neto ?? 0
+          const pendiente = c?.recaudos_pendientes ?? 0
           return (
             <button
               key={m}
               onClick={() => cambiarMensajeria(m)}
               className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                activa === m
+                activaMensajeria === m
                   ? 'bg-gray-900 text-white border-gray-900'
                   : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
               }`}
             >
               {MENSAJERIA_LABELS[m]}
-              {neto !== 0 && (
+              {pendiente > 0 && (
                 <span className={`ml-2 text-xs px-1.5 py-0.5 rounded-full ${
-                  activa === m ? 'bg-white/20 text-white' : 'bg-orange-100 text-orange-700'
+                  activaMensajeria === m ? 'bg-white/20 text-white' : 'bg-orange-100 text-orange-700'
                 }`}>
-                  {neto > 0 ? `↑ ${formatCOP(neto)}` : `↓ ${formatCOP(Math.abs(neto))}`}
+                  {formatCOP(pendiente)}
                 </span>
               )}
             </button>
@@ -257,357 +139,130 @@ export function MensajeriasClientPage({
         })}
       </div>
 
-      {/* Tarjetas de cuadre */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl border border-gray-100 p-4">
-          <p className="text-xs text-gray-500 mb-0.5">Mensajero me debe</p>
-          <p className="text-xs text-gray-400 mb-3">Recaudos cobrados al cliente</p>
-          <p className="text-2xl font-bold text-gray-900">{formatCOP(cuadreActivo.recaudos_pendientes)}</p>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-100 p-4">
-          <p className="text-xs text-gray-500 mb-0.5">Yo le debo</p>
-          <p className="text-xs text-gray-400 mb-3">Domicilios asumidos por TB</p>
-          <p className="text-2xl font-bold text-orange-600">{formatCOP(cuadreActivo.domicilios_tb)}</p>
-        </div>
-        <div className={`rounded-xl p-4 ${
-          cuadreActivo.saldo_neto > 0 ? 'bg-green-600' :
-          cuadreActivo.saldo_neto < 0 ? 'bg-red-600' :
-          'bg-gray-100'
-        }`}>
-          <p className={`text-xs mb-0.5 ${cuadreActivo.saldo_neto !== 0 ? 'text-white/80' : 'text-gray-500'}`}>
-            Saldo neto
-          </p>
-          <p className={`text-xs mb-3 ${cuadreActivo.saldo_neto !== 0 ? 'text-white/70' : 'text-gray-400'}`}>
-            {cuadreActivo.saldo_neto > 0 ? 'Mensajero nos paga' :
-             cuadreActivo.saldo_neto < 0 ? 'TB le paga al mensajero' :
-             'Cuadre al día'}
-          </p>
-          <p className={`text-2xl font-bold ${cuadreActivo.saldo_neto !== 0 ? 'text-white' : 'text-gray-900'}`}>
-            {formatCOP(Math.abs(cuadreActivo.saldo_neto))}
-          </p>
-        </div>
-      </div>
-
-      {/* Botón liquidar */}
-      {hayPendientes && !mostrarLiquidar && (
-        <div className="flex justify-end">
-          <button
-            onClick={abrirLiquidar}
-            className="inline-flex items-center gap-2 rounded-lg bg-gray-900 text-white px-4 py-2 text-sm font-medium hover:bg-gray-800"
-          >
-            Liquidar cuadre con {MENSAJERIA_LABELS[activa]}
-          </button>
-        </div>
+      {exito && (
+        <p className="text-sm text-green-800 bg-green-50 border border-green-100 rounded-lg px-4 py-2">{exito}</p>
       )}
 
-      {/* Panel de liquidación */}
-      {mostrarLiquidar && (
-        <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-          <div>
-            <h2 className="font-semibold text-gray-900">
-              {tbPaga
-                ? `Pagarle a ${MENSAJERIA_LABELS[activa]}${diaLiquidando ? ` el día ${diaLiquidando}` : ''}`
-                : diaLiquidando
-                ? `Liquidar el día ${diaLiquidando} con ${MENSAJERIA_LABELS[activa]}`
-                : `Liquidar cuadre con ${MENSAJERIA_LABELS[activa]}`}
-            </h2>
-            <p className="text-sm text-gray-500 mt-1">
-              {tbPaga
-                ? `TB le paga a ${MENSAJERIA_LABELS[activa]}: el dinero SALE de la cuenta elegida y queda como gasto de domicilios.`
-                : diaLiquidando
-                ? 'Se liquidan solo los recaudos y domicilios de ese día. El neto entra a la cuenta elegida.'
-                : cuadreActivo.saldo_neto > 0
-                ? `${MENSAJERIA_LABELS[activa]} te entrega el neto y quedan en cero.`
-                : 'El cuadre está en cero — solo confirma el cierre.'}
-            </p>
-          </div>
-
-          {/* Desglose según lo seleccionado */}
-          <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1.5">
-            <div className="flex justify-between text-gray-700">
-              <span>Recaudos que el mensajero trae{diaLiquidando ? ' (del día)' : ''}</span>
-              <span className="font-medium text-green-700">+ {formatCOP(recaudosBaseDe(diaLiquidando))}</span>
-            </div>
-            <div className="flex justify-between text-gray-700">
-              <span>Domicilios que cobra en este cuadre ({domiciliosTB.filter(d => domSel[d.id]?.on).length})</span>
-              <span className="font-medium text-red-600">− {formatCOP(totalDomSel(domSel))}</span>
-            </div>
-            <div className="flex justify-between font-semibold text-gray-900 pt-1.5 border-t border-gray-200">
-              <span>Neto a {tbPaga ? 'pagarle' : 'recibir'}</span>
-              <span>{formatCOP(Math.abs(recaudosBaseDe(diaLiquidando) - totalDomSel(domSel)))}</span>
-            </div>
-          </div>
-
-          {/* Domicilios pendientes: cuáles cobra la mensajería en este cuadre y por cuánto */}
-          {domiciliosTB.length > 0 && (
-            <div className="rounded-lg border border-orange-200 overflow-hidden">
-              <div className="px-3 py-2 bg-orange-50 border-b border-orange-100">
-                <p className="text-xs font-semibold text-orange-700">Domicilios que la mensajería cobra en este cuadre</p>
-                <p className="text-[11px] text-orange-600/80 mt-0.5">
-                  Marca solo los que te cobran hoy y ajusta el valor si es distinto. Los que no marques siguen pendientes para otro cuadre.
+      {recaudos.length === 0 ? (
+        <div className="bg-green-50 rounded-xl border border-green-100 p-6 text-center">
+          <p className="text-green-800 font-medium">Cuadre al día con {MENSAJERIA_LABELS[activaMensajeria]}</p>
+          <p className="text-green-600 text-sm mt-1">No hay cobros pendientes por entregar</p>
+        </div>
+      ) : (
+        <>
+          {/* Cobros pendientes: se tachan los que el mensajero entregó */}
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-gray-900">Cobros que {MENSAJERIA_LABELS[activaMensajeria]} tiene en la calle</p>
+                <p className="text-xs text-gray-400">
+                  {recaudos.length} {recaudos.length === 1 ? 'cobro' : 'cobros'} · {formatCOP(totalPendiente)} por entregar
                 </p>
               </div>
-              <ul className="divide-y divide-gray-50 max-h-56 overflow-y-auto">
-                {domiciliosTB.map(d => {
-                  const s = domSel[d.id] ?? { on: false, monto: String(d.monto) }
-                  return (
-                    <li key={d.id} className={`px-3 py-2 flex items-center gap-3 text-xs ${s.on ? '' : 'opacity-60'}`}>
+              <button onClick={toggleTodos} className="text-xs text-blue-600 hover:underline whitespace-nowrap">
+                {todosMarcados ? 'Desmarcar todos' : 'Marcar todos'}
+              </button>
+            </div>
+            <ul className="divide-y divide-gray-50">
+              {recaudos.map(r => {
+                const e = estado(r)
+                return (
+                  <li key={r.id} className={`px-5 py-3 flex items-center gap-4 ${e.on ? 'bg-green-50/40' : ''}`}>
+                    <input
+                      type="checkbox"
+                      checked={e.on}
+                      onChange={() => toggle(r)}
+                      className="w-4 h-4 accent-green-600 shrink-0 cursor-pointer"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">
+                        {r.cliente_nombre ?? 'Cliente'}
+                        {r.numero_factura && <span className="ml-2 text-xs">· <FacLink numero={r.numero_factura} /></span>}
+                      </p>
+                      <p className="text-xs text-gray-400">{r.fecha}</p>
+                    </div>
+                    <span className="relative shrink-0">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
                       <input
-                        type="checkbox"
-                        checked={s.on}
-                        onChange={() => toggleDom(d.id)}
-                        className="w-4 h-4 accent-orange-600 shrink-0 cursor-pointer"
+                        type="text" inputMode="numeric"
+                        value={formatMiles(e.monto)}
+                        onChange={ev => setMonto(r, ev.target.value.replace(/\D/g, ''))}
+                        title="Valor que el mensajero recogió (edítalo si es distinto)"
+                        className="w-28 pl-5 pr-2 py-1 rounded border border-gray-300 text-sm text-right focus:outline-none focus:ring-2 focus:ring-green-500"
                       />
-                      <span className="flex-1 min-w-0 text-gray-700 truncate">
-                        {d.fecha} · {d.cliente_nombre ?? d.notas ?? 'Domicilio'}
-                        {d.numero_factura ? ` · ${d.numero_factura}` : ''}
-                      </span>
-                      <span className="relative shrink-0">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400">$</span>
-                        <input
-                          type="text" inputMode="numeric"
-                          value={formatMiles(s.monto)}
-                          disabled={!s.on}
-                          onChange={e => setDomMonto(d.id, e.target.value.replace(/\D/g, ''))}
-                          className="w-24 pl-5 pr-2 py-1 rounded border border-gray-300 text-right focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:bg-gray-50 disabled:text-gray-400"
-                        />
-                      </span>
-                    </li>
-                  )
-                })}
-              </ul>
-            </div>
-          )}
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Fecha</label>
-              <input
-                type="date"
-                value={form.fecha}
-                onChange={e => set('fecha', e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
-              />
+          {/* Cuadre */}
+          <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+            <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1.5">
+              <div className="flex justify-between text-gray-700">
+                <span>Cobros marcados ({marcados.length})</span>
+                <span className="font-medium text-green-700">{formatCOP(recogido)}</span>
+              </div>
+              <div className="flex justify-between text-gray-700">
+                <span>Descuento de domicilios</span>
+                <span className="font-medium text-orange-600">− {formatCOP(desc)}</span>
+              </div>
+              <div className="flex justify-between font-semibold text-gray-900 pt-1.5 border-t border-gray-200">
+                <span>Entra a Efectivo Bucaramanga</span>
+                <span className={neto < 0 ? 'text-red-600' : ''}>{formatCOP(neto)}</span>
+              </div>
             </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Monto liquidado *</label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Descuento de domicilios</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                  <input
+                    type="text" inputMode="numeric"
+                    value={formatMiles(descuento)}
+                    onChange={e => setDescuento(e.target.value.replace(/\D/g, ''))}
+                    placeholder="0"
+                    className="w-full pl-7 pr-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                  />
+                </div>
+                <p className="text-[11px] text-gray-400 mt-1">Lo que el mensajero informa que descuenta. Se registra como gasto de domicilios.</p>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Fecha</label>
+                <input
+                  type="date"
+                  value={fecha}
+                  onChange={e => setFecha(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Notas</label>
                 <input
                   type="text"
-                  inputMode="numeric"
-                  value={formatMiles(form.monto)}
-                  onChange={e => set('monto', e.target.value.replace(/\D/g, ''))}
-                  className="w-full pl-7 pr-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                  value={notas}
+                  onChange={e => setNotas(e.target.value)}
+                  placeholder="Referencia, comentario..."
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
                 />
               </div>
             </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">
-                {tbPaga ? 'Cuenta de la que SALE el dinero' : 'Cuenta donde ENTRA el dinero'}
-              </label>
-              <select
-                value={form.cuenta_id}
-                onChange={e => set('cuenta_id', e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
-              >
-                <option value="">— Selecciona la cuenta —</option>
-                {cuentas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Notas</label>
-              <input
-                type="text"
-                value={form.notas}
-                onChange={e => set('notas', e.target.value)}
-                placeholder="Período, referencia..."
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
-              />
-            </div>
-          </div>
 
-          {error && (
-            <p className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-2">{error}</p>
-          )}
+            {error && (
+              <p className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-2">{error}</p>
+            )}
 
-          <div className="flex gap-3">
             <button
-              onClick={handleLiquidar}
-              disabled={isPending}
-              className="flex-1 py-2 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-50"
+              onClick={confirmar}
+              disabled={isPending || marcados.length === 0}
+              className="w-full py-2 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-50"
             >
-              {isPending ? 'Liquidando...' : tbPaga ? 'Confirmar pago a la mensajería' : 'Confirmar liquidación'}
-            </button>
-            <button
-              onClick={() => { setMostrarLiquidar(false); setDiaLiquidando(null) }}
-              className="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-600 hover:bg-gray-50"
-            >
-              Cancelar
+              {isPending ? 'Guardando...' : 'Confirmar cuadre'}
             </button>
           </div>
-        </div>
-      )}
-
-      {/* Cuadre al día */}
-      {!hayPendientes && (
-        <div className="bg-green-50 rounded-xl border border-green-100 p-6 text-center">
-          <p className="text-green-800 font-medium">Cuadre al día con {MENSAJERIA_LABELS[activa]}</p>
-          <p className="text-green-600 text-sm mt-1">No hay recaudos ni domicilios pendientes</p>
-        </div>
-      )}
-
-      {/* Lo que nos deben por día */}
-      {porDia.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-100">
-            <p className="text-sm font-semibold text-gray-900">Lo que nos deben por día</p>
-            <p className="text-xs text-gray-400">Recaudos cobrados − domicilios asumidos por TB</p>
-          </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase">
-                <th className="text-left px-5 py-2">Fecha</th>
-                <th className="text-right px-4 py-2">Nos deben</th>
-                <th className="text-right px-4 py-2">Les debemos</th>
-                <th className="text-right px-5 py-2">Neto</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {porDia.map(d => {
-                const abierto = diaAbierto === d.fecha
-                const recDia = recaudos.filter(r => r.fecha === d.fecha)
-                const domDia = domiciliosTB.filter(x => x.fecha === d.fecha)
-                return (
-                  <Fragment key={d.fecha}>
-                    <tr className="hover:bg-gray-50 cursor-pointer" onClick={() => setDiaAbierto(abierto ? null : d.fecha)}>
-                      <td className="px-5 py-2.5 text-gray-700">
-                        <span className="text-gray-400 mr-1 inline-block w-3">{abierto ? '▾' : '▸'}</span>
-                        {d.fecha}
-                      </td>
-                      <td className="px-4 py-2.5 text-right text-green-700">{d.recaudos ? formatCOP(d.recaudos) : '—'}</td>
-                      <td className="px-4 py-2.5 text-right text-orange-600">{d.domicilios ? formatCOP(d.domicilios) : '—'}</td>
-                      <td className={`px-5 py-2.5 text-right font-bold ${d.neto >= 0 ? 'text-green-700' : 'text-orange-600'}`}>{formatCOP(d.neto)}</td>
-                    </tr>
-                    {abierto && (
-                      <tr className="bg-gray-50/60">
-                        <td colSpan={4} className="px-5 py-3">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {/* Recuadro: recaudos cobrados */}
-                            {recDia.length > 0 && (
-                              <div className="rounded-lg border border-green-200 bg-white overflow-hidden">
-                                <div className="px-3 py-2 bg-green-50 border-b border-green-100 flex justify-between">
-                                  <p className="text-[11px] uppercase text-green-700 font-semibold">Recaudos cobrados</p>
-                                  <p className="text-[11px] font-bold text-green-700">{formatCOP(d.recaudos)}</p>
-                                </div>
-                                <ul className="divide-y divide-gray-50">
-                                  {recDia.map(r => (
-                                    <li key={r.id} className="px-3 py-2 flex justify-between gap-3 text-xs">
-                                      <span className="text-gray-700 truncate">{r.cliente_nombre ?? 'Cliente'}{r.numero_factura && <> · <FacLink numero={r.numero_factura} /></>}</span>
-                                      <span className="text-green-700 font-semibold whitespace-nowrap">{formatCOP(r.monto)}</span>
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
-                            {/* Recuadro: domicilios asumidos por TB */}
-                            {domDia.length > 0 && (
-                              <div className="rounded-lg border border-orange-200 bg-white overflow-hidden">
-                                <div className="px-3 py-2 bg-orange-50 border-b border-orange-100 flex justify-between">
-                                  <p className="text-[11px] uppercase text-orange-700 font-semibold">Domicilios asumidos por TB</p>
-                                  <p className="text-[11px] font-bold text-orange-600">{formatCOP(d.domicilios)}</p>
-                                </div>
-                                <ul className="divide-y divide-gray-50">
-                                  {domDia.map(x => (
-                                    <li key={x.id} className="px-3 py-2 flex justify-between gap-3 text-xs">
-                                      <span className="text-gray-700 truncate">{x.cliente_nombre ?? x.notas ?? 'Domicilio'}{x.numero_factura && <> · <FacLink numero={x.numero_factura} /></>}</span>
-                                      <MontoDeudaEditable deudaId={x.id} monto={x.monto} esAdmin={esAdmin} />
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
-                          </div>
-                          <div className="mt-3 flex items-center justify-end gap-3">
-                            <span className="text-xs text-gray-500">Neto del día: <span className={`font-bold ${d.neto >= 0 ? 'text-green-700' : 'text-orange-600'}`}>{formatCOP(d.neto)}</span></span>
-                            <button
-                              onClick={() => abrirLiquidarDia(d.fecha)}
-                              className="px-3 py-1.5 rounded-lg bg-gray-900 text-white text-xs font-medium hover:bg-gray-700 transition-colors"
-                            >
-                              Liquidar este día
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                )
-              })}
-            </tbody>
-            <tfoot className="border-t-2 border-gray-200 bg-gray-50">
-              <tr>
-                <td className="px-5 py-2.5 text-xs font-semibold text-gray-600 uppercase">Total</td>
-                <td className="px-4 py-2.5 text-right font-bold text-green-700">{formatCOP(porDia.reduce((s, d) => s + d.recaudos, 0))}</td>
-                <td className="px-4 py-2.5 text-right font-bold text-orange-600">{formatCOP(porDia.reduce((s, d) => s + d.domicilios, 0))}</td>
-                <td className="px-5 py-2.5 text-right font-bold text-gray-900">{formatCOP(porDia.reduce((s, d) => s + d.neto, 0))}</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      )}
-
-      {/* Recaudos por cobrar */}
-      {recaudos.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-            <p className="text-sm font-semibold text-gray-900">Recaudos por cobrar</p>
-            <p className="text-xs text-gray-400">{recaudos.length} {recaudos.length === 1 ? 'factura' : 'facturas'}</p>
-          </div>
-          <div className="divide-y divide-gray-50">
-            {recaudos.map(r => (
-              <div key={r.id} className="px-5 py-3 flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-800 truncate">
-                    {r.cliente_nombre ?? 'Cliente'}
-                    {r.numero_factura && (
-                      <span className="ml-2 text-xs">· <FacLink numero={r.numero_factura} /></span>
-                    )}
-                  </p>
-                  <p className="text-xs text-gray-400">{r.fecha}</p>
-                </div>
-                <p className="font-semibold text-green-700 whitespace-nowrap">{formatCOP(r.monto)}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Domicilios que TB asumió */}
-      {domiciliosTB.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-            <p className="text-sm font-semibold text-gray-900">Domicilios que TB asumió</p>
-            <p className="text-xs text-gray-400">{domiciliosTB.length} pendientes</p>
-          </div>
-          <div className="divide-y divide-gray-50">
-            {domiciliosTB.map(d => (
-              <div key={d.id} className="px-5 py-3 flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-800 truncate">
-                    {d.cliente_nombre ?? d.notas ?? 'Domicilio'}
-                    {d.numero_factura && (
-                      <span className="ml-2 text-xs">· <FacLink numero={d.numero_factura} /></span>
-                    )}
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    {d.fecha}{d.es_legacy ? ' · registro anterior' : ''}
-                  </p>
-                </div>
-                <MontoDeudaEditable deudaId={d.id} monto={d.monto} esAdmin={esAdmin} />
-              </div>
-            ))}
-          </div>
-        </div>
+        </>
       )}
 
       {/* Historial de liquidaciones */}

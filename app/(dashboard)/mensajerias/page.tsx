@@ -3,10 +3,8 @@ import { getSesion } from '@/lib/auth/acceso'
 import {
   getCuadresMensajeriasAction,
   getRecaudosPendientesAction,
-  getDomiciliosTBPendientesAction,
   getLiquidacionesHistorialAction,
 } from '@/app/actions/mensajerias'
-import { getCuentasAction } from '@/app/actions/cuentas'
 import { TipoMensajeria } from '@/types'
 import { MensajeriasClientPage } from '@/components/mensajerias/MensajeriasClientPage'
 
@@ -16,30 +14,26 @@ export default async function MensajeriasPage({
   searchParams: Promise<{ mensajeria?: string }>
 }) {
   const sesion = await getSesion()
-  // Asesores y admin pueden ver Mensajerías: los asesores son quienes liquidan
+  // Asesores y admin pueden ver Mensajerías: los asesores son quienes cuadran
   // con el mensajero. El visor (solo lectura) no entra a esta pantalla operativa.
   if (sesion.rol !== 'admin' && sesion.rol !== 'asesor') redirect('/dashboard')
 
   const sp = await searchParams
-  const activaMensajeria = (sp.mensajeria as TipoMensajeria) || 'exneider'
+  const activaMensajeria: TipoMensajeria = sp.mensajeria === 'servigo' ? 'servigo' : 'exneider'
 
-  const [cuadres, recaudos, domiciliosTB, liquidaciones, cuentas] = await Promise.all([
+  const [cuadres, recaudos, liquidaciones] = await Promise.all([
     getCuadresMensajeriasAction(),
     getRecaudosPendientesAction(activaMensajeria),
-    getDomiciliosTBPendientesAction(activaMensajeria),
     getLiquidacionesHistorialAction(activaMensajeria),
-    getCuentasAction(),
   ])
 
   return (
     <MensajeriasClientPage
+      key={activaMensajeria}
       cuadres={cuadres}
       recaudos={recaudos}
-      domiciliosTB={domiciliosTB}
       liquidaciones={liquidaciones}
-      cuentas={cuentas}
       activaMensajeria={activaMensajeria}
-      esAdmin={sesion.rol === 'admin'}
     />
   )
 }
