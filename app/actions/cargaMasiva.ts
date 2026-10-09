@@ -13,6 +13,7 @@ export type ArticuloPorCodigo = {
   nombre: string
   categoria: 'ropa' | 'tenis' | 'accesorios' | null
   sexo: 'hombre' | 'mujer' | 'nino' | null
+  color: string | null
   precio_venta: number | null
   foto: string | null
 }
@@ -23,7 +24,7 @@ export async function buscarArticuloPorCodigoAction(codigo: string): Promise<Art
   if (!cod) return null
   const { data } = await supabase
     .from('articulos')
-    .select('id, codigo, marca, nombre, categoria, sexo, precio_venta, fotos')
+    .select('id, codigo, marca, nombre, categoria, sexo, color, precio_venta, fotos')
     .ilike('codigo', cod)
     .eq('activo', true)
     .maybeSingle()
@@ -38,8 +39,9 @@ export type FilaLote = {
   codigo: string | null
   marca: string
   nombre: string
-  categoria: 'ropa' | 'tenis' | 'accesorios'
+  categoria: 'ropa' | 'tenis' | 'accesorios' | null
   sexo: 'hombre' | 'mujer' | 'nino' | null
+  color?: string | null
   precio_venta: number | null
   talla: string | null
   cantidad: number | null   // null = solo crear el artículo, sin contar stock
@@ -84,6 +86,23 @@ export async function cargaMasivaAction(
     }
   }
 
+  // Si la ficha existente tiene categoría/sexo/color vacíos, se completan con lo
+  // digitado en la planilla (solo vacíos: nunca se pisa un dato que ya está).
+  const fichaCompletada = new Set<string>()
+  async function completarFicha(articuloId: string, f: FilaLote) {
+    if (fichaCompletada.has(articuloId)) return
+    fichaCompletada.add(articuloId)
+    const color = f.color?.trim() || null
+    if (!f.categoria && !f.sexo && !color) return
+    const { data } = await supabase.from('articulos').select('categoria, sexo, color').eq('id', articuloId).maybeSingle()
+    if (!data) return
+    const cambios: Record<string, string> = {}
+    if (!data.categoria && f.categoria) cambios.categoria = f.categoria
+    if (!data.sexo && f.sexo && f.categoria !== 'accesorios' && data.categoria !== 'accesorios') cambios.sexo = f.sexo
+    if (!data.color?.trim() && color) cambios.color = color
+    if (Object.keys(cambios).length > 0) await supabase.from('articulos').update(cambios).eq('id', articuloId)
+  }
+
   for (let i = 0; i < filas.length; i++) {
     const f = filas[i]
     const linea = i + 1
@@ -97,6 +116,7 @@ export async function cargaMasivaAction(
       if (codigo && porCodigo.has(codigo)) {
         articuloId = porCodigo.get(codigo)!
         await ponerFotoSiFalta(articuloId, f.foto_url)
+        await completarFicha(articuloId, f)
       } else if (codigo) {
         const { data } = await supabase.from('articulos').select('id, precio_venta').ilike('codigo', codigo).maybeSingle()
         if (data) {
@@ -107,6 +127,7 @@ export async function cargaMasivaAction(
             await supabase.from('articulos').update({ precio_venta: f.precio_venta }).eq('id', data.id)
           }
           await ponerFotoSiFalta(data.id, f.foto_url)
+          await completarFicha(data.id, f)
         }
       }
 
@@ -122,6 +143,7 @@ export async function cargaMasivaAction(
             marca,
             nombre,
             sexo: f.categoria === 'accesorios' ? null : f.sexo,
+            color: f.color?.trim() || null,
             categoria: f.categoria,
             precio_venta: f.precio_venta,
             fotos: f.foto_url ? [f.foto_url] : null,

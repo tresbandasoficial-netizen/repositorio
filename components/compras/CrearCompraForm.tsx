@@ -487,6 +487,7 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
           // la regla de talla obligatoria (accesorios no llevan).
           categoria: (articulo.categoria as string | null) ?? item.categoria,
           sexo: (articulo.sexo as string | null) ?? item.sexo,
+          color: articulo.color?.trim() ? articulo.color : item.color,
         }
       }
       return { ...item, articuloId: null, articuloEncontrado: false }

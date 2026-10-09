@@ -70,6 +70,7 @@ export async function guardarNombreArticuloAction(
     .maybeSingle()
 
   if (existente) {
+    await _completarFicha(supabase, existente.id, data)
     if (existente.nombre === nombre) {
       return { ok: true, articuloId: existente.id, renombrado: false }
     }
@@ -96,6 +97,30 @@ export async function guardarNombreArticuloAction(
   return { ok: true, articuloId: creado.articuloId, renombrado: false }
 }
 
+// Si la ficha ya existía con categoría/sexo/color vacíos, los completa con lo que
+// se acaba de capturar. Solo rellena vacíos: nunca pisa un dato que ya está.
+async function _completarFicha(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  articuloId: string,
+  data: Pick<CrearArticuloInput, 'categoria' | 'sexo' | 'color'>
+) {
+  const { data: ficha } = await supabase
+    .from('articulos')
+    .select('categoria, sexo, color')
+    .eq('id', articuloId)
+    .maybeSingle()
+  if (!ficha) return
+
+  const cambios: Record<string, string> = {}
+  if (!ficha.categoria && data.categoria) cambios.categoria = data.categoria
+  if (!ficha.sexo && data.sexo && data.categoria !== 'accesorios') cambios.sexo = data.sexo
+  if (!ficha.color?.trim() && data.color.trim()) cambios.color = data.color.trim()
+  if (Object.keys(cambios).length === 0) return
+
+  await supabase.from('articulos').update(cambios).eq('id', articuloId)
+  revalidatePath('/inventario')
+}
+
 async function _crearArticulo(data: CrearArticuloInput): Promise<ArticuloResult> {
   const supabase = await createClient()
 
@@ -115,7 +140,10 @@ async function _crearArticulo(data: CrearArticuloInput): Promise<ArticuloResult>
       .select('id')
       .ilike('codigo', codigo)
       .maybeSingle()
-    if (existente) return { ok: true as const, articuloId: existente.id }
+    if (existente) {
+      await _completarFicha(supabase, existente.id, data)
+      return { ok: true as const, articuloId: existente.id }
+    }
   }
 
   const { data: articulo, error } = await supabase
@@ -149,7 +177,10 @@ async function _crearArticulo(data: CrearArticuloInput): Promise<ArticuloResult>
       const existente = (candidatos ?? []).find(a =>
         (a.color ?? '').toLowerCase() === colorKey && (a.sexo ?? '').toLowerCase() === sexoKey
       ) ?? (candidatos ?? [])[0]
-      if (existente) return { ok: true as const, articuloId: existente.id }
+      if (existente) {
+        await _completarFicha(supabase, existente.id, data)
+        return { ok: true as const, articuloId: existente.id }
+      }
       return { ok: false, error: 'Ya existe un artículo con esa marca, nombre, color y sexo. Búscalo por código o nombre para usarlo.' }
     }
     return { ok: false, error: error.message }

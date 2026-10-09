@@ -18,6 +18,12 @@ type Fila = {
   nombre: string
   categoria: '' | 'ropa' | 'tenis' | 'accesorios'
   sexo: '' | 'hombre' | 'mujer' | 'nino'
+  color: string
+  // Qué datos ya trae la ficha del catálogo: solo esos se bloquean; los que
+  // la ficha tiene vacíos se pueden completar aquí y quedan guardados en ella.
+  fichaCat: boolean
+  fichaSexo: boolean
+  fichaColor: boolean
   precio: string
   talla: string
   cantidad: string
@@ -29,7 +35,7 @@ type Fila = {
 
 let uidSeq = 1
 function filaVacia(): Fila {
-  return { uid: uidSeq++, codigo: '', marca: '', nombre: '', categoria: '', sexo: '', precio: '', talla: '', cantidad: '', existente: false, buscando: false, foto: null, subiendoFoto: false }
+  return { uid: uidSeq++, codigo: '', marca: '', nombre: '', categoria: '', sexo: '', color: '', fichaCat: false, fichaSexo: false, fichaColor: false, precio: '', talla: '', cantidad: '', existente: false, buscando: false, foto: null, subiendoFoto: false }
 }
 
 const celda = 'w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:bg-gray-50 disabled:text-gray-500'
@@ -52,7 +58,7 @@ export function CargaLotePanel({ sedes, sedeFijaId }: { sedes: Sede[]; sedeFijaI
 
   function onCodigoChange(uid: number, valor: string) {
     const codigo = valor.toUpperCase()
-    patch(uid, { codigo, existente: false })
+    patch(uid, { codigo, existente: false, fichaCat: false, fichaSexo: false, fichaColor: false })
     const timers = timersRef.current
     const t = timers.get(uid)
     if (t) clearTimeout(t)
@@ -69,6 +75,10 @@ export function CargaLotePanel({ sedes, sedeFijaId }: { sedes: Sede[]; sedeFijaI
             nombre: art.nombre,
             categoria: (art.categoria ?? '') as Fila['categoria'],
             sexo: (art.sexo ?? '') as Fila['sexo'],
+            color: art.color ?? '',
+            fichaCat: !!art.categoria,
+            fichaSexo: !!art.sexo,
+            fichaColor: !!art.color?.trim(),
             precio: art.precio_venta != null ? String(art.precio_venta) : '',
             foto: art.foto ?? null,
           })
@@ -142,8 +152,9 @@ export function CargaLotePanel({ sedes, sedeFijaId }: { sedes: Sede[]; sedeFijaI
       codigo: f.codigo.trim() || null,
       marca: f.marca,
       nombre: f.nombre,
-      categoria: (f.categoria || 'ropa') as FilaLote['categoria'],
+      categoria: (f.categoria || null) as FilaLote['categoria'],
       sexo: f.sexo || null,
+      color: f.color.trim() || null,
       precio_venta: f.precio.trim() ? parseInt(f.precio.replace(/\D/g, ''), 10) : null,
       talla: f.talla.trim() || null,
       cantidad: f.cantidad.trim() ? Math.max(0, parseInt(f.cantidad, 10) || 0) : null,
@@ -221,7 +232,7 @@ export function CargaLotePanel({ sedes, sedeFijaId }: { sedes: Sede[]; sedeFijaI
 
       {/* Planilla */}
       <div className="bg-white rounded-2xl border border-gray-200 overflow-x-auto">
-        <table className="w-full text-xs" style={{ minWidth: 900 }}>
+        <table className="w-full text-xs" style={{ minWidth: 1000 }}>
           <thead>
             <tr className="bg-gray-50/80 border-b border-gray-100 text-[10px] text-gray-500 uppercase tracking-wider">
               <th className="px-2 py-2.5 text-left w-8">#</th>
@@ -231,6 +242,7 @@ export function CargaLotePanel({ sedes, sedeFijaId }: { sedes: Sede[]; sedeFijaI
               <th className="px-2 py-2.5 text-left">Nombre</th>
               <th className="px-2 py-2.5 text-left w-28">Categoría</th>
               <th className="px-2 py-2.5 text-left w-24">Sexo</th>
+              <th className="px-2 py-2.5 text-left w-28">Color</th>
               <th className="px-2 py-2.5 text-left w-28">Precio venta</th>
               <th className="px-2 py-2.5 text-left w-24">Talla</th>
               <th className="px-2 py-2.5 text-left w-20">Cant.</th>
@@ -289,7 +301,7 @@ export function CargaLotePanel({ sedes, sedeFijaId }: { sedes: Sede[]; sedeFijaI
                     onChange={e => patch(f.uid, { nombre: e.target.value })} placeholder="Camiseta dri-fit" className={celda} />
                 </td>
                 <td className="px-2 py-1.5">
-                  <select value={f.categoria} disabled={f.existente}
+                  <select value={f.categoria} disabled={f.existente && f.fichaCat}
                     onChange={e => patch(f.uid, { categoria: e.target.value as Fila['categoria'] })} className={celda}>
                     <option value="">—</option>
                     <option value="ropa">Ropa</option>
@@ -298,13 +310,17 @@ export function CargaLotePanel({ sedes, sedeFijaId }: { sedes: Sede[]; sedeFijaI
                   </select>
                 </td>
                 <td className="px-2 py-1.5">
-                  <select value={f.sexo} disabled={f.existente || f.categoria === 'accesorios'}
+                  <select value={f.sexo} disabled={(f.existente && f.fichaSexo) || f.categoria === 'accesorios'}
                     onChange={e => patch(f.uid, { sexo: e.target.value as Fila['sexo'] })} className={celda}>
                     <option value="">—</option>
                     <option value="hombre">Hombre</option>
                     <option value="mujer">Mujer</option>
                     <option value="nino">Niño</option>
                   </select>
+                </td>
+                <td className="px-2 py-1.5">
+                  <input type="text" value={f.color} disabled={f.existente && f.fichaColor}
+                    onChange={e => patch(f.uid, { color: e.target.value.toUpperCase() })} placeholder="NEGRO" className={celda} />
                 </td>
                 <td className="px-2 py-1.5">
                   <input type="text" inputMode="numeric" value={formatMiles(f.precio)}

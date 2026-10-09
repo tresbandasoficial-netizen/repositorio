@@ -402,11 +402,19 @@ export async function crearCompraAction(data: CrearCompraInput): Promise<CrearCo
       const cod = item.codigo.trim()
       const { data: existente } = await adminClient
         .from('articulos')
-        .select('id')
+        .select('id, categoria, sexo, color')
         .ilike('codigo', cod)
         .maybeSingle()
       if (existente) {
         articuloId = existente.id
+        // La ficha ya existía: se completan categoría/sexo/color si estaban vacíos.
+        const cambios: Record<string, string> = {}
+        if (!existente.categoria && item.categoria) cambios.categoria = item.categoria
+        if (!existente.sexo && item.sexo && item.categoria !== 'accesorios') cambios.sexo = item.sexo
+        if (!existente.color?.trim() && item.color?.trim()) cambios.color = item.color.trim()
+        if (Object.keys(cambios).length > 0) {
+          await adminClient.from('articulos').update(cambios).eq('id', existente.id)
+        }
       } else {
         const { data: nuevoArt } = await adminClient
           .from('articulos')
