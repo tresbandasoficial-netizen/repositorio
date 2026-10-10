@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { MetricasAdmin, MetricasAsesor, MetricasSede } from '@/types'
 import type { PedidoRow } from '@/lib/queries/pedidos'
 import { hoyBogota } from '@/lib/utils/format'
+import { traerTodo } from '@/lib/utils/traerTodo'
 
 function hace(dias: number): string {
   const hoy = hoyBogota()
@@ -35,6 +36,7 @@ export async function getMetricasAdmin(sedeId?: string | null): Promise<Metricas
     .gte('fecha_creacion', hoyInicio())
     .neq('estado', 'cancelado')
     .neq('tipo', 'saldo_anterior')
+    .order('id')
   if (sedeId) qHoy = qHoy.eq('sede_id', sedeId)
 
   let qSemana = supabase
@@ -43,6 +45,7 @@ export async function getMetricasAdmin(sedeId?: string | null): Promise<Metricas
     .gte('fecha_creacion', hace(7))
     .neq('estado', 'cancelado')
     .neq('tipo', 'saldo_anterior')
+    .order('id')
   if (sedeId) qSemana = qSemana.eq('sede_id', sedeId)
 
   let qMes = supabase
@@ -51,11 +54,13 @@ export async function getMetricasAdmin(sedeId?: string | null): Promise<Metricas
     .gte('fecha_creacion', inicioMes())
     .neq('estado', 'cancelado')
     .neq('tipo', 'saldo_anterior')
+    .order('id')
   if (sedeId) qMes = qMes.eq('sede_id', sedeId)
 
   let qAlertas = supabase
     .from('vista_pedidos_asesor')
     .select('en_alerta, es_zombie')
+    .order('id')
   if (sedeId) qAlertas = qAlertas.eq('sede_id', sedeId)
 
   // Los abonos no tienen sede propia: se filtra por la sede del pedido.
@@ -67,12 +72,14 @@ export async function getMetricasAdmin(sedeId?: string | null): Promise<Metricas
         .neq('metodo', 'credito')
         .gte('fecha', inicioMesFecha())
         .eq('pedidos.sede_id', sedeId)
+        .order('id')
     : supabase
         .from('pagos')
         .select('monto')
         .eq('anulado', false)
         .neq('metodo', 'credito')
         .gte('fecha', inicioMesFecha())
+        .order('id')
 
   // Cartera: con sede se usa la vista por cliente Y sede (mig. 105/124, mismos
   // bolsillos saldo_entregado/saldo_proceso).
@@ -81,9 +88,11 @@ export async function getMetricasAdmin(sedeId?: string | null): Promise<Metricas
         .from('vista_cartera_cliente_sede')
         .select('saldo, saldo_entregado, saldo_proceso')
         .eq('sede_id', sedeId)
+        .order('id')
     : supabase
         .from('vista_cartera_clientes')
         .select('saldo, saldo_entregado, saldo_proceso')
+        .order('id')
 
   // Facturación del mes: el saldo (no el estado) decide contado vs crédito,
   // así una factura con estado desactualizado no se clasifica mal.
@@ -92,6 +101,7 @@ export async function getMetricasAdmin(sedeId?: string | null): Promise<Metricas
     .select('total, saldo')
     .gte('fecha_factura', inicioMesFecha())
     .neq('estado', 'anulada')
+    .order('id')
   if (sedeId) qFacturas = qFacturas.eq('sede_id', sedeId)
 
   const [
@@ -102,7 +112,7 @@ export async function getMetricasAdmin(sedeId?: string | null): Promise<Metricas
     pagosMes,
     cartera,
     facturasMes,
-  ] = await Promise.all([qHoy, qSemana, qMes, qAlertas, qPagos, qCartera, qFacturas])
+  ] = await Promise.all([qHoy, qSemana, qMes, qAlertas, qPagos, qCartera, qFacturas].map(q => traerTodo(q)))
 
   const sumarTotal = (rows: Array<{ total: number }> | null) =>
     (rows ?? []).reduce((s, r) => s + (r.total ?? 0), 0)
@@ -169,13 +179,15 @@ export async function getMetricasAsesor(asesorId: string): Promise<MetricasAseso
       .from('vista_pedidos_asesor')
       .select('en_alerta')
       .eq('asesor_id', asesorId)
-      .not('estado', 'in', '("entregado","cancelado")'),
+      .not('estado', 'in', '("entregado","cancelado")')
+      .order('id'),
     supabase
       .from('vista_pedidos_asesor')
       .select('total')
       .eq('asesor_id', asesorId)
-      .gte('fecha_creacion', inicioMes()),
-  ])
+      .gte('fecha_creacion', inicioMes())
+      .order('id'),
+  ].map(q => traerTodo(q)))
 
   const activosData = activos.data ?? []
   const enAlerta    = activosData.filter((r) => r.en_alerta).length
@@ -206,13 +218,15 @@ export async function getResumenSedesMes(): Promise<Record<string, ResumenSedeMe
       .from('vista_facturas')
       .select('sede_codigo, total, saldo')
       .gte('fecha_factura', inicioMesFecha())
-      .neq('estado', 'anulada'),
+      .neq('estado', 'anulada')
+      .order('id'),
     supabase
       .from('pedidos')
       .select('total, sedes(codigo)')
       .in('estado', ['pendiente', 'comprado', 'usa'])
-      .not('tipo', 'in', '("venta_inmediata","saldo_anterior")'),
-  ])
+      .not('tipo', 'in', '("venta_inmediata","saldo_anterior")')
+      .order('id'),
+  ].map(q => traerTodo(q)))
 
   const r: Record<string, ResumenSedeMes> = {}
   const de = (codigo: string) =>
@@ -254,14 +268,14 @@ export async function getVentasMensualesAsesor(asesorId: string, meses = 8): Pro
   // 1° del primer mes de la ventana (en UTC-5 ≈ Bogotá).
   const desdeISO = new Date(Date.UTC(y, mo - meses, 1, 5)).toISOString()
 
-  const { data } = await supabase
+  const { data } = await traerTodo(supabase
     .from('vista_pedidos_asesor')
     .select('fecha_creacion, total')
     .eq('asesor_id', asesorId)
     .neq('estado', 'cancelado')
     .neq('tipo', 'saldo_anterior')
     .gte('fecha_creacion', desdeISO)
-    .limit(20000)
+    .order('id'))
 
   const fmtClave = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota', year: 'numeric', month: '2-digit' })
   const fmtLabel = new Intl.DateTimeFormat('es-CO', { timeZone: 'America/Bogota', month: 'short', year: '2-digit' })
@@ -290,13 +304,15 @@ export async function getMetricasPorSede(): Promise<MetricasSede[]> {
     supabase
       .from('vista_pedidos_asesor')
       .select('sede_codigo, sede_nombre, en_alerta')
-      .not('estado', 'in', '("entregado","cancelado")'),
+      .not('estado', 'in', '("entregado","cancelado")')
+      .order('id'),
     supabase
       .from('vista_pedidos_asesor')
       .select('sede_codigo, total')
       .gte('fecha_creacion', hace(30))
-      .neq('estado', 'cancelado'),
-  ])
+      .neq('estado', 'cancelado')
+      .order('id'),
+  ].map(q => traerTodo(q)))
 
   const SEDES = ['TR', 'CR', 'SR']
   const nombreBySede: Record<string, string> = {}
@@ -339,7 +355,8 @@ export async function getMetricasPorAsesor(): Promise<MetricasAsesorRow[]> {
     supabase
       .from('vista_pedidos_asesor')
       .select('asesor_id, asesor_nombre')
-      .not('estado', 'in', '("entregado","cancelado")'),
+      .not('estado', 'in', '("entregado","cancelado")')
+      .order('id'),
     // Mes calendario en curso (no "últimos 30 días"): así el ranking coincide
     // con las metas del mes. Los saldos cargados no son ventas del asesor.
     supabase
@@ -347,8 +364,9 @@ export async function getMetricasPorAsesor(): Promise<MetricasAsesorRow[]> {
       .select('asesor_id, asesor_nombre, total')
       .gte('fecha_creacion', inicioMes())
       .neq('estado', 'cancelado')
-      .neq('tipo', 'saldo_anterior'),
-  ])
+      .neq('tipo', 'saldo_anterior')
+      .order('id'),
+  ].map(q => traerTodo(q)))
 
   const nombreById: Record<string, string> = {}
   const activosByAsesor: Record<string, number> = {}

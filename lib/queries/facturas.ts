@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { traerTodo } from '@/lib/utils/traerTodo'
 import { getSesion } from '@/lib/auth/acceso'
 import { terminoBusquedaSeguro } from '@/lib/utils/busqueda'
 import { FacturaRow, EstadoFactura } from '@/types'
@@ -273,10 +274,11 @@ export async function getMorosos(): Promise<FacturaRow[]> {
     .from('vista_morosos')
     .select('*')
     .order('dias_atraso', { ascending: false })
+    .order('id')
 
   if (sesion.rol !== 'admin' && sesion.sede_id) query = query.eq('sede_id', sesion.sede_id)
 
-  const { data, error } = await query
+  const { data, error } = await traerTodo(query)
   if (error) throw new Error(`Error cargando morosos: ${error.message}`)
   return (data ?? []) as FacturaRow[]
 }
@@ -296,11 +298,12 @@ export async function getResumenCxC(sedeCodigo?: string): Promise<ResumenCxC> {
     .from('vista_facturas')
     .select('saldo, estado, dias_atraso')
     .in('estado', ['pendiente', 'vencida'])
+    .order('id')
 
   if (sesion.rol !== 'admin' && sesion.sede_id) query = query.eq('sede_id', sesion.sede_id)
   else if (sedeCodigo) query = query.eq('sede_codigo', sedeCodigo)
 
-  const { data } = await query
+  const { data } = await traerTodo(query)
   const filas = (data ?? []) as Array<{ saldo: number; estado: string; dias_atraso: number }>
 
   let totalPorCobrar = 0, totalVencido = 0, pendientes = 0, vencidas = 0

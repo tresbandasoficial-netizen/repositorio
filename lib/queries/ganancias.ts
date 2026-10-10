@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { traerTodo } from '@/lib/utils/traerTodo'
 import { getGastosAction } from '@/app/actions/gastos'
 
 // Fila de vista_ganancia_pedidos (migración 086).
@@ -105,12 +106,12 @@ export async function getGananciasNegocio(params: {
     .gte('fecha_creacion', params.desde)
     .lte('fecha_creacion', `${params.hasta}T23:59:59.999`)
     .order('fecha_creacion', { ascending: false })
-    .limit(1000)
+    .order('pedido_id')
 
   if (params.sede_id) q = q.eq('sede_id', params.sede_id)
 
   const [{ data }, gastos] = await Promise.all([
-    q,
+    traerTodo(q),
     getGastosAction({ desde: params.desde, hasta: params.hasta, sede_id: params.sede_id }),
   ])
 

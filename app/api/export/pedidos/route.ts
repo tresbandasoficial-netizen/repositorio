@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { traerTodo } from '@/lib/utils/traerTodo'
 import { terminoBusquedaSeguro } from '@/lib/utils/busqueda'
 import { ESTADO_LABELS } from '@/types'
 
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest) {
     .from('vista_pedidos_asesor')
     .select('numero_orden, estado, cliente_nombre, cliente_telefono, sede_codigo, asesor_nombre, total, total_pagado, tipo_entrega, direccion_entrega, fecha_creacion, en_alerta')
     .order('fecha_creacion', { ascending: false })
-    .limit(5000)
+    .order('id')
 
   if (estado)           query = query.eq('estado', estado)
   if (usuario.rol === 'admin' && sede) query = query.eq('sede_codigo', sede)
@@ -60,7 +61,7 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  const { data, error } = await query
+  const { data, error } = await traerTodo(query)
   if (error) return new Response('Error al exportar', { status: 500 })
 
   const rows = data ?? []

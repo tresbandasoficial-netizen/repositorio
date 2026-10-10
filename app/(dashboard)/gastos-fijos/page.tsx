@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { getSesion } from '@/lib/auth/acceso'
 import { createClient } from '@/lib/supabase/server'
+import { traerTodo } from '@/lib/utils/traerTodo'
 import { formatCOP, hoyBogota } from '@/lib/utils/format'
 import { GastosFijosPanel } from '@/components/gastos-fijos/GastosFijosPanel'
 
@@ -52,9 +53,10 @@ export default async function GastosFijosPage({
     .gte('fecha_creacion', `${inicioMes}T00:00:00-05:00`)
     .neq('estado', 'cancelado')
     .neq('tipo', 'saldo_anterior')
+    .order('id')
   if (sedeSel) qPedidos = qPedidos.eq('sede_id', sedeSel.id)
 
-  let qVariables = supabase.from('gastos').select('valor, categoria').gte('fecha', inicioMes)
+  let qVariables = supabase.from('gastos').select('valor, categoria').gte('fecha', inicioMes).order('id')
   if (sedeSel) qVariables = qVariables.eq('sede_id', sedeSel.id)
 
   let qMargen = supabase
@@ -63,7 +65,7 @@ export default async function GastosFijosPage({
     .eq('tiene_costo', true)
     .neq('estado', 'cancelado')
     .gte('fecha_creacion', hace90)
-    .limit(2000)
+    .order('pedido_id')
   if (sedeSel) qMargen = qMargen.eq('sede_id', sedeSel.id)
 
   // Ganancia REAL del mes (pedido de Johan 29-ago): solo lo YA COBRADO —
@@ -76,13 +78,13 @@ export default async function GastosFijosPage({
     .neq('estado', 'cancelado')
     .neq('tipo', 'saldo_anterior')
     .gte('fecha_creacion', `${inicioMes}T00:00:00-05:00`)
-    .limit(3000)
+    .order('pedido_id')
   if (sedeSel) qGananciaMes = qGananciaMes.eq('sede_id', sedeSel.id)
 
   // Gastos fijos ya marcados como pagados este mes
   const qPagados = supabase.from('gastos_fijos_pagos').select('gasto_fijo_id').eq('mes', inicioMes)
 
-  const [gastosRes, pedidosRes, variablesRes, margenRes, gananciaMesRes, pagadosRes] = await Promise.all([qGastos, qPedidos, qVariables, qMargen, qGananciaMes, qPagados])
+  const [gastosRes, pedidosRes, variablesRes, margenRes, gananciaMesRes, pagadosRes] = await Promise.all([qGastos, traerTodo(qPedidos), traerTodo(qVariables), traerTodo(qMargen), traerTodo(qGananciaMes), qPagados])
 
   const gananciaMesRows = (gananciaMesRes.data ?? []) as Array<{ pedido_id: string; numero_orden: string; venta: number; utilidad: number; tiene_costo: boolean; estado: string }>
 

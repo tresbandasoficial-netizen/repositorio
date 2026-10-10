@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { traerTodo } from '@/lib/utils/traerTodo'
 import { formatCOP, formatFecha } from '@/lib/utils/format'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -70,7 +71,7 @@ export default async function ComprasPage({
   const filtro = filtroParam?.trim().toLowerCase() || null
   const q = qParam?.trim() || null
 
-  const { data: compras } = await supabase
+  const { data: compras } = await traerTodo(supabase
     .from('compras')
     .select(`
       id, tipo, proveedor, fecha, total_usd, trm, total_cop, notas, correo, numero_factura, creado_por, creado_en,
@@ -78,6 +79,7 @@ export default async function ComprasPage({
     `)
     .order('fecha', { ascending: false })
     .order('creado_en', { ascending: false })
+    .order('id'))
 
   const todas = (compras ?? []) as (Compra & { compra_items: { id: string }[]; numero_factura: string | null })[]
 

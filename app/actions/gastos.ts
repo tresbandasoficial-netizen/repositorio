@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { traerTodo } from '@/lib/utils/traerTodo'
 import { getSesion } from '@/lib/auth/acceso'
 import { bloqueoCajaCerrada } from '@/lib/auth/caja'
 import { CategoriaGasto, Gasto } from '@/types'
@@ -146,7 +147,7 @@ export async function getGastosAction(filtros: GastosFiltros): Promise<Gasto[]> 
     .lte('fecha', filtros.hasta)
     .order('fecha', { ascending: false })
     .order('creado_en', { ascending: false })
-    .limit(500)
+    .order('id')
 
   // Los costos de compra de mercancía son información solo de admin.
   if (sesion.rol !== 'admin') q = q.neq('categoria', 'compras_mercancia')
@@ -154,7 +155,7 @@ export async function getGastosAction(filtros: GastosFiltros): Promise<Gasto[]> 
   if (filtros.categoria) q = q.eq('categoria', filtros.categoria)
   if (filtros.sede_id)   q = q.eq('sede_id', filtros.sede_id)
 
-  const { data } = await q
+  const { data } = await traerTodo(q)
   return (data ?? []) as Gasto[]
 }
 

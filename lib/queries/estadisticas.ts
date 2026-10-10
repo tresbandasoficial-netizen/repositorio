@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { traerTodo } from '@/lib/utils/traerTodo'
 
 export type EstadisticaDia = {
   fecha: string          // YYYY-MM-DD (hora Colombia)
@@ -67,13 +68,15 @@ export async function getEstadisticas(dias: number): Promise<Estadisticas> {
       .gte('fecha_creacion', desdeISO)
       .neq('estado', 'cancelado')
       .neq('tipo', 'saldo_anterior')
-      .order('fecha_creacion', { ascending: true }),
+      .order('fecha_creacion', { ascending: true })
+      .order('id'),
     supabase
       .from('pagos')
       .select('metodo, monto, fecha')
       .eq('anulado', false)
-      .gte('fecha', desdeFecha),
-  ])
+      .gte('fecha', desdeFecha)
+      .order('id'),
+  ].map(q => traerTodo(q)))
 
   const { data, error } = pedidosRes
   if (error) throw new Error(`Error cargando estadísticas: ${error.message}`)
