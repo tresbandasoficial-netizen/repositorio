@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getSesion } from '@/lib/auth/acceso'
 import { MetodoPago, METODO_PAGO_LABELS, labelMetodo, metodosDeSede, cuentasAcumuladoAsesor } from '@/types'
 import { hoyBogota } from '@/lib/utils/format'
+import { traerTodo } from '@/lib/utils/traerTodo'
 
 // Efectivo acumulado que DEBE haber en la caja de cada sede:
 //   saldo_inicial + (efectivo que entró − efectivo que salió) desde el corte.
@@ -46,11 +47,11 @@ export async function getEfectivoEnCaja(filtroSedeCodigo?: string): Promise<Efec
   // aunque el RLS le oculte algunas filas al asesor (ej. gastos de compras).
   const adminMov = createAdminClient()
   const [pagosR, pfR, gastosR, pmR, trR] = await Promise.all([
-    adminMov.from('pagos').select('cuenta_id, monto, fecha').in('cuenta_id', ids).neq('metodo', 'credito').eq('anulado', false).gte('fecha', corteMin).limit(20000),
-    adminMov.from('pagos_factura').select('cuenta_id, monto, fecha').in('cuenta_id', ids).neq('metodo', 'credito').eq('anulado', false).gte('fecha', corteMin).limit(20000),
-    adminMov.from('gastos').select('cuenta_id, valor, fecha').in('cuenta_id', ids).gte('fecha', corteMin).limit(20000),
-    adminMov.from('pagos_mensajeria').select('cuenta_id, monto, fecha, tipo').in('cuenta_id', ids).eq('tipo', 'pago').gte('fecha', corteMin).limit(20000),
-    adminMov.from('traslados_caja').select('origen_cuenta_id, destino_cuenta_id, monto, fecha').gte('fecha', corteMin).limit(20000),
+    traerTodo(adminMov.from('pagos').select('cuenta_id, monto, fecha').in('cuenta_id', ids).neq('metodo', 'credito').eq('anulado', false).gte('fecha', corteMin).order('id')),
+    traerTodo(adminMov.from('pagos_factura').select('cuenta_id, monto, fecha').in('cuenta_id', ids).neq('metodo', 'credito').eq('anulado', false).gte('fecha', corteMin).order('id')),
+    traerTodo(adminMov.from('gastos').select('cuenta_id, valor, fecha').in('cuenta_id', ids).gte('fecha', corteMin).order('id')),
+    traerTodo(adminMov.from('pagos_mensajeria').select('cuenta_id, monto, fecha, tipo').in('cuenta_id', ids).eq('tipo', 'pago').gte('fecha', corteMin).order('id')),
+    traerTodo(adminMov.from('traslados_caja').select('origen_cuenta_id, destino_cuenta_id, monto, fecha').gte('fecha', corteMin).order('id')),
   ])
   const pagos    = (pagosR.data  ?? []) as Array<{ cuenta_id: string | null; monto: number; fecha: string }>
   const pf       = (pfR.data     ?? []) as Array<{ cuenta_id: string | null; monto: number; fecha: string }>
@@ -140,11 +141,11 @@ export async function getSaldosCuentas(
   const corteMin = cortes.length ? cortes.sort()[0] : hoyBogota()
 
   const [pagosR, pfR, gastosR, pmR, trR] = await Promise.all([
-    admin.from('pagos').select('cuenta_id, monto, fecha').in('cuenta_id', ids).neq('metodo', 'credito').eq('anulado', false).gte('fecha', corteMin).limit(50000),
-    admin.from('pagos_factura').select('cuenta_id, monto, fecha').in('cuenta_id', ids).neq('metodo', 'credito').eq('anulado', false).gte('fecha', corteMin).limit(50000),
-    admin.from('gastos').select('cuenta_id, valor, fecha').in('cuenta_id', ids).gte('fecha', corteMin).limit(50000),
-    admin.from('pagos_mensajeria').select('cuenta_id, monto, fecha, tipo').in('cuenta_id', ids).eq('tipo', 'pago').gte('fecha', corteMin).limit(50000),
-    admin.from('traslados_caja').select('origen_cuenta_id, destino_cuenta_id, monto, fecha').gte('fecha', corteMin).limit(50000),
+    traerTodo(admin.from('pagos').select('cuenta_id, monto, fecha').in('cuenta_id', ids).neq('metodo', 'credito').eq('anulado', false).gte('fecha', corteMin).order('id')),
+    traerTodo(admin.from('pagos_factura').select('cuenta_id, monto, fecha').in('cuenta_id', ids).neq('metodo', 'credito').eq('anulado', false).gte('fecha', corteMin).order('id')),
+    traerTodo(admin.from('gastos').select('cuenta_id, valor, fecha').in('cuenta_id', ids).gte('fecha', corteMin).order('id')),
+    traerTodo(admin.from('pagos_mensajeria').select('cuenta_id, monto, fecha, tipo').in('cuenta_id', ids).eq('tipo', 'pago').gte('fecha', corteMin).order('id')),
+    traerTodo(admin.from('traslados_caja').select('origen_cuenta_id, destino_cuenta_id, monto, fecha').gte('fecha', corteMin).order('id')),
   ])
   const pagos  = (pagosR.data  ?? []) as Array<{ cuenta_id: string | null; monto: number; fecha: string }>
   const pf     = (pfR.data     ?? []) as Array<{ cuenta_id: string | null; monto: number; fecha: string }>
@@ -355,7 +356,7 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
     .lt('fecha_creacion', bogotaDayStartUTC(sumarDias(filtros.hasta, 1)))
     .neq('estado', 'cancelado')
     .neq('tipo', 'saldo_anterior')
-    .limit(20000)
+    .order('id')
   if (sedeFiltroCodigo) qVentas = qVentas.eq('sede_codigo', sedeFiltroCodigo)
 
   // ── Facturas emitidas en el rango (no anuladas) ─────────────────────────────
@@ -367,7 +368,7 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
     .gte('creado_en', bogotaDayStartUTC(filtros.desde))
     .lt('creado_en', bogotaDayStartUTC(sumarDias(filtros.hasta, 1)))
     .neq('estado', 'anulada')
-    .limit(20000)
+    .order('id')
   if (sedeForzadaId) qFacturas = qFacturas.eq('sede_id', sedeForzadaId)
   else if (sedeFiltroCodigo) qFacturas = qFacturas.eq('sede_codigo', sedeFiltroCodigo)
 
@@ -377,7 +378,7 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
     .select('id, monto, metodo, sede_id, sede_codigo, asesor_id, asesor_nombre, referencia, origen, confirmado, cliente_nombre, creado_en')
     .gte('fecha', filtros.desde)
     .lte('fecha', filtros.hasta)
-    .limit(20000)
+    .order('id')
   if (sedeForzadaId) qRecaudo = qRecaudo.eq('sede_id', sedeForzadaId)
   else if (sedeFiltroCodigo) qRecaudo = qRecaudo.eq('sede_codigo', sedeFiltroCodigo)
 
@@ -390,7 +391,7 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
     .gte('fecha', filtros.desde)
     .lte('fecha', filtros.hasta)
     .order('fecha', { ascending: false })
-    .limit(20000)
+    .order('id')
   const sedeGastosId = sedeForzadaId ?? sedeFiltroId
   if (sedeGastosId) qGastos = qGastos.eq('sede_id', sedeGastosId)
 
@@ -404,16 +405,16 @@ export async function getCuadre(filtros: CuadreFiltros): Promise<Cuadre> {
     .lt('pedidos.fecha_creacion', bogotaDayStartUTC(sumarDias(filtros.hasta, 1)))
     .neq('pedidos.estado', 'cancelado')
     .neq('pedidos.tipo', 'saldo_anterior')
-    .limit(20000)
+    .order('id')
   const sedeUnidadesId = sedeForzadaId ?? (sedeFiltroCodigo ? sedes.find(s => s.codigo === sedeFiltroCodigo)?.id ?? null : null)
   if (sedeUnidadesId) qUnidades = qUnidades.eq('pedidos.sede_id', sedeUnidadesId)
 
   const [ventasRes, recaudoRes, gastosRes, facturasRes, unidadesRes] = await Promise.all([
-    qVentas,
-    qRecaudo,
-    qGastos,
-    qFacturas,
-    qUnidades,
+    traerTodo(qVentas),
+    traerTodo(qRecaudo),
+    traerTodo(qGastos),
+    traerTodo(qFacturas),
+    traerTodo(qUnidades),
   ])
 
   const vacioUnidades = (): UnidadesCategoria => ({ tenis: 0, ropa: 0, accesorios: 0, otros: 0 })

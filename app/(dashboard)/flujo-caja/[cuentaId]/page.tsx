@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { getSesion } from '@/lib/auth/acceso'
 import { createClient } from '@/lib/supabase/server'
 import { formatCOP, formatFecha, formatHora, hoyBogota } from '@/lib/utils/format'
+import { traerTodo } from '@/lib/utils/traerTodo'
 import { CATEGORIA_GASTO_LABELS, CategoriaGasto } from '@/types'
 
 type Movimiento = {
@@ -40,26 +41,26 @@ export default async function CuentaMovimientosPage({
   const nombrePorId = new Map((cuentasRaw ?? []).map(c => [c.id as string, c.nombre as string]))
 
   const [pagosR, pfR, pmR, trR, gastosR] = await Promise.all([
-    supabase.from('pagos')
+    traerTodo(supabase.from('pagos')
       .select('fecha, monto, creado_en, pedido:pedidos(numero_orden)')
       .eq('cuenta_id', cuentaId).eq('anulado', false).neq('metodo', 'credito')
-      .limit(5000),
-    supabase.from('pagos_factura')
+      .order('id')),
+    traerTodo(supabase.from('pagos_factura')
       .select('fecha, monto, creado_en, factura:facturas(numero_factura)')
       .eq('cuenta_id', cuentaId).eq('anulado', false).neq('metodo', 'credito')
-      .limit(5000),
-    supabase.from('pagos_mensajeria')
+      .order('id')),
+    traerTodo(supabase.from('pagos_mensajeria')
       .select('fecha, monto, creado_en, mensajeria, notas')
       .eq('cuenta_id', cuentaId).eq('tipo', 'pago')
-      .limit(5000),
-    supabase.from('traslados_caja')
+      .order('id')),
+    traerTodo(supabase.from('traslados_caja')
       .select('fecha, monto, creado_en, origen_cuenta_id, destino_cuenta_id, notas')
       .or(`origen_cuenta_id.eq.${cuentaId},destino_cuenta_id.eq.${cuentaId}`)
-      .limit(5000),
-    supabase.from('gastos')
+      .order('id')),
+    traerTodo(supabase.from('gastos')
       .select('fecha, valor, creado_en, categoria, observacion')
       .eq('cuenta_id', cuentaId)
-      .limit(5000),
+      .order('id')),
   ])
 
   const { data: ajustesR } = await supabase
