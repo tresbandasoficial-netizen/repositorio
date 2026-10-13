@@ -43,6 +43,7 @@ export default async function FacturaDetallePage({
           categoria: it.categoria as CategoriaArticulo | null,
           sexo: it.sexo as SexoArticulo | null,
           tieneFicha: !!it.articulo_id,
+          cantidad: it.cantidad,
         })))
 
   // Lista de asesores para el cambio de asesor de la factura (solo admin; la

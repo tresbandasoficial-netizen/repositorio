@@ -153,6 +153,7 @@ export default async function PedidoDetallePage({
                   categoria: it.categoria ?? null,
                   sexo: it.sexo ?? null,
                   tieneFicha: !!it.articulo_id,
+                  cantidad: it.cantidad,
                 }))}
               />
               <DevolucionButton

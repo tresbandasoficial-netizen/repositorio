@@ -112,9 +112,48 @@ export async function registrarDevolucionAction(
 //      (Cartera la cobra allá) y el pedido nuevo queda con nota de aviso. El
 //      saldo total del cliente no cambia ni se duplica.
 
+// entregado=true: lo que se lleva el cliente estaba en la tienda y se entregó de una
+// (venta inmediata, descuenta stock); diferencia = lo que aún debe pagar si el
+// artículo nuevo vale más que el devuelto.
 export type CambioResult =
-  | { ok: true; numeroOrden: string; nuevoPedidoId: string; nuevoNumero: string; abonoTrasladado: number; saldoAFavor: number }
+  | { ok: true; numeroOrden: string; nuevoPedidoId: string; nuevoNumero: string; abonoTrasladado: number; saldoAFavor: number; entregado: boolean; diferencia: number }
   | { ok: false; error: string }
+
+// Unidades disponibles de un artículo+talla en una sede (vista de stock).
+async function stockEnSede(
+  admin: ReturnType<typeof createAdminClient>,
+  articuloId: string,
+  sedeId: string,
+  talla: string | null,
+): Promise<number> {
+  let q = admin.from('vista_stock_por_sede').select('stock').eq('articulo_id', articuloId).eq('sede_id', sedeId)
+  q = talla ? q.eq('talla', talla.trim().toUpperCase()) : q.is('talla', null)
+  const { data } = await q
+  return ((data ?? []) as Array<{ stock: number | null }>).reduce((s, r) => s + (r.stock ?? 0), 0)
+}
+
+// Stock por talla, EN LA SEDE DEL PEDIDO, de la prenda que se va a cambiar: para
+// que la pantalla del cambio avise qué tallas hay en la tienda y se pueda
+// entregar de una en vez de crear un pedido.
+export async function stockParaCambioAction(
+  pedidoId: string,
+  itemId: string,
+): Promise<{ ok: true; tallas: Array<{ talla: string | null; stock: number }> } | { ok: false }> {
+  const sesion = await getSesion()
+  if (sesion.rol === 'visor') return { ok: false }
+  const supabase = await createClient()
+  const { data: pedido } = await supabase.from('pedidos').select('sede_id').eq('id', pedidoId).single()
+  if (!pedido || !puedeAccederSede(sesion, pedido.sede_id)) return { ok: false }
+  const { data: item } = await supabase.from('pedido_items').select('articulo_id').eq('id', itemId).eq('pedido_id', pedidoId).single()
+  if (!item?.articulo_id) return { ok: false }
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('vista_stock_por_sede')
+    .select('talla, stock')
+    .eq('articulo_id', item.articulo_id)
+    .eq('sede_id', pedido.sede_id)
+  return { ok: true, tallas: ((data ?? []) as Array<{ talla: string | null; stock: number }>).map(r => ({ talla: r.talla, stock: r.stock })) }
+}
 
 // Producto elegido del catálogo para un cambio POR OTRO ARTÍCULO: el pedido
 // nuevo se crea directo con él (sin tener que editarlo después).
@@ -136,6 +175,7 @@ export async function registrarCambioAction(
   itemId: string,
   tallaNueva: string | null,   // null = cambio por otro artículo
   nuevoArticulo?: NuevoArticuloCambio | null,  // el otro artículo elegido del catálogo (opcional)
+  entregarYa = false,  // true = lo nuevo está en la tienda: se entrega ya (venta inmediata) en vez de crear un pedido
 ): Promise<CambioResult> {
   const sesion = await getSesion()
   if (sesion.rol === 'visor') return { ok: false, error: 'Sin permisos' }
@@ -173,6 +213,19 @@ export async function registrarCambioAction(
   }
 
   const admin = createAdminClient()
+
+  // Entregar ya: se valida el stock de lo que se lleva ANTES de escribir nada.
+  if (entregarYa) {
+    if (!talla && !nuevoArticulo) {
+      return { ok: false, error: 'Para entregar ya, elige la talla nueva o el artículo nuevo.' }
+    }
+    const destArticulo = (!talla && nuevoArticulo) ? nuevoArticulo.articulo_id : item.articulo_id
+    const destTalla = talla ?? ((!talla && nuevoArticulo) ? (nuevoArticulo.talla?.trim() || null) : (item.talla ?? null))
+    const hay = await stockEnSede(admin, destArticulo, pedido.sede_id, destTalla)
+    if (hay < (item.cantidad || 1)) {
+      return { ok: false, error: `No hay stock en la tienda de ${destTalla ? `la talla ${destTalla}` : 'ese artículo'} (disponibles: ${hay}). Desmarca "entregar ya" para crear el pedido.` }
+    }
+  }
 
   // Candado anti-doble-registro: si ya existe un pedido de cambio vivo para
   // ESTA misma prenda de ESTE pedido, no se repite (un doble clic en SR6901
@@ -292,6 +345,60 @@ export async function registrarCambioAction(
       ? `\n⚠ El artículo nuevo vale $${saldoAFavor.toLocaleString('es-CO')} MENOS que el devuelto — esa diferencia queda a favor del cliente (bono o devolución).`
       : ''
   }`
+  // ENTREGAR YA: lo nuevo está en la tienda → venta inmediata (entregada, descuenta
+  // el stock) con el valor devuelto como abono 'bono' (sin tocar caja). Si lo nuevo
+  // vale más, la diferencia queda como saldo del pedido para cobrarla.
+  if (entregarYa) {
+    const itemEntrega = (!talla && nuevoArticulo)
+      ? {
+          articulo_id:  nuevoArticulo.articulo_id,
+          marca:        nuevoArticulo.marca,
+          descripcion:  nuevoArticulo.descripcion,
+          talla:        nuevoArticulo.talla,
+          cantidad,
+          precio_venta: nuevoArticulo.precio_venta,
+          color:        nuevoArticulo.color,
+          sexo:         nuevoArticulo.sexo,
+          categoria:    nuevoArticulo.categoria,
+        }
+      : {
+          articulo_id:  item.articulo_id,
+          marca:        item.marca,
+          descripcion:  item.descripcion,
+          talla:        talla ?? item.talla,
+          cantidad:     item.cantidad,
+          precio_venta: item.precio_venta,
+          color:        item.color,
+          sexo:         item.sexo,
+          categoria:    item.categoria,
+        }
+    const { data: ventaId, error: errVenta } = await admin.rpc('registrar_venta_inmediata', {
+      p_numero_orden: nuevoNumero,
+      p_sede_id:      pedido.sede_id,
+      p_asesor_id:    sesion.id,
+      p_cliente_id:   pedido.cliente_id,
+      p_total:        totalNuevo,
+      p_items:        [itemEntrega],
+      p_abono:        abonoTrasladado,
+      p_cuenta_id:    null,
+      p_notas:        notaNuevo,
+      p_metodo:       'bono',
+    })
+    if (errVenta || !ventaId) {
+      return { ok: false, error: `La prenda devuelta ya entró al inventario, pero no se pudo entregar la nueva: ${errVenta?.message ?? 'sin respuesta'}. Regístrala como una venta aparte.` }
+    }
+    const fotoNueva = (!talla && nuevoArticulo) ? nuevoArticulo.imagen_url : item.imagen_url
+    if (fotoNueva) await admin.from('pedido_items').update({ imagen_url: fotoNueva }).eq('pedido_id', ventaId as string)
+
+    const notaEntrega = `Cambio: ${item.marca} ${item.descripcion} T${item.talla || '—'} devuelta — se entregó en la venta ${nuevoNumero}`
+    await admin.from('pedidos').update({ notas: pedido.notas ? `${pedido.notas}\n${notaEntrega}` : notaEntrega }).eq('id', pedidoId)
+
+    revalidatePath(`/pedidos/${pedidoId}`)
+    revalidatePath('/pedidos')
+    revalidatePath('/inventario')
+    return { ok: true, numeroOrden: pedido.numero_orden, nuevoPedidoId: ventaId as string, nuevoNumero, abonoTrasladado, saldoAFavor, entregado: true, diferencia: Math.max(0, totalNuevo - abonoTrasladado) }
+  }
+
   const { data: nuevo, error: errNuevo } = await admin
     .from('pedidos')
     .insert({
@@ -369,5 +476,5 @@ export async function registrarCambioAction(
   revalidatePath(`/pedidos/${pedidoId}`)
   revalidatePath('/pedidos')
   revalidatePath('/inventario')
-  return { ok: true, numeroOrden: pedido.numero_orden, nuevoPedidoId: nuevo.id, nuevoNumero, abonoTrasladado, saldoAFavor }
+  return { ok: true, numeroOrden: pedido.numero_orden, nuevoPedidoId: nuevo.id, nuevoNumero, abonoTrasladado, saldoAFavor, entregado: false, diferencia: 0 }
 }

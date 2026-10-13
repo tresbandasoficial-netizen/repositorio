@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { registrarCambioAction, type NuevoArticuloCambio } from '@/app/actions/devoluciones'
+import { registrarCambioAction, stockParaCambioAction, type NuevoArticuloCambio } from '@/app/actions/devoluciones'
 import { TallaSelect } from '@/components/ui/TallaSelect'
 import { BuscadorArticulo, type ArticuloElegido } from '@/components/ui/BuscadorArticulo'
 import type { CategoriaArticulo, SexoArticulo } from '@/types'
@@ -19,13 +19,14 @@ export type ItemCambio = {
   categoria: CategoriaArticulo | null
   sexo: SexoArticulo | null
   tieneFicha: boolean // enlazado al catálogo (necesario para entrar a stock)
+  cantidad?: number   // unidades de la prenda (para comprobar que alcanza el stock)
 }
 
 // Botón "Hacer cambio" (pedidos entregados), en el detalle del pedido y de la
-// factura. El cambio se registra como un PEDIDO NUEVO (talla nueva u otro
-// artículo) que vuelve a la cola del sistema; la prenda devuelta entra al
-// inventario y el valor pagado se traslada como abono al pedido nuevo — sin
-// bonos y sin duplicar plata.
+// factura. La prenda devuelta entra al inventario y el valor pagado se traslada
+// como abono. Si lo que se lleva el cliente HAY en la tienda (stock de la sede),
+// se ofrece entregarlo ya (venta inmediata, descuenta stock); si no hay, el
+// cambio queda como PEDIDO NUEVO en la cola del sistema.
 // sedeId/sedeCodigo: sede del pedido. El stock que se muestra al buscar el
 // artículo nuevo es SOLO el de esa sede (sin esto sumaba el de todas las sedes y
 // aparecían tallas que en la tienda no hay).
@@ -43,9 +44,34 @@ export function CambioTallaButton({ items, sedeId = null, sedeCodigo }: { items:
   const [nuevoPrecio, setNuevoPrecio] = useState('')
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [listo, setListo] = useState<{ nuevoPedidoId: string; nuevoNumero: string; abonoTrasladado: number; saldoAFavor: number } | null>(null)
+  const [listo, setListo] = useState<{ nuevoPedidoId: string; nuevoNumero: string; abonoTrasladado: number; saldoAFavor: number; entregado: boolean; diferencia: number } | null>(null)
+  // Stock por talla de la prenda a cambiar, en la sede (modo "otra talla").
+  const [stockTallas, setStockTallas] = useState<Array<{ talla: string | null; stock: number }>>([])
+  // Entregar ya lo que hay en la tienda (marcado por defecto cuando hay).
+  const [entregarYa, setEntregarYa] = useState(true)
 
   const item = items.find(i => i.id === itemSel)
+
+  useEffect(() => {
+    if (!abierto || !item || modo !== 'talla') return
+    let cancelado = false
+    setStockTallas([])
+    stockParaCambioAction(item.pedidoId, item.id).then(r => {
+      if (!cancelado && r.ok) setStockTallas(r.tallas)
+    })
+    return () => { cancelado = true }
+  }, [abierto, item, modo])
+
+  const cantidadItem = item?.cantidad ?? 1
+  const claveTalla = (t: string | null | undefined) => (t ?? '').trim().toUpperCase()
+  // Unidades que HAY en la tienda de lo que se va a llevar el cliente.
+  const stockDestino = modo === 'talla'
+    ? (tallaNueva.trim() ? (stockTallas.find(t => claveTalla(t.talla) === claveTalla(tallaNueva))?.stock ?? 0) : null)
+    : (nuevoArt && (nuevaTallaOtro.trim() || nuevoArt.categoria === 'accesorios')
+        ? (nuevoArt.tallas.find(t => claveTalla(t.talla) === claveTalla(nuevaTallaOtro))?.stock ?? 0)
+        : null)
+  const hayEnTienda = stockDestino != null && stockDestino >= cantidadItem
+  const entregar = hayEnTienda && entregarYa
   const precioNum = parseInt(nuevoPrecio.replace(/\D/g, ''), 10) || 0
   const puedeRegistrar = !!itemSel && (
     modo === 'talla' ? !!tallaNueva.trim() : (!nuevoArt || precioNum > 0)
@@ -64,12 +90,12 @@ export function CambioTallaButton({ items, sedeId = null, sedeCodigo }: { items:
     if (!confirm(
       `¿Registrar el cambio?\n\n` +
       `• ${item?.label} (T${item?.talla || '—'}) se devuelve y ENTRA al inventario\n` +
-      `• Se crea un PEDIDO NUEVO ${
+      `• ${entregar ? 'Se ENTREGA YA (sale de la tienda)' : 'Se crea un PEDIDO NUEVO'} ${
         modo === 'talla' ? `con la talla ${tallaNueva.trim()}`
         : conProducto ? `con ${nuevoArt!.marca} ${nuevoArt!.nombre}${nuevaTallaOtro ? ` T${nuevaTallaOtro}` : ''} ($${precioNum.toLocaleString('es-CO')})`
         : 'con el mismo artículo (edítalo para poner el nuevo)'
       }\n` +
-      `• El valor pagado pasa como abono al pedido nuevo (sin bonos, sin plata doble)`
+      `• El valor pagado pasa como abono (sin bonos, sin plata doble)`
     )) return
     setCargando(true)
     setError(null)
@@ -85,7 +111,7 @@ export function CambioTallaButton({ items, sedeId = null, sedeCodigo }: { items:
       sexo:         nuevoArt!.sexo,
       categoria:    nuevoArt!.categoria,
     } : null
-    const r = await registrarCambioAction(item!.pedidoId, itemSel, modo === 'talla' ? tallaNueva : null, payload)
+    const r = await registrarCambioAction(item!.pedidoId, itemSel, modo === 'talla' ? tallaNueva : null, payload, entregar)
     setCargando(false)
     if (!r.ok) { setError(r.error); return }
     setListo(r)
@@ -95,7 +121,7 @@ export function CambioTallaButton({ items, sedeId = null, sedeCodigo }: { items:
   return (
     <>
       <button
-        onClick={() => { setAbierto(true); setError(null); setListo(null); setTallaNueva(''); setModo('talla'); setBusqueda(''); setNuevoArt(null); setNuevaTallaOtro(''); setNuevoPrecio('') }}
+        onClick={() => { setAbierto(true); setError(null); setListo(null); setEntregarYa(true); setTallaNueva(''); setModo('talla'); setBusqueda(''); setNuevoArt(null); setNuevaTallaOtro(''); setNuevoPrecio('') }}
         className="text-sm bg-white border border-sky-300 hover:bg-sky-50 px-3.5 py-2 rounded-xl font-medium text-sky-700 transition-colors inline-flex items-center gap-1.5"
       >
         <Repeat size={15} /> Hacer cambio
@@ -113,13 +139,29 @@ export function CambioTallaButton({ items, sedeId = null, sedeCodigo }: { items:
                 <h3 className="text-base font-bold text-gray-900">✅ Cambio registrado</h3>
                 <div className="text-sm text-gray-700 space-y-1.5">
                   <p>• La prenda devuelta entró al inventario.</p>
-                  <p>
-                    • Se creó el pedido nuevo{' '}
-                    <Link href={`/pedidos/${listo.nuevoPedidoId}`} className="font-mono font-bold text-blue-600 hover:underline">
-                      {listo.nuevoNumero}
-                    </Link>{' '}
-                    en estado <strong>Pendiente</strong> — ya aparece en el sistema para pedirlo.
-                  </p>
+                  {listo.entregado ? (
+                    <p>
+                      • <strong>Se entregó ya</strong> lo que hay en la tienda (venta{' '}
+                      <Link href={`/pedidos/${listo.nuevoPedidoId}`} className="font-mono font-bold text-blue-600 hover:underline">
+                        {listo.nuevoNumero}
+                      </Link>
+                      ) y salió del stock de la sede.
+                    </p>
+                  ) : (
+                    <p>
+                      • Se creó el pedido nuevo{' '}
+                      <Link href={`/pedidos/${listo.nuevoPedidoId}`} className="font-mono font-bold text-blue-600 hover:underline">
+                        {listo.nuevoNumero}
+                      </Link>{' '}
+                      en estado <strong>Pendiente</strong> — ya aparece en el sistema para pedirlo.
+                    </p>
+                  )}
+                  {listo.entregado && listo.diferencia > 0 && (
+                    <p className="text-amber-700">
+                      ⚠ Lo que se lleva vale <strong>${listo.diferencia.toLocaleString('es-CO')} más</strong>: cóbrale esa diferencia
+                      y regístrala como pago en la venta {listo.nuevoNumero}.
+                    </p>
+                  )}
                   <p>• Abono trasladado al pedido nuevo: <strong>{listo.abonoTrasladado.toLocaleString('es-CO')}</strong> (sin bonos, la plata no se cuenta dos veces).</p>
                   {listo.saldoAFavor > 0 && (
                     <p className="text-amber-700">
@@ -135,15 +177,16 @@ export function CambioTallaButton({ items, sedeId = null, sedeCodigo }: { items:
                   href={`/pedidos/${listo.nuevoPedidoId}`}
                   className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl py-2.5 text-center"
                 >
-                  Abrir el pedido nuevo
+                  {listo.entregado ? 'Abrir la venta' : 'Abrir el pedido nuevo'}
                 </Link>
               </>
             ) : (
               <>
                 <h3 className="text-base font-bold text-gray-900">Hacer cambio</h3>
                 <p className="text-xs text-gray-500">
-                  La prenda devuelta entra al inventario y el cambio queda como un <strong>pedido nuevo</strong> en
-                  la cola del sistema, con el valor pagado trasladado como abono. El pedido original no se toca.
+                  La prenda devuelta entra al inventario. Si lo que se lleva el cliente <strong>hay en la tienda</strong>,
+                  se entrega ya; si no, queda como un <strong>pedido nuevo</strong> en la cola del sistema. El valor pagado
+                  pasa como abono. El pedido original no se toca.
                 </p>
 
                 {items.length > 1 && (
@@ -214,10 +257,37 @@ export function CambioTallaButton({ items, sedeId = null, sedeCodigo }: { items:
                         sexo={item.sexo}
                         value={tallaNueva}
                         onChange={setTallaNueva}
+                        stockPorTalla={Object.fromEntries(
+                          stockTallas.filter(t => t.talla).map(t => [claveTalla(t.talla), t.stock])
+                        )}
                         className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
                       />
                     </div>
                   </div>
+                )}
+
+                {/* ¿Hay en la tienda lo que se lleva? → entregarlo ya, sin crear pedido */}
+                {stockDestino != null && (
+                  hayEnTienda ? (
+                    <label className="flex items-start gap-2 rounded-xl border border-green-300 bg-green-50 px-3 py-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={entregarYa}
+                        onChange={e => setEntregarYa(e.target.checked)}
+                        className="mt-0.5 w-4 h-4 accent-green-600"
+                      />
+                      <span className="text-sm text-green-900">
+                        <strong>Hay {stockDestino} en la tienda{sedeCodigo ? ` (${sedeCodigo})` : ''}</strong> — entregarlo ahora.
+                        <span className="block text-xs text-green-800/80">
+                          {entregarYa ? 'Sale del stock y NO se crea pedido.' : 'Desmarcado: se creará un pedido pendiente.'}
+                        </span>
+                      </span>
+                    </label>
+                  ) : (
+                    <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                      No hay en la tienda{sedeCodigo ? ` (${sedeCodigo})` : ''} esa talla: el cambio quedará como <strong>pedido pendiente</strong>.
+                    </p>
+                  )
                 )}
 
                 {modo === 'otro' && (
