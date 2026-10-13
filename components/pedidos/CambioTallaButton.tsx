@@ -26,7 +26,10 @@ export type ItemCambio = {
 // artículo) que vuelve a la cola del sistema; la prenda devuelta entra al
 // inventario y el valor pagado se traslada como abono al pedido nuevo — sin
 // bonos y sin duplicar plata.
-export function CambioTallaButton({ items }: { items: ItemCambio[] }) {
+// sedeId/sedeCodigo: sede del pedido. El stock que se muestra al buscar el
+// artículo nuevo es SOLO el de esa sede (sin esto sumaba el de todas las sedes y
+// aparecían tallas que en la tienda no hay).
+export function CambioTallaButton({ items, sedeId = null, sedeCodigo }: { items: ItemCambio[]; sedeId?: string | null; sedeCodigo?: string }) {
   const router = useRouter()
   const [abierto, setAbierto] = useState(false)
   const [itemSel, setItemSel] = useState<string | null>(items.length === 1 ? items[0].id : null)
@@ -226,6 +229,8 @@ export function CambioTallaButton({ items }: { items: ItemCambio[] }) {
                         onCambiarTexto={v => { setBusqueda(v); if (nuevoArt) setNuevoArt(null) }}
                         onElegir={elegirNuevo}
                         estado={nuevoArt ? true : undefined}
+                        sedeId={sedeId}
+                        sedeCodigo={sedeCodigo}
                         placeholder="Código, nombre o marca del artículo nuevo…"
                         className={`mt-1 w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 ${
                           nuevoArt ? 'border-green-400 focus:ring-green-400' : 'border-gray-200 focus:ring-sky-500'

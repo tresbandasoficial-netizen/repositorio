@@ -143,6 +143,8 @@ export default async function PedidoDetallePage({
           {!esSaldo && pedido.estado === 'entregado' && (
             <>
               <CambioTallaButton
+                sedeId={pedido.sede_id}
+                sedeCodigo={pedido.sede_codigo}
                 items={pedido.items.map((it: any) => ({
                   id: it.id,
                   pedidoId: id,

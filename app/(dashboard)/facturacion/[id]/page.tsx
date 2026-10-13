@@ -84,7 +84,7 @@ export default async function FacturaDetallePage({
             className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 text-white px-4 py-2 text-sm font-medium hover:bg-gray-800">
             🧾 Generar imagen para el cliente
           </Link>
-          {itemsCambio.length > 0 && <CambioTallaButton items={itemsCambio} />}
+          {itemsCambio.length > 0 && <CambioTallaButton items={itemsCambio} sedeId={factura.sede_id} sedeCodigo={factura.sede_codigo} />}
           {/* Si la factura no se creó con domicilio, permitir crearlo aquí (respaldo). */}
           {!factura.domicilio && (
             <DomicilioDesdeFacturaPanel
