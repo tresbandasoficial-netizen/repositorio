@@ -45,6 +45,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
+  console.log('[whatsapp] webhook recibido')
   const mensajes = (payload.entry ?? [])
     .flatMap(e => e.changes ?? [])
     .flatMap(c => c.value?.messages ?? [])
@@ -66,6 +67,7 @@ export async function POST(req: NextRequest) {
             ? await responder(m.text.body)
             : 'Por ahora solo entiendo mensajes de texto.'
           await enviarTexto(numero, respuesta)
+          console.log(`[whatsapp] respuesta enviada a ...${numero.slice(-4)}`)
         }
       } catch (e) {
         console.error('[whatsapp] error procesando mensajes:', e)
