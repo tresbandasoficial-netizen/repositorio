@@ -62,7 +62,9 @@ export async function POST(req: NextRequest) {
         const autorizados = await numerosAutorizados()
         for (const m of mensajes) {
           const numero = m.from!.replace(/\D/g, '')
-          if (!autorizados.includes(numero)) continue
+          const ok = autorizados.includes(numero)
+          console.log(`[whatsapp] mensaje de ...${numero.slice(-4)} tipo=${m.type} autorizado=${ok}`)
+          if (!ok) continue
           const respuesta = m.type === 'text' && m.text?.body
             ? await responder(m.text.body)
             : 'Por ahora solo entiendo mensajes de texto.'
