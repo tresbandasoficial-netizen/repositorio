@@ -32,9 +32,11 @@ type MensajeEntrante = { from?: string; id?: string; type?: string; text?: { bod
 export async function POST(req: NextRequest) {
   const cuerpo = await req.text()
   if (!process.env.WHATSAPP_APP_SECRET) {
+    console.error('[whatsapp] falta la variable WHATSAPP_APP_SECRET en Vercel')
     return NextResponse.json({ error: 'Service unavailable' }, { status: 503 })
   }
   if (!firmaValida(cuerpo, req.headers.get('x-hub-signature-256'))) {
+    console.error('[whatsapp] firma inválida: la clave secreta de la app (WHATSAPP_APP_SECRET) no coincide con la de Meta')
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
