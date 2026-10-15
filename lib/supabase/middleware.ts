@@ -74,7 +74,9 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith('/api/shopify') ||
     // Webhook de WhatsApp (Meta): lo llama Meta sin cookie. Se protege por su
     // cuenta con la firma HMAC y solo responde a números autorizados.
-    pathname.startsWith('/api/whatsapp')
+    pathname.startsWith('/api/whatsapp') ||
+    // Política de privacidad pública (la exige Meta para publicar la app de WhatsApp).
+    pathname === '/privacidad'
 
   if (!user && !isPublicPath) {
     const url = request.nextUrl.clone()
