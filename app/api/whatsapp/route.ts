@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
 }
 
 type MensajeEntrante = { from?: string; id?: string; type?: string; text?: { body?: string } }
+type EstadoEntrega = { id?: string; status?: string; recipient_id?: string; errors?: Array<{ code?: number; title?: string; message?: string }> }
 
 export async function POST(req: NextRequest) {
   const cuerpo = await req.text()
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  let payload: { entry?: Array<{ changes?: Array<{ value?: { messages?: MensajeEntrante[] } }> }> }
+  let payload: { entry?: Array<{ changes?: Array<{ value?: { messages?: MensajeEntrante[]; statuses?: EstadoEntrega[] } }> }> }
   try {
     payload = JSON.parse(cuerpo)
   } catch {
@@ -48,6 +49,9 @@ export async function POST(req: NextRequest) {
   }
 
   console.log('[whatsapp] webhook recibido')
+  for (const st of (payload.entry ?? []).flatMap(e => e.changes ?? []).flatMap(c => c.value?.statuses ?? [])) {
+    console.log(`[whatsapp] estado de entrega: ${st.status} para ...${(st.recipient_id ?? '').slice(-4)}${st.errors?.length ? ' error ' + st.errors.map(e => `${e.code} ${e.title ?? ''} ${e.message ?? ''}`).join('; ') : ''}`)
+  }
   const mensajes = (payload.entry ?? [])
     .flatMap(e => e.changes ?? [])
     .flatMap(c => c.value?.messages ?? [])
