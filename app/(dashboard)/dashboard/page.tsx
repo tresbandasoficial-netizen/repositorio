@@ -239,6 +239,58 @@ export default async function DashboardPage({
           </div>
         </div>
 
+        {/* KPI row — Ventas por origen: pedidos (encargos) vs productos de tienda
+            (venta inmediata, salen del stock). Suman lo mismo que "Ventas del mes". */}
+        <div>
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 px-1">Vendido: pedidos vs tienda</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100">
+              <div className="flex items-start justify-between mb-3">
+                <p className="text-sm font-semibold text-gray-500">Pedidos (encargos)</p>
+                <div className="w-9 h-9 rounded-2xl bg-violet-50 flex items-center justify-center shrink-0">
+                  <Package size={17} className="text-violet-600" />
+                </div>
+              </div>
+              <p className="text-3xl font-bold tracking-tight text-gray-900 mb-1">{formatCOP(m.encargos_mes_ventas)}</p>
+              <p className="text-xs text-gray-400 mb-3">{m.encargos_mes} pedidos este mes</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-xl bg-gray-50 px-3 py-2">
+                  <p className="text-[10px] text-gray-400 uppercase">Hoy</p>
+                  <p className="text-sm font-bold text-gray-900">{formatCOP(m.encargos_hoy_ventas)}</p>
+                  <p className="text-[10px] text-gray-400">{m.encargos_hoy} pedidos</p>
+                </div>
+                <div className="rounded-xl bg-gray-50 px-3 py-2">
+                  <p className="text-[10px] text-gray-400 uppercase">Esta semana</p>
+                  <p className="text-sm font-bold text-gray-900">{formatCOP(m.encargos_semana_ventas)}</p>
+                  <p className="text-[10px] text-gray-400">{m.encargos_semana} pedidos</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100">
+              <div className="flex items-start justify-between mb-3">
+                <p className="text-sm font-semibold text-gray-500">Productos de tienda</p>
+                <div className="w-9 h-9 rounded-2xl bg-emerald-50 flex items-center justify-center shrink-0">
+                  <Store size={17} className="text-emerald-600" />
+                </div>
+              </div>
+              <p className="text-3xl font-bold tracking-tight text-gray-900 mb-1">{formatCOP(m.tienda_mes_ventas)}</p>
+              <p className="text-xs text-gray-400 mb-3">{m.tienda_mes} ventas este mes</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-xl bg-gray-50 px-3 py-2">
+                  <p className="text-[10px] text-gray-400 uppercase">Hoy</p>
+                  <p className="text-sm font-bold text-gray-900">{formatCOP(m.tienda_hoy_ventas)}</p>
+                  <p className="text-[10px] text-gray-400">{m.tienda_hoy} ventas</p>
+                </div>
+                <div className="rounded-xl bg-gray-50 px-3 py-2">
+                  <p className="text-[10px] text-gray-400 uppercase">Esta semana</p>
+                  <p className="text-sm font-bold text-gray-900">{formatCOP(m.tienda_semana_ventas)}</p>
+                  <p className="text-[10px] text-gray-400">{m.tienda_semana} ventas</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* KPI row — Facturación del mes: lo ya entregado y facturado, partido
             entre lo pagado de contado y lo que salió a crédito */}
         <div>

@@ -307,6 +307,20 @@ export type MetricasAdmin = {
   ventas_hoy: number
   ventas_semana: number
   ventas_mes: number
+  // Ventas partidas por origen: "pedidos" = encargos (se piden al proveedor) y
+  // "tienda" = venta inmediata (productos que salen del stock de la tienda).
+  encargos_hoy: number
+  encargos_hoy_ventas: number
+  encargos_semana: number
+  encargos_semana_ventas: number
+  encargos_mes: number
+  encargos_mes_ventas: number
+  tienda_hoy: number
+  tienda_hoy_ventas: number
+  tienda_semana: number
+  tienda_semana_ventas: number
+  tienda_mes: number
+  tienda_mes_ventas: number
   pedidos_en_alerta: number
   pedidos_zombie: number
   ticket_promedio: number

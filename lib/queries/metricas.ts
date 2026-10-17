@@ -32,7 +32,7 @@ export async function getMetricasAdmin(sedeId?: string | null): Promise<Metricas
 
   let qHoy = supabase
     .from('pedidos')
-    .select('total', { count: 'exact' })
+    .select('total, tipo', { count: 'exact' })
     .gte('fecha_creacion', hoyInicio())
     .neq('estado', 'cancelado')
     .neq('tipo', 'saldo_anterior')
@@ -41,7 +41,7 @@ export async function getMetricasAdmin(sedeId?: string | null): Promise<Metricas
 
   let qSemana = supabase
     .from('pedidos')
-    .select('total', { count: 'exact' })
+    .select('total, tipo', { count: 'exact' })
     .gte('fecha_creacion', hace(7))
     .neq('estado', 'cancelado')
     .neq('tipo', 'saldo_anterior')
@@ -50,7 +50,7 @@ export async function getMetricasAdmin(sedeId?: string | null): Promise<Metricas
 
   let qMes = supabase
     .from('pedidos')
-    .select('total', { count: 'exact' })
+    .select('total, tipo', { count: 'exact' })
     .gte('fecha_creacion', inicioMes())
     .neq('estado', 'cancelado')
     .neq('tipo', 'saldo_anterior')
@@ -121,6 +121,19 @@ export async function getMetricasAdmin(sedeId?: string | null): Promise<Metricas
   const ventasSemana = sumarTotal(pedidosSemana.data ?? [])
   const ventasMes   = sumarTotal(pedidosMes.data ?? [])
 
+  // Partir por origen: tienda = venta_inmediata; pedidos = todo lo demás (encargos).
+  const partir = (rows: Array<{ total: number; tipo: string }> | null) => {
+    const r = { encargos: 0, encargos_ventas: 0, tienda: 0, tienda_ventas: 0 }
+    for (const p of rows ?? []) {
+      if (p.tipo === 'venta_inmediata') { r.tienda += 1; r.tienda_ventas += p.total ?? 0 }
+      else { r.encargos += 1; r.encargos_ventas += p.total ?? 0 }
+    }
+    return r
+  }
+  const origenHoy    = partir(pedidosHoy.data as Array<{ total: number; tipo: string }> | null)
+  const origenSemana = partir(pedidosSemana.data as Array<{ total: number; tipo: string }> | null)
+  const origenMes    = partir(pedidosMes.data as Array<{ total: number; tipo: string }> | null)
+
   const countMes    = pedidosMes.count ?? 0
   const ticketPromedio = countMes > 0 ? Math.round(ventasMes / countMes) : 0
 
@@ -158,6 +171,18 @@ export async function getMetricasAdmin(sedeId?: string | null): Promise<Metricas
     ventas_hoy:       ventasHoy,
     ventas_semana:    ventasSemana,
     ventas_mes:       ventasMes,
+    encargos_hoy:           origenHoy.encargos,
+    encargos_hoy_ventas:    origenHoy.encargos_ventas,
+    encargos_semana:        origenSemana.encargos,
+    encargos_semana_ventas: origenSemana.encargos_ventas,
+    encargos_mes:           origenMes.encargos,
+    encargos_mes_ventas:    origenMes.encargos_ventas,
+    tienda_hoy:             origenHoy.tienda,
+    tienda_hoy_ventas:      origenHoy.tienda_ventas,
+    tienda_semana:          origenSemana.tienda,
+    tienda_semana_ventas:   origenSemana.tienda_ventas,
+    tienda_mes:             origenMes.tienda,
+    tienda_mes_ventas:      origenMes.tienda_ventas,
     pedidos_en_alerta: pedidosEnAlerta,
     pedidos_zombie:   pedidosZombie,
     ticket_promedio:  ticketPromedio,
