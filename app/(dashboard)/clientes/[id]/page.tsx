@@ -108,6 +108,17 @@ export default async function ClienteDetallePage({
     .reduce((sum, p) => sum + p.total_pagado, 0)
 
   const saldoTotal = totalComprado - totalPagado
+
+  // Lo que debe de verdad = solo lo ya entregado/facturado, con TODOS sus abonos
+  // descontados (mig. 211). Lo de pedidos sin entregar se muestra aparte, sin
+  // sumarlo a la deuda. Si el cliente no sale en la vista, no debe nada.
+  const { data: cartera } = await supabase
+    .from('vista_cartera_clientes')
+    .select('saldo_entregado, saldo_proceso')
+    .eq('id', id)
+    .maybeSingle()
+  const debeEntregado = cartera?.saldo_entregado ?? 0
+  const porEntregar = cartera?.saldo_proceso ?? 0
   const meses = comprasPorMes(cliente.pedidos)
 
   // Fotos de los artículos de cada pedido (mig. 199): tira en el historial.
@@ -177,10 +188,13 @@ export default async function ClienteDetallePage({
         </Card>
         <Card>
           <CardContent className="py-4 text-center">
-            <p className={`text-lg font-bold ${saldoTotal > 0 ? 'text-red-600' : 'text-green-600'}`}>
-              {formatCOP(saldoTotal)}
+            <p className={`text-lg font-bold ${debeEntregado > 0 ? 'text-red-600' : 'text-green-600'}`}>
+              {formatCOP(debeEntregado)}
             </p>
-            <p className="text-xs text-gray-500 mt-1">Saldo pendiente</p>
+            <p className="text-xs text-gray-500 mt-1">Debe (entregado)</p>
+            {porEntregar > 0 && (
+              <p className="text-[10px] text-gray-400 mt-0.5">+ {formatCOP(porEntregar)} en pedidos sin entregar (no cuenta)</p>
+            )}
           </CardContent>
         </Card>
       </div>
