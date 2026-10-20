@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { getMetricasAdmin, getMetricasAsesor, getMetricasPorSede, getMetricasPorAsesor, getUltimosPedidosAsesor, getVentasMensualesAsesor, getDeudaPorSede, getResumenSedesMes } from '@/lib/queries/metricas'
+import { getMetricasAdmin, getMetricasAsesor, getMetricasPorSede, getMetricasPorAsesor, getUltimosPedidosAsesor, getVentasMensualesAsesor, getDeudaEntregadaPorSede, getResumenSedesMes } from '@/lib/queries/metricas'
 import { getEstadisticas } from '@/lib/queries/estadisticas'
 import { ComprasChart } from '@/components/clientes/ComprasChart'
 import { PedidosAreaChart } from '@/components/dashboard/PedidosAreaChart'
@@ -160,7 +160,7 @@ export default async function DashboardPage({
       getMetricasPorAsesor(),
       getEstadisticas(30),
       getEstadisticas(60),   // para comparar contra los 30 días anteriores
-      getDeudaPorSede(),
+      getDeudaEntregadaPorSede(),   // por cobrar = solo lo ya entregado/facturado
       getResumenSedesMes(),
     ])
     // Días del período ANTERIOR (los 30 previos al rango actual)
@@ -327,7 +327,7 @@ export default async function DashboardPage({
         {/* KPI row 2 — Cartera */}
         <div>
           <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 px-1">Cartera</p>
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <KpiCard label="Abonos del mes"  valor={formatCOP(m.abonos_mes)}    icon={Wallet}        iconColor="text-emerald-600" iconBg="bg-emerald-50" />
             <KpiCard
               label="Cartera facturada"
@@ -337,14 +337,6 @@ export default async function DashboardPage({
               iconColor="text-orange-600"
               iconBg="bg-orange-50"
               alerta={m.cartera_entregado > 0}
-            />
-            <KpiCard
-              label="Cartera de pedidos"
-              valor={formatCOP(m.cartera_pedidos)}
-              sub={`pedidos sin entregar (por llegar) · ${m.cartera_pedidos_clientes} clientes`}
-              icon={Package}
-              iconColor="text-sky-600"
-              iconBg="bg-sky-50"
             />
             <KpiCard label="En alerta"       valor={m.pedidos_en_alerta}         icon={AlertTriangle} iconColor="text-red-500"     iconBg="bg-red-50"     alerta={m.pedidos_en_alerta > 0} />
             <KpiCard label="Zombis"          valor={m.pedidos_zombie}             icon={Skull}         iconColor="text-orange-500"  iconBg="bg-orange-50"  alerta={m.pedidos_zombie > 0} />
@@ -378,7 +370,7 @@ export default async function DashboardPage({
             <div className="space-y-3">
               <div className="flex items-center justify-between px-1">
                 <h3 className="text-sm font-bold text-gray-900">Por sede</h3>
-                <span className="text-xs text-gray-400">Total por cobrar: <span className="font-bold text-amber-800">{formatCOP(deudaTotal)}</span></span>
+                <span className="text-xs text-gray-400">Total por cobrar (entregado):<span className="font-bold text-amber-800">{formatCOP(deudaTotal)}</span></span>
               </div>
 
               {/* Cada sede en su propia tarjeta */}

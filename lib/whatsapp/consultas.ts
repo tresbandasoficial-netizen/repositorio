@@ -206,15 +206,17 @@ export async function consultarStock(busqueda: string, sede?: string) {
 // Cartera: lo que los clientes deben. Con texto, filtra por nombre/teléfono/cédula.
 export async function consultarCartera(busqueda?: string) {
   const supabase = createAdminClient()
-  const todo = await traerTodo<{ saldo: number }>(
-    supabase.from('vista_cartera_clientes').select('saldo').order('id'),
+  // La deuda cuenta SOLO lo ya entregado/facturado; los pedidos sin entregar no suman.
+  const todo = await traerTodo<{ saldo_entregado: number }>(
+    supabase.from('vista_cartera_clientes').select('saldo_entregado').gt('saldo_entregado', 0).order('id'),
   )
   if (todo.error) return { error: todo.error.message }
 
   let q = supabase
     .from('vista_cartera_clientes')
-    .select('nombre, saldo, saldo_entregado, saldo_proceso')
-    .order('saldo', { ascending: false })
+    .select('nombre, saldo_entregado')
+    .gt('saldo_entregado', 0)
+    .order('saldo_entregado', { ascending: false })
     .limit(10)
   const b = terminoBusquedaSeguro(busqueda ?? '')
   if (b) q = q.or(`nombre.ilike.%${b}%,telefono_normalizado.ilike.%${b}%,cedula.ilike.%${b}%`)
@@ -223,11 +225,11 @@ export async function consultarCartera(busqueda?: string) {
 
   return {
     clientes_con_deuda: todo.data.length,
-    cartera_total_cop: todo.data.reduce((s, x) => s + (x.saldo ?? 0), 0),
+    cartera_total_cop: todo.data.reduce((s, x) => s + (x.saldo_entregado ?? 0), 0),
+    nota: 'Solo cuenta lo ya entregado/facturado; los pedidos sin entregar no se suman a la deuda.',
     [b ? 'resultado_busqueda' : 'mayores_deudores']: (data ?? []).map(c => ({
       nombre: c.nombre,
-      debe_cop: c.saldo,
-      de_eso_ya_entregado_cop: c.saldo_entregado,
+      debe_cop: c.saldo_entregado,
     })),
   }
 }

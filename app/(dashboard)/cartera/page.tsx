@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getCartera, getTotalCartera, type TipoDeuda } from '@/lib/queries/cartera'
 import { getDescuadresCartera } from '@/lib/queries/descuadres'
-import { getDeudaPorSede } from '@/lib/queries/metricas'
+import { getDeudaEntregadaPorSede } from '@/lib/queries/metricas'
 import { formatCOP } from '@/lib/utils/format'
 import { formatearTelefono } from '@/lib/utils/phone'
 import { ClientesBusqueda } from '@/components/clientes/ClientesBusqueda'
@@ -33,8 +33,10 @@ export default async function CarteraPage({
   const { data: sedesRaw } = await supabase.from('sedes').select('id, codigo, nombre').order('codigo')
   const sedes = (sedesRaw ?? []) as { id: string; codigo: string; nombre: string }[]
 
-  const { q, pagina: paginaParam, sede: sedeParam, tipo: tipoParam } = await searchParams
-  const tipo: TipoDeuda | undefined = tipoParam === 'entregado' || tipoParam === 'proceso' ? tipoParam : undefined
+  const { q, pagina: paginaParam, sede: sedeParam } = await searchParams
+  // La cartera cuenta SOLO lo ya entregado/facturado: lo que aún no se entrega
+  // no es deuda del cliente (ni suma ni resta), se cobra cuando se entregue.
+  const tipo: TipoDeuda = 'entregado'
   const pagina = Math.max(1, parseInt(paginaParam ?? '1', 10) || 1)
   // Validar la sede contra las sedes reales; si no es válida, se ignora el
   // filtro. Sin ser admin, la sede va FIJA en Santa Rosa.
@@ -43,16 +45,14 @@ export default async function CarteraPage({
   const [resultado, carteraTotal, deudaSedes, descuadres] = await Promise.all([
     getCartera({ busqueda: q, pagina, sede, tipo }),
     getTotalCartera(sede),
-    getDeudaPorSede(),
+    getDeudaEntregadaPorSede(),
     esAdmin ? getDescuadresCartera() : Promise.resolve([]),
   ])
   const { clientes, total, totalPaginas } = resultado
   // Con búsqueda o paginación las sumas globales no aplican: se suman las filas
   // visibles (igual que siempre hizo el saldo total).
   const usarGlobal = pagina === 1 && !q
-  const totalSaldo = usarGlobal ? carteraTotal.saldo : resultado.totalSaldo
   const carteraFacturada = usarGlobal ? carteraTotal.entregado : resultado.totalEntregado
-  const carteraPedidos = usarGlobal ? carteraTotal.proceso : resultado.totalProceso
 
   const desde = total === 0 ? 0 : (pagina - 1) * 30 + 1
   const hasta = Math.min(pagina * 30, total)
@@ -61,7 +61,6 @@ export default async function CarteraPage({
     const params = new URLSearchParams()
     if (q) params.set('q', q)
     if (sede) params.set('sede', sede)
-    if (tipo) params.set('tipo', tipo)
     if (p > 1) params.set('pagina', p.toString())
     const qs = params.toString()
     return `/cartera${qs ? `?${qs}` : ''}`
@@ -72,17 +71,6 @@ export default async function CarteraPage({
     const params = new URLSearchParams()
     if (q) params.set('q', q)
     if (codigo) params.set('sede', codigo)
-    if (tipo) params.set('tipo', tipo)
-    const qs = params.toString()
-    return `/cartera${qs ? `?${qs}` : ''}`
-  }
-
-  // URL para el filtro por tipo de deuda (preserva búsqueda y sede).
-  function tipoUrl(t: TipoDeuda | null) {
-    const params = new URLSearchParams()
-    if (q) params.set('q', q)
-    if (sede) params.set('sede', sede)
-    if (t) params.set('tipo', t)
     const qs = params.toString()
     return `/cartera${qs ? `?${qs}` : ''}`
   }
@@ -96,9 +84,7 @@ export default async function CarteraPage({
           <p className="text-sm text-gray-500 mt-0.5">
             {total === 0
               ? 'Sin saldos pendientes'
-              : `${desde}–${hasta} de ${total} cliente${total !== 1 ? 's' : ''} ${
-                  tipo === 'entregado' ? 'que deben lo ya entregado' : tipo === 'proceso' ? 'que deben pedidos sin entregar' : 'con saldo'
-                }`}
+              : `${desde}–${hasta} de ${total} cliente${total !== 1 ? 's' : ''} que deben lo ya entregado o facturado`}
             {sede && ` · ${sedeNombre}`}
             {q && ` para "${q}"`}
           </p>
@@ -142,33 +128,19 @@ export default async function CarteraPage({
 
       {/* Resumen: la cartera partida en sus dos bolsillos + el total */}
       {total > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+        <div className="grid grid-cols-2 gap-3 mb-6">
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">
-              Clientes con saldo
+              Clientes que deben
             </p>
             <p className="text-2xl font-bold text-gray-900">{total}</p>
           </div>
           <div className="rounded-xl border border-red-200 bg-red-50 p-4">
             <p className="text-xs text-red-500 font-medium uppercase tracking-wide mb-1">
-              Cartera facturada
+              {sede ? `Cartera ${sedeNombre}` : (pagina > 1 || q ? 'Cartera (filtrada)' : 'Cartera facturada')}
             </p>
             <p className="text-2xl font-bold text-red-700">{formatCOP(carteraFacturada)}</p>
-            <p className="text-[10px] text-red-400 mt-0.5">entregado / facturado a crédito — deuda por cobrar ya</p>
-          </div>
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-            <p className="text-xs text-amber-600 font-medium uppercase tracking-wide mb-1">
-              Cartera de pedidos
-            </p>
-            <p className="text-2xl font-bold text-amber-700">{formatCOP(carteraPedidos)}</p>
-            <p className="text-[10px] text-amber-500 mt-0.5">pedidos sin entregar — se cobra al entregar</p>
-          </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">
-              {sede ? `Cartera ${sedeNombre}` : (pagina > 1 || q ? 'Saldo (filtrado)' : 'Cartera total')}
-            </p>
-            <p className="text-2xl font-bold text-gray-900">{formatCOP(totalSaldo)}</p>
-            <p className="text-[10px] text-gray-400 mt-0.5">facturada + pedidos</p>
+            <p className="text-[10px] text-red-400 mt-0.5">solo lo entregado / facturado a crédito — los pedidos sin entregar no cuentan</p>
           </div>
         </div>
       )}
@@ -203,38 +175,13 @@ export default async function CarteraPage({
       </div>
       )}
 
-      {/* Qué deuda ver: la de lo ya entregado/facturado (se cobra ya) o la de
-          pedidos que aún no se entregan (se cobra al entregar). */}
-      <div className="flex flex-wrap gap-2 mb-4" role="tablist" aria-label="Tipo de deuda">
-        {([
-          { t: null, label: 'Todos', monto: carteraTotal.saldo, activa: 'bg-gray-900 text-white border-gray-900' },
-          { t: 'entregado' as const, label: '🚚 Ya entregado o facturado', monto: carteraTotal.entregado, activa: 'bg-red-600 text-white border-red-600' },
-          { t: 'proceso' as const, label: '⏳ Sin entregar', monto: carteraTotal.proceso, activa: 'bg-amber-500 text-white border-amber-500' },
-        ]).map(o => (
-          <Link
-            key={o.label}
-            href={tipoUrl(o.t)}
-            role="tab"
-            aria-selected={(tipo ?? null) === o.t}
-            className={`rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-colors ${
-              (tipo ?? null) === o.t ? o.activa : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
-            }`}
-          >
-            {o.label} <span className="font-normal opacity-80">· {formatCOP(o.monto)}</span>
-          </Link>
-        ))}
-      </div>
-
       <div className="mb-4">
         <ClientesBusqueda valorInicial={q ?? ''} />
       </div>
 
       {clientes.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
-          {q ? `Sin resultados para "${q}"`
-            : tipo === 'entregado' ? 'Nadie debe mercancía ya entregada o facturada'
-            : tipo === 'proceso' ? 'Nadie debe pedidos sin entregar'
-            : 'Todos los clientes están al día'}
+          {q ? `Sin resultados para "${q}"` : 'Nadie debe mercancía ya entregada o facturada'}
         </div>
       ) : (
         <>
@@ -244,12 +191,8 @@ export default async function CarteraPage({
                 <tr className="border-b border-gray-100 bg-gray-50">
                   <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">Cliente</th>
                   <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">Teléfono</th>
-                  <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Pedidos</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Total comprado</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Total pagado</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-red-600 uppercase" title="Pedidos ya entregados o facturados sin pagar — deuda real por cobrar">🚚 Entregado debe</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-amber-600 uppercase" title="Pedidos aún sin facturar/entregar — mercancía en camino">⏳ En proceso</th>
-                  <th className="text-right px-6 py-3 text-xs font-medium text-gray-500 uppercase">Saldo total</th>
+                  <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Entregas</th>
+                  <th className="text-right px-6 py-3 text-xs font-medium text-red-600 uppercase" title="Pedidos ya entregados o facturados sin pagar — deuda real por cobrar">🚚 Debe (entregado)</th>
                   <th className="px-4 py-3" />
                 </tr>
               </thead>
@@ -267,33 +210,11 @@ export default async function CarteraPage({
                     </td>
                     <td className="px-4 py-4 text-center hidden md:table-cell">
                       <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-100 text-gray-700 text-xs font-semibold">
-                        {c.pedidos_activos}
+                        {c.pedidos_entregados}
                       </span>
                     </td>
-                    <td className="px-4 py-4 text-right text-gray-600 hidden md:table-cell">
-                      {formatCOP(c.total_comprado)}
-                    </td>
-                    <td className="px-4 py-4 text-right text-green-700 hidden md:table-cell">
-                      {formatCOP(c.total_pagado)}
-                    </td>
-                    <td className="px-4 py-4 text-right">
-                      {c.saldo_entregado > 0 ? (
-                        <>
-                          <span className="font-bold text-red-600">{formatCOP(c.saldo_entregado)}</span>
-                          <span className="block text-[10px] text-gray-400">{c.pedidos_entregados} entregado{c.pedidos_entregados !== 1 ? 's' : ''}</span>
-                        </>
-                      ) : <span className="text-gray-300">—</span>}
-                    </td>
-                    <td className="px-4 py-4 text-right">
-                      {c.saldo_proceso > 0 ? (
-                        <>
-                          <span className="font-semibold text-amber-600">{formatCOP(c.saldo_proceso)}</span>
-                          <span className="block text-[10px] text-gray-400">{c.pedidos_proceso} en camino</span>
-                        </>
-                      ) : <span className="text-gray-300">—</span>}
-                    </td>
                     <td className="px-6 py-4 text-right">
-                      <span className="font-bold text-gray-900">{formatCOP(c.saldo)}</span>
+                      <span className="font-bold text-red-600">{formatCOP(c.saldo_entregado)}</span>
                     </td>
                     <td className="px-4 py-4 text-right">
                       <Link

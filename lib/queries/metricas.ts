@@ -281,7 +281,24 @@ export async function getDeudaPorSede(): Promise<DeudaSede[]> {
   return (data ?? []) as DeudaSede[]
 }
 
-export type MesVenta = { clave: string; label: string; total: number; pedidos: number }
+// Lo que deben los clientes por mercancía YA entregada/facturada, por sede
+// (sin los pedidos que todavía no se entregan). Es la deuda real por cobrar.
+export async function getDeudaEntregadaPorSede(): Promise<DeudaSede[]> {
+  const supabase = await createClient()
+  const [sedes, filas] = await Promise.all([
+    supabase.from('sedes').select('id, codigo, nombre').order('codigo'),
+    traerTodo(supabase.from('vista_cartera_cliente_sede').select('sede_id, saldo_entregado').order('id').order('sede_id')),
+  ])
+  const porSede = new Map<string, number>()
+  for (const r of (filas.data ?? []) as Array<{ sede_id: string; saldo_entregado: number }>) {
+    porSede.set(r.sede_id, (porSede.get(r.sede_id) ?? 0) + (r.saldo_entregado ?? 0))
+  }
+  return ((sedes.data ?? []) as Array<{ id: string; codigo: string; nombre: string }>).map(s => ({
+    sede_id: s.id, codigo: s.codigo, nombre: s.nombre, saldo: porSede.get(s.id) ?? 0,
+  }))
+}
+
+export type MesVenta ={ clave: string; label: string; total: number; pedidos: number }
 
 // Ventas del asesor agrupadas por mes (últimos N meses, hora Bogotá).
 export async function getVentasMensualesAsesor(asesorId: string, meses = 8): Promise<MesVenta[]> {
