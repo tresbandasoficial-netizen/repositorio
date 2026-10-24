@@ -10,6 +10,7 @@ import {
 } from '@/app/actions/facturacion'
 import { separarPedidoAction } from '@/app/actions/pedidos'
 import { formatCOP, formatFecha, formatMiles, hoyBogota } from '@/lib/utils/format'
+import { mensajeLineaSinTalla } from '@/lib/utils/talla'
 import { MetodoPago, PagoFacturaInput, TipoEntrega, QuienPagaEntrega, TipoMensajeria, MENSAJERIA_LABELS, metodosDeSede, labelMetodo, METODO_PAGO_LABELS } from '@/types'
 import { Linea, nuevaLinea, LineaProducto } from '@/components/ventas/LineaProducto'
 
@@ -285,6 +286,9 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
       setError(`El producto ${idxSinCodigo + 1} no tiene código: búscalo en el catálogo o guárdalo como artículo nuevo antes de facturar.`)
       return
     }
+    // Ropa y tenis siempre con talla (si no, el inventario se descuenta mal).
+    const sinTalla = mensajeLineaSinTalla(lineasValidas)
+    if (sinTalla) { setError(sinTalla); return }
     setError('')
 
     const notasFinal = mensajeria.trim()

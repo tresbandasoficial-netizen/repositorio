@@ -11,6 +11,7 @@ import { asignarNumeroOrden } from '@/lib/queries/pedidos'
 import { ItemVenta } from '@/app/actions/ventas'
 import { normalizarTelefono } from '@/lib/utils/phone'
 import { hoyBogota } from '@/lib/utils/format'
+import { mensajeLineaSinTalla } from '@/lib/utils/talla'
 import { MetodoPago, PagoFacturaInput, TipoMensajeria, TipoEntrega, QuienPagaEntrega } from '@/types'
 
 export type PedidoFacturable = {
@@ -336,6 +337,20 @@ export async function crearFacturaUnificadaAction(
   const productoSinCodigo = data.productos_nuevos.find(it => !it.articulo_id)
   if (productoSinCodigo) {
     return { ok: false, error: `El producto "${productoSinCodigo.descripcion || 'sin nombre'}" no tiene código de producto. Selecciónalo del catálogo antes de facturar.` }
+  }
+
+  // Ropa y tenis siempre con talla. La categoría del formulario se completa con
+  // la del catálogo para que no se pueda saltar la regla.
+  {
+    const ids = data.productos_nuevos.filter(it => !it.categoria && it.articulo_id).map(it => it.articulo_id as string)
+    const { data: arts } = ids.length
+      ? await supabase.from('articulos').select('id, categoria').in('id', ids)
+      : { data: [] as Array<{ id: string; categoria: string | null }> }
+    const catPorId = new Map((arts ?? []).map(a => [a.id, a.categoria]))
+    const sinTalla = mensajeLineaSinTalla(
+      data.productos_nuevos.map(it => ({ ...it, categoria: it.categoria || catPorId.get(it.articulo_id ?? '') || '' })),
+    )
+    if (sinTalla) return { ok: false, error: sinTalla }
   }
 
   // Regla: si NO es a crédito, el valor del pago es obligatorio. No se permite

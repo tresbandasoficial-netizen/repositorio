@@ -6,6 +6,7 @@ import { bloqueoCajaCerrada } from '@/lib/auth/caja'
 import { cuentaIdPorMetodo } from '@/lib/queries/cuentas'
 import { asignarNumeroOrden } from '@/lib/queries/pedidos'
 import { normalizarTelefono } from '@/lib/utils/phone'
+import { mensajeLineaSinTalla } from '@/lib/utils/talla'
 
 export type ItemVenta = {
   articulo_id: string | null
@@ -57,6 +58,20 @@ export async function registrarVentaInmediataAction(data: VentaInmediataInput): 
     if (!it.articulo_id) {
       return { ok: false, error: `El producto "${it.descripcion || 'sin nombre'}" no tiene código de producto. Selecciónalo del catálogo antes de registrar la venta.` }
     }
+  }
+
+  // Ropa y tenis siempre con talla. La categoría que viene del formulario se
+  // completa con la del catálogo para que no se pueda saltar la regla.
+  {
+    const ids = data.items.filter(it => !it.categoria && it.articulo_id).map(it => it.articulo_id as string)
+    const { data: arts } = ids.length
+      ? await supabase.from('articulos').select('id, categoria').in('id', ids)
+      : { data: [] as Array<{ id: string; categoria: string | null }> }
+    const catPorId = new Map((arts ?? []).map(a => [a.id, a.categoria]))
+    const sinTalla = mensajeLineaSinTalla(
+      data.items.map(it => ({ ...it, categoria: it.categoria || catPorId.get(it.articulo_id ?? '') || '' })),
+    )
+    if (sinTalla) return { ok: false, error: sinTalla }
   }
 
   const { data: sede } = await supabase

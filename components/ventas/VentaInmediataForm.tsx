@@ -6,6 +6,7 @@ import { buscarClientesAction, ClienteBusqueda } from '@/app/actions/clientes'
 import { registrarVentaInmediataAction } from '@/app/actions/ventas'
 import { Button } from '@/components/ui/Button'
 import { formatCOP, formatMiles } from '@/lib/utils/format'
+import { mensajeLineaSinTalla } from '@/lib/utils/talla'
 import { MetodoPago, labelMetodo, metodosDeSede } from '@/types'
 import { Linea, nuevaLinea, LineaProducto } from '@/components/ventas/LineaProducto'
 
@@ -74,6 +75,9 @@ export function VentaInmediataForm({ sedes }: { sedes: SedeOpcion[] }) {
       setError(`El producto ${idxSinCodigo + 1} no tiene código: búscalo en el catálogo o guárdalo como artículo nuevo antes de vender.`)
       return
     }
+    // Ropa y tenis siempre con talla (si no, el inventario se descuenta mal).
+    const sinTalla = mensajeLineaSinTalla(items)
+    if (sinTalla) { setError(sinTalla); return }
     if (abonoNum > total) { setError('El abono no puede superar el total'); return }
     setError('')
 
