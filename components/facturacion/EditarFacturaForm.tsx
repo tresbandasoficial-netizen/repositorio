@@ -7,9 +7,15 @@ import {
   editarFacturaDatosAction,
   editarAbonoFacturaAction,
   eliminarAbonoFacturaAction,
+  agregarAbonoFacturaAction,
 } from '@/app/actions/facturacion'
-import { MetodoPago, metodosDeSede, labelMetodo } from '@/types'
-import { formatCOP, formatFecha, formatMiles } from '@/lib/utils/format'
+import { MetodoPago, METODOS_PAGO, labelMetodo } from '@/types'
+import { formatCOP, formatFecha, formatMiles, hoyBogota } from '@/lib/utils/format'
+
+// Al EDITAR una factura el admin puede corregir a cualquier método: un cliente
+// de Santa Rosa puede haber transferido a Davivienda o Bancolombia aunque esas
+// cuentas no salgan en el selector normal de la sede.
+const METODOS_EDICION: MetodoPago[] = METODOS_PAGO.filter(m => m !== 'credito')
 
 type Factura = {
   id: string
@@ -44,7 +50,7 @@ export function EditarFacturaForm({ factura, abonos, pedidos, sedeCodigo }: {
       </div>
 
       <DatosFactura factura={factura} onSaved={() => router.refresh()} />
-      <AbonosEditor abonos={abonos} sedeCodigo={sedeCodigo} onChanged={() => router.refresh()} />
+      <AbonosEditor facturaId={factura.id} saldo={factura.saldo} abonos={abonos} sedeCodigo={sedeCodigo} onChanged={() => router.refresh()} />
       <ProductosEditor pedidos={pedidos} />
     </div>
   )
@@ -130,17 +136,93 @@ function DatosFactura({ factura, onSaved }: { factura: Factura; onSaved: () => v
 }
 
 // ── Abonos ───────────────────────────────────────────────────────────────────
-function AbonosEditor({ abonos, sedeCodigo, onChanged }: { abonos: Abono[]; sedeCodigo?: string; onChanged: () => void }) {
+function AbonosEditor({ facturaId, saldo, abonos, sedeCodigo, onChanged }: { facturaId: string; saldo: number; abonos: Abono[]; sedeCodigo?: string; onChanged: () => void }) {
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-5 space-y-3">
       <p className="text-sm font-semibold text-gray-900">Abonos / método de pago ({abonos.length})</p>
       {abonos.length === 0 ? (
-        <p className="text-sm text-gray-400">Sin abonos. Agrégalos desde el detalle de la factura.</p>
+        <p className="text-sm text-gray-400">Esta factura no tiene abonos todavía.</p>
       ) : (
         <div className="space-y-2">
           {abonos.map(a => <AbonoRow key={a.id} abono={a} sedeCodigo={sedeCodigo} onChanged={onChanged} />)}
         </div>
       )}
+      <p className="text-xs text-gray-400">
+        ¿Pagó con varios métodos? Baja el monto del abono de arriba y agrega el otro método aquí abajo.
+      </p>
+      <AgregarAbono facturaId={facturaId} saldo={saldo} sedeCodigo={sedeCodigo} onAdded={onChanged} />
+    </div>
+  )
+}
+
+// Agrega otro abono con su propio método (para repartir el pago).
+function AgregarAbono({ facturaId, saldo, sedeCodigo, onAdded }: { facturaId: string; saldo: number; sedeCodigo?: string; onAdded: () => void }) {
+  const [abierto, setAbierto] = useState(false)
+  const [monto, setMonto] = useState('')
+  const [metodo, setMetodo] = useState<MetodoPago | ''>('')
+  const [fecha, setFecha] = useState(hoyBogota())
+  const [error, setError] = useState('')
+  const [pending, start] = useTransition()
+
+  function abrir() {
+    setMonto(saldo > 0 ? String(saldo) : '')
+    setMetodo(''); setFecha(hoyBogota()); setError(''); setAbierto(true)
+  }
+
+  function guardar() {
+    setError('')
+    const montoNum = parseInt(monto.replace(/\D/g, '')) || 0
+    if (montoNum <= 0) { setError('Escribe el monto'); return }
+    if (!metodo) { setError('Elige el método de pago'); return }
+    start(async () => {
+      const r = await agregarAbonoFacturaAction({ factura_id: facturaId, monto: montoNum, metodo, fecha, notas: '' })
+      if (!r.ok) { setError(r.error); return }
+      setAbierto(false); onAdded()
+    })
+  }
+
+  if (!abierto) {
+    return (
+      <button onClick={abrir}
+        className="px-3 py-1.5 text-xs font-semibold border border-blue-300 rounded-lg bg-white text-blue-700 hover:bg-blue-50">
+        + Agregar otro método de pago
+      </button>
+    )
+  }
+
+  return (
+    <div className="border border-blue-200 bg-blue-50/40 rounded-lg px-4 py-3 space-y-2">
+      <div className="grid grid-cols-3 gap-2">
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Monto</label>
+          <input type="text" inputMode="numeric" value={formatMiles(monto)} onChange={e => setMonto(e.target.value.replace(/\D/g, ''))}
+            className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Método</label>
+          <select value={metodo} onChange={e => setMetodo(e.target.value as MetodoPago)}
+            className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="">Elegir…</option>
+            {METODOS_EDICION.map(m => <option key={m} value={m}>{labelMetodo(m, sedeCodigo)}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Fecha</label>
+          <input type="date" value={fecha} onChange={e => setFecha(e.target.value)}
+            className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+      </div>
+      {error && <p className="text-xs text-red-600">{error}</p>}
+      <div className="flex gap-2">
+        <button onClick={guardar} disabled={pending}
+          className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
+          {pending ? 'Guardando…' : 'Guardar abono'}
+        </button>
+        <button onClick={() => setAbierto(false)}
+          className="px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg bg-white text-gray-600 hover:bg-gray-50">
+          Cancelar
+        </button>
+      </div>
     </div>
   )
 }
@@ -208,8 +290,8 @@ function AbonoRow({ abono, sedeCodigo, onChanged }: { abono: Abono; sedeCodigo?:
           <label className="block text-xs text-gray-500 mb-1">Método</label>
           <select value={metodo} onChange={e => setMetodo(e.target.value as MetodoPago)}
             className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-            {/* incluye el método actual aunque no esté en la lista de la sede */}
-            {Array.from(new Set([abono.metodo as MetodoPago, ...metodosDeSede(sedeCodigo)])).map(m => <option key={m} value={m}>{labelMetodo(m, sedeCodigo)}</option>)}
+            {/* todos los métodos (incluye el actual aunque sea uno antiguo) */}
+            {Array.from(new Set([abono.metodo as MetodoPago, ...METODOS_EDICION])).map(m => <option key={m} value={m}>{labelMetodo(m, sedeCodigo)}</option>)}
           </select>
         </div>
         <div>

@@ -885,6 +885,51 @@ export async function editarAbonoFacturaAction(
   return { ok: true }
 }
 
+// Agrega un abono más a la factura desde el editor (solo admin). Sirve para
+// repartir un pago en varios métodos: p. ej. la factura se registró toda en
+// efectivo pero el cliente transfirió una parte a Davivienda y otra a Bancolombia.
+// A diferencia de registrarPagoFacturaAction no redirige: el editor se refresca.
+export async function agregarAbonoFacturaAction(data: {
+  factura_id: string
+  monto: number
+  metodo: MetodoPago
+  fecha: string
+  notas: string
+}): Promise<SimpleResult> {
+  const sesion = await getSesion()
+  if (sesion.rol !== 'admin') return { ok: false, error: 'Solo el administrador puede agregar abonos desde la edición' }
+  if (!(data.monto > 0)) return { ok: false, error: 'El monto debe ser mayor a cero' }
+  if (data.metodo === 'recaudo_mensajeria' || data.metodo === 'credito') {
+    return { ok: false, error: 'Elige un método de pago real (efectivo, banco, Nequi…)' }
+  }
+
+  const supabase = await createClient()
+  const { data: factura } = await supabase
+    .from('facturas').select('sede_id, estado').eq('id', data.factura_id).single()
+  if (!factura) return { ok: false, error: 'Factura no encontrada' }
+  if (factura.estado === 'anulada') return { ok: false, error: 'La factura está anulada' }
+
+  const cuentaId = await cuentaIdPorMetodo(supabase, data.metodo, factura.sede_id)
+
+  const { error } = await supabase.rpc('registrar_pago_factura', {
+    p_factura_id: data.factura_id,
+    p_monto:      data.monto,
+    p_metodo:     data.metodo,
+    p_fecha:      data.fecha,
+    p_asesor_id:  sesion.id,
+    p_cuenta_id:  cuentaId,
+    p_notas:      data.notas.trim() || null,
+  })
+  if (error) return { ok: false, error: error.message }
+
+  await sincronizarDomicilioFactura(data.factura_id)
+
+  revalidatePath('/facturacion')
+  revalidatePath(`/facturacion/${data.factura_id}`)
+  revalidatePath('/flujo-caja')
+  return { ok: true }
+}
+
 // Anula un abono de la factura y recalcula su estado. Solo admin.
 export async function eliminarAbonoFacturaAction(abonoId: string): Promise<SimpleResult> {
   const sesion = await getSesion()
