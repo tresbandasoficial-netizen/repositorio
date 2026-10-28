@@ -8,6 +8,7 @@ import { EstadoPedido, METODO_PAGO_LABELS, METODOS_PAGO } from '@/types'
 import { crearFacturaAction, buscarPedidoFacturableAction } from '@/app/actions/facturacion'
 import { crearDomicilioAction } from '@/app/actions/domicilios'
 import { hoyBogota } from '@/lib/utils/format'
+import { clientesConDeudaOculta } from '@/lib/auth/deuda-oculta'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -20,7 +21,7 @@ async function getPedidosPendientes() {
   const { data } = await supabase
     .from('vista_pedidos_asesor')
     .select(
-      'numero_orden,estado,total,total_pagado,en_alerta,es_zombie,' +
+      'cliente_id,numero_orden,estado,total,total_pagado,en_alerta,es_zombie,' +
       'tipo_entrega,fecha_creacion,fecha_actualizacion,' +
       'sede_codigo,cliente_nombre,cliente_telefono,asesor_nombre,notas'
     )
@@ -30,16 +31,20 @@ async function getPedidosPendientes() {
   return data ?? []
 }
 
-function formatearContexto(pedidos: any[]) {
+function formatearContexto(pedidos: any[], deudaOculta: string[] = []) {
   const hoy = new Date()
   return pedidos.map(p => {
     const dias = Math.floor((hoy.getTime() - new Date(p.fecha_creacion).getTime()) / 86400000)
     const saldo = p.total - p.total_pagado
     const flags = [p.en_alerta && 'ALERTA', p.es_zombie && 'ZOMBIE', dias > 7 && `${dias}días`].filter(Boolean).join(',')
+    // Clienta cuya deuda este usuario no debe ver: no se menciona su saldo.
+    const textoSaldo = deudaOculta.includes(p.cliente_id)
+      ? 'saldo:no disponible'
+      : saldo > 0 ? `saldo:$${saldo.toLocaleString('es-CO')}` : 'PAGADO'
     return [
       `[${p.numero_orden}]`, p.cliente_nombre, p.cliente_telefono,
       `estado:${p.estado}`, `total:$${p.total.toLocaleString('es-CO')}`,
-      saldo > 0 ? `saldo:$${saldo.toLocaleString('es-CO')}` : 'PAGADO',
+      textoSaldo,
       `dias:${dias}`, `asesor:${p.asesor_nombre}`, p.sede_codigo,
       p.tipo_entrega === 'domicilio' ? 'DOMI' : 'SEDE',
       flags || null, p.notas ? `nota:"${p.notas}"` : null,
@@ -53,7 +58,7 @@ async function buscarPedidoBase(numeroOrden: string) {
   const supabase = await createClient()
   const { data } = await supabase
     .from('vista_pedidos_asesor')
-    .select('id, estado, total, total_pagado, sede_id')
+    .select('id, estado, total, total_pagado, sede_id, cliente_id')
     .eq('numero_orden', numeroOrden.toUpperCase().trim())
     .single()
   return data
@@ -65,7 +70,7 @@ async function buscarPedidoDetalle(numeroOrden: string) {
     .from('pedidos')
     .select(`
       id, numero_orden, estado, total, tipo, tipo_entrega, direccion_entrega, notas,
-      fecha_creacion, factura_id,
+      fecha_creacion, factura_id, cliente_id,
       sedes(codigo, nombre),
       clientes(nombre, telefono_normalizado),
       usuarios(nombre),
@@ -81,14 +86,17 @@ async function buscarPedidoDetalle(numeroOrden: string) {
   const sede = Array.isArray(data.sedes) ? data.sedes[0] : data.sedes as any
   const cliente = Array.isArray(data.clientes) ? data.clientes[0] : data.clientes as any
   const asesor = Array.isArray(data.usuarios) ? data.usuarios[0] : data.usuarios as any
+  // Clienta cuya deuda este usuario no debe ver: sin saldo ni pagos.
+  const sesion = await getSesion()
+  const oculta = clientesConDeudaOculta(sesion.id).includes((data as any).cliente_id)
 
   return {
     id: data.id,
     numero_orden: data.numero_orden,
     estado: data.estado,
     total: data.total,
-    total_pagado: totalPagado,
-    saldo,
+    total_pagado: oculta ? null : totalPagado,
+    saldo: oculta ? null : saldo,
     tipo_entrega: data.tipo_entrega,
     direccion_entrega: data.direccion_entrega ?? null,
     notas: data.notas ?? null,
@@ -100,7 +108,7 @@ async function buscarPedidoDetalle(numeroOrden: string) {
     items: ((data.pedido_items as any[]) ?? [])
       .map((i: any) => `${i.marca} ${i.descripcion}${i.talla ? ' T' + i.talla : ''} x${i.cantidad} = $${(i.precio_venta * i.cantidad).toLocaleString('es-CO')}`)
       .join(' | '),
-    pagos: ((data.pagos as any[]) ?? [])
+    pagos: oculta ? '' : ((data.pagos as any[]) ?? [])
       .map((p: any) => `$${p.monto.toLocaleString('es-CO')} (${p.metodo}) ${p.fecha}`)
       .join(' | '),
   }
@@ -141,7 +149,12 @@ async function ejecutarRegistrarPago(numeroOrden: string, monto: number, metodo:
   if (pedido.estado === 'cancelado') return 'No se pueden registrar pagos en pedidos cancelados.'
   const saldo = pedido.total - pedido.total_pagado
   if (monto <= 0) return 'El monto debe ser mayor a cero.'
-  if (monto > saldo) return `El monto supera el saldo ($${saldo.toLocaleString('es-CO')}).`
+  if (monto > saldo) {
+    // Clienta cuya deuda este usuario no debe ver: no se dice cuánto falta.
+    return clientesConDeudaOculta(sesion.id).includes((pedido as any).cliente_id)
+      ? 'El monto supera lo que falta por pagar de este pedido.'
+      : `El monto supera el saldo ($${saldo.toLocaleString('es-CO')}).`
+  }
   const supabase = await createClient()
   const { error } = await supabase.from('pagos').insert({
     pedido_id: pedido.id, monto, metodo,
@@ -386,7 +399,7 @@ export async function resumenAsistenteAction(): Promise<string> {
       system: SYSTEM,
       messages: [{
         role: 'user',
-        content: `Hoy es ${hoy}.\n\nPedidos pendientes (${pedidos.length}):\n${formatearContexto(pedidos)}\n\nGenera un resumen ejecutivo: cuántos hay, el estado general, el saldo total por cobrar y qué requiere atención inmediata. Sé directo.`,
+        content: `Hoy es ${hoy}.\n\nPedidos pendientes (${pedidos.length}):\n${formatearContexto(pedidos, clientesConDeudaOculta(sesion.id))}\n\nGenera un resumen ejecutivo: cuántos hay, el estado general, el saldo total por cobrar y qué requiere atención inmediata. Sé directo.`,
       }],
     })
     return textoDe(r)
@@ -406,7 +419,7 @@ export async function alertasAsistenteAction(): Promise<string> {
       system: SYSTEM,
       messages: [{
         role: 'user',
-        content: `Hoy es ${hoy}.\n\nPedidos pendientes:\n${formatearContexto(pedidos)}\n\nLista SOLO los casos urgentes: zombies, +7 días sin moverse, enviados +3 días sin confirmar entrega, en alerta. Máximo 6 casos. Por cada uno: número, cliente, motivo y qué hacer.`,
+        content: `Hoy es ${hoy}.\n\nPedidos pendientes:\n${formatearContexto(pedidos, clientesConDeudaOculta(sesion.id))}\n\nLista SOLO los casos urgentes: zombies, +7 días sin moverse, enviados +3 días sin confirmar entrega, en alerta. Máximo 6 casos. Por cada uno: número, cliente, motivo y qué hacer.`,
       }],
     })
     return textoDe(r)
@@ -422,7 +435,7 @@ export async function chatAsistenteAction(
   const pedidos = await getPedidosPendientes()
   const hoy = new Intl.DateTimeFormat('es-CO', { dateStyle: 'full' }).format(new Date())
   const ctx = pedidos.length
-    ? `${pedidos.length} pedidos pendientes:\n${formatearContexto(pedidos)}`
+    ? `${pedidos.length} pedidos pendientes:\n${formatearContexto(pedidos, clientesConDeudaOculta(sesion.id))}`
     : 'Sin pedidos pendientes.'
 
   // El visor es de solo lectura: solo se le exponen herramientas de consulta.

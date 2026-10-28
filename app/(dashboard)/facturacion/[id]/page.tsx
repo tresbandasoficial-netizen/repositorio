@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { BotonVolver } from '@/components/ui/BotonVolver'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
+import { deudaOcultaA } from '@/lib/auth/deuda-oculta'
 import { getFacturaDetalle } from '@/lib/queries/facturas'
 import { getSesion } from '@/lib/auth/acceso'
 import { formatCOP, formatFecha, formatFechaHora } from '@/lib/utils/format'
@@ -24,6 +25,8 @@ export default async function FacturaDetallePage({
   const { id } = await params
   const [factura, sesion] = await Promise.all([getFacturaDetalle(id), getSesion()])
   if (!factura) notFound()
+  // Factura de una clienta cuya deuda este usuario no debe ver (lib/auth/deuda-oculta.ts).
+  if (deudaOcultaA(sesion.id, factura.cliente_id)) redirect('/facturacion')
 
   const activa = factura.estado === 'pendiente' || factura.estado === 'vencida'
   const esAdmin = sesion.rol === 'admin'

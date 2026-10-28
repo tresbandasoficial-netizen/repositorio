@@ -3,6 +3,7 @@ import { traerTodo } from '@/lib/utils/traerTodo'
 import { getSesion } from '@/lib/auth/acceso'
 import { terminoBusquedaSeguro } from '@/lib/utils/busqueda'
 import { FacturaRow, EstadoFactura } from '@/types'
+import { clientesConDeudaOculta, listaIn } from '@/lib/auth/deuda-oculta'
 
 export type FotoFactura = { foto: string | null; nombre: string }
 export type FacturaListRow = FacturaRow & { numeros_orden: string[]; metodos: string[]; fotos: FotoFactura[] }
@@ -25,6 +26,9 @@ export async function getFacturas(filtros?: {
     .limit(200)
 
   if (sesion.rol !== 'admin' && sesion.sede_id) query = query.eq('sede_id', sesion.sede_id)
+  // Clientas cuya deuda no debe ver este usuario: sus facturas no salen en la lista.
+  const ocultas = clientesConDeudaOculta(sesion.id)
+  if (ocultas.length) query = query.not('cliente_id', 'in', listaIn(ocultas))
   if (filtros?.estado) query = query.eq('estado', filtros.estado)
   if (filtros?.sede)   query = query.eq('sede_codigo', filtros.sede)
   if (filtros?.q) {
@@ -277,6 +281,8 @@ export async function getMorosos(): Promise<FacturaRow[]> {
     .order('id')
 
   if (sesion.rol !== 'admin' && sesion.sede_id) query = query.eq('sede_id', sesion.sede_id)
+  const ocultas = clientesConDeudaOculta(sesion.id)
+  if (ocultas.length) query = query.not('cliente_id', 'in', listaIn(ocultas))
 
   const { data, error } = await traerTodo(query)
   if (error) throw new Error(`Error cargando morosos: ${error.message}`)
@@ -302,6 +308,8 @@ export async function getResumenCxC(sedeCodigo?: string): Promise<ResumenCxC> {
 
   if (sesion.rol !== 'admin' && sesion.sede_id) query = query.eq('sede_id', sesion.sede_id)
   else if (sedeCodigo) query = query.eq('sede_codigo', sedeCodigo)
+  const ocultas = clientesConDeudaOculta(sesion.id)
+  if (ocultas.length) query = query.not('cliente_id', 'in', listaIn(ocultas))
 
   const { data } = await traerTodo(query)
   const filas = (data ?? []) as Array<{ saldo: number; estado: string; dias_atraso: number }>

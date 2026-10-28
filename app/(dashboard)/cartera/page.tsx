@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getCartera, getTotalCartera, type TipoDeuda } from '@/lib/queries/cartera'
 import { getDescuadresCartera } from '@/lib/queries/descuadres'
 import { getDeudaEntregadaPorSede } from '@/lib/queries/metricas'
+import { clientesConDeudaOculta } from '@/lib/auth/deuda-oculta'
 import { formatCOP } from '@/lib/utils/format'
 import { formatearTelefono } from '@/lib/utils/phone'
 import { ClientesBusqueda } from '@/components/clientes/ClientesBusqueda'
@@ -42,9 +43,11 @@ export default async function CarteraPage({
   // filtro. Sin ser admin, la sede va FIJA en Santa Rosa.
   const sede = esAdmin ? (sedes.some(s => s.codigo === sedeParam) ? sedeParam : undefined) : 'SR'
   const sedeNombre = sedes.find(s => s.codigo === sede)?.nombre
+  // Hay clientas cuya deuda no debe ver este usuario (lib/auth/deuda-oculta.ts).
+  const ocultas = clientesConDeudaOculta(user.id)
   const [resultado, carteraTotal, deudaSedes, descuadres] = await Promise.all([
-    getCartera({ busqueda: q, pagina, sede, tipo }),
-    getTotalCartera(sede),
+    getCartera({ busqueda: q, pagina, sede, tipo, excluirClientes: ocultas }),
+    getTotalCartera(sede, ocultas),
     getDeudaEntregadaPorSede(),
     esAdmin ? getDescuadresCartera() : Promise.resolve([]),
   ])

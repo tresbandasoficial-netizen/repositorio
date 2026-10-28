@@ -14,6 +14,7 @@ import { AbonarClienteButton } from '@/components/clientes/AbonarClienteButton'
 import { HistorialPagos } from '@/components/clientes/HistorialPagos'
 import { HistorialPedidosCliente } from '@/components/clientes/HistorialPedidosCliente'
 import { ComprasChart, MesCompra } from '@/components/clientes/ComprasChart'
+import { deudaOcultaA } from '@/lib/auth/deuda-oculta'
 
 // Agrupa los pedidos por mes (hora Bogotá) para el flujo de compras.
 // Serie mensual de compras del cliente, CONTINUA: incluye los meses en que no
@@ -119,6 +120,8 @@ export default async function ClienteDetallePage({
     .maybeSingle()
   const debeEntregado = cartera?.saldo_entregado ?? 0
   const porEntregar = cartera?.saldo_proceso ?? 0
+  // Clienta cuya deuda este usuario no debe ver (lib/auth/deuda-oculta.ts).
+  const deudaOculta = deudaOcultaA(user.id, id)
   const meses = comprasPorMes(cliente.pedidos)
 
   // Fotos de los artículos de cada pedido (mig. 199): tira en el historial.
@@ -142,7 +145,7 @@ export default async function ClienteDetallePage({
         {rfm?.segmento && <BadgeSegmento segmento={rfm.segmento as ClienteSegmentoRfm} />}
         <div className="flex-1" />
         <div className="flex items-center gap-2">
-          <AbonarClienteButton clienteId={id} deudaTotal={saldoTotal} sedeCodigo={sedeCodigo} />
+          {!deudaOculta && <AbonarClienteButton clienteId={id} deudaTotal={saldoTotal} sedeCodigo={sedeCodigo} />}
           <Link
             href={`/clientes/${id}/editar`}
             className="px-4 py-2 text-sm font-medium border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 transition-colors"
@@ -188,11 +191,11 @@ export default async function ClienteDetallePage({
         </Card>
         <Card>
           <CardContent className="py-4 text-center">
-            <p className={`text-lg font-bold ${debeEntregado > 0 ? 'text-red-600' : 'text-green-600'}`}>
-              {formatCOP(debeEntregado)}
+            <p className={`text-lg font-bold ${deudaOculta ? 'text-gray-400' : debeEntregado > 0 ? 'text-red-600' : 'text-green-600'}`}>
+              {deudaOculta ? '—' : formatCOP(debeEntregado)}
             </p>
             <p className="text-xs text-gray-500 mt-1">Debe (entregado)</p>
-            {porEntregar > 0 && (
+            {!deudaOculta && porEntregar > 0 && (
               <p className="text-[10px] text-gray-400 mt-0.5">+ {formatCOP(porEntregar)} en pedidos sin entregar (no cuenta)</p>
             )}
           </CardContent>

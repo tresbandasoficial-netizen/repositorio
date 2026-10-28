@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { terminoBusquedaSeguro } from '@/lib/utils/busqueda'
+import { listaIn } from '@/lib/auth/deuda-oculta'
 
 const PAGE_SIZE = 30
 
@@ -39,6 +40,8 @@ export async function getCartera(params?: {
   // 'entregado' = deben algo ya entregado/facturado; 'proceso' = deben pedidos
   // que aún no se les entregan. Sin tipo, todos los que deben.
   tipo?: TipoDeuda
+  // Clientes que no deben salir (deuda oculta para quien mira): ver lib/auth/deuda-oculta.ts
+  excluirClientes?: string[]
 }): Promise<CarteraResult> {
   const supabase = await createClient()
   const pagina = Math.max(1, params?.pagina ?? 1)
@@ -53,6 +56,7 @@ export async function getCartera(params?: {
     : params?.tipo === 'proceso' ? 'saldo_proceso'
     : 'saldo'
   if (params?.tipo) query = query.gt(columna, 0)
+  if (params?.excluirClientes?.length) query = query.not('id', 'in', listaIn(params.excluirClientes))
   query = query
     .order(columna, { ascending: false })
     .range(desde, hasta)
@@ -88,13 +92,14 @@ export async function getCartera(params?: {
   }
 }
 
-export async function getTotalCartera(sede?: string): Promise<{
+export async function getTotalCartera(sede?: string, excluirClientes?: string[]): Promise<{
   clientes: number; saldo: number; entregado: number; proceso: number
 }> {
   const supabase = await createClient()
-  const base = sede
+  let base = sede
     ? supabase.from('vista_cartera_cliente_sede').select('saldo, saldo_entregado, saldo_proceso').eq('sede_codigo', sede)
     : supabase.from('vista_cartera_clientes').select('saldo, saldo_entregado, saldo_proceso')
+  if (excluirClientes?.length) base = base.not('id', 'in', listaIn(excluirClientes))
   const { data, error } = await base
 
   if (error) return { clientes: 0, saldo: 0, entregado: 0, proceso: 0 }

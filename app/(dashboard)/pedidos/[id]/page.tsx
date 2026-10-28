@@ -23,6 +23,7 @@ import { EstadoPrendaSelect } from '@/components/pedidos/EstadoPrendaSelect'
 import { CambiarAsesorPedido } from '@/components/pedidos/CambiarAsesorPedido'
 import { getGananciaPedido, getCostosItemsPedido } from '@/lib/queries/ganancias'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { deudaOcultaA } from '@/lib/auth/deuda-oculta'
 
 const CAMPO_LABELS: Record<string, string> = {
   estado:            'Estado',
@@ -49,6 +50,8 @@ export default async function PedidoDetallePage({
 
   const esAdmin = sesion.rol === 'admin'
   const saldo = pedido.total - pedido.total_pagado
+  // Pedido de una clienta cuya deuda este usuario no debe ver (lib/auth/deuda-oculta.ts).
+  const deudaOculta = deudaOcultaA(sesion.id, pedido.cliente_id)
 
   // Pedido por Link (mig. 200): ¿este pedido ya tiene link de Shopify? El más
   // reciente manda (confirmado o pendiente). Se lee con el cliente de SESIÓN
@@ -277,9 +280,11 @@ export default async function PedidoDetallePage({
             <CardHeader>
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-gray-900">Pagos</h2>
-                <span className={saldo > 0 ? 'text-sm font-medium text-red-600' : 'text-sm font-medium text-green-600'}>
-                  {saldo > 0 ? `Saldo pendiente: ${formatCOP(saldo)}` : 'Totalmente pagado'}
-                </span>
+                {!deudaOculta && (
+                  <span className={saldo > 0 ? 'text-sm font-medium text-red-600' : 'text-sm font-medium text-green-600'}>
+                    {saldo > 0 ? `Saldo pendiente: ${formatCOP(saldo)}` : 'Totalmente pagado'}
+                  </span>
+                )}
               </div>
             </CardHeader>
             <CardContent className="p-0">
