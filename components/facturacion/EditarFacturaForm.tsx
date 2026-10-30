@@ -9,13 +9,29 @@ import {
   eliminarAbonoFacturaAction,
   agregarAbonoFacturaAction,
 } from '@/app/actions/facturacion'
-import { MetodoPago, METODOS_PAGO, labelMetodo } from '@/types'
+import { MetodoPago, METODOS_PAGO, labelMetodo, TipoMensajeria, MENSAJERIA_LABELS } from '@/types'
 import { formatCOP, formatFecha, formatMiles, hoyBogota } from '@/lib/utils/format'
 
 // Al EDITAR una factura el admin puede corregir a cualquier método: un cliente
 // de Santa Rosa puede haber transferido a Davivienda o Bancolombia aunque esas
 // cuentas no salgan en el selector normal de la sede.
-const METODOS_EDICION: MetodoPago[] = METODOS_PAGO.filter(m => m !== 'credito')
+// "Recaudo mensajería" también: la mensajería cobró en la puerta y se lo debe a
+// TB; pide elegir cuál mensajería para registrar esa deuda.
+const METODOS_EDICION: MetodoPago[] = [...METODOS_PAGO.filter(m => m !== 'credito'), 'recaudo_mensajeria']
+
+// Selector de mensajería que aparece cuando el método es recaudo mensajería.
+function SelectMensajeria({ value, onChange }: { value: TipoMensajeria | ''; onChange: (m: TipoMensajeria | '') => void }) {
+  return (
+    <div>
+      <label className="block text-xs text-gray-500 mb-1">Mensajería que recauda</label>
+      <select value={value} onChange={e => onChange(e.target.value as TipoMensajeria | '')}
+        className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <option value="">Elegir…</option>
+        {(Object.keys(MENSAJERIA_LABELS) as TipoMensajeria[]).map(m => <option key={m} value={m}>{MENSAJERIA_LABELS[m]}</option>)}
+      </select>
+    </div>
+  )
+}
 
 type Factura = {
   id: string
@@ -160,13 +176,14 @@ function AgregarAbono({ facturaId, saldo, sedeCodigo, onAdded }: { facturaId: st
   const [abierto, setAbierto] = useState(false)
   const [monto, setMonto] = useState('')
   const [metodo, setMetodo] = useState<MetodoPago | ''>('')
+  const [mensajeria, setMensajeria] = useState<TipoMensajeria | ''>('')
   const [fecha, setFecha] = useState(hoyBogota())
   const [error, setError] = useState('')
   const [pending, start] = useTransition()
 
   function abrir() {
     setMonto(saldo > 0 ? String(saldo) : '')
-    setMetodo(''); setFecha(hoyBogota()); setError(''); setAbierto(true)
+    setMetodo(''); setMensajeria(''); setFecha(hoyBogota()); setError(''); setAbierto(true)
   }
 
   function guardar() {
@@ -174,8 +191,9 @@ function AgregarAbono({ facturaId, saldo, sedeCodigo, onAdded }: { facturaId: st
     const montoNum = parseInt(monto.replace(/\D/g, '')) || 0
     if (montoNum <= 0) { setError('Escribe el monto'); return }
     if (!metodo) { setError('Elige el método de pago'); return }
+    if (metodo === 'recaudo_mensajeria' && !mensajeria) { setError('Elige la mensajería que recauda'); return }
     start(async () => {
-      const r = await agregarAbonoFacturaAction({ factura_id: facturaId, monto: montoNum, metodo, fecha, notas: '' })
+      const r = await agregarAbonoFacturaAction({ factura_id: facturaId, monto: montoNum, metodo, fecha, notas: '', mensajeria: mensajeria || null })
       if (!r.ok) { setError(r.error); return }
       setAbierto(false); onAdded()
     })
@@ -212,6 +230,7 @@ function AgregarAbono({ facturaId, saldo, sedeCodigo, onAdded }: { facturaId: st
             className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
       </div>
+      {metodo === 'recaudo_mensajeria' && <SelectMensajeria value={mensajeria} onChange={setMensajeria} />}
       {error && <p className="text-xs text-red-600">{error}</p>}
       <div className="flex gap-2">
         <button onClick={guardar} disabled={pending}
@@ -231,6 +250,7 @@ function AbonoRow({ abono, sedeCodigo, onChanged }: { abono: Abono; sedeCodigo?:
   const [editando, setEditando] = useState(false)
   const [monto, setMonto] = useState(String(abono.monto))
   const [metodo, setMetodo] = useState<MetodoPago>(abono.metodo as MetodoPago)
+  const [mensajeria, setMensajeria] = useState<TipoMensajeria | ''>('')
   const [fecha, setFecha] = useState(abono.fecha)
   const [error, setError] = useState('')
   const [pending, start] = useTransition()
@@ -239,8 +259,9 @@ function AbonoRow({ abono, sedeCodigo, onChanged }: { abono: Abono; sedeCodigo?:
     setError('')
     const montoNum = parseInt(monto.replace(/\D/g, '')) || 0
     if (montoNum <= 0) { setError('Monto inválido'); return }
+    if (metodo === 'recaudo_mensajeria' && !mensajeria) { setError('Elige la mensajería que recauda'); return }
     start(async () => {
-      const r = await editarAbonoFacturaAction(abono.id, { monto: montoNum, metodo, fecha })
+      const r = await editarAbonoFacturaAction(abono.id, { monto: montoNum, metodo, fecha, mensajeria: mensajeria || null })
       if (!r.ok) { setError(r.error); return }
       setEditando(false); onChanged()
     })
@@ -300,6 +321,7 @@ function AbonoRow({ abono, sedeCodigo, onChanged }: { abono: Abono; sedeCodigo?:
             className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
       </div>
+      {metodo === 'recaudo_mensajeria' && <SelectMensajeria value={mensajeria} onChange={setMensajeria} />}
       {error && <p className="text-xs text-red-600">{error}</p>}
       <div className="flex gap-2">
         <button onClick={guardar} disabled={pending}

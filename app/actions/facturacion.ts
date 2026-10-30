@@ -767,6 +767,53 @@ export type EditarAbonoInput = {
   monto: number
   metodo: MetodoPago
   fecha: string
+  // Obligatoria cuando el método es 'recaudo_mensajeria': qué mensajería cobró.
+  mensajeria?: TipoMensajeria | null
+}
+
+// Deja la deuda de recaudo con la mensajería acorde al método del abono:
+//  - pasa A recaudo_mensajeria: se crea (o se ajusta) la deuda pendiente;
+//  - sale DE recaudo_mensajeria: se borra la deuda pendiente (la plata nunca la
+//    recogió la mensajería). Lo ya liquidado no se toca (se bloquea antes).
+async function sincronizarRecaudoMensajeria(opts: {
+  facturaId: string
+  metodoAnterior: string | null
+  metodoNuevo: string
+  monto: number
+  fecha: string
+  mensajeria: TipoMensajeria | null | undefined
+  responsableId: string
+}) {
+  const admin = createAdminClient()
+  const base = () => admin.from('pagos_mensajeria')
+    .select('id').eq('factura_id', opts.facturaId).eq('tipo', 'deuda')
+    .eq('concepto', 'recaudo').eq('estado', 'pendiente')
+
+  if (opts.metodoNuevo === 'recaudo_mensajeria' && opts.mensajeria) {
+    const { data: pendientes } = await base()
+    if (opts.metodoAnterior === 'recaudo_mensajeria' && pendientes && pendientes.length > 0) {
+      await admin.from('pagos_mensajeria')
+        .update({ monto: opts.monto, mensajeria: opts.mensajeria, fecha: opts.fecha })
+        .eq('id', pendientes[0].id)
+    } else {
+      await admin.from('pagos_mensajeria').insert({
+        mensajeria:     opts.mensajeria,
+        tipo:           'deuda',
+        monto:          opts.monto,
+        fecha:          opts.fecha,
+        factura_id:     opts.facturaId,
+        concepto:       'recaudo',
+        estado:         'pendiente',
+        responsable_id: opts.responsableId,
+        notas:          'Recaudo mensajería · Factura (editado)',
+      })
+    }
+  } else if (opts.metodoAnterior === 'recaudo_mensajeria' && opts.metodoNuevo !== 'recaudo_mensajeria') {
+    await admin.from('pagos_mensajeria').delete()
+      .eq('factura_id', opts.facturaId).eq('tipo', 'deuda')
+      .eq('concepto', 'recaudo').eq('estado', 'pendiente')
+  }
+  revalidatePath('/mensajerias')
 }
 
 // Edita un abono de la factura: método (re-enruta la cuenta), monto y fecha.
@@ -855,15 +902,31 @@ export async function editarAbonoFacturaAction(
   if (sesion.rol !== 'admin') return { ok: false, error: 'Solo el administrador puede editar abonos' }
   if (data.monto <= 0) return { ok: false, error: 'El monto debe ser mayor a cero' }
 
+  if (data.metodo === 'recaudo_mensajeria' && !data.mensajeria) {
+    return { ok: false, error: 'Elige la mensajería que recauda (Exneider o Servigo)' }
+  }
+
   const supabase = await createClient()
 
   // Sede de la factura para enrutar el efectivo a la caja correcta.
   const { data: abono } = await supabase
     .from('pagos_factura')
-    .select('factura_id, facturas(sede_id)')
+    .select('factura_id, metodo, facturas(sede_id)')
     .eq('id', abonoId)
     .maybeSingle()
   const sedeId = (abono as any)?.facturas?.sede_id ?? null
+  const metodoAnterior: string | null = (abono as any)?.metodo ?? null
+
+  // Si el recaudo ya lo liquidó la mensajería, el método no se puede cambiar
+  // (se rompería el cuadre ya hecho con el mensajero).
+  if (metodoAnterior === 'recaudo_mensajeria' && data.metodo !== 'recaudo_mensajeria' && (abono as any)?.factura_id) {
+    const { data: liquidados } = await createAdminClient().from('pagos_mensajeria').select('id')
+      .eq('factura_id', (abono as any).factura_id).eq('tipo', 'deuda')
+      .eq('concepto', 'recaudo').eq('estado', 'liquidado').limit(1)
+    if (liquidados && liquidados.length > 0) {
+      return { ok: false, error: 'La mensajería ya cuadró este recaudo; no se puede cambiar el método de pago.' }
+    }
+  }
 
   const cuentaId = await cuentaIdPorMetodo(supabase, data.metodo, sedeId)
 
@@ -876,9 +939,22 @@ export async function editarAbonoFacturaAction(
   })
   if (error) return { ok: false, error: error.message }
 
-  // El pago cambió: el domicilio pendiente y el recaudo de la mensajería deben
-  // reflejar el saldo real (o dejar de cobrar si ya no hay saldo).
-  if ((abono as any)?.factura_id) await sincronizarDomicilioFactura((abono as any).factura_id)
+  // El pago cambió: la deuda de recaudo con la mensajería, el domicilio pendiente
+  // y el recaudo deben reflejar el nuevo método y el saldo real.
+  if ((abono as any)?.factura_id) {
+    await sincronizarRecaudoMensajeria({
+      facturaId: (abono as any).factura_id,
+      metodoAnterior,
+      metodoNuevo: data.metodo,
+      monto: data.monto,
+      fecha: data.fecha,
+      mensajeria: data.mensajeria,
+      responsableId: sesion.id,
+    })
+    // Con recaudo_mensajeria NO se sincroniza el domicilio: ese pago ES lo que
+    // el mensajero recoge.
+    if (data.metodo !== 'recaudo_mensajeria') await sincronizarDomicilioFactura((abono as any).factura_id)
+  }
 
   revalidatePath('/facturacion')
   revalidatePath('/flujo-caja')
@@ -895,12 +971,16 @@ export async function agregarAbonoFacturaAction(data: {
   metodo: MetodoPago
   fecha: string
   notas: string
+  mensajeria?: TipoMensajeria | null
 }): Promise<SimpleResult> {
   const sesion = await getSesion()
   if (sesion.rol !== 'admin') return { ok: false, error: 'Solo el administrador puede agregar abonos desde la edición' }
   if (!(data.monto > 0)) return { ok: false, error: 'El monto debe ser mayor a cero' }
-  if (data.metodo === 'recaudo_mensajeria' || data.metodo === 'credito') {
+  if (data.metodo === 'credito') {
     return { ok: false, error: 'Elige un método de pago real (efectivo, banco, Nequi…)' }
+  }
+  if (data.metodo === 'recaudo_mensajeria' && !data.mensajeria) {
+    return { ok: false, error: 'Elige la mensajería que recauda (Exneider o Servigo)' }
   }
 
   const supabase = await createClient()
@@ -922,7 +1002,15 @@ export async function agregarAbonoFacturaAction(data: {
   })
   if (error) return { ok: false, error: error.message }
 
-  await sincronizarDomicilioFactura(data.factura_id)
+  if (data.metodo === 'recaudo_mensajeria') {
+    // La mensajería cobró este abono al cliente y se lo debe a TB (cuadre de mensajerías).
+    await sincronizarRecaudoMensajeria({
+      facturaId: data.factura_id, metodoAnterior: null, metodoNuevo: data.metodo,
+      monto: data.monto, fecha: data.fecha, mensajeria: data.mensajeria, responsableId: sesion.id,
+    })
+  } else {
+    await sincronizarDomicilioFactura(data.factura_id)
+  }
 
   revalidatePath('/facturacion')
   revalidatePath(`/facturacion/${data.factura_id}`)
