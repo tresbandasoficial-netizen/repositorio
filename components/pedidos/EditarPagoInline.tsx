@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { editarPagoAction } from '@/app/actions/pedidos'
 import { editarAbonoFacturaAction } from '@/app/actions/facturacion'
 import { formatCOP, formatMiles } from '@/lib/utils/format'
-import { MetodoPago, metodosDeSede, labelMetodo } from '@/types'
+import { MetodoPago, METODOS_PAGO, metodosDeSede, labelMetodo } from '@/types'
 import { Pencil } from 'lucide-react'
 
 // Editor de un pago desde el detalle del pedido (solo admin): monto Y método.
@@ -27,8 +27,10 @@ export function EditarPagoInline({ pagoId, monto, metodo, origen, fecha, sedeCod
   const [isPending, start] = useTransition()
   const router = useRouter()
 
-  // Métodos de la sede del pedido + el método actual (por si es histórico).
-  const metodos = Array.from(new Set([metodo as MetodoPago, ...metodosDeSede(sedeCodigo)]))
+  // El método actual (por si es histórico), los de la sede primero y luego todos
+  // los demás: un cliente de Santa Rosa puede haber transferido a Davivienda o
+  // a un Bancolombia aunque esas cuentas no sean de su sede.
+  const metodos = Array.from(new Set([metodo as MetodoPago, ...metodosDeSede(sedeCodigo), ...METODOS_PAGO]))
 
   function abrir() {
     setValor(String(monto))
@@ -104,7 +106,7 @@ export function EditarPagoInline({ pagoId, monto, metodo, origen, fecha, sedeCod
           {isPending ? '…' : 'OK'}
         </button>
       </div>
-      {error && <span className="max-w-[12rem] text-[10px] text-red-600 text-right">{error}</span>}
+      {error && <span className="max-w-[14rem] text-xs font-medium text-red-600 text-right">{error}</span>}
     </div>
   )
 }
