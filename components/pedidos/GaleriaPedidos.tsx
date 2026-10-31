@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type { PedidoRow } from '@/lib/queries/pedidos'
 import { EstadoInline } from './PedidoCard'
-import { cambiarEstadoInlineAction, cambiarEstadoPrendaAction, marcarLlegadaPrendasAction } from '@/app/actions/pedidos'
+import { cambiarEstadoInlineAction, cambiarEstadoPrendaAction, marcarLlegadaPrendasAction, marcarCompradoSinFacturaAction } from '@/app/actions/pedidos'
 import { transicionesDisponibles } from '@/lib/domain/estados'
 import { ESTADO_LABELS, EstadoPedido } from '@/types'
 import { SEGMENTO_CONFIG } from '@/components/recompras/BadgeSegmento'
@@ -144,6 +144,23 @@ export function GaleriaPedidos({
     const r = await cambiarEstadoPrendaAction(pedido.id, item.id, nuevoEstado)
     setCambiandoPrenda(null)
     if (!r.ok) { alert(r.error); return }
+    router.refresh()
+  }
+
+  // Marca los pedidos seleccionados como comprados sin factura ni valor.
+  async function marcarCompradoLote() {
+    const pedidos = pedidosMarcados()
+    if (!confirm(
+      `¿Marcar como COMPRADO (sin factura ni valor de compra)?\n\n` +
+      pedidos.map(p => p.numero_orden).join(', ') +
+      `\n\nDejan de salir "sin comprar". El costo se registra después en Compras.`
+    )) return
+    setMarcandoLote(true)
+    const r = await marcarCompradoSinFacturaAction(pedidos.map(p => p.id))
+    setMarcandoLote(false)
+    if (!r.ok) { alert(r.error); router.refresh(); return }
+    setMarcados([])
+    alert(`✅ ${r.marcados} pedido(s) marcado(s) como comprados.`)
     router.refresh()
   }
 
@@ -708,6 +725,15 @@ export function GaleriaPedidos({
           >
             <Printer size={15} />
             Imprimir
+          </button>
+          <button
+            onClick={marcarCompradoLote}
+            disabled={marcandoLote}
+            title="Avisar que ya se compró, sin poner factura ni valor"
+            className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold px-3.5 py-2 rounded-xl transition-colors disabled:opacity-50"
+          >
+            <ShoppingCart size={15} />
+            Comprado (sin factura)
           </button>
           <button
             onClick={marcarLlegadaLote}

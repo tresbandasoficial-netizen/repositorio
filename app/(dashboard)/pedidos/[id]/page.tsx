@@ -14,6 +14,7 @@ import type { LinkCliente } from '@/app/actions/shopify'
 import { createClient } from '@/lib/supabase/server'
 import { EliminarPedidoButton } from '@/components/pedidos/EliminarPedidoButton'
 import { SeguimientoBar } from '@/components/pedidos/SeguimientoBar'
+import { MarcarCompradoButton } from '@/components/pedidos/MarcarCompradoButton'
 import { EditarPagoInline } from '@/components/pedidos/EditarPagoInline'
 import { DevolucionButton } from '@/components/pedidos/DevolucionButton'
 import { CambioTallaButton } from '@/components/pedidos/CambioTallaButton'
@@ -429,6 +430,14 @@ export default async function PedidoDetallePage({
                 rolUsuario={sesion.rol as 'asesor' | 'admin' | 'visor'}
                 sedeCodigo={pedido.sede_codigo}
               />
+              {/* Comprado sin factura ni valor: solo mientras el pedido sigue en camino
+                  y no tiene compra/costo real registrado. */}
+              {sesion.rol !== 'visor' && ['pendiente', 'comprado', 'usa'].includes(pedido.estado) && !pedido.factura_id
+                && (pedido.comprado_marcado || !pedido.tiene_compra) && (
+                <div className="mt-3">
+                  <MarcarCompradoButton pedidoId={id} marcado={!!pedido.comprado_marcado} />
+                </div>
+              )}
             </CardContent>
           </Card>
 

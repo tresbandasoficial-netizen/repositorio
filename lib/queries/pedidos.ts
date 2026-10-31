@@ -30,6 +30,8 @@ export type PedidoRow = {
   // ¿Ya tiene compra registrada (o costo manual)? Lo calcula la vista
   // (migs. 152/161/165) — pinta el letrero "Comprado" que ven las asesoras.
   tiene_compra: boolean
+  // Marcado "comprado" a mano, sin factura ni valor (mig. 213).
+  comprado_marcado?: boolean
   // Segmento RFM del cliente (Campeón, Leal, …), para priorizar a simple vista.
   // Viene de vista_rfm_clientes, no de vista_pedidos_asesor.
   cliente_segmento?: ClienteSegmentoRfm | null

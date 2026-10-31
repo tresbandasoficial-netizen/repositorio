@@ -220,7 +220,7 @@ export default async function GaleriaPedidosPage({
     // Un pedido con COSTO MANUAL ya tiene su costo resuelto: sus prendas no
     // deben salir en rojo "sin comprar" (el admin lo costeó a mano).
     for (const p of pedidos) {
-      if ((p as any).con_costo_manual) {
+      if ((p as any).con_costo_manual || (p as any).comprado_marcado) {
         for (const it of itemsPorPedido[p.id] ?? []) it.comprado = true
       }
     }

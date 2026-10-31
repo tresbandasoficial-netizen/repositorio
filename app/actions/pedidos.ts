@@ -493,6 +493,74 @@ export async function cambiarEstadoInlineAction(
   return { ok: true }
 }
 
+// ─── Marcar COMPRADO sin factura ni valor (mig. 213) ─────────────────────────
+// Para avisar "este pedido ya se compró" sin tener la factura de compra ni el
+// valor: deja de salir "sin compra" en galería/alertas y, si estaba en
+// Pendiente, pasa a Comprado. NO pone costo: la ganancia sigue sin costo hasta
+// que el admin asigne la compra (o el costo manual). `marcar=false` quita la marca.
+export async function marcarCompradoSinFacturaAction(
+  pedidoIds: string[],
+  marcar = true,
+): Promise<{ ok: true; marcados: number } | { ok: false; error: string }> {
+  const sesion = await getSesion()
+  if (sesion.rol === 'visor') return { ok: false, error: 'Sin permisos' }
+  const ids = [...new Set(pedidoIds)]
+  if (ids.length === 0) return { ok: false, error: 'Sin pedidos seleccionados' }
+
+  const supabase = await createClient()
+  const admin = createAdminClient()
+
+  const { data: pedidos } = await admin
+    .from('pedidos')
+    .select('id, numero_orden, sede_id, estado, comprado_marcado_en')
+    .in('id', ids)
+  const lista = (pedidos ?? []) as Array<{ id: string; numero_orden: string; sede_id: string; estado: string; comprado_marcado_en: string | null }>
+  if (lista.length === 0) return { ok: false, error: 'Pedidos no encontrados' }
+  if (lista.some(p => !puedeAccederSede(sesion, p.sede_id))) return { ok: false, error: 'Sin acceso a alguno de los pedidos' }
+
+  let marcados = 0
+  const errores: string[] = []
+  for (const p of lista) {
+    if (p.estado === 'cancelado' || p.estado === 'entregado') {
+      errores.push(`${p.numero_orden}: ya está ${p.estado}`)
+      continue
+    }
+    const { error } = await admin
+      .from('pedidos')
+      .update(marcar
+        ? { comprado_marcado_en: new Date().toISOString(), comprado_marcado_por: sesion.id }
+        : { comprado_marcado_en: null, comprado_marcado_por: null })
+      .eq('id', p.id)
+    if (error) { errores.push(`${p.numero_orden}: ${error.message}`); continue }
+
+    await admin.from('historial_cambios').insert({
+      tabla:          'pedidos',
+      registro_id:    p.id,
+      campo:          'comprado_marcado',
+      valor_anterior: p.comprado_marcado_en ? 'sí' : 'no',
+      valor_nuevo:    marcar ? 'sí' : 'no',
+      usuario_id:     sesion.id,
+    })
+
+    if (marcar && p.estado === 'pendiente') {
+      const { error: errEstado } = await supabase.rpc('cambiar_estado_pedido', {
+        p_pedido_id:    p.id,
+        p_nuevo_estado: 'comprado',
+        p_usuario_id:   sesion.id,
+      })
+      if (errEstado) { errores.push(`${p.numero_orden}: quedó marcado pero no cambió de estado (${errEstado.message})`); }
+    }
+    marcados++
+  }
+
+  revalidatePath('/pedidos')
+  revalidatePath('/pedidos/galeria')
+  revalidatePath('/alertas')
+  if (marcados === 0) return { ok: false, error: errores.join(' · ') || 'No se marcó ningún pedido' }
+  if (errores.length > 0) return { ok: false, error: `Marcados ${marcados}. ${errores.join(' · ')}` }
+  return { ok: true, marcados }
+}
+
 // ─── Marcar llegada a Bucaramanga (desde impresión de etiquetas) ─────────────
 // Cuando se imprimen las etiquetas es porque la mercancía llegó: los pedidos
 // pasan a estado 'bucaramanga'. Solo avanza pedidos en pendiente/comprado/usa;
