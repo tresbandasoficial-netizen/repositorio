@@ -4,12 +4,14 @@ import { useState, useTransition } from 'react'
 import { registrarPagoFacturaAction } from '@/app/actions/facturacion'
 import { Button } from '@/components/ui/Button'
 import { formatCOP, formatMiles, hoyBogota } from '@/lib/utils/format'
-import { MetodoPago, metodosDeSede, labelMetodo, METODO_PAGO_LABELS, MENSAJERIA_LABELS, TipoMensajeria } from '@/types'
+import { MetodoPago, labelMetodo, METODO_PAGO_LABELS, MENSAJERIA_LABELS, TipoMensajeria } from '@/types'
+import { useMetodosSede } from '@/components/layout/RolContext'
 
 export function RegistrarPagoFacturaForm({ facturaId, saldo, sedeCodigo }: { facturaId: string; saldo: number; sedeCodigo?: string }) {
+  const metodosSede = useMetodosSede(sedeCodigo)
   // Métodos de la sede + recaudo por mensajería (opción de cobro a domicilio).
   const METODOS: { value: MetodoPago; label: string }[] = [
-    ...metodosDeSede(sedeCodigo).map(v => ({ value: v, label: labelMetodo(v, sedeCodigo) })),
+    ...metodosSede.map(v => ({ value: v, label: labelMetodo(v, sedeCodigo) })),
     { value: 'recaudo_mensajeria' as MetodoPago, label: METODO_PAGO_LABELS['recaudo_mensajeria'] },
   ]
   const [monto, setMonto] = useState('')

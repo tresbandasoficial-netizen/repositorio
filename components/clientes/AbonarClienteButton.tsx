@@ -4,7 +4,8 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { abonarClienteAction } from '@/app/actions/abonos'
 import { formatCOP, formatMiles } from '@/lib/utils/format'
-import { MetodoPago, metodosDeSede, labelMetodo } from '@/types'
+import { MetodoPago, labelMetodo } from '@/types'
+import { useMetodosSede } from '@/components/layout/RolContext'
 
 export function AbonarClienteButton({
   clienteId,
@@ -15,7 +16,7 @@ export function AbonarClienteButton({
   deudaTotal: number
   sedeCodigo?: string
 }) {
-  const METODOS_DISPONIBLES = metodosDeSede(sedeCodigo)
+  const METODOS_DISPONIBLES = useMetodosSede(sedeCodigo)
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [monto, setMonto] = useState('')

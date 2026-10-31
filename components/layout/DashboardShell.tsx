@@ -6,6 +6,7 @@ import { Sidebar } from './Sidebar'
 import { CampanaNotificaciones } from './CampanaNotificaciones'
 import { NavGuard } from './NavGuard'
 import { AvisoProvider } from '@/components/ui/Aviso'
+import { RolProvider } from './RolContext'
 import { AgenteVoz } from '@/components/agente/AgenteVoz'
 import { Usuario } from '@/types'
 
@@ -29,6 +30,7 @@ export function DashboardShell({ usuario, sedeCodigo, children }: Props) {
   const primerNombre = usuario.nombre.split(' ')[0]
 
   return (
+    <RolProvider rol={usuario.rol}>
     <AvisoProvider>
     <div className="flex min-h-screen bg-[#eef2ff]">
       <NavGuard />
@@ -98,5 +100,6 @@ export function DashboardShell({ usuario, sedeCodigo, children }: Props) {
       <AgenteVoz rol={usuario.rol} />
     </div>
     </AvisoProvider>
+    </RolProvider>
   )
 }

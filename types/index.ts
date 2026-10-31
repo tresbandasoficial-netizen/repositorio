@@ -142,6 +142,19 @@ export function metodosDeSede(sedeCodigo?: string | null): MetodoPago[] {
   return METODOS_PAGO
 }
 
+// Cuentas Bancolombia que los ASESORES no ven en los selectores (31-oct-2026):
+// solo les quedan Angel, Victor y Linda. El admin sigue viendo todas.
+export const BANCOLOMBIA_OCULTAS_ASESOR: MetodoPago[] = [
+  'bancolombia_ronaldo', 'bancolombia_johan', 'bancolombia_carlos',
+  'bancolombia_cristian', 'bancolombia_huber', 'bancolombia_jhan_carlos',
+]
+
+// Quita de la lista las cuentas que el rol no debe elegir.
+export function metodosParaRol(metodos: MetodoPago[], rol?: string | null): MetodoPago[] {
+  if (rol !== 'asesor') return metodos
+  return metodos.filter(m => !BANCOLOMBIA_OCULTAS_ASESOR.includes(m))
+}
+
 // Cuentas (métodos electrónicos) cuyo SALDO ACUMULADO puede ver un asesor de la
 // sede en el cuadre. El efectivo de su sede siempre lo ve; el acumulado de las
 // demás cuentas es solo para admin (a menos que la cuenta sea "de la sede").

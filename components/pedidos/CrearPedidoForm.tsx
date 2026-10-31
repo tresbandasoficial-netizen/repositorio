@@ -2,7 +2,8 @@
 
 import { useState, useTransition, useEffect, useRef } from 'react'
 import { parsearPedido } from '@/lib/parser'
-import { ParsedPedido, MetodoPago, metodosDeSede, labelMetodo, tallasDeCategoria } from '@/types'
+import { ParsedPedido, MetodoPago, labelMetodo, tallasDeCategoria } from '@/types'
+import { useMetodosSede } from '@/components/layout/RolContext'
 import { formatCOP, formatMiles } from '@/lib/utils/format'
 import { crearPedidoDesdeDataAction } from '@/app/actions/pedidos'
 import { buscarClientesAction, buscarDireccionPorTelefonoAction, buscarClientePorTelefonoAction, ClienteBusqueda, ClientePorTelefono } from '@/app/actions/clientes'
@@ -73,6 +74,7 @@ function emptyData(sede: 'TR' | 'CR' | 'SR', numeroSugerido: string, asesorNombr
 
 export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor, asesores, asesorIdActual }: CrearPedidoFormProps) {
   const sedeCode = numeroSugerido.slice(0, 2) as 'TR' | 'CR' | 'SR'
+  const metodosSede = useMetodosSede(sedeCode)
 
   const [form, setForm]               = useState<ParsedPedido>(() => emptyData(sedeCode, numeroSugerido, asesorNombre))
   const [asesorId, setAsesorId]       = useState(asesorIdActual ?? '')
@@ -845,7 +847,7 @@ export function CrearPedidoForm({ numeroSugerido, asesorNombre, sedeId, esAsesor
                       onChange={e => actualizarAbono(idx, { metodo: e.target.value as MetodoPago })}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      {metodosDeSede(sedeCode).map(m => (
+                      {metodosSede.map(m => (
                         <option key={m} value={m}>{labelMetodo(m, sedeCode)}</option>
                       ))}
                     </select>

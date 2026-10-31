@@ -11,7 +11,8 @@ import {
 import { separarPedidoAction } from '@/app/actions/pedidos'
 import { formatCOP, formatFecha, formatMiles, hoyBogota } from '@/lib/utils/format'
 import { mensajeLineaSinTalla } from '@/lib/utils/talla'
-import { MetodoPago, PagoFacturaInput, TipoEntrega, QuienPagaEntrega, TipoMensajeria, MENSAJERIA_LABELS, metodosDeSede, labelMetodo, METODO_PAGO_LABELS } from '@/types'
+import { MetodoPago, PagoFacturaInput, TipoEntrega, QuienPagaEntrega, TipoMensajeria, MENSAJERIA_LABELS, labelMetodo, METODO_PAGO_LABELS } from '@/types'
+import { useMetodosSede } from '@/components/layout/RolContext'
 import { Linea, nuevaLinea, LineaProducto } from '@/components/ventas/LineaProducto'
 
 type SedeOpcion = { id: string; codigo: string; nombre: string }
@@ -31,6 +32,7 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
   const [sedeId, setSedeId] = useState(sedes[0]?.id ?? '')
   const sedeActual = sedes.find(s => s.id === sedeId)
   const sedeCodigo = sedeActual?.codigo ?? ''
+  const metodosSede = useMetodosSede(sedeCodigo)
 
   // Cliente
   const [busqueda, setBusqueda] = useState('')
@@ -718,7 +720,7 @@ export function NuevaFacturaForm({ sedes, asesorNombre = '' }: { sedes: SedeOpci
                                   className={`w-full rounded-lg border px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${abono.metodo ? 'border-gray-200' : 'border-amber-300 bg-amber-50/50'}`}
                                 >
                                   <option value="">— Elige el método —</option>
-                                  {metodosDeSede(sedeCodigo).map(m => <option key={m} value={m}>{labelMetodo(m, sedeCodigo)}</option>)}
+                                  {metodosSede.map(m => <option key={m} value={m}>{labelMetodo(m, sedeCodigo)}</option>)}
                                   <option value="recaudo_mensajeria">{METODO_PAGO_LABELS['recaudo_mensajeria']}</option>
                                 </select>
                               </div>

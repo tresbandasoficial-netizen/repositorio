@@ -7,7 +7,8 @@ import { registrarVentaInmediataAction } from '@/app/actions/ventas'
 import { Button } from '@/components/ui/Button'
 import { formatCOP, formatMiles } from '@/lib/utils/format'
 import { mensajeLineaSinTalla } from '@/lib/utils/talla'
-import { MetodoPago, labelMetodo, metodosDeSede } from '@/types'
+import { MetodoPago, labelMetodo } from '@/types'
+import { useMetodosSede } from '@/components/layout/RolContext'
 import { Linea, nuevaLinea, LineaProducto } from '@/components/ventas/LineaProducto'
 
 type SedeOpcion = { id: string; codigo: string; nombre: string }
@@ -18,6 +19,7 @@ export function VentaInmediataForm({ sedes }: { sedes: SedeOpcion[] }) {
   // Bucaramanga por defecto (los asesores reciben solo su sede en la lista)
   const [sedeId, setSedeId] = useState(sedes.find(s => s.codigo === 'TR')?.id ?? sedes[0]?.id ?? '')
   const sedeCodigo = sedes.find(s => s.id === sedeId)?.codigo ?? ''
+  const metodosSede = useMetodosSede(sedeCodigo)
 
   const [busqueda, setBusqueda] = useState('')
   const [resultados, setResultados] = useState<ClienteBusqueda[]>([])
@@ -201,7 +203,7 @@ export function VentaInmediataForm({ sedes }: { sedes: SedeOpcion[] }) {
               onChange={e => setMetodo(e.target.value as MetodoPago)}
               className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              {metodosDeSede(sedeCodigo).map(m => (
+              {metodosSede.map(m => (
                 <option key={m} value={m}>{labelMetodo(m, sedeCodigo)}</option>
               ))}
             </select>

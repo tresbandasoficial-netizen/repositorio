@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { MetodoPago, metodosDeSede, labelMetodo } from '@/types'
+import { MetodoPago, labelMetodo } from '@/types'
+import { useMetodosSede } from '@/components/layout/RolContext'
 import { registrarPagoAction } from '@/app/actions/pedidos'
 import { formatCOP, formatMiles, hoyBogota } from '@/lib/utils/format'
 
@@ -14,7 +15,7 @@ interface Props {
 
 export function RegistrarPagoForm({ pedidoId, total, totalPagado, sedeCodigo }: Props) {
   const saldo = total - totalPagado
-  const METODOS = metodosDeSede(sedeCodigo).map(v => ({ value: v, label: labelMetodo(v, sedeCodigo) }))
+  const METODOS = useMetodosSede(sedeCodigo).map(v => ({ value: v, label: labelMetodo(v, sedeCodigo) }))
 
   const [monto, setMonto] = useState(saldo.toString())
   // Sin método por defecto: la asesora DEBE elegirlo. Antes arrancaba en
