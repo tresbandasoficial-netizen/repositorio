@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type { PedidoRow } from '@/lib/queries/pedidos'
 import { EstadoInline } from './PedidoCard'
+import { EstadoBadge } from './EstadoBadge'
 import { cambiarEstadoInlineAction, cambiarEstadoPrendaAction, marcarLlegadaPrendasAction, marcarCompradoSinFacturaAction } from '@/app/actions/pedidos'
 import { transicionesDisponibles } from '@/lib/domain/estados'
 import { ESTADO_LABELS, EstadoPedido } from '@/types'
@@ -397,17 +398,30 @@ export function GaleriaPedidos({
           </div>
         </div>
 
-        {/* Estado del pedido: clic para cambiarlo aquí mismo */}
-        <div className="flex items-center justify-between gap-2 mx-4 mb-3 bg-gray-50 rounded-xl px-3 py-2">
-          <span className="text-xs text-gray-500 font-medium">Estado del pedido</span>
-          <EstadoInline
-            key={sel.pedido.id}
-            pedidoId={sel.pedido.id}
-            estadoActual={sel.pedido.estado}
-            sedeCodigo={sel.pedido.sede_codigo}
-            esAdmin={esAdmin}
-            facturado={!!sel.pedido.factura_id}
-          />
+        {/* Estado del pedido: clic para cambiarlo aquí mismo. Con varias prendas
+            cambiar el pedido mueve TODAS, así que aquí solo se muestra (es el de
+            su prenda más atrasada) y cada prenda se cambia con su propio selector. */}
+        <div className="mx-4 mb-3 bg-gray-50 rounded-xl px-3 py-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs text-gray-500 font-medium">Estado del pedido</span>
+            {itemsSel.length > 1 && puedeSel ? (
+              <EstadoBadge estado={sel.pedido.estado as EstadoPedido} />
+            ) : (
+              <EstadoInline
+                key={sel.pedido.id}
+                pedidoId={sel.pedido.id}
+                estadoActual={sel.pedido.estado}
+                sedeCodigo={sel.pedido.sede_codigo}
+                esAdmin={esAdmin}
+                facturado={!!sel.pedido.factura_id}
+              />
+            )}
+          </div>
+          {itemsSel.length > 1 && puedeSel && (
+            <p className="text-[11px] text-gray-400 mt-1">
+              Tiene {itemsSel.length} prendas: cambia el estado de cada una en «Estado de esta prenda» (abajo). Para mover todas juntas, abre el pedido.
+            </p>
+          )}
         </div>
 
         {/* Artículos: el elegido queda resaltado */}
