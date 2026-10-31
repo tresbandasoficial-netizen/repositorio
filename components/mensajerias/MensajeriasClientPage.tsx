@@ -28,6 +28,11 @@ function aNumero(v: string): number {
   return parseInt(v.replace(/\D/g, ''), 10) || 0
 }
 
+// Para buscar sin importar mayúsculas ni tildes ("Ceron" encuentra "Cerón").
+function norm(s: string | null | undefined): string {
+  return (s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+}
+
 interface Props {
   cuadres: CuadreMensajeria[]
   recaudos: RecaudoPendiente[]
@@ -42,10 +47,17 @@ function haceDias(n: number): string {
 
 export function MensajeriasClientPage({ cuadres, recaudos, liquidaciones, domiciliosTB, activaMensajeria }: Props) {
   const router = useRouter()
+  // Buscador por nombre de cliente (o número de factura): filtra los cobros
+  // pendientes y los domicilios para encontrar rápido a quien se está cuadrando.
+  const [busqueda, setBusqueda] = useState('')
+  const q = norm(busqueda.trim())
+  const coincide = (nombre: string | null | undefined, factura: string | null | undefined) =>
+    !q || norm(nombre).includes(q) || norm(factura).includes(q)
   // Domicilios que paga TB (solo consulta): rango de fechas para confirmar con el mensajero.
   const [domDesde, setDomDesde] = useState(haceDias(7))
   const [domHasta, setDomHasta] = useState(hoyBogota())
-  const domRango = domiciliosTB.filter(d => d.fecha >= domDesde && d.fecha <= domHasta)
+  const domRango = domiciliosTB.filter(d =>
+    d.fecha >= domDesde && d.fecha <= domHasta && coincide(d.cliente_nombre, d.numero_factura))
   const domPorDia = [...new Set(domRango.map(d => d.fecha))].map(f => {
     const items = domRango.filter(d => d.fecha === f)
     return { fecha: f, items, total: items.reduce((s, d) => s + d.valor, 0) }
@@ -60,9 +72,12 @@ export function MensajeriasClientPage({ cuadres, recaudos, liquidaciones, domici
 
   const estado = (r: RecaudoPendiente) => sel[r.id] ?? { on: false, monto: String(r.monto) }
 
+  // Lo que se ve según la búsqueda; lo marcado cuenta SIEMPRE (aunque la búsqueda lo oculte).
+  const visibles = recaudos.filter(r => coincide(r.cliente_nombre, r.numero_factura))
   const marcados = recaudos.filter(r => estado(r).on)
+  const marcadosOcultos = marcados.filter(r => !visibles.includes(r)).length
   const recogido = marcados.reduce((s, r) => s + aNumero(estado(r).monto), 0)
-  const todosMarcados = recaudos.length > 0 && marcados.length === recaudos.length
+  const todosMarcados = visibles.length > 0 && visibles.every(r => estado(r).on)
   const totalPendiente = recaudos.reduce((s, r) => s + r.monto, 0)
 
   function toggle(r: RecaudoPendiente) {
@@ -74,10 +89,11 @@ export function MensajeriasClientPage({ cuadres, recaudos, liquidaciones, domici
     setSel(s => ({ ...s, [r.id]: { on: true, monto } }))
   }
 
+  // "Marcar todos" aplica a lo que se ve (si hay búsqueda, solo a los encontrados).
   function toggleTodos() {
     const on = !todosMarcados
-    const next: Record<string, { on: boolean; monto: string }> = {}
-    for (const r of recaudos) next[r.id] = { on, monto: estado(r).monto }
+    const next: Record<string, { on: boolean; monto: string }> = { ...sel }
+    for (const r of visibles) next[r.id] = { on, monto: estado(r).monto }
     setSel(next)
   }
 
@@ -146,6 +162,28 @@ export function MensajeriasClientPage({ cuadres, recaudos, liquidaciones, domici
         })}
       </div>
 
+      {/* Buscador por nombre de cliente */}
+      <div className="relative">
+        <input
+          type="search"
+          value={busqueda}
+          onChange={e => setBusqueda(e.target.value)}
+          placeholder="Buscar cliente o número de factura…"
+          className="w-full rounded-lg border border-gray-300 pl-9 pr-9 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+        />
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">🔍</span>
+        {busqueda && (
+          <button
+            type="button"
+            onClick={() => setBusqueda('')}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm px-1"
+            title="Borrar búsqueda"
+          >
+            ✕
+          </button>
+        )}
+      </div>
+
       {exito && (
         <p className="text-sm text-green-800 bg-green-50 border border-green-100 rounded-lg px-4 py-2">{exito}</p>
       )}
@@ -163,15 +201,23 @@ export function MensajeriasClientPage({ cuadres, recaudos, liquidaciones, domici
               <div>
                 <p className="text-sm font-semibold text-gray-900">Cobros que {MENSAJERIA_LABELS[activaMensajeria]} tiene en la calle</p>
                 <p className="text-xs text-gray-400">
-                  {recaudos.length} {recaudos.length === 1 ? 'cobro' : 'cobros'} · {formatCOP(totalPendiente)} por entregar
+                  {q
+                    ? `${visibles.length} de ${recaudos.length} cobros`
+                    : `${recaudos.length} ${recaudos.length === 1 ? 'cobro' : 'cobros'}`} · {formatCOP(totalPendiente)} por entregar
+                  {marcadosOcultos > 0 && (
+                    <span className="text-green-700"> · {marcadosOcultos} marcado{marcadosOcultos === 1 ? '' : 's'} fuera de la búsqueda</span>
+                  )}
                 </p>
               </div>
               <button onClick={toggleTodos} className="text-xs text-blue-600 hover:underline whitespace-nowrap">
                 {todosMarcados ? 'Desmarcar todos' : 'Marcar todos'}
               </button>
             </div>
+            {visibles.length === 0 && (
+              <p className="px-5 py-4 text-sm text-gray-400">Ningún cobro coincide con “{busqueda.trim()}”.</p>
+            )}
             <ul className="divide-y divide-gray-50">
-              {recaudos.map(r => {
+              {visibles.map(r => {
                 const e = estado(r)
                 return (
                   <li key={r.id} className={`px-5 py-3 flex items-center gap-4 ${e.on ? 'bg-green-50/40' : ''}`}>
