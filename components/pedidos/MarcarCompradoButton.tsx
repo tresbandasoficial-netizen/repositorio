@@ -28,7 +28,7 @@ export function MarcarCompradoButton({ pedidoId, marcado }: { pedidoId: string; 
     <div className="space-y-1">
       {marcado ? (
         <div className="flex items-center justify-between gap-2 rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2">
-          <span className="text-xs font-semibold text-emerald-700">🛒 Comprado (sin factura ni valor)</span>
+          <span className="text-xs font-semibold text-emerald-700">🧾 Sin factura registrada</span>
           <button onClick={() => aplicar(false)} disabled={pending} className="text-xs text-gray-500 underline disabled:opacity-50">
             Quitar
           </button>
@@ -41,7 +41,7 @@ export function MarcarCompradoButton({ pedidoId, marcado }: { pedidoId: string; 
           className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-sm font-semibold px-3 py-2 transition-colors disabled:opacity-50"
         >
           <ShoppingCart size={14} />
-          {pending ? 'Marcando…' : 'Marcar comprado (sin factura)'}
+          {pending ? 'Marcando…' : 'Marcar comprado (sin factura registrada)'}
         </button>
       )}
       {error && <p className="text-xs text-red-600">{error}</p>}

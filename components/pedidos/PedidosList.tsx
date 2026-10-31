@@ -8,10 +8,11 @@ import { EtiquetasPorNumero } from './EtiquetasPorNumero'
 import { EstadoPedido, ESTADO_LABELS } from '@/types'
 import { Search, AlertTriangle, Download, ChevronLeft, ChevronRight, Tag } from 'lucide-react'
 
-const ESTADOS: Array<{ value: EstadoPedido | ''; label: string }> = [
+const ESTADOS: Array<{ value: EstadoPedido | 'sin_factura' | ''; label: string }> = [
   { value: '',            label: 'Todos los estados' },
   { value: 'pendiente',   label: ESTADO_LABELS.pendiente },
   { value: 'comprado',    label: ESTADO_LABELS.comprado },
+  { value: 'sin_factura', label: '🧾 Sin factura registrada' },
   { value: 'usa',         label: ESTADO_LABELS.usa },
   { value: 'bucaramanga', label: ESTADO_LABELS.bucaramanga },
   { value: 'santa_rosa',  label: ESTADO_LABELS.santa_rosa },

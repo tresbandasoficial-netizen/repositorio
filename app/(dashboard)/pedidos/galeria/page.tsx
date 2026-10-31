@@ -78,6 +78,7 @@ const ESTADOS: Array<{ value: string; label: string }> = [
   // en cualquier estado. El estado se avanza a mano, así que hay pedidos en
   // "comprado" o "en USA" sin compra — por estado no se encuentran.
   { value: 'sin_compra',  label: '⚠ Falta comprar (sin compra registrada)' },
+  { value: 'sin_factura', label: '🧾 Sin factura registrada (comprado sin valor)' },
   { value: 'pendiente',   label: ESTADO_LABELS.pendiente },
   { value: 'comprado',    label: ESTADO_LABELS.comprado },
   { value: 'usa',         label: ESTADO_LABELS.usa },
@@ -110,6 +111,7 @@ export default async function GaleriaPedidosPage({
   // "sin_compra" no es un estado: es "no tiene compra registrada", en cualquier
   // estado. Por eso viaja aparte y no como filtro de estado.
   const soloSinCompra = params.estado === 'sin_compra'
+  const soloSinFactura = params.estado === 'sin_factura'
 
   // Filtro explícito de sede (chips TR/SR/CR): cuando viene, manda sobre el
   // alcance por defecto del asesor.
@@ -130,8 +132,9 @@ export default async function GaleriaPedidosPage({
   }
 
   const resultado = await getPedidos({
-    estado: soloSinCompra ? undefined : (params.estado as EstadoPedido | undefined),
+    estado: (soloSinCompra || soloSinFactura) ? undefined : (params.estado as EstadoPedido | undefined),
     sinCompra: soloSinCompra,
+    sinFactura: soloSinFactura,
     q:      params.q,
     marca:  params.marca,
     fecha_desde: params.desde,
@@ -230,7 +233,7 @@ export default async function GaleriaPedidosPage({
   // página de 30 que se está mostrando. Va en un RPC para no traer miles de filas.
   const { data: conteoMarcas } = await supabase
     .rpc('conteo_articulos_por_marca', {
-      p_estado: soloSinCompra ? null : (params.estado || null),
+      p_estado: (soloSinCompra || soloSinFactura) ? null : (params.estado || null),
       p_solo_sin_compra: soloSinCompra,
     })
   const marcas = (conteoMarcas ?? []) as Array<{ marca: string; articulos: number; pedidos: number }>

@@ -733,7 +733,7 @@ export function GaleriaPedidos({
             className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold px-3.5 py-2 rounded-xl transition-colors disabled:opacity-50"
           >
             <ShoppingCart size={15} />
-            Comprado (sin factura)
+            Sin factura registrada
           </button>
           <button
             onClick={marcarLlegadaLote}

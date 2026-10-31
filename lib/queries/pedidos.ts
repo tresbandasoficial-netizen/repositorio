@@ -32,6 +32,8 @@ export type PedidoRow = {
   tiene_compra: boolean
   // Marcado "comprado" a mano, sin factura ni valor (mig. 213).
   comprado_marcado?: boolean
+  // Marcado comprado y todavía sin valor de compra ni costo (mig. 214): estado "Sin factura registrada".
+  sin_factura_registrada?: boolean
   // Segmento RFM del cliente (Campeón, Leal, …), para priorizar a simple vista.
   // Viene de vista_rfm_clientes, no de vista_pedidos_asesor.
   cliente_segmento?: ClienteSegmentoRfm | null
@@ -88,6 +90,7 @@ export async function getPedidos(filtros?: {
   q?: string
   marca?: string
   sinCompra?: boolean
+  sinFactura?: boolean   // estado "Sin factura registrada" (mig. 214)
   alerta?: boolean
   pagina?: number
   fecha_desde?: string
@@ -146,6 +149,12 @@ export async function getPedidos(filtros?: {
     // La vista expone `tiene_compra` (exists sobre compra_items): filtrar en el
     // servidor evita armar un `id not in (...)` gigante que revienta la URL.
     query = query.not('estado', 'in', '(cancelado,entregado)').eq('tiene_compra', false)
+  }
+
+  // "Sin factura registrada": marcados comprados a los que aún no se les puso
+  // el valor de compra.
+  if (filtros?.sinFactura) {
+    query = query.not('estado', 'in', '(cancelado,entregado)').eq('sin_factura_registrada', true)
   }
 
   // Filtro por MARCA: la vista expone `marcas` (array en minúsculas con la

@@ -195,7 +195,8 @@ export function PedidoCard({ pedido, esAdmin, seleccionado = false, onToggleSele
   // Letrero "Comprado": la compra ya está registrada pero el estado sigue en
   // Pendiente — así las asesoras ven qué ya se pidió sin depender de que el
   // estado se avance a mano. En los demás estados el badge de estado ya lo dice.
-  const letreroComprado = !facturado && pedido.estado === 'pendiente' && pedido.tiene_compra
+  const sinFactura = !facturado && !!pedido.sin_factura_registrada
+  const letreroComprado = !facturado && !sinFactura && pedido.estado === 'pendiente' && pedido.tiene_compra
 
   return (
     <div onClick={handleCardClick} className={cn('cursor-pointer transition-colors', facturado ? 'bg-green-50/50 hover:bg-green-50' : 'hover:bg-gray-50/60')}>
@@ -220,6 +221,7 @@ export function PedidoCard({ pedido, esAdmin, seleccionado = false, onToggleSele
             {pedido.es_zombie && <span className="text-xs text-orange-500" title="Pedido zombie">🧟</span>}
             {facturado && <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full">Facturado</span>}
             {letreroComprado && <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full">🛒 Comprado</span>}
+            {sinFactura && <span className="text-[10px] font-semibold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded-full">🧾 Sin factura registrada</span>}
           </div>
           <EstadoInline pedidoId={pedido.id} estadoActual={pedido.estado} sedeCodigo={pedido.sede_codigo} esAdmin={esAdmin} facturado={facturado} />
         </div>
@@ -276,6 +278,9 @@ export function PedidoCard({ pedido, esAdmin, seleccionado = false, onToggleSele
             )}
             {letreroComprado && (
               <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full whitespace-nowrap">🛒 Comprado</span>
+            )}
+            {sinFactura && (
+              <span className="text-[10px] font-semibold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded-full whitespace-nowrap">🧾 Sin factura registrada</span>
             )}
           </div>
         </div>

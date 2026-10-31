@@ -123,7 +123,20 @@ export default async function AlertasPage() {
         .limit(1000)
     : null
 
-  const [{ data: alertasData }, sinCompraRes] = await Promise.all([qAlertas, qSinCompra])
+  // Sin factura registrada: marcados comprados a los que aún no se les puso el
+  // valor de compra. Solo admin (es quien registra la compra).
+  const qSinFactura = esAdmin
+    ? supabase
+        .from('vista_pedidos_asesor')
+        .select(COLUMNAS)
+        .eq('sin_factura_registrada', true)
+        .not('estado', 'in', '("cancelado","entregado")')
+        .order('fecha_creacion', { ascending: true })
+        .limit(1000)
+    : null
+
+  const [{ data: alertasData }, sinCompraRes, sinFacturaRes] = await Promise.all([qAlertas, qSinCompra, qSinFactura])
+  const sinFactura = (sinFacturaRes?.data ?? []) as FilaPedido[]
   const alertas = (alertasData ?? []) as FilaPedido[]
   const sinCompra = (sinCompraRes?.data ?? []) as FilaPedido[]
 
@@ -172,6 +185,20 @@ export default async function AlertasPage() {
               <ListaPedidos pedidos={sinCompraViejos} motivo={motivoSinCompra} />
             </details>
           )}
+        </section>
+      )}
+
+      {esAdmin && sinFactura.length > 0 && (
+        <section className="bg-white border-2 border-amber-200 rounded-xl overflow-hidden">
+          <div className="px-4 py-3 bg-amber-50 border-b border-amber-100">
+            <h2 className="text-sm font-bold text-amber-800">
+              🧾 Sin factura registrada · {sinFactura.length} {sinFactura.length === 1 ? 'pedido' : 'pedidos'}
+            </h2>
+            <p className="text-xs text-amber-700/80 mt-0.5">
+              Marcados como comprados, pero todavía sin valor de compra. Regístrales la compra o el costo.
+            </p>
+          </div>
+          <ListaPedidos pedidos={sinFactura} motivo={p => `${diasDesde(p.fecha_creacion)} días creado, sin valor de compra`} />
         </section>
       )}
 
