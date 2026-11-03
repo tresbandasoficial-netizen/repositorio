@@ -164,3 +164,27 @@ Mensajero lleva el pedido     →  estado: pendiente
 Se confirma entrega           →  estado: entregado
 Cuadre diario                 →  reconciliación de cobros con cada mensajero
 ```
+
+## Reglas para cambios (no negociables)
+
+Nacieron de un error real (3-nov-2026): una migración que agregó una segunda llave
+foránea `pedidos -> usuarios` volvió ambiguas las consultas `usuarios(nombre)`, y la
+ficha del cliente quedó SIN pedidos, fotos ni pagos en silencio.
+
+1. **Los pagos son intocables.** Ningún cambio de código ni migración puede borrar,
+   mover ni modificar `pagos`, `pagos_factura`, abonos ni sus montos/métodos/fechas,
+   salvo que el dueño lo pida de forma explícita para un caso concreto. Hay copia en
+   el esquema `respaldos` (`pagos_clientes_20261103`, etc.) y un registro automático
+   de todo cambio en `respaldos.pagos_auditoria` (migración 215).
+2. **Antes de agregar una columna o FK a una tabla** (`pedidos`, `facturas`,
+   `clientes`, `pagos`...): buscar en el código las consultas que la embeben
+   (`grep "usuarios(" , "sedes(", "clientes("`) y, si ya hay otra FK a la misma tabla,
+   desambiguar TODAS con `tabla!nombre_fkey(...)` en el mismo cambio.
+3. **Nunca tragarse errores de Supabase** en consultas de lectura de fichas, listados
+   o dinero: un `{ data }` sin mirar `error` convierte una falla en "no hay datos".
+   Si falla, lanzar el error o mostrar aviso; jamás una pantalla vacía.
+4. **Después de tocar tablas/vistas/funciones compartidas, verificar que lo existente
+   siga leyendo bien**: ficha de cliente (pedidos, fotos, pagos), cartera, cuadre.
+   Comparar conteos y totales de `pagos` antes y después (deben ser iguales).
+5. **Migraciones solo aditivas** para dinero: no `drop`, no `delete`, no `update` masivo
+   sobre pagos/facturas sin copia previa en `respaldos` y sin permiso del dueño.

@@ -168,7 +168,7 @@ export async function getClienteDetalle(id: string): Promise<ClienteDetalle | nu
 
   if (error || !cliente) return null
 
-  const { data: pedidosRaw } = await supabase
+  const { data: pedidosRaw, error: errPedidos } = await supabase
     .from('pedidos')
     .select(`
       id, numero_orden, estado, total, fecha_creacion, tipo_entrega, direccion_entrega,
@@ -180,6 +180,10 @@ export async function getClienteDetalle(id: string): Promise<ClienteDetalle | nu
     .eq('cliente_id', id)
     .neq('estado', 'cancelado')
     .order('fecha_creacion', { ascending: false })
+
+  // Si esta consulta falla, la ficha NO debe mostrarse vacía (parece que se
+  // perdieron pedidos y pagos): que salte el error y se vea.
+  if (errPedidos) throw new Error(`Ficha del cliente: no se pudieron cargar los pedidos y pagos (${errPedidos.message})`)
 
   // Una misma factura puede agrupar varios pedidos. Sus pagos_factura deben
   // contarse UNA sola vez, no una vez por cada pedido vinculado (eso duplicaba
