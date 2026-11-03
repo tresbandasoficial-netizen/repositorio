@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { EstadoBadge } from '@/components/pedidos/EstadoBadge'
 import { formatCOP, formatFecha } from '@/lib/utils/format'
 import { formatearTelefono, whatsappUrl } from '@/lib/utils/phone'
-import { EstadoPedido, METODO_PAGO_LABELS, MetodoPago, ClienteSegmentoRfm } from '@/types'
+import { EstadoPedido, METODO_PAGO_LABELS, MetodoPago, ClienteSegmentoRfm, MENSAJERIA_LABELS, TipoMensajeria } from '@/types'
 import { BadgeSegmento, SEGMENTO_CONFIG } from '@/components/recompras/BadgeSegmento'
 import { PanelRFMCliente } from '@/components/recompras/PanelRFMCliente'
 import { AbonarClienteButton } from '@/components/clientes/AbonarClienteButton'
@@ -124,6 +124,27 @@ export default async function ClienteDetallePage({
   const deudaOculta = deudaOcultaA(user.id, id)
   const meses = comprasPorMes(cliente.pedidos)
 
+  // Domicilios / envíos de este cliente: por la factura de sus pedidos o por su
+  // teléfono (los domicilios sueltos no llevan factura).
+  const facturaIds = [...new Set(cliente.pedidos.map((p: any) => p.factura_id).filter(Boolean))] as string[]
+  const tel10 = (cliente.telefono_normalizado ?? '').replace(/D/g, '').slice(-10)
+  const filtrosDom = [
+    facturaIds.length > 0 ? `factura_id.in.(${facturaIds.join(',')})` : null,
+    tel10.length === 10 ? `cliente_telefono.ilike.%${tel10}%` : null,
+  ].filter(Boolean) as string[]
+  const { data: domiciliosRaw } = filtrosDom.length > 0
+    ? await supabase
+        .from('domicilios')
+        .select('id, fecha, numero_pedido, mensajeria, estado, valor_domicilio, factura_id, direccion')
+        .or(filtrosDom.join(','))
+        .order('fecha', { ascending: false })
+        .limit(60)
+    : { data: [] as any[] }
+  const domicilios = (domiciliosRaw ?? []) as Array<{
+    id: string; fecha: string; numero_pedido: string | null; mensajeria: string
+    estado: string; valor_domicilio: number | null; factura_id: string | null; direccion: string | null
+  }>
+
   // Fotos de los artículos de cada pedido (mig. 199): tira en el historial.
   const { data: fotosRaw } = await supabase.rpc('fotos_pedidos', {
     p_pedido_ids: cliente.pedidos.map((p: any) => p.id),
@@ -239,6 +260,55 @@ export default async function ClienteDetallePage({
                   }))}
                   fotosPorPedido={fotosPorPedido}
                 />
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Domicilios / envíos */}
+          <Card>
+            <CardHeader>
+              <h2 className="text-sm font-semibold text-gray-900">Domicilios y envíos ({domicilios.length})</h2>
+            </CardHeader>
+            <CardContent className="p-0">
+              {domicilios.length === 0 ? (
+                <p className="px-6 py-4 text-sm text-gray-400">Sin domicilios registrados.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-100">
+                        <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Factura / pedido</th>
+                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Mensajería</th>
+                        <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">Domicilio</th>
+                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {domicilios.map(d => (
+                        <tr key={d.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-3 text-gray-500">{formatFecha(d.fecha)}</td>
+                          <td className="px-4 py-3">
+                            {d.factura_id ? (
+                              <Link href={`/facturacion/${d.factura_id}`} className="font-mono font-medium text-blue-600 hover:underline">
+                                {d.numero_pedido ?? 'Factura'}
+                              </Link>
+                            ) : (
+                              <span className="font-mono text-gray-600">{d.numero_pedido ?? '—'}</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-gray-700">{MENSAJERIA_LABELS[d.mensajeria as TipoMensajeria] ?? d.mensajeria}</td>
+                          <td className="px-4 py-3 text-right text-gray-900">{formatCOP(d.valor_domicilio ?? 0)}</td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${d.estado === 'entregado' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>
+                              {d.estado === 'entregado' ? 'Entregado' : 'Enviado / pendiente'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </CardContent>
           </Card>
