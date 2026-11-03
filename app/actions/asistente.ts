@@ -73,7 +73,7 @@ async function buscarPedidoDetalle(numeroOrden: string) {
       fecha_creacion, factura_id, cliente_id,
       sedes(codigo, nombre),
       clientes(nombre, telefono_normalizado),
-      usuarios(nombre),
+      usuarios!pedidos_asesor_id_fkey(nombre),
       pedido_items(marca, descripcion, talla, cantidad, precio_venta),
       pagos(monto, metodo, fecha)
     `)

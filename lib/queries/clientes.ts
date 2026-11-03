@@ -173,7 +173,7 @@ export async function getClienteDetalle(id: string): Promise<ClienteDetalle | nu
     .select(`
       id, numero_orden, estado, total, fecha_creacion, tipo_entrega, direccion_entrega,
       sede:sedes(nombre),
-      asesor:usuarios(nombre),
+      asesor:usuarios!pedidos_asesor_id_fkey(nombre),
       pagos(id, monto, metodo, fecha, notas, anulado, creado_en),
       facturas!factura_id(id, numero_factura, pagos_factura(id, monto, metodo, fecha, notas, anulado, creado_en))
     `)
