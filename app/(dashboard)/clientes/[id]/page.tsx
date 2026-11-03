@@ -127,7 +127,7 @@ export default async function ClienteDetallePage({
   // Domicilios / envíos de este cliente: por la factura de sus pedidos o por su
   // teléfono (los domicilios sueltos no llevan factura).
   const facturaIds = [...new Set(cliente.pedidos.map((p: any) => p.factura_id).filter(Boolean))] as string[]
-  const tel10 = (cliente.telefono_normalizado ?? '').replace(/D/g, '').slice(-10)
+  const tel10 = (cliente.telefono_normalizado ?? '').replace(/\D/g, '').slice(-10)
   const filtrosDom = [
     facturaIds.length > 0 ? `factura_id.in.(${facturaIds.join(',')})` : null,
     tel10.length === 10 ? `cliente_telefono.ilike.%${tel10}%` : null,
@@ -146,12 +146,26 @@ export default async function ClienteDetallePage({
   }>
 
   // Fotos de los artículos de cada pedido (mig. 199): tira en el historial.
-  const { data: fotosRaw } = await supabase.rpc('fotos_pedidos', {
-    p_pedido_ids: cliente.pedidos.map((p: any) => p.id),
+  const pedidoIds = cliente.pedidos.map((p: any) => p.id)
+  const { data: fotosRaw, error: fotosError } = await supabase.rpc('fotos_pedidos', {
+    p_pedido_ids: pedidoIds,
   })
   const fotosPorPedido: Record<string, Array<{ foto: string | null; nombre: string }>> = {}
   for (const f of (fotosRaw ?? []) as Array<{ pedido_id: string; items: Array<{ foto: string | null; nombre: string }> | null }>) {
     fotosPorPedido[f.pedido_id] = f.items ?? []
+  }
+  // Si la función falla, no quedarse sin fotos: leer directo de los artículos.
+  if (fotosError && pedidoIds.length > 0) {
+    console.error('fotos_pedidos falló:', fotosError.message)
+    const { data: itemsFoto } = await supabase
+      .from('pedido_items')
+      .select('pedido_id, imagen_url, marca, descripcion, talla')
+      .in('pedido_id', pedidoIds)
+      .order('id')
+    for (const it of (itemsFoto ?? []) as Array<{ pedido_id: string; imagen_url: string | null; marca: string | null; descripcion: string | null; talla: string | null }>) {
+      const nombre = [it.marca, it.descripcion, it.talla ? 'T' + it.talla.toUpperCase() : null].filter(Boolean).join(' ')
+      ;(fotosPorPedido[it.pedido_id] ??= []).push({ foto: it.imagen_url || null, nombre })
+    }
   }
   // Los cancelados no cuentan como pedidos ni en el ticket (sí se ven en el
   // historial, marcados).
