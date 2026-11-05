@@ -216,7 +216,9 @@ export function CrearCompraForm({ cuentas, proveedores = [], pedidosIniciales = 
             // La categoría de la ficha exonera a los accesorios de la talla
             categoria:          prod?.categoria ?? '',
             sexo:               prod?.sexo ?? '',
-            cantidad:           '1',
+            // Las unidades que pidió el cliente (antes quedaba siempre en 1 y
+            // un artículo x2 aparecía como una sola unidad).
+            cantidad:           String(prod?.cantidad || 1),
             costo_unitario_cop: '',
             destino:            'pedido',
             // Con sufijo se conserva (TR6835-2) para que la compra quede

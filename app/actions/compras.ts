@@ -171,6 +171,9 @@ export type PedidoItemBusqueda = {
   descripcion: string
   marca: string
   talla: string
+  // Unidades que pidió el cliente de este artículo (un artículo puede ser x2).
+  // Sin esto el formulario de compra precargaba siempre 1 unidad.
+  cantidad: number
   articulo_id: string | null
   imagen_url: string | null   // la foto que se subió en el pedido, o la del catálogo
   // De la ficha del catálogo: alimentan el selector de tallas del formulario
@@ -241,6 +244,7 @@ export async function buscarPedidoPorOrdenAction(numeroOrden: string): Promise<
       descripcion: cat?.nombre || ((it.descripcion as string) ?? ''),
       marca:       cat?.marca || ((it.marca as string) ?? ''),
       talla:       (it.talla as string) ?? '',
+      cantidad:    Number(it.cantidad) || 1,
       articulo_id: (it.articulo_id as string) ?? null,
       // Manda la foto DEL PEDIDO: es la que se le mostró al cliente. La del
       // catálogo queda de respaldo cuando el pedido no trae ninguna.
