@@ -10,12 +10,13 @@
 
 export const LUISA_SR_ID = '35aea4c1-4974-492d-b86e-2ddb345165f1'
 
+// 9-nov-2026: el dueño le devolvió a Luisa la vista de estos saldos, por eso la
+// lista está vacía. Para volver a ocultarlos, descomentar los ids:
+//   '11a0fb14-e00b-4a75-ba78-3d49f38fb2c8', // LINDA MAYE
+//   '8ada7737-c6f3-4c98-9a6f-47290f8ea1e9', // Leidy Cáceres
+//   '44c316f0-c375-4e9b-ab7e-44564f3cf6e1', // JENIFER GONZALES
 const DEUDA_OCULTA: Record<string, string[]> = {
-  [LUISA_SR_ID]: [
-    '11a0fb14-e00b-4a75-ba78-3d49f38fb2c8', // LINDA MAYE
-    '8ada7737-c6f3-4c98-9a6f-47290f8ea1e9', // Leidy Cáceres
-    '44c316f0-c375-4e9b-ab7e-44564f3cf6e1', // JENIFER GONZALES
-  ],
+  [LUISA_SR_ID]: [],
 }
 
 // Ids de cliente cuya deuda NO debe ver este usuario (vacío = ve todo).
