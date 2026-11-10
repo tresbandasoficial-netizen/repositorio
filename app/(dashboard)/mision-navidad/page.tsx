@@ -5,14 +5,18 @@ import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { formatCOP, hoyBogota } from '@/lib/utils/format'
 
 // Misión Navidad — Bucaramanga (TR). Meta de equipo: $650M del 1-nov al 31-dic-2026.
-// Reglas del dueño: SOLO cuenta lo facturado (la factura sale cuando se entrega),
-// las ventas de los jefes suman a la meta del equipo, y las ventas de jhon fredy NO suman.
+// Reglas del dueño (10-nov): SOLO cuenta lo facturado (la factura sale cuando se entrega)
+// desde el 1-nov, y NO suman las ventas de Johan (cuenta jhon fredy) ni las de Ronaldo.
 // Solo LEE: la cuenta la hace la función SQL mision_navidad (migración 217).
 const SEDE = 'TR'
 const META = 650_000_000
 const DESDE = '2026-11-01'
 const HASTA = '2026-12-31'
-const EXCLUIDOS = ['5aa07286-5ada-4e4b-a4b3-ef020068e229'] // jhon fredy
+const EXCLUIDOS = [
+  '5aa07286-5ada-4e4b-a4b3-ef020068e229', // jhon fredy (Johan)
+  '85fa5dbd-b320-4d23-b5e7-ade8566cf4d2', // Ronaldo
+  'ce89488f-56aa-4f77-9a0a-ff4795903cd1', // RONALDO ROJAS (cuenta anterior, inactiva)
+]
 
 type Fila = {
   asesor_id: string | null; asesor: string
@@ -75,7 +79,7 @@ export default async function MisionNavidadPage() {
         <h1 className="text-xl font-bold text-gray-900">Misión Navidad · Bucaramanga</h1>
         <p className="text-sm text-gray-500">
           Meta del equipo: {formatCOP(META)} del 1 de noviembre al 31 de diciembre. Solo cuenta lo facturado (entregado).
-          Las ventas de jhon fredy no suman. Solo lee: no cambia ningún dato.
+          No suman las ventas de Johan ni las de Ronaldo. Solo lee: no cambia ningún dato.
         </p>
       </div>
 
@@ -140,7 +144,7 @@ export default async function MisionNavidadPage() {
       )}
       <p className="text-[11px] text-gray-400">
         Valor de cada venta = valor del pedido (no el total de la factura, que queda en $0 cuando el cliente ya había pagado).
-        No cuentan pedidos cancelados ni facturas anuladas. Ronaldo (jefe) suma a la meta del equipo.
+        No cuentan pedidos cancelados ni facturas anuladas.
       </p>
     </div>
   )
