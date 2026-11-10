@@ -90,7 +90,7 @@ const navGrupos: { id: string; label: string; icon: NavIcon; items: NavItem[] }[
       { href: '/recompras',    label: 'Recompra RFM', icon: TrendingUp,  rol: ['admin'] },
       { href: '/alertas',      label: 'Alertas',      icon: Bell,        rol: ['asesor', 'admin', 'visor'] },
       { href: '/auditoria',    label: 'Auditoría SR', icon: ShieldCheck, rol: ['admin'] },
-      { href: '/mision-navidad', label: 'Misión Navidad', icon: Trophy,    rol: ['admin'] },
+      { href: '/mision-navidad', label: 'Misión Navidad', icon: Trophy,    rol: ['asesor', 'admin'] },
     ],
   },
   {
