@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getSesion } from '@/lib/auth/acceso'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -34,14 +33,12 @@ function Kpi({ titulo, valor, nota }: { titulo: string; valor: string; nota?: st
   )
 }
 
-export default async function MisionNavidadPage({ searchParams }: { searchParams: Promise<{ base?: string }> }) {
+export default async function MisionNavidadPage() {
   const sesion = await getSesion()
   if (sesion.rol !== 'admin') redirect('/dashboard')
 
-  // base=factura (por defecto): cuenta por FECHA DE FACTURA. base=creados: solo pedidos
-  // creados desde el 1-nov (deja fuera lo vendido en octubre y facturado en noviembre).
-  const { base } = await searchParams
-  const porCreados = base === 'creados'
+  // Se cuenta por FECHA DE FACTURA: los pedidos creados en octubre que se facturan
+  // desde el 1-nov SÍ entran (decisión del dueño, 10-nov).
 
   const admin = createAdminClient()
   const { data, error } = await (admin as any).rpc('mision_navidad', {
@@ -52,7 +49,7 @@ export default async function MisionNavidadPage({ searchParams }: { searchParams
   const filas = ((data ?? []) as Fila[]).map(f => ({
     asesor: f.asesor,
     n: Number(f.facturado_n),
-    valor: porCreados ? Number(f.creados_facturados) : Number(f.facturado_total),
+    valor: Number(f.facturado_total),
     deOctubre: Number(f.facturado_de_antes),
     porFacturar: Number(f.por_facturar),
     porFacturarN: Number(f.por_facturar_n),
@@ -80,15 +77,6 @@ export default async function MisionNavidadPage({ searchParams }: { searchParams
           Meta del equipo: {formatCOP(META)} del 1 de noviembre al 31 de diciembre. Solo cuenta lo facturado (entregado).
           Las ventas de jhon fredy no suman. Solo lee: no cambia ningún dato.
         </p>
-      </div>
-
-      <div className="flex gap-1.5 flex-wrap">
-        <Link href="/mision-navidad" className={`rounded-full px-3 py-1 text-xs font-semibold ${!porCreados ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-          Por fecha de factura
-        </Link>
-        <Link href="/mision-navidad?base=creados" className={`rounded-full px-3 py-1 text-xs font-semibold ${porCreados ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-          Solo pedidos creados desde el 1-nov
-        </Link>
       </div>
 
       <Card>
@@ -145,10 +133,9 @@ export default async function MisionNavidadPage({ searchParams }: { searchParams
         </CardContent>
       </Card>
 
-      {!porCreados && deOctubre > 0 && (
-        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
-          De ese total, {formatCOP(deOctubre)} son pedidos creados en octubre que se facturaron en noviembre.
-          Si no deben contar, mira la vista “Solo pedidos creados desde el 1-nov”.
+      {deOctubre > 0 && (
+        <p className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-3">
+          Incluye {formatCOP(deOctubre)} de pedidos creados en octubre que se facturaron desde el 1 de noviembre.
         </p>
       )}
       <p className="text-[11px] text-gray-400">
