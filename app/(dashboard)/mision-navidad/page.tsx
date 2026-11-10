@@ -12,6 +12,9 @@ const SEDE = 'TR'
 const META = 650_000_000
 const DESDE = '2026-11-01'
 const HASTA = '2026-12-31'
+// Luisa (Santa Rosa) entra al ranking del VIAJE (10-nov), pero sus ventas no suman a la
+// meta de $650M, que es solo de Bucaramanga.
+const LUISA_SR_ID = '35aea4c1-4974-492d-b86e-2ddb345165f1'
 const EXCLUIDOS = [
   '5aa07286-5ada-4e4b-a4b3-ef020068e229', // jhon fredy (Johan)
   '85fa5dbd-b320-4d23-b5e7-ade8566cf4d2', // Ronaldo
@@ -50,14 +53,24 @@ export default async function MisionNavidadPage() {
   })
   if (error) throw new Error(`Misión Navidad: no se pudo calcular el avance (${error.message})`)
 
-  const filas = ((data ?? []) as Fila[]).map(f => ({
+  const aFila = (f: Fila, sede: string) => ({
     asesor: f.asesor,
+    sede,
     n: Number(f.facturado_n),
     valor: Number(f.facturado_total),
     deOctubre: Number(f.facturado_de_antes),
     porFacturar: Number(f.por_facturar),
     porFacturarN: Number(f.por_facturar_n),
-  })).sort((a, b) => b.valor - a.valor)
+  })
+  const filas = ((data ?? []) as Fila[]).map(f => aFila(f, 'Bucaramanga')).sort((a, b) => b.valor - a.valor)
+
+  // Ranking del viaje = asesoras de Bucaramanga + Luisa de Santa Rosa.
+  const { data: dataSR, error: errorSR } = await (admin as any).rpc('mision_navidad', {
+    p_sede: 'SR', p_desde: DESDE, p_hasta: HASTA, p_excluir: [],
+  })
+  if (errorSR) throw new Error(`Misión Navidad: no se pudo calcular lo de Luisa (${errorSR.message})`)
+  const luisa = ((dataSR ?? []) as Fila[]).find(f => f.asesor_id === LUISA_SR_ID)
+  const ranking = [...filas, ...(luisa ? [aFila(luisa, 'Santa Rosa')] : [])].sort((a, b) => b.valor - a.valor)
 
   const total = filas.reduce((s, f) => s + f.valor, 0)
   const deOctubre = filas.reduce((s, f) => s + f.deOctubre, 0)
@@ -117,17 +130,17 @@ export default async function MisionNavidadPage() {
                   <th className="px-4 py-2 text-xs font-medium text-gray-500 uppercase text-left">#</th>
                   <th className="px-4 py-2 text-xs font-medium text-gray-500 uppercase text-left">Asesora</th>
                   <th className="px-4 py-2 text-xs font-medium text-gray-500 uppercase text-right">Facturado</th>
-                  <th className="px-4 py-2 text-xs font-medium text-gray-500 uppercase text-right">% del equipo</th>
+                  <th className="px-4 py-2 text-xs font-medium text-gray-500 uppercase text-left">Sede</th>
                   <th className="px-4 py-2 text-xs font-medium text-gray-500 uppercase text-right">Por facturar</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {filas.map((f, i) => (
-                  <tr key={f.asesor} className="hover:bg-gray-50">
+                {ranking.map((f, i) => (
+                  <tr key={`${f.sede}-${f.asesor}`} className="hover:bg-gray-50">
                     <td className="px-4 py-2 text-gray-400">{i + 1}</td>
                     <td className="px-4 py-2 text-gray-800 font-medium">{f.asesor}</td>
                     <td className="px-4 py-2 text-right font-semibold text-gray-900">{formatCOP(f.valor)}</td>
-                    <td className="px-4 py-2 text-right text-gray-600">{total > 0 ? ((f.valor / total) * 100).toFixed(1) : '0.0'}%</td>
+                    <td className="px-4 py-2 text-gray-600">{f.sede}</td>
                     <td className="px-4 py-2 text-right text-gray-500">{formatCOP(f.porFacturar)} <span className="text-[11px] text-gray-400">({f.porFacturarN})</span></td>
                   </tr>
                 ))}
@@ -143,6 +156,7 @@ export default async function MisionNavidadPage() {
         </p>
       )}
       <p className="text-[11px] text-gray-400">
+        El ranking del viaje incluye a Luisa (Santa Rosa); la meta de {formatCOP(META)} cuenta solo Bucaramanga.
         Valor de cada venta = valor del pedido (no el total de la factura, que queda en $0 cuando el cliente ya había pagado).
         No cuentan pedidos cancelados ni facturas anuladas.
       </p>
