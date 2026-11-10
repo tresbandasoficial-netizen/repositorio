@@ -6,7 +6,7 @@ import { formatCOP, hoyBogota } from '@/lib/utils/format'
 
 // Misión Navidad — Bucaramanga (TR). Meta de equipo: $650M del 1-nov al 31-dic-2026.
 // Reglas del dueño (10-nov): SOLO cuenta lo facturado (la factura sale cuando se entrega)
-// desde el 1-nov, y NO suman las ventas de Johan (cuenta jhon fredy) ni las de Ronaldo.
+// desde el 1-nov. Las ventas de los administradores suman a la meta; la cuenta jhon fredy no.
 // Solo LEE: la cuenta la hace la función SQL mision_navidad (migración 217).
 const SEDE = 'TR'
 const META = 650_000_000
@@ -15,10 +15,11 @@ const HASTA = '2026-12-31'
 // Luisa (Santa Rosa) entra al ranking del VIAJE (10-nov), pero sus ventas no suman a la
 // meta de $650M, que es solo de Bucaramanga.
 const LUISA_SR_ID = '35aea4c1-4974-492d-b86e-2ddb345165f1'
+// Ventas que NO suman a nada: la cuenta de asesora "jhon fredy" (decisión del dueño, 10-nov).
+// Las ventas de los ADMINISTRADORES (Johan, Ronaldo) sí suman a la meta del equipo, pero no
+// participan en el ranking del viaje (es para la asesora que más venda).
 const EXCLUIDOS = [
-  '5aa07286-5ada-4e4b-a4b3-ef020068e229', // jhon fredy (Johan)
-  '85fa5dbd-b320-4d23-b5e7-ade8566cf4d2', // Ronaldo
-  'ce89488f-56aa-4f77-9a0a-ff4795903cd1', // RONALDO ROJAS (cuenta anterior, inactiva)
+  '5aa07286-5ada-4e4b-a4b3-ef020068e229', // jhon fredy
 ]
 
 type Fila = {
@@ -53,7 +54,12 @@ export default async function MisionNavidadPage() {
   })
   if (error) throw new Error(`Misión Navidad: no se pudo calcular el avance (${error.message})`)
 
+  // Administradores: suman a la meta del equipo pero no entran al ranking del viaje.
+  const { data: admins } = await admin.from('usuarios').select('id').eq('rol', 'admin')
+  const idsAdmin = new Set(((admins ?? []) as Array<{ id: string }>).map(a => a.id))
+
   const aFila = (f: Fila, sede: string) => ({
+    esAdmin: !!f.asesor_id && idsAdmin.has(f.asesor_id),
     asesor: f.asesor,
     sede,
     n: Number(f.facturado_n),
@@ -70,7 +76,9 @@ export default async function MisionNavidadPage() {
   })
   if (errorSR) throw new Error(`Misión Navidad: no se pudo calcular lo de Luisa (${errorSR.message})`)
   const luisa = ((dataSR ?? []) as Fila[]).find(f => f.asesor_id === LUISA_SR_ID)
-  const ranking = [...filas, ...(luisa ? [aFila(luisa, 'Santa Rosa')] : [])].sort((a, b) => b.valor - a.valor)
+  const ranking = [...filas.filter(f => !f.esAdmin), ...(luisa ? [aFila(luisa, 'Santa Rosa')] : [])].sort((a, b) => b.valor - a.valor)
+  const deAdmins = filas.filter(f => f.esAdmin)
+  const totalAdmins = deAdmins.reduce((s, f) => s + f.valor, 0)
 
   const total = filas.reduce((s, f) => s + f.valor, 0)
   const deOctubre = filas.reduce((s, f) => s + f.deOctubre, 0)
@@ -92,7 +100,7 @@ export default async function MisionNavidadPage() {
         <h1 className="text-xl font-bold text-gray-900">Misión Navidad · Bucaramanga</h1>
         <p className="text-sm text-gray-500">
           Meta del equipo: {formatCOP(META)} del 1 de noviembre al 31 de diciembre. Solo cuenta lo facturado (entregado).
-          No suman las ventas de Johan ni las de Ronaldo. Solo lee: no cambia ningún dato.
+          Las ventas de los administradores suman a la meta. Solo lee: no cambia ningún dato.
         </p>
       </div>
 
@@ -150,6 +158,12 @@ export default async function MisionNavidadPage() {
         </CardContent>
       </Card>
 
+      {totalAdmins > 0 && (
+        <p className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-3">
+          La meta incluye {formatCOP(totalAdmins)} vendidos por administradores ({deAdmins.filter(f => f.valor > 0).map(f => f.asesor).join(', ')}).
+          No entran al ranking del viaje.
+        </p>
+      )}
       {deOctubre > 0 && (
         <p className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-3">
           Incluye {formatCOP(deOctubre)} de pedidos creados en octubre que se facturaron desde el 1 de noviembre.
