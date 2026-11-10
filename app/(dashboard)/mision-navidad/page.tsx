@@ -1,41 +1,15 @@
 import { redirect } from 'next/navigation'
 import { getSesion } from '@/lib/auth/acceso'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
-import { formatCOP, hoyBogota } from '@/lib/utils/format'
+import { formatCOP } from '@/lib/utils/format'
+import { calcularMisionNavidad, META } from '@/lib/mision-navidad'
 
-// Misión Navidad — Bucaramanga (TR). Meta de equipo: $650M del 1-nov al 31-dic-2026.
-// Reglas del dueño (10-nov): SOLO cuenta lo facturado (la factura sale cuando se entrega)
-// desde el 1-nov Y PAGADO: el crédito (entregado que aún se debe) NO cuenta. Las ventas de los
-// administradores suman a la meta; la cuenta jhon fredy no.
-// Solo LEE: la cuenta la hace la función SQL mision_navidad (migración 217).
+// Misión Navidad — la cuenta y las reglas viven en lib/mision-navidad.ts (y en la función SQL
+// mision_navidad, migración 217). Solo LEE.
 //
 // Quién la ve (10-nov): el administrador ve todo (crédito y por facturar de cada asesora);
 // cada asesora ve el avance del equipo, SU propio avance y el ranking con lo que cuenta de
 // cada una (sin el crédito ni lo pendiente de las demás). El visor no la ve.
-const SEDE = 'TR'
-const META = 650_000_000
-const DESDE = '2026-11-01'
-const HASTA = '2026-12-31'
-// Luisa (Santa Rosa) entra al ranking del VIAJE (10-nov), pero sus ventas no suman a la
-// meta de $650M, que es solo de Bucaramanga.
-const LUISA_SR_ID = '35aea4c1-4974-492d-b86e-2ddb345165f1'
-// Ventas que NO suman a nada: la cuenta de asesora "jhon fredy" (decisión del dueño, 10-nov).
-// Las ventas de los ADMINISTRADORES (Johan, Ronaldo) sí suman a la meta del equipo, pero no
-// participan en el ranking del viaje (es para la asesora que más venda).
-const EXCLUIDOS = [
-  '5aa07286-5ada-4e4b-a4b3-ef020068e229', // jhon fredy
-]
-
-type Fila = {
-  asesor_id: string | null; asesor: string
-  facturado_n: number; facturado_total: string | number
-  facturado_bruto: string | number; credito: string | number
-  facturado_de_antes: string | number
-  por_facturar_n: number; por_facturar: string | number
-}
-
-const dias = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000)
 
 function Kpi({ titulo, valor, nota }: { titulo: string; valor: string; nota?: string }) {
   return (
@@ -52,63 +26,15 @@ export default async function MisionNavidadPage() {
   if (sesion.rol !== 'admin' && sesion.rol !== 'asesor') redirect('/dashboard')
   const esAdminVista = sesion.rol === 'admin'
 
-  // Se cuenta por FECHA DE FACTURA: los pedidos creados en octubre que se facturan
-  // desde el 1-nov SÍ entran (decisión del dueño, 10-nov).
-  // La página ya verificó el rol; la función SQL solo la puede llamar el service_role.
-  const admin = createAdminClient()
-  const { data, error } = await (admin as any).rpc('mision_navidad', {
-    p_sede: SEDE, p_desde: DESDE, p_hasta: HASTA, p_excluir: EXCLUIDOS,
-  })
-  if (error) throw new Error(`Misión Navidad: no se pudo calcular el avance (${error.message})`)
-
-  // Administradores: suman a la meta del equipo pero no entran al ranking del viaje.
-  const { data: admins, error: errorAdmins } = await admin.from('usuarios').select('id').eq('rol', 'admin')
-  if (errorAdmins) throw new Error(`Misión Navidad: no se pudo leer los administradores (${errorAdmins.message})`)
-  const idsAdmin = new Set(((admins ?? []) as Array<{ id: string }>).map(a => a.id))
-
-  const aFila = (f: Fila, sede: string) => ({
-    id: f.asesor_id,
-    esAdmin: !!f.asesor_id && idsAdmin.has(f.asesor_id),
-    asesor: f.asesor,
-    sede,
-    n: Number(f.facturado_n),
-    valor: Number(f.facturado_total),   // lo PAGADO de lo facturado: lo que cuenta
-    credito: Number(f.credito),         // entregado y aún debido: NO cuenta
-    deOctubre: Number(f.facturado_de_antes),
-    porFacturar: Number(f.por_facturar),
-    porFacturarN: Number(f.por_facturar_n),
-  })
-  const filas = ((data ?? []) as Fila[]).map(f => aFila(f, 'Bucaramanga')).sort((a, b) => b.valor - a.valor)
-
-  // Ranking del viaje = asesoras de Bucaramanga + Luisa de Santa Rosa.
-  const { data: dataSR, error: errorSR } = await (admin as any).rpc('mision_navidad', {
-    p_sede: 'SR', p_desde: DESDE, p_hasta: HASTA, p_excluir: [],
-  })
-  if (errorSR) throw new Error(`Misión Navidad: no se pudo calcular lo de Luisa (${errorSR.message})`)
-  const luisa = ((dataSR ?? []) as Fila[]).find(f => f.asesor_id === LUISA_SR_ID)
-  const ranking = [...filas.filter(f => !f.esAdmin), ...(luisa ? [aFila(luisa, 'Santa Rosa')] : [])].sort((a, b) => b.valor - a.valor)
-  const deAdmins = filas.filter(f => f.esAdmin)
-  const totalAdmins = deAdmins.reduce((s, f) => s + f.valor, 0)
+  const {
+    ranking, deAdmins, totalAdmins, total, deOctubre, credito, porFacturar, porFacturarN,
+    pct, totalDias, transcurridos, pctTiempo, ritmoDiario, proyeccion, falta,
+  } = await calcularMisionNavidad()
 
   // Lo mío (solo asesoras): posición en el ranking y cuánto falta para alcanzar a la de arriba.
   const miPuesto = ranking.findIndex(f => f.id === sesion.id)
   const mia = miPuesto >= 0 ? ranking[miPuesto] : null
   const deArriba = miPuesto > 0 ? ranking[miPuesto - 1] : null
-
-  const total = filas.reduce((s, f) => s + f.valor, 0)
-  const deOctubre = filas.reduce((s, f) => s + f.deOctubre, 0)
-  const credito = filas.reduce((s, f) => s + f.credito, 0)
-  const porFacturar = filas.reduce((s, f) => s + f.porFacturar, 0)
-  const porFacturarN = filas.reduce((s, f) => s + f.porFacturarN, 0)
-  const pct = (total / META) * 100
-
-  const hoy = hoyBogota()
-  const transcurridos = Math.min(Math.max(dias(DESDE, hoy) + 1, 1), dias(DESDE, HASTA) + 1)
-  const totalDias = dias(DESDE, HASTA) + 1
-  const pctTiempo = (transcurridos / totalDias) * 100
-  const ritmoDiario = total / transcurridos
-  const proyeccion = ritmoDiario * totalDias
-  const falta = Math.max(META - total, 0)
 
   return (
     <div className="p-4 md:p-6 max-w-[1000px] mx-auto space-y-5">

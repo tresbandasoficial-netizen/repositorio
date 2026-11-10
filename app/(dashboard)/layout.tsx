@@ -4,6 +4,7 @@ import { DashboardShell } from '@/components/layout/DashboardShell'
 import { AvisoTareas } from '@/components/tareas/AvisoTareas'
 import { RadioFlotante } from '@/components/radio/RadioFlotante'
 import { MensajeMotivacional } from '@/components/retos/MensajeMotivacional'
+import { VentanaMision } from '@/components/mision-navidad/VentanaMision'
 import { getRetoVigente } from '@/lib/queries/retos'
 import { hoyBogota } from '@/lib/utils/format'
 
@@ -71,6 +72,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
           los retos solo se ven entrando a /retos. El banner motivacional por
           franjas (6-ago-2026) es aparte: una línea, cerrable. */}
       {motivacional && <MensajeMotivacional {...motivacional} />}
+      {/* Misión Navidad (10-nov-2026): ventanita abajo a la derecha de cada ASESORA con su
+          avance, su puesto y mensajes de ánimo para vender. Minimizable y cerrable. */}
+      {usuario.rol === 'asesor' && <VentanaMision />}
       {/* Radio interno (reemplazó el chat de texto, 15-ago-2026): admin y
           asesores hablan, todos los conectados escuchan en su computador. */}
       <RadioFlotante
