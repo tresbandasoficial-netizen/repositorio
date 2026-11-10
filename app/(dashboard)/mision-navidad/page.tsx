@@ -6,7 +6,8 @@ import { formatCOP, hoyBogota } from '@/lib/utils/format'
 
 // Misión Navidad — Bucaramanga (TR). Meta de equipo: $650M del 1-nov al 31-dic-2026.
 // Reglas del dueño (10-nov): SOLO cuenta lo facturado (la factura sale cuando se entrega)
-// desde el 1-nov. Las ventas de los administradores suman a la meta; la cuenta jhon fredy no.
+// desde el 1-nov Y PAGADO: el crédito (entregado que aún se debe) NO cuenta. Las ventas de los
+// administradores suman a la meta; la cuenta jhon fredy no.
 // Solo LEE: la cuenta la hace la función SQL mision_navidad (migración 217).
 const SEDE = 'TR'
 const META = 650_000_000
@@ -25,7 +26,8 @@ const EXCLUIDOS = [
 type Fila = {
   asesor_id: string | null; asesor: string
   facturado_n: number; facturado_total: string | number
-  facturado_de_antes: string | number; creados_facturados: string | number
+  facturado_bruto: string | number; credito: string | number
+  facturado_de_antes: string | number
   por_facturar_n: number; por_facturar: string | number
 }
 
@@ -63,7 +65,8 @@ export default async function MisionNavidadPage() {
     asesor: f.asesor,
     sede,
     n: Number(f.facturado_n),
-    valor: Number(f.facturado_total),
+    valor: Number(f.facturado_total),   // lo PAGADO de lo facturado: lo que cuenta
+    credito: Number(f.credito),         // entregado y aún debido: NO cuenta
     deOctubre: Number(f.facturado_de_antes),
     porFacturar: Number(f.por_facturar),
     porFacturarN: Number(f.por_facturar_n),
@@ -82,6 +85,7 @@ export default async function MisionNavidadPage() {
 
   const total = filas.reduce((s, f) => s + f.valor, 0)
   const deOctubre = filas.reduce((s, f) => s + f.deOctubre, 0)
+  const credito = filas.reduce((s, f) => s + f.credito, 0)
   const porFacturar = filas.reduce((s, f) => s + f.porFacturar, 0)
   const porFacturarN = filas.reduce((s, f) => s + f.porFacturarN, 0)
   const pct = (total / META) * 100
@@ -99,7 +103,8 @@ export default async function MisionNavidadPage() {
       <div>
         <h1 className="text-xl font-bold text-gray-900">Misión Navidad · Bucaramanga</h1>
         <p className="text-sm text-gray-500">
-          Meta del equipo: {formatCOP(META)} del 1 de noviembre al 31 de diciembre. Solo cuenta lo facturado (entregado).
+          Meta del equipo: {formatCOP(META)} del 1 de noviembre al 31 de diciembre. Solo cuenta lo facturado (entregado)
+          y ya pagado: lo que se entregó y aún se debe es crédito y no cuenta hasta que se pague.
           Las ventas de los administradores suman a la meta. Solo lee: no cambia ningún dato.
         </p>
       </div>
@@ -108,7 +113,7 @@ export default async function MisionNavidadPage() {
         <CardContent>
           <div className="flex items-end justify-between gap-3 flex-wrap">
             <div>
-              <p className="text-xs text-gray-500">Facturado hasta hoy</p>
+              <p className="text-xs text-gray-500">Facturado y pagado hasta hoy</p>
               <p className="text-3xl font-bold text-gray-900">{formatCOP(total)}</p>
             </div>
             <p className="text-sm text-gray-600"><b>{pct.toFixed(1)}%</b> de la meta · pasó el {pctTiempo.toFixed(1)}% del tiempo</p>
@@ -121,7 +126,8 @@ export default async function MisionNavidadPage() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <Kpi titulo="A crédito (no cuenta)" valor={formatCOP(credito)} nota="Entregado y aún debido; cuenta cuando se pague" />
         <Kpi titulo="Falta para la meta" valor={formatCOP(falta)} nota={`${totalDias - transcurridos} días restantes`} />
         <Kpi titulo="Ritmo diario" valor={formatCOP(ritmoDiario)} nota={`Día ${transcurridos} de ${totalDias}`} />
         <Kpi titulo="Proyección al 31-dic" valor={formatCOP(proyeccion)} nota="Si se mantiene este ritmo" />
@@ -137,8 +143,9 @@ export default async function MisionNavidadPage() {
                 <tr className="border-b border-gray-100">
                   <th className="px-4 py-2 text-xs font-medium text-gray-500 uppercase text-left">#</th>
                   <th className="px-4 py-2 text-xs font-medium text-gray-500 uppercase text-left">Asesora</th>
-                  <th className="px-4 py-2 text-xs font-medium text-gray-500 uppercase text-right">Facturado</th>
+                  <th className="px-4 py-2 text-xs font-medium text-gray-500 uppercase text-right">Cuenta (pagado)</th>
                   <th className="px-4 py-2 text-xs font-medium text-gray-500 uppercase text-left">Sede</th>
+                  <th className="px-4 py-2 text-xs font-medium text-gray-500 uppercase text-right">A crédito</th>
                   <th className="px-4 py-2 text-xs font-medium text-gray-500 uppercase text-right">Por facturar</th>
                 </tr>
               </thead>
@@ -149,6 +156,7 @@ export default async function MisionNavidadPage() {
                     <td className="px-4 py-2 text-gray-800 font-medium">{f.asesor}</td>
                     <td className="px-4 py-2 text-right font-semibold text-gray-900">{formatCOP(f.valor)}</td>
                     <td className="px-4 py-2 text-gray-600">{f.sede}</td>
+                    <td className="px-4 py-2 text-right text-amber-700">{formatCOP(f.credito)}</td>
                     <td className="px-4 py-2 text-right text-gray-500">{formatCOP(f.porFacturar)} <span className="text-[11px] text-gray-400">({f.porFacturarN})</span></td>
                   </tr>
                 ))}
@@ -166,7 +174,7 @@ export default async function MisionNavidadPage() {
       )}
       {deOctubre > 0 && (
         <p className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-3">
-          Incluye {formatCOP(deOctubre)} de pedidos creados en octubre que se facturaron desde el 1 de noviembre.
+          De lo que cuenta, {formatCOP(deOctubre)} son pedidos creados en octubre que se facturaron desde el 1 de noviembre.
         </p>
       )}
       <p className="text-[11px] text-gray-400">
