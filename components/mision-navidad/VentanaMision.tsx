@@ -63,7 +63,9 @@ function mensajesDe(r: ResumenMision): string[] {
 export function VentanaMision() {
   const pathname = usePathname()
   const [r, setR] = useState<ResumenMision | null>(null)
-  const [i, setI] = useState(0)
+  // Mensaje inicial distinto cada hora; luego rota solo (tick) o al tocarlo.
+  const [base] = useState(() => Math.floor(Date.now() / 3_600_000))
+  const [tick, setTick] = useState(0)
   const [estado, setEstado] = useState<'abierta' | 'minimizada' | 'cerrada'>('abierta')
 
   // Carga una vez al montar el layout y refresca cada 10 minutos.
@@ -77,7 +79,9 @@ export function VentanaMision() {
     return () => { vivo = false; clearInterval(t) }
   }, [])
 
-  // Recuerda si la cerró hoy o la dejó minimizada (por navegador).
+  // Recuerda si la cerró hoy o la dejó minimizada (por navegador). Solo se puede leer
+  // localStorage en el cliente, por eso va en un efecto.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     try {
       const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
@@ -85,20 +89,25 @@ export function VentanaMision() {
       else if (localStorage.getItem('mision-ventana-min') === '1') setEstado('minimizada')
     } catch { /* sin almacenamiento: queda abierta */ }
   }, [])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const mensajes = useMemo(() => (r ? mensajesDe(r) : []), [r])
 
-  // Arranca en un mensaje distinto cada día/hora y rota solo cada 40 s.
+  // Rota el mensaje solo cada 40 s.
   useEffect(() => {
-    if (!mensajes.length) return
-    setI(Math.floor(Date.now() / 3_600_000) % mensajes.length)
-    const t = setInterval(() => setI(x => (x + 1) % mensajes.length), 40_000)
+    const t = setInterval(() => setTick(x => x + 1), 40_000)
     return () => clearInterval(t)
-  }, [mensajes])
+  }, [])
+  const i = mensajes.length ? (base + tick) % mensajes.length : 0
 
   if (!r || estado === 'cerrada' || pathname.startsWith('/mision-navidad')) return null
 
-  const guardarMin = (v: boolean) => { try { v ? localStorage.setItem('mision-ventana-min', '1') : localStorage.removeItem('mision-ventana-min') } catch {} }
+  const guardarMin = (v: boolean) => {
+    try {
+      if (v) localStorage.setItem('mision-ventana-min', '1')
+      else localStorage.removeItem('mision-ventana-min')
+    } catch { /* sin almacenamiento */ }
+  }
   const minimizar = () => { setEstado('minimizada'); guardarMin(true) }
   const abrir = () => { setEstado('abierta'); guardarMin(false) }
   const cerrarHoy = () => {
@@ -151,7 +160,7 @@ export function VentanaMision() {
 
           <button
             type="button"
-            onClick={() => setI(x => (x + 1) % Math.max(mensajes.length, 1))}
+            onClick={() => setTick(x => x + 1)}
             className="w-full rounded-xl bg-emerald-50 px-3 py-2 text-left text-[13px] leading-snug text-emerald-900"
             title="Toca para ver otro mensaje"
           >

@@ -48,7 +48,8 @@ const dias = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)
 export async function calcularMisionNavidad() {
   const admin = createAdminClient()
 
-  const { data, error } = await (admin as any).rpc('mision_navidad', {
+  const { data, error } = await (admin as any).rpc( // eslint-disable-line @typescript-eslint/no-explicit-any
+    'mision_navidad', {
     p_sede: SEDE, p_desde: DESDE, p_hasta: HASTA, p_excluir: EXCLUIDOS,
   })
   if (error) throw new Error(`Misión Navidad: no se pudo calcular el avance (${error.message})`)
@@ -73,7 +74,8 @@ export async function calcularMisionNavidad() {
   const filas = ((data ?? []) as FilaSql[]).map(f => aFila(f, 'Bucaramanga')).sort((a, b) => b.valor - a.valor)
 
   // Ranking del viaje = asesoras de Bucaramanga + Luisa de Santa Rosa.
-  const { data: dataSR, error: errorSR } = await (admin as any).rpc('mision_navidad', {
+  const { data: dataSR, error: errorSR } = await (admin as any).rpc( // eslint-disable-line @typescript-eslint/no-explicit-any
+    'mision_navidad', {
     p_sede: 'SR', p_desde: DESDE, p_hasta: HASTA, p_excluir: [],
   })
   if (errorSR) throw new Error(`Misión Navidad: no se pudo calcular lo de Luisa (${errorSR.message})`)
