@@ -493,14 +493,20 @@ export async function cambiarEstadoInlineAction(
   return { ok: true }
 }
 
-// ─── Marcar COMPRADO sin factura ni valor (mig. 213) ─────────────────────────
+// ─── Marcar COMPRADO sin factura ni valor (mig. 213 y 219) ───────────────────
 // Para avisar "este pedido ya se compró" sin tener la factura de compra ni el
 // valor: deja de salir "sin compra" en galería/alertas y, si estaba en
 // Pendiente, pasa a Comprado. NO pone costo: la ganancia sigue sin costo hasta
 // que el admin asigne la compra (o el costo manual). `marcar=false` quita la marca.
+//
+// POR PRENDA (mig. 219): `prendasPorPedido` trae, por pedido, los ids de las prendas
+// elegidas. Si de un pedido con varias prendas llegan solo algunas, SOLO esas se marcan
+// y pasan a comprado; las demás siguen como estaban. Antes se movía el pedido completo
+// (TR8428-1 marcada → TR8428-2 también). Sin `prendasPorPedido` se marca el pedido entero.
 export async function marcarCompradoSinFacturaAction(
   pedidoIds: string[],
   marcar = true,
+  prendasPorPedido?: Record<string, string[]>,
 ): Promise<{ ok: true; marcados: number } | { ok: false; error: string }> {
   const sesion = await getSesion()
   if (sesion.rol === 'visor') return { ok: false, error: 'Sin permisos' }
@@ -518,6 +524,7 @@ export async function marcarCompradoSinFacturaAction(
   if (lista.length === 0) return { ok: false, error: 'Pedidos no encontrados' }
   if (lista.some(p => !puedeAccederSede(sesion, p.sede_id))) return { ok: false, error: 'Sin acceso a alguno de los pedidos' }
 
+  const ahora = () => new Date().toISOString()
   let marcados = 0
   const errores: string[] = []
   for (const p of lista) {
@@ -525,13 +532,88 @@ export async function marcarCompradoSinFacturaAction(
       errores.push(`${p.numero_orden}: ya está ${p.estado}`)
       continue
     }
+
+    // ¿Se eligieron solo algunas prendas de un pedido con varias?
+    let prendas: PrendaPedido[]
+    try {
+      prendas = await prendasDePedido(admin, p.id)
+    } catch (e) {
+      errores.push(`${p.numero_orden}: ${e instanceof Error ? e.message : String(e)}`)
+      continue
+    }
+    const elegidasIds = prendasPorPedido?.[p.id]
+    const elegidas = elegidasIds ? prendas.filter(x => elegidasIds.includes(x.id)) : prendas
+    if (elegidasIds && elegidas.length !== new Set(elegidasIds).size) {
+      errores.push(`${p.numero_orden}: la pantalla está desactualizada — recarga la página`)
+      continue
+    }
+    const parcial = prendas.length > 1 && elegidas.length > 0 && elegidas.length < prendas.length
+
+    if (parcial) {
+      // Marca SOLO las prendas elegidas.
+      const idsElegidas = elegidas.map(x => x.id)
+      const { error: errMarca } = await admin
+        .from('pedido_items')
+        .update({ comprado_marcado_en: marcar ? ahora() : null })
+        .in('id', idsElegidas)
+      if (errMarca) { errores.push(`${p.numero_orden}: ${errMarca.message}`); continue }
+
+      if (marcar) {
+        const pendientes = elegidas.filter(x => x.estado === 'pendiente').map(x => x.id)
+        if (pendientes.length > 0) {
+          const { error: errEstado } = await supabase.rpc('cambiar_estado_prendas', {
+            p_pedido_id:    p.id,
+            p_item_ids:     pendientes,
+            p_nuevo_estado: 'comprado',
+            p_usuario_id:   sesion.id,
+          })
+          if (errEstado) { errores.push(`${p.numero_orden}: quedó marcada pero no cambió de estado (${errEstado.message})`); continue }
+        }
+      }
+
+      // La marca del pedido completo solo vale si TODAS sus prendas están marcadas.
+      const { data: marcas, error: errMarcas } = await admin
+        .from('pedido_items')
+        .select('id, comprado_marcado_en')
+        .eq('pedido_id', p.id)
+      if (errMarcas) { errores.push(`${p.numero_orden}: ${errMarcas.message}`); continue }
+      const todas = (marcas ?? []).every(m => m.comprado_marcado_en != null)
+      const { error: errPedido } = await admin
+        .from('pedidos')
+        .update(todas
+          ? { comprado_marcado_en: p.comprado_marcado_en ?? ahora(), comprado_marcado_por: sesion.id }
+          : { comprado_marcado_en: null, comprado_marcado_por: null })
+        .eq('id', p.id)
+      if (errPedido) { errores.push(`${p.numero_orden}: ${errPedido.message}`); continue }
+
+      const refs = elegidas.map(x => `${p.numero_orden}-${prendas.findIndex(y => y.id === x.id) + 1}`).join(', ')
+      await admin.from('historial_cambios').insert({
+        tabla:          'pedidos',
+        registro_id:    p.id,
+        campo:          'comprado_marcado',
+        valor_anterior: p.comprado_marcado_en ? 'sí' : 'no',
+        valor_nuevo:    `${marcar ? 'sí' : 'no'} (prenda ${refs})`,
+        usuario_id:     sesion.id,
+      })
+      marcados++
+      continue
+    }
+
+    // Pedido completo (una sola prenda, o se eligieron todas).
     const { error } = await admin
       .from('pedidos')
       .update(marcar
-        ? { comprado_marcado_en: new Date().toISOString(), comprado_marcado_por: sesion.id }
+        ? { comprado_marcado_en: ahora(), comprado_marcado_por: sesion.id }
         : { comprado_marcado_en: null, comprado_marcado_por: null })
       .eq('id', p.id)
     if (error) { errores.push(`${p.numero_orden}: ${error.message}`); continue }
+
+    // Las prendas también quedan marcadas, para poder quitar la marca de una sola después.
+    const { error: errItems } = await admin
+      .from('pedido_items')
+      .update({ comprado_marcado_en: marcar ? ahora() : null })
+      .eq('pedido_id', p.id)
+    if (errItems) { errores.push(`${p.numero_orden}: ${errItems.message}`); continue }
 
     await admin.from('historial_cambios').insert({
       tabla:          'pedidos',

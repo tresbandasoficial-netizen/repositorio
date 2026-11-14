@@ -151,13 +151,24 @@ export function GaleriaPedidos({
   // Marca los pedidos seleccionados como comprados sin factura ni valor.
   async function marcarCompradoLote() {
     const pedidos = pedidosMarcados()
+    // Por prenda: en la vista "por artículo" cada tarjeta marcada es UNA prenda; solo esas
+    // se marcan, no el pedido entero. En la vista "por pedido" (item null) va el pedido completo.
+    const prendasPorPedido: Record<string, string[]> = {}
+    const pedidosEnteros = new Set<string>()
+    for (const t of tiles) {
+      if (!marcados.includes(t.ref)) continue
+      if (t.item) (prendasPorPedido[t.pedido.id] ??= []).push(t.item.id)
+      else pedidosEnteros.add(t.pedido.id)
+    }
+    for (const id of pedidosEnteros) delete prendasPorPedido[id]
+    const refsMarcadas = tiles.filter(t => marcados.includes(t.ref)).map(t => t.ref)
     if (!confirm(
       `¿Marcar como COMPRADO (sin factura ni valor de compra)?\n\n` +
-      pedidos.map(p => p.numero_orden).join(', ') +
+      refsMarcadas.join(', ') +
       `\n\nDejan de salir "sin comprar". El costo se registra después en Compras.`
     )) return
     setMarcandoLote(true)
-    const r = await marcarCompradoSinFacturaAction(pedidos.map(p => p.id))
+    const r = await marcarCompradoSinFacturaAction(pedidos.map(p => p.id), true, prendasPorPedido)
     setMarcandoLote(false)
     if (!r.ok) { alert(r.error); router.refresh(); return }
     setMarcados([])

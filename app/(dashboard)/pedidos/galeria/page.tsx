@@ -163,7 +163,7 @@ export default async function GaleriaPedidosPage({
     const [{ data: items }, { data: compras }] = await Promise.all([
       supabase
         .from('pedido_items')
-        .select('id, pedido_id, estado, codigo, marca, descripcion, talla, cantidad, precio_venta, sexo, categoria, imagen_url, articulo_id, costo_manual, articulos(codigo, sexo, categoria)')
+        .select('id, pedido_id, estado, codigo, marca, descripcion, talla, cantidad, precio_venta, sexo, categoria, imagen_url, articulo_id, costo_manual, comprado_marcado_en, articulos(codigo, sexo, categoria)')
         .in('pedido_id', ids)
         .order('id'),
       // compra_items es solo de admin por RLS: con el cliente del asesor llegaba
@@ -180,9 +180,11 @@ export default async function GaleriaPedidosPage({
     // Solo el HECHO de tener costo manual (boolean) — el monto no viaja al
     // cliente: ItemGaleria lo ven también los asesores.
     const costeadosPorPedido: Record<string, boolean[]> = {}
+    const marcadasPrenda = new Set<string>()   // prendas marcadas "comprado" a mano (mig. 219)
     for (const it of (items ?? []) as any[]) {
       const art = Array.isArray(it.articulos) ? it.articulos[0] : it.articulos
       ;(costeadosPorPedido[it.pedido_id] ??= []).push(it.costo_manual != null)
+      if (it.comprado_marcado_en) marcadasPrenda.add(it.id)
       ;(itemsPorPedido[it.pedido_id] ??= []).push({
         id: it.id,
         estado: it.estado ?? null,
@@ -219,6 +221,8 @@ export default async function GaleriaPedidosPage({
     }
     for (const pid of Object.keys(itemsPorPedido)) {
       marcarComprados(itemsPorPedido[pid], comprasPorPedido[pid] ?? [], costeadosPorPedido[pid])
+      // Una prenda marcada a mano como comprada deja de salir en rojo, aunque sus hermanas no.
+      for (const it of itemsPorPedido[pid]) if (marcadasPrenda.has(it.id)) it.comprado = true
     }
     // Un pedido con COSTO MANUAL ya tiene su costo resuelto: sus prendas no
     // deben salir en rojo "sin comprar" (el admin lo costeó a mano).
