@@ -647,13 +647,20 @@ export async function marcarCompradoSinFacturaAction(
 // Cuando se imprimen las etiquetas es porque la mercancía llegó: los pedidos
 // pasan a estado 'bucaramanga'. Solo avanza pedidos en pendiente/comprado/usa;
 // no toca los que ya están en bucaramanga/santa_rosa/entregado/cancelado.
+//
+// POR PRENDA: `itemIds` trae las prendas elegidas (de la galería, vista "por artículo").
+// De un pedido con varias prendas, si llegan algunas de sus prendas SOLO esas pasan a
+// Bucaramanga y las demás siguen en camino. Antes se movía el pedido completo y la
+// prenda que no había llegado también quedaba "en Bucaramanga". Un pedido sin prendas
+// elegidas (vista "por pedido" o números escritos a mano) sigue pasando completo.
 
 export type MarcarLlegadaResult =
   | { ok: true; marcados: number; omitidos: string[] }
   | { ok: false; error: string }
 
 export async function marcarLlegadaBucaramangaAction(
-  pedidoIds: string[]
+  pedidoIds: string[],
+  itemIds?: string[],
 ): Promise<MarcarLlegadaResult> {
   const sesion = await getSesion()
   if (sesion.rol === 'visor') return { ok: false, error: 'Sin permisos para cambiar estados' }
@@ -675,6 +682,36 @@ export async function marcarLlegadaBucaramangaAction(
     // las sedes llega a Bucaramanga, así que aplica entre sedes.
     if (!puedeVerPedido(sesion, p.sede_id)) { omitidos.push(p.numero_orden); continue }
     if (p.estado === 'bucaramanga') continue // ya está, nada que hacer
+
+    // ¿Se eligieron prendas concretas de este pedido? Solo esas.
+    if (itemIds && itemIds.length > 0) {
+      let prendas: PrendaPedido[]
+      try {
+        prendas = await prendasDePedido(supabase, p.id)
+      } catch (e) {
+        omitidos.push(`${p.numero_orden} (${e instanceof Error ? e.message : String(e)})`)
+        continue
+      }
+      const elegidas = prendas.filter(x => itemIds.includes(x.id))
+      if (elegidas.length > 0) {
+        if (p.estado === 'cancelado' || p.estado === 'entregado' || p.estado === 'santa_rosa') {
+          omitidos.push(`${p.numero_orden} (${p.estado})`)
+          continue
+        }
+        const aMover = elegidas.filter(x => EN_CAMINO.includes(x.estado)).map(x => x.id)
+        if (aMover.length === 0) continue // esas prendas ya habían llegado
+        const { error: errPrendas } = await supabase.rpc('cambiar_estado_prendas', {
+          p_pedido_id:    p.id,
+          p_item_ids:     aMover,
+          p_nuevo_estado: 'bucaramanga',
+          p_usuario_id:   sesion.id,
+        })
+        if (errPrendas) omitidos.push(`${p.numero_orden} (${errPrendas.message})`)
+        else marcados++
+        continue
+      }
+    }
+
     if (!AVANZABLES.includes(p.estado)) { omitidos.push(`${p.numero_orden} (${p.estado})`); continue }
     const { error } = await supabase.rpc('cambiar_estado_pedido', {
       p_pedido_id:    p.id,

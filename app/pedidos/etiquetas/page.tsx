@@ -54,11 +54,13 @@ type PedidoEtiqueta = {
 export default async function EtiquetasLotePage({
   searchParams,
 }: {
-  searchParams: Promise<{ ids?: string; nums?: string }>
+  searchParams: Promise<{ ids?: string; nums?: string; items?: string }>
 }) {
   const sesion = await getSesion()
-  const { ids: idsParam, nums: numsParam } = await searchParams
+  const { ids: idsParam, nums: numsParam, items: itemsParam } = await searchParams
   const ids = (idsParam ?? '').split(',').map(s => s.trim()).filter(Boolean)
+  // Prendas elegidas en la galería (vista por artículo): solo esas pasan a Bucaramanga.
+  const itemIds = (itemsParam ?? '').split(',').map(s => s.trim()).filter(Boolean)
   // Números de orden: separados por coma, espacio o salto de línea; siempre en mayúsculas.
   const nums = (numsParam ?? '').split(/[\s,;]+/).map(s => s.trim().toUpperCase()).filter(Boolean)
   if (ids.length === 0 && nums.length === 0) notFound()
@@ -104,7 +106,7 @@ export default async function EtiquetasLotePage({
   return (
     <>
       <div className="no-print fixed top-4 right-4 z-10 flex items-start gap-2">
-        <MarcarLlegadaButton pedidoIds={pedidos.map(p => p.id)} />
+        <MarcarLlegadaButton pedidoIds={pedidos.map(p => p.id)} itemIds={ids.length > 0 ? itemIds : undefined} />
         <PrintButton />
         <a
           href="/pedidos"

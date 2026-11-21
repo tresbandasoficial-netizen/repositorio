@@ -7,7 +7,7 @@ import { Loader2, PackageCheck, Check } from 'lucide-react'
 // En la página de etiquetas: marca todos los pedidos impresos como llegados
 // a Bucaramanga (estado 'bucaramanga'). La etiqueta se imprime cuando la
 // mercancía llega, así que este botón cierra ese paso del flujo.
-export function MarcarLlegadaButton({ pedidoIds }: { pedidoIds: string[] }) {
+export function MarcarLlegadaButton({ pedidoIds, itemIds }: { pedidoIds: string[]; itemIds?: string[] }) {
   const [isPending, startTransition] = useTransition()
   const [resultado, setResultado] = useState<{ marcados: number; omitidos: string[] } | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -16,7 +16,7 @@ export function MarcarLlegadaButton({ pedidoIds }: { pedidoIds: string[] }) {
     if (!window.confirm(`¿Marcar ${pedidoIds.length} pedido${pedidoIds.length !== 1 ? 's' : ''} como llegado${pedidoIds.length !== 1 ? 's' : ''} a Bucaramanga?`)) return
     startTransition(async () => {
       setError(null)
-      const r = await marcarLlegadaBucaramangaAction(pedidoIds)
+      const r = await marcarLlegadaBucaramangaAction(pedidoIds, itemIds)
       if (r.ok) setResultado({ marcados: r.marcados, omitidos: r.omitidos })
       else setError(r.error)
     })

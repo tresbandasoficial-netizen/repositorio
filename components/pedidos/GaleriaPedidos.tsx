@@ -745,7 +745,12 @@ export function GaleriaPedidos({
             Crear envío
           </button>
           <button
-            onClick={() => window.open(`/pedidos/etiquetas?ids=${pedidosMarcados().map(p => p.id).join(',')}`, '_blank')}
+            onClick={() => {
+              // Vista por artículo: se mandan las PRENDAS marcadas para que "Llegó a Bucaramanga"
+              // en la hoja de etiquetas mueva solo esas y no el pedido entero.
+              const itemIds = tiles.filter(t => marcados.includes(t.ref) && t.item).map(t => t.item!.id)
+              window.open(`/pedidos/etiquetas?ids=${pedidosMarcados().map(p => p.id).join(',')}${itemIds.length > 0 ? `&items=${itemIds.join(',')}` : ''}`, '_blank')
+            }}
             className="flex items-center gap-1.5 bg-gray-600 hover:bg-gray-500 text-white text-sm font-bold px-3.5 py-2 rounded-xl transition-colors"
           >
             <Printer size={15} />
