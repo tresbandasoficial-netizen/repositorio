@@ -378,7 +378,7 @@ GET /api/cron/alertas                → 13:00 diarios (protegido CRON_SECRET)
   • Crea alertas + notificaciones automáticas
   • Envía email con Resend
 
-GET /api/cron/cierre-automatico      → 23:59 diarios
+GET /api/cron/cierre-automatico      → 00:00 (medianoche Colombia) diarios; cierra el día que termina
   • Cierre automático de cajas (si no fue manual)
 ```
 

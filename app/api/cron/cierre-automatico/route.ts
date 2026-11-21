@@ -3,17 +3,29 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { hoyBogota } from '@/lib/utils/format'
 import { getCuadreDia } from '@/lib/queries/domicilios'
 
-// Cierre automático de caja a las 9:00 p.m. (hora Colombia).
-// Para cada sede que NO cerró caja hoy, crea el cierre con el snapshot del día.
+// Cierre automático de caja a las 12:00 a.m. (medianoche, hora Colombia).
+// Para cada sede que NO cerró caja ese día, crea el cierre con el snapshot del día que
+// TERMINA (a medianoche ya es el día siguiente, por eso se cierra "ayer").
 // Se marca como automático por su nota ("Cierre automático") y se atribuye a un
 // usuario admin existente (la tabla exige usuario_id). A partir de ahí la sede
 // queda bloqueada para los asesores (solo el admin puede registrar o reabrir).
 //
 // Protegido con CRON_SECRET. Agendado en vercel.json:
-//   { "path": "/api/cron/cierre-automatico", "schedule": "0 2 * * *" }
-// 02:00 UTC = 21:00 hora Bogotá (UTC-5).
+//   { "path": "/api/cron/cierre-automatico", "schedule": "0 5 * * *" }
+// 05:00 UTC = 00:00 hora Bogotá (UTC-5). Vercel puede disparar el cron unos minutos después de
+// la hora exacta, así que el día a cerrar NO depende de la hora de ejecución: si en Bogotá es
+// antes del mediodía se cierra el día anterior; si no, el de hoy.
+// (Cambio del dueño, 21-nov-2026: antes cerraba a las 9:00 p.m.)
 
-const NOTA_AUTOMATICO = 'Cierre automático (9:00 p.m.)'
+const NOTA_AUTOMATICO = 'Cierre automático (12:00 a.m.)'
+
+// Día (YYYY-MM-DD, Bogotá) que corresponde cerrar en este momento.
+function diaACerrar(): string {
+  const hoy = hoyBogota()
+  const hora = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Bogota', hour: 'numeric', hourCycle: 'h23' }).format(new Date()))
+  if (hora >= 12) return hoy
+  return new Date(Date.parse(`${hoy}T12:00:00Z`) - 86_400_000).toISOString().slice(0, 10)
+}
 
 export async function GET(req: NextRequest) {
   // CRON_SECRET es obligatorio: si no está configurado, la ruta queda cerrada.
@@ -27,7 +39,7 @@ export async function GET(req: NextRequest) {
   }
 
   const supabase = createAdminClient()
-  const hoy = hoyBogota()
+  const hoy = diaACerrar()   // el día que termina (ver arriba), no necesariamente "hoy"
 
   const { data: sedes, error: errSedes } = await supabase.from('sedes').select('id')
   if (errSedes) return NextResponse.json({ error: errSedes.message }, { status: 500 })
