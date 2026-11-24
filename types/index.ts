@@ -145,11 +145,11 @@ export function metodosDeSede(sedeCodigo?: string | null): MetodoPago[] {
 }
 
 // Cuentas Bancolombia que los ASESORES no ven en los selectores (31-oct-2026):
-// solo les quedan Angel, Victor y Linda. El admin sigue viendo todas.
+// solo les quedan Angel, Victor, Linda y Johan Gelvez (esta última se les abrió el 24-nov-2026).
+// El admin sigue viendo todas.
 export const BANCOLOMBIA_OCULTAS_ASESOR: MetodoPago[] = [
   'bancolombia_ronaldo', 'bancolombia_johan', 'bancolombia_carlos',
   'bancolombia_cristian', 'bancolombia_huber', 'bancolombia_jhan_carlos',
-  'bancolombia_johan_gelvez',   // cuenta nueva (24-nov-2026): solo el admin la ve hasta que se indique otra cosa
 ]
 
 // Quita de la lista las cuentas que el rol no debe elegir.
