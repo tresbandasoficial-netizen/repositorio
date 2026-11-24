@@ -57,6 +57,7 @@ export type MetodoPago =
   | 'bancolombia_angel'
   | 'bancolombia_victor'
   | 'bancolombia_linda'
+  | 'bancolombia_johan_gelvez'
   | 'bancolombia_mayra'
   | 'davivienda'
   | 'addi'
@@ -91,6 +92,7 @@ export const METODO_PAGO_LABELS: Record<MetodoPago, string> = {
   bancolombia_angel:     'Bancolombia Angel',
   bancolombia_victor:    'Bancolombia Victor',
   bancolombia_linda:     'Bancolombia Linda',
+  bancolombia_johan_gelvez: 'Bancolombia Johan Gelvez',
   bancolombia_mayra:     'Bancolombia Mayra',
   davivienda:            'Davivienda',
   addi:                  'Addi',
@@ -115,7 +117,7 @@ export const METODOS_PAGO: MetodoPago[] = [
   'efectivo',
   'nequi_johan', 'nequi_marisol', 'nequi_luisa',
   'bancolombia_ronaldo', 'bancolombia_johan', 'bancolombia_carlos',
-  'bancolombia_cristian', 'bancolombia_huber', 'bancolombia_jhan_carlos', 'bancolombia_angel', 'bancolombia_victor', 'bancolombia_linda', 'bancolombia_mayra',
+  'bancolombia_cristian', 'bancolombia_huber', 'bancolombia_jhan_carlos', 'bancolombia_angel', 'bancolombia_victor', 'bancolombia_linda', 'bancolombia_johan_gelvez', 'bancolombia_mayra',
   'davivienda', 'addi', 'bold', 'bold_cucuta', 'bold_santa_rosa', 'sistecredito', 'credito',
 ]
 
@@ -129,7 +131,7 @@ export const METODOS_PAGO_POR_SEDE: Record<string, MetodoPago[]> = {
     'efectivo',
     'nequi_johan', 'nequi_marisol',
     'bancolombia_ronaldo', 'bancolombia_johan', 'bancolombia_carlos',
-    'bancolombia_cristian', 'bancolombia_huber', 'bancolombia_jhan_carlos', 'bancolombia_angel', 'bancolombia_victor', 'bancolombia_linda',
+    'bancolombia_cristian', 'bancolombia_huber', 'bancolombia_jhan_carlos', 'bancolombia_angel', 'bancolombia_victor', 'bancolombia_linda', 'bancolombia_johan_gelvez',
     'davivienda', 'addi', 'bold', 'sistecredito', 'credito',
   ],
   SR: ['efectivo', 'nequi_luisa', 'addi', 'sistecredito', 'bold_santa_rosa', 'credito'],
@@ -147,6 +149,7 @@ export function metodosDeSede(sedeCodigo?: string | null): MetodoPago[] {
 export const BANCOLOMBIA_OCULTAS_ASESOR: MetodoPago[] = [
   'bancolombia_ronaldo', 'bancolombia_johan', 'bancolombia_carlos',
   'bancolombia_cristian', 'bancolombia_huber', 'bancolombia_jhan_carlos',
+  'bancolombia_johan_gelvez',   // cuenta nueva (24-nov-2026): solo el admin la ve hasta que se indique otra cosa
 ]
 
 // Quita de la lista las cuentas que el rol no debe elegir.
