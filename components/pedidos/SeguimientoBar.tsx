@@ -13,9 +13,12 @@ interface SeguimientoBarProps {
   estadoActual: EstadoPedido
   rolUsuario: 'asesor' | 'admin' | 'visor'
   sedeCodigo: string
+  // Pedido con varias prendas: cada una lleva su estado, así que los pasos intermedios son solo
+  // de lectura (solo se puede entregar o cancelar el pedido completo).
+  porPrenda?: boolean
 }
 
-export function SeguimientoBar({ pedidoId, estadoActual, rolUsuario, sedeCodigo }: SeguimientoBarProps) {
+export function SeguimientoBar({ pedidoId, estadoActual, rolUsuario, sedeCodigo, porPrenda = false }: SeguimientoBarProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -69,6 +72,7 @@ export function SeguimientoBar({ pedidoId, estadoActual, rolUsuario, sedeCodigo 
           const esPasado = pasoActual > i
           const esFuturo = pasoActual < i
           const esUltimo = i === flujo.length - 1
+          const bloqueadoPorPrenda = porPrenda && estado !== 'entregado'
 
           return (
             <div key={estado} className="flex-1 flex flex-col items-center gap-1.5 relative">
@@ -83,9 +87,9 @@ export function SeguimientoBar({ pedidoId, estadoActual, rolUsuario, sedeCodigo 
 
               {/* Círculo / icono */}
               <button
-                onClick={() => !esTerminal && !esVisor && !esPasado && !esActual && handleCambiar(estado)}
-                disabled={esVisor || esTerminal || esPasado || esActual || isPending}
-                title={esFuturo && !esTerminal ? `Mover a ${ESTADO_LABELS[estado]}` : undefined}
+                onClick={() => !esTerminal && !esVisor && !esPasado && !esActual && !bloqueadoPorPrenda && handleCambiar(estado)}
+                disabled={esVisor || esTerminal || esPasado || esActual || isPending || bloqueadoPorPrenda}
+                title={bloqueadoPorPrenda && esFuturo ? 'Cada prenda lleva su propio estado: cámbialo en la lista de prendas' : esFuturo && !esTerminal ? `Mover a ${ESTADO_LABELS[estado]}` : undefined}
                 className={`relative z-10 w-7 h-7 rounded-full flex items-center justify-center transition-all
                   ${esPasado ? 'bg-blue-500 text-white' : ''}
                   ${esActual ? 'bg-blue-600 text-white ring-4 ring-blue-100' : ''}
@@ -115,6 +119,12 @@ export function SeguimientoBar({ pedidoId, estadoActual, rolUsuario, sedeCodigo 
           )
         })}
       </div>
+
+      {porPrenda && !esTerminal && (
+        <p className="text-[11px] text-gray-500 text-center">
+          Este pedido tiene varias prendas: el estado de arriba es el de la prenda más atrasada. Cambia el estado de cada prenda en su lista.
+        </p>
+      )}
 
       {error && (
         <p className="text-xs text-red-600 text-center">{error}</p>

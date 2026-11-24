@@ -429,11 +429,12 @@ export default async function PedidoDetallePage({
                 estadoActual={pedido.estado}
                 rolUsuario={sesion.rol as 'asesor' | 'admin' | 'visor'}
                 sedeCodigo={pedido.sede_codigo}
+                porPrenda={estadoPorPrenda}
               />
               {/* Comprado sin factura ni valor: solo mientras el pedido sigue en camino
                   y no tiene compra/costo real registrado. */}
               {sesion.rol !== 'visor' && ['pendiente', 'comprado', 'usa'].includes(pedido.estado) && !pedido.factura_id
-                && (pedido.comprado_marcado || !pedido.tiene_compra) && (
+                && pedido.items.length <= 1 && (pedido.comprado_marcado || !pedido.tiene_compra) && (
                 <div className="mt-3">
                   <MarcarCompradoButton pedidoId={id} marcado={!!pedido.comprado_marcado} />
                 </div>

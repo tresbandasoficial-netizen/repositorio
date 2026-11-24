@@ -375,6 +375,26 @@ export type CambiarEstadoResult =
   | { ok: true }
   | { ok: false; error: string }
 
+// Estado por PRENDA (mig. 205): un pedido con varias prendas no avanza de estado como un todo,
+// porque cambiar_estado_pedido mueve TODAS sus prendas aunque no hayan llegado o comprado
+// todas. Solo se permite entregar o cancelar el pedido completo; lo demás se hace por prenda
+// (lista de prendas del pedido o galería). Devuelve el mensaje de bloqueo, o null si se puede.
+async function bloqueoVariasPrendas(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  pedidoId: string,
+  nuevoEstado: EstadoPedido,
+): Promise<string | null> {
+  if (nuevoEstado === 'entregado' || nuevoEstado === 'cancelado') return null
+  let prendas: PrendaPedido[]
+  try {
+    prendas = await prendasDePedido(supabase, pedidoId)
+  } catch (e) {
+    return e instanceof Error ? e.message : String(e)
+  }
+  if (prendas.length <= 1) return null
+  return `Este pedido tiene ${prendas.length} prendas y cada una lleva su propio estado: cámbialo prenda por prenda (en el detalle del pedido o en la galería), no el pedido completo.`
+}
+
 export async function cambiarEstadoAction(
   pedidoId: string,
   _estadoActualIgnorado: EstadoPedido,
@@ -403,6 +423,8 @@ export async function cambiarEstadoAction(
         : `Transición inválida: ${estadoActual} → ${nuevoEstado}`,
     }
   }
+  const bloqueo = await bloqueoVariasPrendas(supabase, pedidoId, nuevoEstado)
+  if (bloqueo) return { ok: false, error: bloqueo }
 
   // Regla: no se puede entregar sin factura (salvo venta inmediata).
   if (nuevoEstado === 'entregado') {
@@ -438,10 +460,13 @@ export async function cambiarEstadoAction(
 }
 
 // Igual que cambiarEstadoAction pero sin redirect (para cambio inline desde la lista)
+// `pedidoCompleto`: solo la vista "por pedido" de la galería lo pide a propósito (mover TODAS
+// las prendas). Sin eso, un pedido con varias prendas no cambia de estado como un todo.
 export async function cambiarEstadoInlineAction(
   pedidoId: string,
   _estadoActualIgnorado: EstadoPedido,
-  nuevoEstado: EstadoPedido
+  nuevoEstado: EstadoPedido,
+  pedidoCompleto = false,
 ): Promise<CambiarEstadoResult> {
   const sesion = await getSesion()
   const supabase = await createClient()
@@ -459,6 +484,10 @@ export async function cambiarEstadoInlineAction(
   const estadoActual = pedido.estado as EstadoPedido
   if (!puedeTransicionar(estadoActual, nuevoEstado, sesion.rol)) {
     return { ok: false, error: `Transición inválida: ${estadoActual} → ${nuevoEstado}` }
+  }
+  if (!pedidoCompleto) {
+    const bloqueo = await bloqueoVariasPrendas(supabase, pedidoId, nuevoEstado)
+    if (bloqueo) return { ok: false, error: bloqueo }
   }
 
   // Regla: no se puede entregar sin factura (salvo venta inmediata).

@@ -214,7 +214,7 @@ export function GaleriaPedidos({
         if (!r.ok) errores.push(`${g.pedido.numero_orden}: ${r.error}`)
         else marcadasTotal += r.partes.length
       } else {
-        const r = await cambiarEstadoInlineAction(g.pedido.id, g.pedido.estado as EstadoPedido, 'bucaramanga')
+        const r = await cambiarEstadoInlineAction(g.pedido.id, g.pedido.estado as EstadoPedido, 'bucaramanga', true)
         if (!r.ok) errores.push(`${g.pedido.numero_orden}: ${r.error}`)
         else marcadasTotal += 1
       }
