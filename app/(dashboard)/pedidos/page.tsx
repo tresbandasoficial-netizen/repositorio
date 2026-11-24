@@ -37,8 +37,9 @@ export default async function PedidosPage({
   const params = await searchParams
 
   const resultado = await getPedidos({
-    estado:       (params.estado === 'sin_factura' ? undefined : params.estado) as EstadoPedido | undefined,
+    estado:       (params.estado === 'sin_factura' || params.estado === 'sin_compra' ? undefined : params.estado) as EstadoPedido | undefined,
     sinFactura:   params.estado === 'sin_factura',
+    sinCompra:    params.estado === 'sin_compra',
     q:            params.q,
     alerta:       params.alerta === '1',
     pagina:       params.pagina ? parseInt(params.pagina) : 1,

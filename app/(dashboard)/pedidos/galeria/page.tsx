@@ -77,7 +77,7 @@ const ESTADOS: Array<{ value: string; label: string }> = [
   // No es un estado: son los pedidos a los que NUNCA se les registró la compra,
   // en cualquier estado. El estado se avanza a mano, así que hay pedidos en
   // "comprado" o "en USA" sin compra — por estado no se encuentran.
-  { value: 'sin_compra',  label: '⚠ Falta comprar (sin compra registrada)' },
+  { value: 'sin_compra',  label: '⚠ Sin comprar (sin compra registrada)' },
   { value: 'sin_factura', label: '🧾 Sin factura registrada (comprado sin valor)' },
   { value: 'pendiente',   label: ESTADO_LABELS.pendiente },
   { value: 'comprado',    label: ESTADO_LABELS.comprado },

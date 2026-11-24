@@ -8,10 +8,13 @@ import { EtiquetasPorNumero } from './EtiquetasPorNumero'
 import { EstadoPedido, ESTADO_LABELS } from '@/types'
 import { Search, AlertTriangle, Download, ChevronLeft, ChevronRight, Tag } from 'lucide-react'
 
-const ESTADOS: Array<{ value: EstadoPedido | 'sin_factura' | ''; label: string }> = [
+const ESTADOS: Array<{ value: EstadoPedido | 'sin_factura' | 'sin_compra' | ''; label: string }> = [
   { value: '',            label: 'Todos los estados' },
   { value: 'pendiente',   label: ESTADO_LABELS.pendiente },
   { value: 'comprado',    label: ESTADO_LABELS.comprado },
+  // No es un estado: son los pedidos a los que NUNCA se les registró la compra, en cualquier
+  // estado (el contrario de "Comprado", que es el que sí tiene compra).
+  { value: 'sin_compra',  label: '⚠ Sin comprar (sin compra registrada)' },
   { value: 'sin_factura', label: '🧾 Sin factura registrada' },
   { value: 'usa',         label: ESTADO_LABELS.usa },
   { value: 'bucaramanga', label: ESTADO_LABELS.bucaramanga },

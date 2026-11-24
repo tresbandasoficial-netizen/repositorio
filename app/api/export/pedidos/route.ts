@@ -49,7 +49,9 @@ export async function GET(request: NextRequest) {
     .order('fecha_creacion', { ascending: false })
     .order('id')
 
-  if (estado)           query = query.eq('estado', estado)
+  if (estado === 'sin_compra')       query = query.not('estado', 'in', '(cancelado,entregado)').eq('tiene_compra', false)
+  else if (estado === 'sin_factura') query = query.not('estado', 'in', '(cancelado,entregado)').eq('sin_factura_registrada', true)
+  else if (estado)                   query = query.eq('estado', estado)
   if (usuario.rol === 'admin' && sede) query = query.eq('sede_codigo', sede)
   if (alerta)           query = query.eq('en_alerta', true)
   if (fechaDesde)       query = query.gte('fecha_creacion', `${fechaDesde}T00:00:00`)
